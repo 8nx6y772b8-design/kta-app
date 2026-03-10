@@ -4238,6 +4238,11 @@ function MentorDashboard({currentUser, allUsers}) {
         })}
       </Card>
 
+      {/* ── Kristeena's Confidential Notes — only visible to her ── */}
+      {currentUser.email?.toLowerCase() === CONF_OWNER_EMAIL && (
+        <ConfidentialNotesCard currentUser={currentUser}/>
+      )}
+
       {/* ── Resources Card ── */}
       <Card style={{marginBottom:16}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
@@ -4257,6 +4262,248 @@ function MentorDashboard({currentUser, allUsers}) {
           </div>
         </div>
       </Card>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIDENTIAL NOTES — PIN-protected card, only visible to Kristeena
+// PIN is SHA-256 hashed. Notes stored in supabase table `confidential_notes`.
+// Auto-locks after 5 min inactivity. Locks 15 min after 3 wrong PINs.
+// ─────────────────────────────────────────────────────────────────────────────
+const CONF_OWNER_EMAIL = "kristeena@kta.org.nz"; // Only this user sees the card
+
+async function sha256hex(str) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+function ConfidentialNotesCard({ currentUser }) {
+  const STORAGE_PIN_KEY  = "kta_conf_pin_hash_v1";
+  const STORAGE_LOCK_KEY = "kta_conf_lockuntil_v1";
+  const AUTO_LOCK_MS     = 5 * 60 * 1000; // 5 min
+  const LOCKOUT_MS       = 15 * 60 * 1000; // 15 min lockout after 3 wrong
+
+  const [phase, setPhase]         = useState("locked"); // locked | setup | unlocked
+  const [pin, setPin]             = useState("");
+  const [pinError, setPinError]   = useState("");
+  const [wrongCount, setWrongCount] = useState(0);
+  const [lockUntil, setLockUntil] = useState(null);
+  const [now, setNow]             = useState(Date.now());
+  const [notes, setNotes]         = useState([]);
+  const [loading, setLoading]     = useState(false);
+  const [newTitle, setNewTitle]   = useState("");
+  const [newBody, setNewBody]     = useState("");
+  const [adding, setAdding]       = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const lockTimer = useRef(null);
+  const pinInputRef = useRef(null);
+
+  // Tick clock for lockout countdown
+  useEffect(()=>{
+    const t = setInterval(()=>setNow(Date.now()), 1000);
+    return ()=>clearInterval(t);
+  },[]);
+
+  // Check for existing lockout on mount
+  useEffect(()=>{
+    const lu = parseInt(localStorage.getItem(STORAGE_LOCK_KEY)||"0");
+    if(lu > Date.now()) setLockUntil(lu);
+    // Check if PIN already set
+    const stored = localStorage.getItem(STORAGE_PIN_KEY);
+    if(!stored) setPhase("setup");
+  },[]);
+
+  // Auto-lock timer reset on unlock
+  const resetLockTimer = useCallback(()=>{
+    if(lockTimer.current) clearTimeout(lockTimer.current);
+    lockTimer.current = setTimeout(()=>{ setPhase("locked"); setPin(""); }, AUTO_LOCK_MS);
+  },[]);
+
+  useEffect(()=>{ if(phase==="unlocked") resetLockTimer(); return ()=>{ if(lockTimer.current) clearTimeout(lockTimer.current); }; },[phase,resetLockTimer]);
+
+  // Load notes from Supabase when unlocked
+  useEffect(()=>{
+    if(phase!=="unlocked") return;
+    setLoading(true);
+    loadTable("confidential_notes")
+      .then(rows=>setNotes((rows||[]).sort((a,b)=>b.created_at?.localeCompare(a.created_at||"")||0)))
+      .catch(()=>setNotes([]))
+      .finally(()=>setLoading(false));
+  },[phase]);
+
+  const handlePinKey = (digit) => {
+    if(lockUntil && lockUntil > Date.now()) return;
+    const next = (pin + digit).slice(0, 4);
+    setPin(next);
+    setPinError("");
+    if(next.length === 4) setTimeout(()=>verifyPin(next), 80);
+  };
+
+  const verifyPin = async (attempt) => {
+    const stored = localStorage.getItem(STORAGE_PIN_KEY);
+    const hash   = await sha256hex(attempt);
+    if(hash === stored) {
+      setPhase("unlocked"); setPin(""); setWrongCount(0); setPinError("");
+    } else {
+      const wc = wrongCount + 1;
+      setWrongCount(wc);
+      setPin("");
+      if(wc >= 3) {
+        const lu = Date.now() + LOCKOUT_MS;
+        setLockUntil(lu);
+        localStorage.setItem(STORAGE_LOCK_KEY, String(lu));
+        setPinError("Too many attempts — locked for 15 minutes.");
+        setWrongCount(0);
+      } else {
+        setPinError(`Incorrect PIN (${3-wc} attempt${3-wc===1?"":"s"} remaining)`);
+      }
+    }
+  };
+
+  const setupPin = async () => {
+    if(pin.length < 4) return;
+    const hash = await sha256hex(pin);
+    localStorage.setItem(STORAGE_PIN_KEY, hash);
+    localStorage.removeItem(STORAGE_LOCK_KEY);
+    setPhase("locked"); setPin(""); setPinError("PIN set — please enter it to unlock.");
+  };
+
+  const addNote = async () => {
+    if(!newTitle.trim() && !newBody.trim()) return;
+    setSaving(true);
+    const row = { id: uid(), owner_id: currentUser.id, title: newTitle.trim()||"Untitled", body: newBody.trim(), created_at: new Date().toISOString() };
+    await upsertRow("confidential_notes", row).catch(console.error);
+    setNotes(prev=>[row,...prev]);
+    setNewTitle(""); setNewBody(""); setAdding(false);
+    setSaving(false); resetLockTimer();
+  };
+
+  const deleteNote = async (id) => {
+    await deleteRow("confidential_notes", id).catch(console.error);
+    setNotes(prev=>prev.filter(n=>n.id!==id));
+    setDeleteConfirm(null); resetLockTimer();
+  };
+
+  const lockedSecs = lockUntil ? Math.max(0, Math.ceil((lockUntil - now)/1000)) : 0;
+  const isLockedOut = lockUntil && lockUntil > now;
+
+  // ── Styles ──
+  const cardStyle = { background:"#fff", borderRadius:14, border:`1.5px solid #c084fc55`,
+    boxShadow:"0 2px 18px #a855f711", padding:24, marginBottom:16 };
+  const headerStyle = { display:"flex", alignItems:"center", gap:12, marginBottom:20 };
+  const iconBox = { width:42, height:42, borderRadius:12, background:"#f3e8ff",
+    display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 };
+  const pinBtn = (d) => ({
+    width:64, height:64, borderRadius:12, border:`1.5px solid #d8b4fe`,
+    background:"#faf5ff", color:"#6b21a8", fontSize:22, fontWeight:700,
+    cursor: isLockedOut?"not-allowed":"pointer", fontFamily:"DM Sans,sans-serif",
+    transition:"all .1s", opacity: isLockedOut ? 0.4 : 1,
+  });
+  const dotStyle = (filled) => ({
+    width:14, height:14, borderRadius:"50%",
+    background: filled ? "#9333ea" : "#e9d5ff",
+    transition:"background .15s",
+  });
+
+  // ── Locked / Setup view ──
+  const renderPinScreen = () => (
+    <div style={{textAlign:"center", padding:"8px 0 4px"}}>
+      <div style={{fontSize:13, color:"#7e22ce", marginBottom:18, fontWeight:500}}>
+        {phase==="setup" ? "Set a 4-digit PIN to protect these notes" : "Enter your 4-digit PIN"}
+      </div>
+      {/* PIN dots */}
+      <div style={{display:"flex", gap:12, justifyContent:"center", marginBottom:20}}>
+        {[0,1,2,3].map(i=><div key={i} style={dotStyle(pin.length>i)}/>)}
+      </div>
+      {/* Numpad */}
+      <div style={{display:"inline-grid", gridTemplateColumns:"repeat(3,64px)", gap:10, marginBottom:16}}>
+        {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((d,i)=>(
+          d===""
+            ? <div key={i}/>
+            : <button key={i} style={pinBtn(d)}
+                onClick={()=>d==="⌫" ? setPin(p=>p.slice(0,-1)) : handlePinKey(d)}>
+                {d}
+              </button>
+        ))}
+      </div>
+      {phase==="setup" && pin.length===4 && (
+        <div style={{marginTop:4}}>
+          <button onClick={setupPin} style={{background:"#9333ea", color:"#fff", border:"none", borderRadius:8, padding:"10px 28px", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>
+            Save PIN
+          </button>
+        </div>
+      )}
+      {pinError && <div style={{fontSize:12, color: isLockedOut?"#991b1b":"#b91c1c", marginTop:10, fontWeight:600}}>{pinError}</div>}
+      {isLockedOut && <div style={{fontSize:12, color:"#6b7280", marginTop:6}}>Try again in {Math.floor(lockedSecs/60)}:{String(lockedSecs%60).padStart(2,"0")}</div>}
+    </div>
+  );
+
+  // ── Unlocked view ──
+  const renderNotes = () => (
+    <div onClick={resetLockTimer}>
+      <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16}}>
+        <div style={{fontSize:12, color:"#9333ea", fontWeight:600}}>🔓 Unlocked · auto-locks after 5 min inactivity</div>
+        <div style={{display:"flex", gap:8}}>
+          <button onClick={()=>{setAdding(s=>!s); resetLockTimer();}} style={{background:"#9333ea", color:"#fff", border:"none", borderRadius:7, padding:"6px 14px", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>
+            {adding?"✕ Cancel":"+ Add Note"}
+          </button>
+          <button onClick={()=>{setPhase("locked"); setPin(""); if(lockTimer.current)clearTimeout(lockTimer.current);}} style={{background:"#f3e8ff", color:"#6b21a8", border:"1.5px solid #d8b4fe", borderRadius:7, padding:"6px 14px", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>
+            🔒 Lock
+          </button>
+        </div>
+      </div>
+
+      {adding && (
+        <div style={{background:"#faf5ff", borderRadius:10, padding:16, marginBottom:16, border:"1.5px solid #d8b4fe"}}>
+          <input placeholder="Note title…" value={newTitle} onChange={e=>{setNewTitle(e.target.value);resetLockTimer();}}
+            style={{width:"100%", fontWeight:700, fontSize:14, border:"none", background:"transparent", outline:"none", marginBottom:8, fontFamily:"DM Sans,sans-serif", color:"#1e1b4b"}}/>
+          <textarea placeholder="Enter confidential note…" value={newBody} onChange={e=>{setNewBody(e.target.value);resetLockTimer();}}
+            rows={5} style={{width:"100%", border:"none", background:"transparent", outline:"none", fontSize:13, fontFamily:"DM Sans,sans-serif", color:"#374151", resize:"vertical", lineHeight:1.6}}/>
+          <div style={{display:"flex", justifyContent:"flex-end", gap:8, marginTop:8}}>
+            <button onClick={addNote} disabled={saving} style={{background:"#9333ea", color:"#fff", border:"none", borderRadius:7, padding:"7px 18px", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>
+              {saving?"Saving…":"Save Note"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {loading && <div style={{textAlign:"center", padding:24, color:"#9ca3af", fontSize:13}}>Loading…</div>}
+      {!loading && notes.length===0 && !adding && (
+        <div style={{textAlign:"center", padding:24, color:"#c084fc", fontSize:13, fontStyle:"italic"}}>No confidential notes yet.</div>
+      )}
+      {notes.map(n=>(
+        <div key={n.id} style={{borderBottom:"1px solid #f3e8ff", padding:"14px 0"}}>
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
+            <div style={{fontWeight:700, fontSize:13, color:"#1e1b4b", marginBottom:4}}>{n.title}</div>
+            <div style={{display:"flex", gap:6, alignItems:"center", flexShrink:0, marginLeft:12}}>
+              <div style={{fontSize:11, color:"#9ca3af"}}>{n.created_at ? new Date(n.created_at).toLocaleDateString("en-NZ",{day:"numeric",month:"short",year:"numeric"}) : ""}</div>
+              {deleteConfirm===n.id
+                ? <>
+                    <button onClick={()=>deleteNote(n.id)} style={{background:"#fde8e8", color:"#b91c1c", border:"1.5px solid #f87171", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>Confirm delete</button>
+                    <button onClick={()=>setDeleteConfirm(null)} style={{background:"#f3e8ff", color:"#6b21a8", border:"1.5px solid #d8b4fe", borderRadius:6, padding:"3px 10px", fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>Cancel</button>
+                  </>
+                : <button onClick={()=>setDeleteConfirm(n.id)} style={{background:"none", border:"none", color:"#d8b4fe", cursor:"pointer", fontSize:14, padding:"0 4px"}}>✕</button>
+              }
+            </div>
+          </div>
+          <div style={{fontSize:13, color:"#374151", lineHeight:1.7, whiteSpace:"pre-wrap"}}>{n.body}</div>
+        </div>
+      ))}
+    </div>
+  );
+
+  return (
+    <div style={cardStyle}>
+      <div style={headerStyle}>
+        <div style={iconBox}>🔐</div>
+        <div>
+          <div style={{fontFamily:"'Libre Baskerville'", fontSize:16, fontWeight:700, color:"#581c87"}}>Kristeena Confidential Notes</div>
+          <div style={{fontSize:12, color:"#9333ea", marginTop:2}}>PIN-protected · not visible to any other user · auto-locks</div>
+        </div>
+      </div>
+      {phase==="unlocked" ? renderNotes() : renderPinScreen()}
     </div>
   );
 }
