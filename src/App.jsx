@@ -1345,6 +1345,7 @@ function UserManagement({users, setUsers, currentUser}) {
   const [showPw,setShowPw]=useState(false);
   const [appApprover, setAppApprover] = useState("");
   const [appViewer,   setAppViewer]   = useState("");
+  const [appMentor,   setAppMentor]   = useState("");
   const sf=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   const toggleAlloc=(uid)=>setForm(f=>({...f,allocatedTo:f.allocatedTo.includes(uid)?f.allocatedTo.filter(x=>x!==uid):[...f.allocatedTo,uid]}));
@@ -1359,6 +1360,7 @@ function UserManagement({users, setUsers, currentUser}) {
     if(finalForm.role==="Apprentice") {
       finalForm.approverUserId = appApprover||null;
       finalForm.viewerUserId   = appViewer||null;
+      finalForm.mentorUserId   = appMentor||null;
     }
     // Clear secondaryRole if not Admin; default adminLevel to 1 for non-admins
     if(finalForm.role!=="Admin") { finalForm.secondaryRole = null; finalForm.adminLevel = null; }
@@ -1388,7 +1390,7 @@ function UserManagement({users, setUsers, currentUser}) {
     });
     setEditId(null);
     setForm(blank);setPwField("");setShowForm(false);
-    setAppApprover("");setAppViewer("");
+    setAppApprover("");setAppViewer("");setAppMentor("");
   };
 
   const startEdit=(u)=>{
@@ -1407,6 +1409,7 @@ function UserManagement({users, setUsers, currentUser}) {
       const viewerFromAlloc    = users.find(x=>["Viewer","Admin"].includes(x.role)&&(x.allocatedTo||[]).includes(u.id))?.id||"";
       setAppApprover(approverFromRecord||approverFromAlloc);
       setAppViewer(viewerFromRecord||viewerFromAlloc);
+      setAppMentor(u.mentorUserId||"");
     }
     setTimeout(()=>document.getElementById("um-form")?.scrollIntoView({behavior:"smooth",block:"start"}),50);
   };
@@ -1594,12 +1597,21 @@ function UserManagement({users, setUsers, currentUser}) {
                   ))}
                 </select>
               </div>
+              <div>
+                <FL>Mentor <span style={{fontWeight:400,color:T.muted}}>(assigned KTA mentor)</span></FL>
+                <select value={appMentor} onChange={e=>setAppMentor(e.target.value)}>
+                  <option value="">— None —</option>
+                  {users.filter(u=>u.role==="Mentor"||(u.role==="Admin")).map(u=>(
+                    <option key={u.id} value={u.id}>{u.name}{u.role==="Admin"?" (Admin)":""}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
 
           <div style={{display:"flex",gap:8}}>
             <Btn onClick={submit}>{editId?"Update User":"Create User"}</Btn>
-            <Btn v="ghost" onClick={()=>{setShowForm(false);setEditId(null);setAppApprover("");setAppViewer("");}}>Cancel</Btn>
+            <Btn v="ghost" onClick={()=>{setShowForm(false);setEditId(null);setAppApprover("");setAppViewer("");setAppMentor("");}}>Cancel</Btn>
           </div>
         </Card>
       )}

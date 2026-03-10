@@ -29,9 +29,10 @@ export const rowToUser = (r) => ({
   secondaryRole:  r.secondary_role   || null,
   adminLevel:     r.admin_level      || 1,
   xeroEmployeeId: r.xero_employee_id || null,
-  overtimeType:      r.overtime_type      || null,  // 'daily' | 'weekly' | null
-  overtimeThreshold: r.overtime_threshold || null,  // hours number
-  overtimeRateId:    r.overtime_rate_id   || null,  // Xero earnings rate ID
+  overtimeType:      r.overtime_type      || null,
+  overtimeThreshold: r.overtime_threshold || null,
+  overtimeRateId:    r.overtime_rate_id   || null,
+  mentorUserId:      r.mentor_user_id     || null,
 });
 
 export const rowToEntry = (r) => ({
@@ -74,6 +75,7 @@ export const userToRow = (u) => ({
   overtime_type:      u.overtimeType      || null,
   overtime_threshold: u.overtimeThreshold || null,
   overtime_rate_id:   u.overtimeRateId    || null,
+  mentor_user_id:     u.mentorUserId      || null,
 });
 
 export const entryToRow = (e) => ({
