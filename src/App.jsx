@@ -822,6 +822,15 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
         .map(u=>u.id);
       return [...new Set([currentUser.id,...fromAlloc,...fromApprentice])];
     }
+    if(role==="Mentor") {
+      // Legacy: allocatedTo on the mentor record
+      const fromAlloc = currentUser.allocatedTo||[];
+      // New: apprentices who have this user set as their mentor
+      const fromApprentice = allUsers
+        .filter(u=>u.role==="Apprentice"&&u.mentorUserId===currentUser.id)
+        .map(u=>u.id);
+      return [...new Set([...fromAlloc,...fromApprentice])];
+    }
     return [currentUser.id];
   },[role,currentUser,allUsers,forcedApprenticeId]);
 
@@ -4123,9 +4132,12 @@ function MentorDashboard({currentUser, allUsers}) {
   const [apprenticeSummaries, setApprenticeSummaries] = useState({}); // id -> {lastVisit, reportCount}
   const [loadingMeta, setLoadingMeta] = useState(true);
 
-  // Mentor's allocated apprentices
+  // Mentor's allocated apprentices — check both allocatedTo (legacy) and mentorUserId (new)
   const myApprentices = allUsers.filter(u=>
-    u.role==="Apprentice" && (currentUser.allocatedTo||[]).includes(u.id)
+    u.role==="Apprentice" && (
+      (currentUser.allocatedTo||[]).includes(u.id) ||
+      u.mentorUserId===currentUser.id
+    )
   ).sort((a,b)=>a.name.localeCompare(b.name));
 
   // Load meeting report meta for each apprentice
