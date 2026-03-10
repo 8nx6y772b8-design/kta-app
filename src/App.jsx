@@ -122,12 +122,14 @@ const ROLE_META = {
   "Admin 2":  { color: "#6d5fc7", bg: "#ede9ff",symbol: "☆", desc: "User management, timesheet view — cannot edit or delete messages" },
 };
 
-const ENTRY_TYPES = ["Normal Hours","Annual Leave","Sick Leave","Public Holiday","Other"];
+const ENTRY_TYPES = ["Normal Hours","Annual Leave","Sick Leave","Public Holiday","Overtime","Block Course","Other"];
 const TYPE_META = {
   "Normal Hours":   { color: T.accent, bg: T.accentL, sym: "◈" },
   "Annual Leave":   { color: T.warn,   bg: T.warnL,   sym: "☀" },
   "Sick Leave":     { color: T.red,    bg: T.redL,    sym: "✚" },
   "Public Holiday": { color: T.hol,    bg: T.holL,    sym: "★" },
+  "Overtime":       { color: T.gold,   bg: T.goldL,   sym: "⚡" },
+  "Block Course":   { color: T.teal,   bg: T.tealL,   sym: "🎓" },
   "Other":          { color: T.slate,  bg: T.slateL,  sym: "◉" },
 };
 const APPROVAL_META = {
@@ -4484,10 +4486,12 @@ function ApprenticeConversation({apprentice, allUsers, currentUser, canManageMes
 // Xero Payroll NZ earnings rate IDs — these must be configured per organisation
 // Admins set their own IDs in the Xero module settings
 const XERO_DEFAULT_RATES = {
-  "Normal Hours":   null,  // set per-org
+  "Normal Hours":   null,
   "Annual Leave":   null,
   "Sick Leave":     null,
   "Public Holiday": null,
+  "Overtime":       null,
+  "Block Course":   null,
   "Other":          null,
 };
 
@@ -4615,7 +4619,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
   const xeroBlue = "#13b5ea";
   const xeroBlueDark = "#0d7bb5";
 
-  const ENTRY_TYPE_NAMES = ["Normal Hours","Annual Leave","Sick Leave","Public Holiday","Other"];
+  const ENTRY_TYPE_NAMES = ["Normal Hours","Annual Leave","Sick Leave","Public Holiday","Overtime","Block Course","Other"];
 
   const TabBtn = ({id,label,count}) => (
     <button onClick={()=>setTab(id)} style={{
