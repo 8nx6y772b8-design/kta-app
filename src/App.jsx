@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists } from "./supabaseClient";
+import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage } from "./supabaseClient";
 import emailjs from "@emailjs/browser";
 
 const EJS_SERVICE  = "service_j3lmexe";
@@ -22,7 +22,7 @@ const sendBrowserPush = (title, body, type="info") => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS — KTA brand palette (kta.org.nz)
+// DESIGN TOKENS
 // ─────────────────────────────────────────────────────────────────────────────
 const T = {
   bg: "#f0f4f9", surface: "#ffffff", border: "#d0daea",
@@ -35,12 +35,73 @@ const T = {
   teal: "#1a8a7a", tealL: "#d4f0ec",
   gold: "#a07820", goldL: "#fdf3d4",
   slate: "#4a5568", slateL: "#edf2f7",
-  dark: "#0a1628", dark2: "#0d1e36",
+  dark: "#2980B9", dark2: "#2472a4",
 };
 
-// KTA logo URL (from kta.org.nz)
+// KTA logo (from kta.org.nz)
 const KTA_LOGO = "https://images.squarespace-cdn.com/content/v1/682fe0a84dcaf578b10d7882/cca16351-c2c6-4895-be1c-24f4a540ee3c/Copy+of+KTA+LOGO+BLUE+No+Background.png?format=300w";
 
+// ─── HubSpot lookup ──────────────────────────────────────────────────────────
+const lookupHubspot = async (value) => {
+  const token = import.meta.env.VITE_HUBSPOT_TOKEN;
+  if(!token) return null;
+  const isPhone = /^[+\d\s\-()]{6,}$/.test(value) && !/[@.]/.test(value);
+  const property = isPhone ? "phone" : "email";
+  try {
+    // HubSpot search — try exact match first
+    const res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({
+        filterGroups: [{ filters: [{ propertyName: property, operator: "EQ", value: value.trim() }] }],
+        properties: ["firstname","lastname","email","phone","company","jobtitle"],
+        limit: 1,
+      }),
+    });
+    if(!res.ok) return null;
+    const data = await res.json();
+    // If phone search returned nothing, try searching all and matching
+    if(!data.results?.length && isPhone) {
+      const res2 = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({
+          filterGroups: [{ filters: [{ propertyName: "phone", operator: "CONTAINS_TOKEN", value: value.replace(/\D/g,"").slice(-8) }] }],
+          properties: ["firstname","lastname","email","phone","company","jobtitle"],
+          limit: 1,
+        }),
+      });
+      if(res2.ok) {
+        const data2 = await res2.json();
+        if(data2.results?.length) {
+          const p = data2.results[0].properties;
+          return {
+            name:    [p.firstname, p.lastname].filter(Boolean).join(" ") || "",
+            email:   p.email || "",
+            phone:   p.phone || value,
+            company: p.company || "",
+            notes:   p.jobtitle ? `Job title: ${p.jobtitle}` : "",
+            status:  "Active",
+          };
+        }
+      }
+      return null;
+    }
+    if(!data.results?.length) return null;
+    const p = data.results[0].properties;
+    return {
+      name:    [p.firstname, p.lastname].filter(Boolean).join(" ") || "",
+      email:   p.email || (isPhone ? "" : value),
+      phone:   p.phone || (isPhone ? value : ""),
+      company: p.company || "",
+      notes:   p.jobtitle ? `Job title: ${p.jobtitle}` : "",
+      status:  "Active",
+    };
+  } catch(e) {
+    console.warn("HubSpot lookup failed:", e);
+    return null;
+  }
+};
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -51,6 +112,8 @@ const ROLE_META = {
   Viewer:     { color: T.teal,   bg: T.tealL,  symbol: "◆", desc: "View all timesheet stages for allocated apprentices — read only" },
   Mentor:     { color: T.gold,   bg: T.goldL,  symbol: "✦", desc: "View allocated apprentice timesheets (read-only) and full CRM access" },
   Admin:      { color: T.accent, bg: T.accentL,symbol: "★", desc: "Full access — manage all users, timesheets & CRM" },
+  "Admin 1":  { color: T.accent, bg: T.accentL,symbol: "★", desc: "Full access including message history management" },
+  "Admin 2":  { color: "#6d5fc7", bg: "#ede9ff",symbol: "☆", desc: "User management, timesheet view — cannot edit or delete messages" },
 };
 
 const ENTRY_TYPES = ["Normal Hours","Annual Leave","Sick Leave","Public Holiday","Other"];
@@ -78,38 +141,17 @@ const STAGES = ["Lead","Qualified","Proposal","Negotiation","Won","Lost"];
 const STAGE_C = { Lead:T.muted, Qualified:T.blue, Proposal:T.warn, Negotiation:T.hol, Won:T.accent, Lost:T.red };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SEED DATA  — passwords are "password" for all demo accounts
+// AUTH HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
-// Simple hash: just XOR + encode so passwords aren't plaintext in storage
+// Simple hash: XOR + encode so passwords aren't plaintext in storage
 const hashPw = (pw) => btoa([...pw].map((c,i)=>String.fromCharCode(c.charCodeAt(0)^(42+i%7))).join(""));
 const checkPw = (pw, hash) => hashPw(pw) === hash;
-
-const DEFAULT_PW = hashPw("password");
-
-const SEED_USERS = [
-  { id:"u1", name:"Alex Admin",       role:"Admin",      email:"admin@work.com",   password:DEFAULT_PW, allocatedTo:[], phone:"+61 400 001 001" },
-  { id:"u2", name:"Sam Viewer",       role:"Viewer",     email:"sam@work.com",     password:DEFAULT_PW, allocatedTo:["u5","u6"], phone:"+61 400 001 002" },
-  { id:"u3", name:"Ava Approver",     role:"Approver",   email:"ava@work.com",     password:DEFAULT_PW, allocatedTo:["u5","u6"], phone:"+61 400 001 003" },
-  { id:"u4", name:"Mike Mentor",      role:"Mentor",     email:"mike@work.com",    password:DEFAULT_PW, allocatedTo:["u5","u6","u2"], phone:"+61 400 001 004" },
-  { id:"u5", name:"Jamie Apprentice", firstName:"Jamie", lastName:"Apprentice", role:"Apprentice", email:"jamie@work.com", password:DEFAULT_PW, allocatedTo:[], phone:"+61 400 001 005", trade:"Electrical",  licenceExpiry:"2026-06-30" },
-  { id:"u6", name:"Riley Apprentice", firstName:"Riley", lastName:"Apprentice",  role:"Apprentice", email:"riley@work.com",  password:DEFAULT_PW, allocatedTo:[], phone:"+61 400 001 006", trade:"Plumbing",    licenceExpiry:"2025-12-31" },
-];
-
-const tod = () => new Date().toISOString().slice(0,10);
-const daysAgo = n => { const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); };
-
-const SEED_ENTRIES = [
-  { id:"e1", userId:"u5", date:daysAgo(0), type:"Normal Hours", start:"08:00", end:"16:30", breakMins:30, netHours:8,   note:"Site work",    approval:"submitted"},
-  { id:"e2", userId:"u5", date:daysAgo(1), type:"Normal Hours", start:"08:00", end:"16:30", breakMins:30, netHours:8,   note:"Workshop",     approval:"approved" },
-  { id:"e3", userId:"u5", date:daysAgo(3), type:"Sick Leave",   start:"08:00", end:"16:00", breakMins:0,  netHours:8,   note:"Unwell",       approval:"approved" },
-  { id:"e4", userId:"u6", date:daysAgo(0), type:"Normal Hours", start:"07:30", end:"15:30", breakMins:30, netHours:7.5, note:"Training",     approval:"submitted"},
-  { id:"e5", userId:"u6", date:daysAgo(2), type:"Annual Leave", start:"08:00", end:"16:00", breakMins:0,  netHours:8,   note:"Holiday",      approval:"approved" },
-];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UTILS
 // ─────────────────────────────────────────────────────────────────────────────
 const uid      = () => Math.random().toString(36).slice(2,9);
+const tod      = () => new Date().toISOString().slice(0,10);
 const toMin    = t => { const[h,m]=t.split(":").map(Number); return h*60+m; };
 const calcNet  = (s,e,b) => { const d=toMin(e)-toMin(s)-b; return d>0?+(d/60).toFixed(2):0; };
 const fmtD     = d => new Date(d+"T00:00:00").toLocaleDateString("en-AU",{weekday:"short",day:"numeric",month:"short"});
@@ -170,14 +212,14 @@ const notifyApprentice = async (apprentice, approver, entries, approved) => {
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-  html,body{background:${T.bg};font-family:"DM Sans",sans-serif;color:${T.ink};font-size:14px;}
+  html,body{background:${T.bg};font-family:"DM Sans",sans-serif;color:${T.ink};font-size:14px;-webkit-tap-highlight-color:transparent;}
   ::-webkit-scrollbar{width:5px;height:5px;}
   ::-webkit-scrollbar-track{background:${T.border};}
   ::-webkit-scrollbar-thumb{background:${T.muted};border-radius:3px;}
   select,input,textarea{
     font-family:"DM Sans",sans-serif;background:${T.surface};
     border:1.5px solid ${T.border};color:${T.ink};border-radius:9px;
-    padding:9px 12px;font-size:13px;outline:none;width:100%;
+    padding:9px 12px;font-size:16px;outline:none;width:100%;
     transition:border-color .15s,box-shadow .15s;
     appearance:none;-webkit-appearance:none;
   }
@@ -189,7 +231,7 @@ const CSS = `
   input:focus,select:focus,textarea:focus{border-color:${T.accent};box-shadow:0 0 0 3px ${T.accentL};}
   input[type=date]::-webkit-calendar-picker-indicator{opacity:.4;cursor:pointer;}
   button{cursor:pointer;font-family:"DM Sans",sans-serif;border:none;transition:all .14s;}
-  textarea{resize:vertical;min-height:64px;line-height:1.55;}
+  textarea{resize:vertical;min-height:64px;line-height:1.55;font-size:16px;}
 
   @keyframes fadeUp  {from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
   @keyframes fadeIn  {from{opacity:0;}to{opacity:1;}}
@@ -201,46 +243,108 @@ const CSS = `
   .ri{animation:rowIn .22s ease both;}
   .shake{animation:shake .35s ease;}
 
-  /* Login page styles */
-  .login-wrap{
-    min-height:100vh;display:flex;
-    background: linear-gradient(135deg, ${T.dark} 0%, ${T.dark2} 50%, #0d2d5e 100%);
-  }
-  .login-left{
-    flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;
-    padding:60px;position:relative;overflow:hidden;
-  }
-  .login-left::before{
-    content:"";position:absolute;inset:0;
-    background:radial-gradient(ellipse at 30% 50%, ${T.accent}22 0%, transparent 60%),
-               radial-gradient(ellipse at 80% 20%, ${T.blue}14 0%, transparent 50%);
-  }
-  .login-right{
-    width:440px;flex-shrink:0;background:${T.surface};
-    display:flex;flex-direction:column;justify-content:center;padding:56px 48px;
-    box-shadow:-20px 0 60px #00000033;
-  }
+  /* Login page */
+  .login-wrap{min-height:100vh;display:flex;background:linear-gradient(135deg,${T.dark} 0%,${T.dark2} 50%,#2060a0 100%);}
+  .login-left{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:60px;position:relative;overflow:hidden;}
+  .login-left::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 30% 50%,${T.accent}22 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,${T.blue}14 0%,transparent 50%);}
+  .login-right{width:440px;flex-shrink:0;background:${T.surface};display:flex;flex-direction:column;justify-content:center;padding:56px 48px;box-shadow:-20px 0 60px #00000033;overflow-y:auto;}
   .login-input-wrap{position:relative;margin-bottom:14px;}
-  .login-input-wrap input{
-    padding:12px 16px 12px 44px;
-    background:#f9f8f5;border:1.5px solid ${T.border};
-    font-size:14px;border-radius:10px;
-  }
+  .login-input-wrap input{padding:13px 16px 13px 44px;background:#f9f8f5;border:1.5px solid ${T.border};font-size:16px;border-radius:10px;}
   .login-input-wrap input:focus{background:white;}
-  .login-icon{
-    position:absolute;left:14px;top:50%;transform:translateY(-50%);
-    font-size:16px;color:${T.muted};pointer-events:none;
-  }
-  .pw-toggle{
-    position:absolute;right:12px;top:50%;transform:translateY(-50%);
-    background:none;border:none;color:${T.muted};cursor:pointer;
-    font-size:13px;padding:2px 6px;border-radius:4px;
-    font-family:"DM Sans",sans-serif;
-  }
+  .login-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:16px;color:${T.muted};pointer-events:none;}
+  .pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:${T.muted};cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;font-family:"DM Sans",sans-serif;}
   .pw-toggle:hover{color:${T.sub};}
-  .demo-card{
-    background:${T.dark2};border:1px solid #ffffff12;border-radius:10px;
-    padding:14px 18px;margin-top:6px;
+
+  /* App shell */
+  .desktop-nav{display:flex;}
+  .desktop-user-name{display:block;}
+  .desktop-signout{display:flex;}
+  .bottom-nav{display:none;}
+  .main-content{max-width:1300px;margin:0 auto;padding:28px 24px;}
+  .stat-grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px;}
+  .stat-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:22px;}
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+  /* Form grid defaults (desktop) */
+  .fg3{grid-template-columns:1fr 1fr 1fr;}
+  .fg2{grid-template-columns:1fr 1fr;}
+  .fg-entry{grid-template-columns:1fr 1fr;}
+  .fg-addr{grid-template-columns:2fr 1fr 1fr 1fr;}
+
+  /* ── MOBILE ──────────────────────────────────────────── */
+  @media(max-width:768px){
+    /* Login — stack vertically */
+    .login-wrap{flex-direction:column;}
+    .login-left{flex:none;padding:32px 24px 24px;align-items:flex-start;}
+    .login-left h1{font-size:26px !important;margin-bottom:12px !important;}
+    .login-left p,.login-left .role-badges{display:none;}
+    .login-right{width:100%;flex:1;padding:28px 20px max(32px,env(safe-area-inset-bottom));box-shadow:none;border-radius:22px 22px 0 0;margin-top:-16px;z-index:2;position:relative;}
+
+    /* Header — compact */
+    .desktop-nav{display:none !important;}
+    .desktop-user-name{display:none !important;}
+    .desktop-signout{display:none !important;}
+
+    /* Bottom tab bar */
+    .bottom-nav{
+      display:flex;position:fixed;bottom:0;left:0;right:0;z-index:200;
+      background:${T.dark};border-top:1px solid #ffffff15;
+      padding:6px 0 max(6px,env(safe-area-inset-bottom));
+      box-shadow:0 -4px 24px #00000044;
+    }
+    .bottom-nav-btn{
+      flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:2px;background:none;border:none;padding:4px 2px;cursor:pointer;
+      font-family:"DM Sans",sans-serif;transition:all .14s;min-height:52px;
+    }
+    .bottom-nav-icon{font-size:22px;line-height:1;display:block;}
+    .bottom-nav-label{font-size:10px;font-weight:600;letter-spacing:.2px;display:block;}
+    .bottom-nav-btn.active .bottom-nav-icon,
+    .bottom-nav-btn.active .bottom-nav-label{color:${T.accentL};}
+    .bottom-nav-btn:not(.active) .bottom-nav-icon,
+    .bottom-nav-btn:not(.active) .bottom-nav-label{color:#ffffff40;}
+    .bottom-nav-btn.active{position:relative;}
+    .bottom-nav-btn.active::before{content:"";position:absolute;top:0;left:20%;right:20%;height:2px;background:${T.accentL};border-radius:0 0 3px 3px;}
+
+    /* Main */
+    .main-content{padding:14px 12px 86px;}
+
+    /* Stat grids */
+    .stat-grid-4{grid-template-columns:repeat(2,1fr);gap:10px;}
+    .stat-grid-3{grid-template-columns:repeat(2,1fr);gap:10px;}
+
+    /* Page heading */
+    .page-heading{font-size:20px !important;}
+
+    /* Form grids collapse to 1 or 2 col */
+    .fg3{grid-template-columns:1fr !important;}
+    .fg2{grid-template-columns:1fr !important;}
+    .fg-addr{grid-template-columns:1fr 1fr !important;}
+    .fg-entry{grid-template-columns:1fr 1fr !important;}
+
+    /* Table horizontal scroll */
+    .table-scroll{margin:0 -12px;border-radius:0 !important;}
+
+    /* Hide less-important table columns on mobile via utility class */
+    .hide-mobile{display:none !important;}
+
+    /* Notification bell dropdown — full width on mobile */
+    .notif-dropdown{
+      position:fixed !important;
+      top:58px !important;
+      left:8px !important;
+      right:8px !important;
+      width:auto !important;
+      max-width:100vw !important;
+    }
+    .notif-dropdown .notif-title{white-space:normal !important;word-break:break-word;}
+    .notif-dropdown .notif-msg{white-space:pre-wrap !important;word-break:break-word;}
+  }
+
+  @media(max-width:400px){
+    .login-right{padding:22px 16px max(28px,env(safe-area-inset-bottom));}
+    .main-content{padding:12px 10px 84px;}
+    .stat-grid-4,.stat-grid-3{grid-template-columns:repeat(2,1fr);gap:8px;}
   }
 `;
 
@@ -254,7 +358,11 @@ const Pill = ({label,color,bg,sym,size="md"}) => (
     {sym&&<span style={{fontSize:size==="sm"?9:10}}>{sym}</span>}{label}
   </span>
 );
-const RolePill = ({role,size="md"}) => { const m=ROLE_META[role]||ROLE_META.Apprentice; return <Pill label={role} color={m.color} bg={m.bg} sym={m.symbol} size={size}/> };
+const RolePill = ({role, size="md", adminLevel=null}) => {
+  const displayRole = role==="Admin" && adminLevel ? `Admin ${adminLevel}` : role;
+  const m = ROLE_META[displayRole] || ROLE_META[role] || ROLE_META.Apprentice;
+  return <Pill label={displayRole} color={m.color} bg={m.bg} sym={m.symbol} size={size}/>;
+};
 const TypePill = ({type,size="md"}) => { const m=TYPE_META[type]||TYPE_META["Other"]; return <Pill label={type} color={m.color} bg={m.bg} sym={m.sym} size={size}/> };
 const AppvPill = ({status}) => { const m=APPROVAL_META[status]||APPROVAL_META.draft; return <Pill label={m.label} color={m.color} bg={m.bg} sym={m.sym} size="sm"/> };
 
@@ -322,13 +430,46 @@ function LoginScreen({users, onLogin}) {
   const [err, setErr]       = useState("");
   const [loading, setLoading] = useState(false);
   const [shaking, setShaking] = useState(false);
-  const [demoOpen, setDemoOpen] = useState(false);
+  const [forgotMode, setForgotMode]   = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotMsg, setForgotMsg]     = useState(null); // {ok, text}
+  const [forgotSending, setForgotSending] = useState(false);
+
+  const sendReset = async () => {
+    if(!forgotEmail.trim()) { setForgotMsg({ok:false,text:"Please enter your email address."}); return; }
+    const user = users.find(u=>u.email.toLowerCase()===forgotEmail.trim().toLowerCase());
+    setForgotSending(true);
+    // Small delay so it feels like something is happening regardless
+    await new Promise(r=>setTimeout(r,800));
+    setForgotSending(false);
+    if(!user) {
+      // Don't reveal whether email exists — always show success for security
+      setForgotMsg({ok:true,text:"If that email is registered, a reset link has been sent."});
+      return;
+    }
+    // Send reset email via EmailJS
+    try {
+      emailjs.init(EJS_KEY);
+      const resetToken = btoa(`${user.id}:${Date.now()}`);
+      await emailjs.send(EJS_SERVICE, EJS_TEMPLATE, {
+        to_email:        user.email,
+        approver_name:   user.name,
+        apprentice_name: user.name,
+        entry_count:     "",
+        entry_list:      "",
+        status:          "Password Reset Request",
+        message:         `Hi ${user.name},\n\nA password reset was requested for your KTA account. Please contact your administrator to have your password reset.\n\nIf you did not request this, please ignore this email.`,
+      });
+      setForgotMsg({ok:true,text:"Reset instructions have been sent to your email."});
+    } catch(e) {
+      setForgotMsg({ok:true,text:"If that email is registered, a reset link has been sent."});
+    }
+  };
 
   const attempt = () => {
     setErr("");
     if(!email.trim()||!pw) { setErr("Please enter your email and password."); return; }
     setLoading(true);
-    // Small delay to feel real
     setTimeout(() => {
       const user = users.find(u=>u.email.toLowerCase()===email.trim().toLowerCase());
       if(!user) { setErr("No account found with that email address."); setLoading(false); trigShake(); return; }
@@ -339,48 +480,26 @@ function LoginScreen({users, onLogin}) {
 
   const trigShake = () => { setShaking(true); setTimeout(()=>setShaking(false),400); };
 
-  const quickLogin = (userId) => {
-    const u = users.find(x=>x.id===userId);
-    if(u){ setEmail(u.email); setPw("password"); }
-  };
-
-  // group demo accounts by role
-  const demoByRole = ROLES.map(r=>({role:r, user:users.find(u=>u.role===r)})).filter(x=>x.user);
-
   return (
     <div className="login-wrap">
       {/* LEFT — branding */}
       <div className="login-left fi">
         <div style={{position:"relative",zIndex:1,maxWidth:420}}>
-          {/* Logo mark */}
-          <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:52}}>
+          {/* KTA Logo */}
+          <div style={{marginBottom:52}}>
             <img src={KTA_LOGO} alt="Kiwi Trade Apprentices"
-              style={{height:56,objectFit:"contain",filter:"brightness(0) invert(1)"}}
+              style={{height:60,objectFit:"contain",filter:"brightness(0) invert(1)"}}
               onError={e=>{e.target.style.display="none";}}
             />
           </div>
 
           {/* Tagline */}
-          <h1 style={{fontFamily:"'Libre Baskerville'",fontSize:38,fontWeight:700,color:"#fff",lineHeight:1.2,marginBottom:20,letterSpacing:"-.5px"}}>
-            Your workforce,<br/>under control.
+          <h1 style={{fontFamily:"'Libre Baskerville'",fontSize:36,fontWeight:700,color:"#fff",lineHeight:1.25,marginBottom:20,letterSpacing:"-.5px"}}>
+            Timesheet management, approvals, and CRM
           </h1>
-          <p style={{fontSize:15,color:"#ffffff66",lineHeight:1.7,marginBottom:48}}>
-            Timesheet management, approvals, and CRM — built around your team's role structure.
+          <p style={{fontSize:16,color:"#ffffffaa",lineHeight:1.7}}>
+            Built around your team and their training needs.
           </p>
-
-          {/* Role badges */}
-          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-            {ROLES.map(r=>(
-              <div key={r} style={{
-                display:"flex",alignItems:"center",gap:7,
-                background:"#ffffff10",border:"1px solid #ffffff18",
-                borderRadius:99,padding:"6px 14px"
-              }}>
-                <span style={{fontSize:11,color:ROLE_META[r].color}}>{ROLE_META[r].symbol}</span>
-                <span style={{fontSize:12,color:"#ffffffaa",fontWeight:500}}>{r}</span>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -450,45 +569,47 @@ function LoginScreen({users, onLogin}) {
           </button>
         </div>
 
-        {/* Demo accounts */}
+        {/* Forgot Password */}
         <div style={{borderTop:`1px solid ${T.border}`,paddingTop:20}}>
-          <button onClick={()=>setDemoOpen(s=>!s)} style={{
-            width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",
-            background:"none",border:`1px solid ${T.border}`,borderRadius:9,
-            padding:"9px 14px",fontSize:12,color:T.sub,fontWeight:600,fontFamily:"DM Sans,sans-serif",cursor:"pointer"
-          }}>
-            <span>🔑 Demo Accounts</span>
-            <span style={{transition:"transform .2s",display:"inline-block",transform:demoOpen?"rotate(180deg)":"none"}}>▾</span>
-          </button>
-
-          {demoOpen&&(
-            <div style={{marginTop:8}} className="fi">
-              <div style={{fontSize:11,color:T.muted,marginBottom:8,padding:"0 2px"}}>
-                All demo accounts use password: <strong style={{fontFamily:"monospace",color:T.ink}}>password</strong>
+          {!forgotMode ? (
+            <button onClick={()=>{setForgotMode(true);setErr("");setForgotMsg("");}} style={{
+              background:"none",border:"none",color:T.accent,fontSize:13,
+              fontWeight:600,cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+              padding:0,display:"block",margin:"0 auto"
+            }}>Forgot your password?</button>
+          ) : (
+            <div className="fi">
+              <div style={{fontSize:13,fontWeight:600,color:T.ink,marginBottom:8}}>Reset Password</div>
+              <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.5}}>
+                Enter your email and we'll send a reset link to your inbox.
               </div>
-              {demoByRole.map(({role,user})=>{
-                const m=ROLE_META[role];
-                return (
-                  <button key={role} onClick={()=>quickLogin(user.id)} style={{
-                    width:"100%",display:"flex",alignItems:"center",gap:12,
-                    background:T.bg,border:`1px solid ${T.border}`,borderRadius:9,
-                    padding:"9px 12px",marginBottom:6,cursor:"pointer",
-                    fontFamily:"DM Sans,sans-serif",transition:"all .13s",textAlign:"left"
-                  }}
-                    onMouseEnter={e=>{e.currentTarget.style.background=m.bg;e.currentTarget.style.borderColor=m.color+"44";}}
-                    onMouseLeave={e=>{e.currentTarget.style.background=T.bg;e.currentTarget.style.borderColor=T.border;}}>
-                    <div style={{width:32,height:32,borderRadius:"50%",background:m.bg,border:`2px solid ${m.color}44`,
-                      display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:m.color,fontWeight:700,flexShrink:0}}>
-                      {user.name[0]}
-                    </div>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{user.name}</div>
-                      <div style={{fontSize:11,color:T.muted}}>{user.email}</div>
-                    </div>
-                    <RolePill role={role} size="sm"/>
-                  </button>
-                );
-              })}
+              <div className="login-input-wrap" style={{marginBottom:10}}>
+                <span className="login-icon">✉</span>
+                <input type="email" placeholder="your@email.com"
+                  value={forgotEmail} onChange={e=>{setForgotEmail(e.target.value);setForgotMsg("");}}
+                  onKeyDown={e=>e.key==="Enter"&&sendReset()}
+                />
+              </div>
+              {forgotMsg&&(
+                <div style={{background:forgotMsg.ok?T.accentL:T.redL,border:`1px solid ${forgotMsg.ok?T.accent:T.red}44`,
+                  borderRadius:8,padding:"9px 13px",marginBottom:10,fontSize:12,
+                  color:forgotMsg.ok?T.accent:T.red}}>
+                  {forgotMsg.text}
+                </div>
+              )}
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={sendReset} disabled={forgotSending} style={{
+                  flex:1,padding:"10px",background:T.accent,color:"#fff",
+                  border:`1.5px solid ${T.accentD}`,borderRadius:9,fontSize:13,fontWeight:700,
+                  cursor:forgotSending?"default":"pointer",fontFamily:"DM Sans,sans-serif",
+                  opacity:forgotSending?0.6:1,transition:"all .15s"
+                }}>{forgotSending?"Sending…":"Send Reset Link"}</button>
+                <button onClick={()=>{setForgotMode(false);setForgotEmail("");setForgotMsg("");}} style={{
+                  padding:"10px 16px",background:"none",color:T.sub,
+                  border:`1.5px solid ${T.border}`,borderRadius:9,fontSize:13,fontWeight:600,
+                  cursor:"pointer",fontFamily:"DM Sans,sans-serif"
+                }}>Cancel</button>
+              </div>
             </div>
           )}
         </div>
@@ -520,7 +641,7 @@ function EntryForm({onSave,onCancel,initial=null,minDate=null,maxDate=null,usedD
 
   return (
     <Card style={{border:`1.5px solid ${T.accent}44`}} className="fu">
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+      <div className="fg-entry" style={{display:"grid",gap:12,marginBottom:12}}>
         <div><FL>Date</FL><input type="date" value={f.date} onChange={e=>sf("date",e.target.value)} min={minDate||undefined} max={maxDate||undefined}
                 style={{borderColor:dateConflict?T.red:undefined}}/>
               {dateConflict&&<div style={{fontSize:11,color:T.red,marginTop:3}}>You already have an entry for this date</div>}</div>
@@ -574,11 +695,12 @@ function EntryForm({onSave,onCancel,initial=null,minDate=null,maxDate=null,usedD
 // ─────────────────────────────────────────────────────────────────────────────
 // ENTRY ROW
 // ─────────────────────────────────────────────────────────────────────────────
-function EntryRow({entry,canEdit,canApprove,onDelete,onApprove,onDecline,onEdit,onSubmit,idx,showUser,users}) {
+function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onApprove,onDecline,onEdit,onSubmit,onSubmitXero,idx,showUser,users}) {
   const user=users?.find(u=>u.id===entry.userId);
   const tcols=showUser
     ?"130px 130px 1fr 130px 64px 60px 70px 100px 68px"
     :"130px 1fr 130px 64px 60px 70px 100px 68px";
+  const isLocked = !canEdit && (entry.approval==="submitted"||entry.approval==="approved");
   return (
     <div className="ri" style={{display:"grid",gridTemplateColumns:tcols,
       padding:"12px 16px",borderBottom:`1px solid ${T.border}44`,
@@ -609,17 +731,52 @@ function EntryRow({entry,canEdit,canApprove,onDelete,onApprove,onDecline,onEdit,
             width:26,height:26,borderRadius:6,fontSize:12,background:T.redL,color:T.red,
             border:`1px solid ${T.red}44`,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
         </>)}
+        {canSubmitXero && entry.approval==="approved" && !entry.xeroStatus && (
+          <button onClick={()=>onSubmitXero&&onSubmitXero(entry.id)}
+            title="Submit to Xero Payroll"
+            style={{height:26,borderRadius:6,fontSize:11,fontWeight:700,
+              background:"#e6f7fd",color:"#0d7bb5",padding:"0 7px",
+              border:"1px solid #13b5ea55",display:"flex",alignItems:"center",gap:3,
+              cursor:"pointer",whiteSpace:"nowrap"}}
+            onMouseEnter={e=>{e.currentTarget.style.background="#13b5ea";e.currentTarget.style.color="#fff";}}
+            onMouseLeave={e=>{e.currentTarget.style.background="#e6f7fd";e.currentTarget.style.color="#0d7bb5";}}>
+            𝕏 Xero
+          </button>
+        )}
+        {entry.xeroStatus==="submitted" && (
+          <div title="Submitted to Xero"
+            style={{height:26,borderRadius:6,fontSize:11,fontWeight:700,
+              background:"#e6f7fd",color:"#0d7bb5",padding:"0 7px",
+              border:"1px solid #13b5ea55",display:"flex",alignItems:"center",gap:3}}>
+            𝕏 ✓
+          </div>
+        )}
+        {entry.xeroStatus==="error" && (
+          <div title={entry.xeroError||"Xero error"}
+            style={{height:26,borderRadius:6,fontSize:11,fontWeight:700,
+              background:T.redL,color:T.red,padding:"0 7px",
+              border:`1px solid ${T.red}44`,display:"flex",alignItems:"center",gap:3}}>
+            𝕏 ✕
+          </div>
+        )}
+        {isLocked&&(
+          <div title={entry.approval==="approved"?"Approved — contact admin to edit":"Submitted — wait for approval or decline"}
+            style={{width:26,height:26,borderRadius:6,fontSize:13,background:T.bg,color:T.muted,
+              border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}>🔒</div>
+        )}
         {canEdit&&(<>
           <button onClick={()=>onEdit(entry)} style={{width:26,height:26,borderRadius:6,fontSize:12,
             background:"transparent",color:T.muted,border:`1px solid ${T.border}`,
             display:"flex",alignItems:"center",justifyContent:"center"}}
             onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
             onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
-          <button onClick={()=>onDelete(entry.id)} style={{width:26,height:26,borderRadius:6,fontSize:12,
-            background:"transparent",color:T.muted,border:`1px solid ${T.border}`,
-            display:"flex",alignItems:"center",justifyContent:"center"}}
-            onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
-            onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
+          {(canDelete===undefined?canEdit:canDelete)&&(
+            <button onClick={()=>onDelete(entry.id)} style={{width:26,height:26,borderRadius:6,fontSize:12,
+              background:"transparent",color:T.muted,border:`1px solid ${T.border}`,
+              display:"flex",alignItems:"center",justifyContent:"center"}}
+              onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
+              onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
+          )}
         </>)}
       </div>
     </div>
@@ -634,6 +791,8 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   const [editEntry,setEditEntry] = useState(null);
   const [filterUid,setFilterUid] = useState(forcedApprenticeId||"all");
   const [toast,setToast] = useState(null); // {msg, ok}
+  const [weekPickerDrafts, setWeekPickerDrafts] = useState(null); // null | {weeks:[...], draftsPerWeek:{}}
+  const [weekPickerSelected, setWeekPickerSelected] = useState(null);
   const role=currentUser.role;
 
   const showToast = (msg, ok=true) => {
@@ -644,18 +803,44 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   const visibleIds = useCallback(()=>{
     if(forcedApprenticeId) return [forcedApprenticeId];
     if(role==="Admin") return allUsers.map(u=>u.id);
-    if(["Viewer","Approver"].includes(role))
-      return [currentUser.id,...(currentUser.allocatedTo||[])];
+    if(["Viewer","Approver"].includes(role)) {
+      // Legacy: allocatedTo on the viewer/approver record
+      const fromAlloc = currentUser.allocatedTo||[];
+      // New: apprentices who have this user set as their approver/viewer
+      const fromApprentice = allUsers
+        .filter(u=>u.role==="Apprentice"&&(u.approverUserId===currentUser.id||u.viewerUserId===currentUser.id))
+        .map(u=>u.id);
+      return [...new Set([currentUser.id,...fromAlloc,...fromApprentice])];
+    }
     return [currentUser.id];
   },[role,currentUser,allUsers,forcedApprenticeId]);
 
+  // Helper: effective roles this user has (Admin may also have a secondaryRole)
+  const hasRole = (r) => role===r || (role==="Admin" && currentUser.secondaryRole===r);
+
   const canEdit=(entry)=>{
     if(role==="Admin") return true;
-    // Viewer and Approver are read-only
-    if(role==="Apprentice"&&entry.userId===currentUser.id&&entry.date>=daysAgoStr(21)&&entry.approval==="draft") return true;
+    // Apprentice: only draft entries within 21 days are editable
+    // Submitted entries are locked until declined, approved entries are permanently locked
+    if(role==="Apprentice"&&entry.userId===currentUser.id&&entry.approval==="draft"&&entry.date>=daysAgoStr(21)) return true;
     return false;
   };
-  const canApprove=(entry)=>(role==="Admin"||(role==="Approver"&&(currentUser.allocatedTo||[]).includes(entry.userId)))&&entry.approval==="submitted";
+  const canDelete=(entry)=>{
+    if(role==="Admin") return true;
+    // Apprentice can delete own draft entries only
+    if(role==="Apprentice"&&entry.userId===currentUser.id&&entry.approval==="draft") return true;
+    return false;
+  };
+  const canApprove=(entry)=>{
+    if(entry.approval!=="submitted") return false;
+    if(role==="Admin") return true;
+    if(role==="Approver") {
+      const apprentice = allUsers.find(u=>u.id===entry.userId);
+      if((currentUser.allocatedTo||[]).includes(entry.userId)) return true;
+      if(apprentice?.approverUserId===currentUser.id) return true;
+    }
+    return false;
+  };
   const canAdd=forcedApprenticeId ? false : (role==="Admin"||role==="Apprentice");
 
   const vids=visibleIds();
@@ -714,7 +899,11 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
       showToast(`Entry declined — emailed ${apprentice?.name}`, false);
     }
   };
-  const handleDelete=(id)=>setEntries(prev=>prev.filter(e=>e.id!==id));
+  const handleDelete=(id)=>{
+    const e=entries.find(x=>x.id===id);
+    if(e && !canDelete(e)) return; // safety guard
+    setEntries(prev=>prev.filter(e=>e.id!==id));
+  };
   const handleEdit=(entry)=>{setEditEntry(entry);setShowForm(true);};
 
   const filterableUsers=allUsers.filter(u=>vids.includes(u.id));
@@ -741,7 +930,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
         <span style={{fontWeight:700,color:ROLE_META[role].color,fontSize:13}}>{role} View — </span>
         <span style={{fontSize:13,color:T.sub}}>{ROLE_META[role]?.desc||""}</span>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:22}}>
+      <div className="stat-grid-4">
         <StatCard label="Today (mine)" value={todayH?`${todayH}h`:"—"} color={todayH?T.accent:T.muted}/>
         <StatCard label="This Week (mine)" value={`${weekH}h`} color={T.warn}/>
         <StatCard label="Visible Entries" value={shown.length} color={T.blue}/>
@@ -755,26 +944,114 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
           {role==="Apprentice"&&(()=>{
             const myDrafts=shown.filter(e=>e.approval==="draft"&&e.userId===currentUser.id);
             if(!myDrafts.length) return null;
-            return (
-              <Btn v="blue" onClick={async()=>{
-                const ids=myDrafts.map(e=>e.id);
-                setEntries(prev=>prev.map(e=>ids.includes(e.id)?{...e,approval:"submitted"}:e));
-                const approvers=allUsers.filter(u=>
-                  u.role==="Approver"&&(u.allocatedTo||[]).includes(currentUser.id)
-                );
-                if(!approvers.length){
-                  showToast("Submitted — no approver assigned yet, no email sent",false);
-                } else {
-                  try {
-                    await notifyApprovers(currentUser, approvers, myDrafts);
-                    showToast(`✓ Submitted & emailed ${approvers.map(a=>a.name).join(", ")}`);
-                  } catch(e) {
-                    showToast(`Submitted but email failed: ${e.message}`,false);
-                  }
+
+            // Group drafts by week-ending Sunday
+            const getWeekEnding = (dateStr) => {
+              const [y,m,d] = dateStr.split('-').map(Number);
+              // Use UTC to avoid timezone shifts
+              const date = new Date(Date.UTC(y,m-1,d));
+              const day = date.getUTCDay(); // 0=Sun
+              const diff = day===0 ? 0 : 7-day;
+              date.setUTCDate(date.getUTCDate()+diff);
+              return date.toISOString().slice(0,10);
+            };
+            const draftsPerWeek = {};
+            myDrafts.forEach(e=>{
+              const we = getWeekEnding(e.date);
+              if(!draftsPerWeek[we]) draftsPerWeek[we]=[];
+              draftsPerWeek[we].push(e);
+            });
+            const weeks = Object.keys(draftsPerWeek).sort();
+
+            const doSubmit = async (weekEnding) => {
+              const toSubmit = weekEnding ? draftsPerWeek[weekEnding] : myDrafts;
+              const ids = toSubmit.map(e=>e.id);
+              setEntries(prev=>prev.map(e=>ids.includes(e.id)?{...e,approval:"submitted"}:e));
+              setWeekPickerDrafts(null);
+              setWeekPickerSelected(null);
+              const approvers = allUsers.filter(u=>
+                (u.allocatedTo||[]).includes(currentUser.id) || currentUser.approverUserId===u.id
+              );
+              if(!approvers.length){
+                showToast("Submitted — no approver assigned yet, no email sent",false);
+              } else {
+                try {
+                  await notifyApprovers(currentUser, approvers, toSubmit);
+                  showToast(`✓ Submitted & emailed ${approvers.map(a=>a.name).join(", ")}`);
+                } catch(err) {
+                  showToast(`Submitted but email failed: ${err.message}`,false);
                 }
-              }}>
-                ↑ Submit {myDrafts.length} Draft{myDrafts.length!==1?"s":""}
-              </Btn>
+              }
+            };
+
+            return (
+              <>
+                <Btn v="blue" onClick={()=>{
+                  if(weeks.length>1) {
+                    setWeekPickerDrafts({weeks, draftsPerWeek});
+                    setWeekPickerSelected(null);
+                  } else {
+                    doSubmit(weeks[0]);
+                  }
+                }}>
+                  ↑ Submit {myDrafts.length} Draft{myDrafts.length!==1?"s":""}
+                </Btn>
+
+                {/* Week picker modal */}
+                {weekPickerDrafts&&(
+                  <div style={{position:"fixed",inset:0,background:"#00000066",zIndex:300,
+                    display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+                    <Card style={{width:"100%",maxWidth:420,padding:24}}>
+                      <div style={{fontWeight:700,fontSize:16,marginBottom:6}}>Which week to submit?</div>
+                      <div style={{fontSize:13,color:T.sub,marginBottom:18}}>
+                        Your drafts span multiple weeks. Choose which week to submit for approval.
+                      </div>
+                      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+                        {weekPickerDrafts.weeks.map(we=>{
+                          const cnt = weekPickerDrafts.draftsPerWeek[we].length;
+                          const hrs = weekPickerDrafts.draftsPerWeek[we].reduce((a,e)=>a+e.netHours,0).toFixed(2);
+                          const [wy,wm,wd] = we.split('-');
+                          const label = `${wd}/${wm}/${wy}`;
+                          const selected = weekPickerSelected===we;
+                          return (
+                            <button key={we} onClick={()=>setWeekPickerSelected(we)} style={{
+                              padding:"12px 14px",borderRadius:10,textAlign:"left",cursor:"pointer",
+                              border:`2px solid ${selected?T.accent:T.border}`,
+                              background:selected?T.accentL:T.surface,
+                              fontFamily:"DM Sans,sans-serif",transition:"all .14s"}}>
+                              <div style={{fontWeight:700,fontSize:14,color:selected?T.accent:T.ink}}>
+                                Week ending {label}
+                              </div>
+                              <div style={{fontSize:12,color:T.sub,marginTop:3}}>
+                                {cnt} entr{cnt===1?"y":"ies"} · {hrs}h total
+                              </div>
+                            </button>
+                          );
+                        })}
+                        <button onClick={()=>setWeekPickerSelected("all")} style={{
+                          padding:"12px 14px",borderRadius:10,textAlign:"left",cursor:"pointer",
+                          border:`2px solid ${weekPickerSelected==="all"?T.blue:T.border}`,
+                          background:weekPickerSelected==="all"?T.blueL:T.surface,
+                          fontFamily:"DM Sans,sans-serif",transition:"all .14s"}}>
+                          <div style={{fontWeight:700,fontSize:14,color:weekPickerSelected==="all"?T.blue:T.ink}}>
+                            Submit all weeks at once
+                          </div>
+                          <div style={{fontSize:12,color:T.sub,marginTop:3}}>
+                            {myDrafts.length} entries · {myDrafts.reduce((a,e)=>a+e.netHours,0).toFixed(2)}h total
+                          </div>
+                        </button>
+                      </div>
+                      <div style={{display:"flex",gap:8}}>
+                        <Btn onClick={()=>{ if(weekPickerSelected) doSubmit(weekPickerSelected==="all"?null:weekPickerSelected); }}
+                          disabled={!weekPickerSelected}>
+                          Submit
+                        </Btn>
+                        <Btn v="ghost" onClick={()=>{setWeekPickerDrafts(null);setWeekPickerSelected(null);}}>Cancel</Btn>
+                      </div>
+                    </Card>
+                  </div>
+                )}
+              </>
             );
           })()}
         </div>
@@ -795,99 +1072,154 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
         </div>
       )}
       {/* ── Approver view: grouped by apprentice with per-day + approve-week actions ── */}
-      {role==="Approver" ? (()=>{
+      {(role==="Approver"||(role==="Admin"&&currentUser.secondaryRole==="Approver")) ? (()=>{
         const myApprentices = allUsers.filter(u=>
-          u.role==="Apprentice"&&(currentUser.allocatedTo||[]).includes(u.id)
+          u.role==="Apprentice" && (
+            (currentUser.allocatedTo||[]).includes(u.id) ||
+            u.approverUserId===currentUser.id
+          )
         );
         if(myApprentices.length===0) return (
           <Card><div style={{padding:32,textAlign:"center",color:T.muted}}>No apprentices allocated to you yet.</div></Card>
         );
+
+        // Week-ending Sunday, UTC-safe
+        const getWeekEnding = (dateStr) => {
+          const [y,m,d] = dateStr.split('-').map(Number);
+          const date = new Date(Date.UTC(y,m-1,d));
+          const day = date.getUTCDay();
+          date.setUTCDate(date.getUTCDate() + (day===0 ? 0 : 7-day));
+          return date.toISOString().slice(0,10);
+        };
+        const fmtWeekEnd = (we) => { const [y,m,d]=we.split('-'); return `${d}/${m}/${y}`; };
+
         return myApprentices.map(app=>{
           const appEntries = shown.filter(e=>e.userId===app.id).sort((a,b)=>b.date.localeCompare(a.date));
           const submitted  = appEntries.filter(e=>e.approval==="submitted");
-          // Group submitted entries by week (Mon–Sun)
-          const getWeekKey = d=>{ const dt=new Date(d+"T00:00:00"); dt.setDate(dt.getDate()-((dt.getDay()+6)%7)); return dt.toISOString().slice(0,10); };
-          const weeks = [...new Set(appEntries.map(e=>getWeekKey(e.date)))].sort((a,b)=>b.localeCompare(a));
-          const approveWeek = async (weekKey)=>{
-            const toApprove = submitted.filter(e=>getWeekKey(e.date)===weekKey);
+          const weeks      = [...new Set(appEntries.map(e=>getWeekEnding(e.date)))].sort((a,b)=>b.localeCompare(a));
+
+          const approveWeek = async (weekEnding)=>{
+            const toApprove = submitted.filter(e=>getWeekEnding(e.date)===weekEnding);
             const ids = toApprove.map(e=>e.id);
             if(!ids.length) return;
             setEntries(prev=>prev.map(e=>ids.includes(e.id)?{...e,approval:"approved"}:e));
             await notifyApprentice(app, currentUser, toApprove, true);
             showToast(`✓ Week approved — emailed ${app.name}`);
           };
+
+          const approveAllWeeks = async ()=>{
+            if(!submitted.length) return;
+            const ids = submitted.map(e=>e.id);
+            setEntries(prev=>prev.map(e=>ids.includes(e.id)?{...e,approval:"approved"}:e));
+            await notifyApprentice(app, currentUser, submitted, true);
+            showToast(`✓ All pending entries approved — emailed ${app.name}`);
+          };
+
           return (
             <Card key={app.id} style={{marginBottom:16,padding:0,overflow:"hidden"}}>
               {/* Apprentice header */}
               <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",
-                background:T.bg,borderBottom:`1.5px solid ${T.border}`}}>
+                background:T.bg,borderBottom:`1.5px solid ${T.border}`,flexWrap:"wrap"}}>
                 <Avatar name={app.name} role="Apprentice" size={34}/>
-                <div style={{flex:1}}>
+                <div style={{flex:1,minWidth:120}}>
                   <div style={{fontWeight:700,fontSize:14}}>{app.name}</div>
                   <div style={{fontSize:12,color:T.sub}}>{appEntries.length} entries · {submitted.length} awaiting approval</div>
                 </div>
-                {submitted.length>0&&(
-                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                    <span style={{fontSize:11,color:T.muted}}>Bulk:</span>
-                    {weeks.filter(wk=>submitted.some(e=>getWeekKey(e.date)===wk)).map(wk=>{
-                      const wkEnd=new Date(wk+"T00:00:00"); wkEnd.setDate(wkEnd.getDate()+6);
-                      const wkLabel=`w/c ${new Date(wk+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short"})}`;
-                      const wkCount=submitted.filter(e=>getWeekKey(e.date)===wk).length;
+              </div>
+
+              {/* Week approve buttons — one per week with pending entries */}
+              {submitted.length>0&&(
+                <div style={{padding:"10px 16px",background:T.warnL+"44",borderBottom:`1px solid ${T.border}`,
+                  display:"flex",flexDirection:"column",gap:8}}>
+                  <div style={{fontSize:11,fontWeight:600,color:T.warn,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>
+                    Pending approval
+                  </div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                    {weeks.filter(we=>submitted.some(e=>getWeekEnding(e.date)===we)).map(we=>{
+                      const cnt = submitted.filter(e=>getWeekEnding(e.date)===we).length;
+                      const hrs = submitted.filter(e=>getWeekEnding(e.date)===we).reduce((a,e)=>a+e.netHours,0).toFixed(2);
                       return (
-                        <button key={wk} onClick={()=>approveWeek(wk)} style={{
-                          padding:"5px 12px",borderRadius:6,fontSize:12,fontWeight:600,
-                          background:T.accentL,color:T.accent,border:`1.5px solid ${T.accent}44`,
-                          cursor:"pointer",fontFamily:"DM Sans,sans-serif",whiteSpace:"nowrap"
-                        }}>✓ Approve {wkLabel} ({wkCount})</button>
+                        <button key={we} onClick={()=>{
+                          if(window.confirm(`Approve week ending ${fmtWeekEnd(we)} for ${app.name}?\n${cnt} ${cnt===1?"entry":"entries"} · ${hrs}h total`))
+                            approveWeek(we);
+                        }} style={{
+                          padding:"9px 16px",borderRadius:8,fontSize:13,fontWeight:700,
+                          background:T.accent,color:"#fff",border:"none",
+                          cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                          display:"flex",alignItems:"center",gap:7,transition:"opacity .14s"}}
+                          onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
+                          onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+                          ✓ Approve week ending {fmtWeekEnd(we)}
+                          <span style={{fontWeight:400,opacity:.8,fontSize:12}}>({cnt} {cnt===1?"entry":"entries"} · {hrs}h)</span>
+                        </button>
                       );
                     })}
+                    {weeks.filter(we=>submitted.some(e=>getWeekEnding(e.date)===we)).length > 1 && (
+                      <button onClick={()=>{
+                        if(window.confirm(`Approve ALL ${submitted.length} pending entries for ${app.name}?`))
+                          approveAllWeeks();
+                      }} style={{
+                        padding:"9px 16px",borderRadius:8,fontSize:13,fontWeight:700,
+                        background:T.accentD,color:"#fff",border:"none",
+                        cursor:"pointer",fontFamily:"DM Sans,sans-serif",transition:"opacity .14s"}}
+                        onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
+                        onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+                        ✓✓ Approve all pending
+                      </button>
+                    )}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+
               {/* Column headers */}
-              <div style={{display:"grid",gridTemplateColumns:"110px 1fr 120px 60px 60px 80px 90px 80px",
+              <div style={{display:"grid",
+                gridTemplateColumns:"100px 1fr 110px 56px 80px 70px 80px",
                 padding:"8px 16px",background:T.bg,
                 fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
                 <span>Date</span><span>Note</span><span>Type</span>
-                <span style={{textAlign:"center"}}>Hours</span><span style={{textAlign:"center"}}>Break</span>
-                <span style={{textAlign:"center"}}>Time</span><span>Status</span>
-                <span style={{textAlign:"right"}}>Actions</span>
+                <span style={{textAlign:"center"}}>Hours</span>
+                <span style={{textAlign:"center"}}>Start–End</span>
+                <span style={{textAlign:"center"}}>Break</span>
+                <span>Status / Action</span>
               </div>
+
               {appEntries.length===0&&(
                 <div style={{padding:"24px",textAlign:"center",color:T.muted,fontSize:12,fontStyle:"italic"}}>No entries yet.</div>
               )}
               {appEntries.map((e,i)=>(
                 <div key={e.id} style={{display:"grid",
-                  gridTemplateColumns:"110px 1fr 120px 60px 60px 80px 90px 80px",
+                  gridTemplateColumns:"100px 1fr 110px 56px 80px 70px 80px",
                   padding:"9px 16px",gap:8,alignItems:"center",fontSize:12,
                   borderBottom:i<appEntries.length-1?`1px solid ${T.border}44`:"none",
                   background:e.approval==="submitted"?T.warnL+"55":i%2===0?T.surface:T.bg}}>
-                  <div style={{fontWeight:600}}>{fmtD(e.date)}</div>
+                  <div style={{fontWeight:600,fontSize:12}}>{fmtD(e.date)}</div>
                   <div style={{color:e.note?T.ink:T.muted,fontStyle:e.note?"normal":"italic",
-                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.note||"No note"}</div>
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12}}>{e.note||"No note"}</div>
                   <TypePill type={e.type} size="sm"/>
                   <div style={{textAlign:"center",fontWeight:700,color:TYPE_META[e.type]?.color||T.accent,
-                    fontFamily:"'Libre Baskerville'"}}>{e.netHours}h</div>
-                  <div style={{textAlign:"center",fontSize:11,color:T.sub}}>{e.breakMins>0?`${e.breakMins}m`:"—"}</div>
+                    fontFamily:"'Libre Baskerville'",fontSize:14}}>{e.netHours}h</div>
                   <div style={{textAlign:"center",fontSize:11,color:T.muted,fontFamily:"monospace"}}>{e.start}–{e.end}</div>
-                  <AppvPill status={e.approval}/>
-                  <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
+                  <div style={{textAlign:"center",fontSize:11,color:T.sub}}>{e.breakMins>0?`${e.breakMins}m`:"—"}</div>
+                  <div style={{display:"flex",gap:4,alignItems:"center"}}>
                     {e.approval==="submitted"&&(<>
                       <button onClick={()=>handleApprove(e.id)} title="Approve" style={{
-                        width:26,height:26,borderRadius:6,fontSize:13,background:T.accentL,color:T.accent,
-                        border:`1px solid ${T.accent}44`,cursor:"pointer",
+                        width:26,height:26,borderRadius:6,fontSize:12,background:T.accentL,color:T.accent,
+                        border:`1px solid ${T.accent}44`,cursor:"pointer",flexShrink:0,
                         display:"flex",alignItems:"center",justifyContent:"center"}}>✓</button>
                       <button onClick={()=>handleDecline(e.id)} title="Decline" style={{
-                        width:26,height:26,borderRadius:6,fontSize:13,background:T.redL,color:T.red,
-                        border:`1px solid ${T.red}44`,cursor:"pointer",
+                        width:26,height:26,borderRadius:6,fontSize:12,background:T.redL,color:T.red,
+                        border:`1px solid ${T.red}44`,cursor:"pointer",flexShrink:0,
                         display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
                     </>)}
-                    {e.approval==="declined"&&(
+                    {e.approval==="approved"&&<AppvPill status="approved"/>}
+                    {e.approval==="declined"&&(<>
+                      <AppvPill status="declined"/>
                       <button onClick={()=>handleApprove(e.id)} title="Re-approve" style={{
                         width:26,height:26,borderRadius:6,fontSize:11,background:T.accentL,color:T.accent,
-                        border:`1px solid ${T.accent}44`,cursor:"pointer",
+                        border:`1px solid ${T.accent}44`,cursor:"pointer",flexShrink:0,
                         display:"flex",alignItems:"center",justifyContent:"center"}}>↺</button>
-                    )}
+                    </>)}
+                    {e.approval==="draft"&&<AppvPill status="draft"/>}
                   </div>
                 </div>
               ))}
@@ -916,12 +1248,38 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
               canEdit={canEdit(e)} canApprove={canApprove(e)}
               onDelete={handleDelete} onApprove={handleApprove}
               onDecline={handleDecline} onEdit={handleEdit}
+              canDelete={canDelete(e)}
+              canSubmitXero={role==="Admin" && (currentUser?.adminLevel||1)===1}
+              onSubmitXero={async(id)=>{
+                const en = entries.find(x=>x.id===id);
+                if(!en) return;
+                const app = allUsers.find(u=>u.id===en.userId);
+                if(!app?.xeroEmployeeId) {
+                  showToast(`No Xero Employee ID set for ${app?.name||"this apprentice"} — map them in the Xero module first.`, false);
+                  return;
+                }
+                setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"submitting"}:x));
+                try {
+                  const res = await submitEntryToXero(en, app, entries);
+                  if(res.ok) {
+                    setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"submitted",xeroTimesheetId:res.timesheetId}:x));
+                    showToast(`✓ Submitted to Xero for ${app.name}`);
+                  } else {
+                    setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"error",xeroError:res.error}:x));
+                    showToast(`Xero error: ${res.error}`, false);
+                  }
+                } catch(e) {
+                  setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"error",xeroError:e.message}:x));
+                  showToast(`Xero error: ${e.message}`, false);
+                }
+              }}
               onSubmit={role==="Apprentice"?async(id)=>{
                 setEntries(prev=>prev.map(x=>x.id===id?{...x,approval:"submitted"}:x));
                 const entry=shown.find(e=>e.id===id);
                 if(entry){
                   const approvers=allUsers.filter(u=>
-                    u.role==="Approver"&&(u.allocatedTo||[]).includes(currentUser.id)
+                    (u.allocatedTo||[]).includes(currentUser.id) ||
+                    currentUser.approverUserId===u.id
                   );
                   if(!approvers.length){
                     showToast("Submitted — no approver assigned yet, no email sent",false);
@@ -951,13 +1309,34 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
 // ─────────────────────────────────────────────────────────────────────────────
 // USER MANAGEMENT
 // ─────────────────────────────────────────────────────────────────────────────
-function UserManagement({users,setUsers}) {
-  const blank={name:"",role:"Apprentice",email:"",phone:"",password:DEFAULT_PW,allocatedTo:[]};
+function UserManagement({users, setUsers, currentUser}) {
+  const myLevel = currentUser?.adminLevel || 1; // 1 = superadmin, 2 = limited admin
+
+  // Roles this admin level is allowed to create/edit
+  // Admin 1: all roles. Admin 2: all except Admin 1.
+  const creatableRoles = myLevel===1
+    ? ["Apprentice","Approver","Viewer","Mentor","Admin"]
+    : ["Apprentice","Approver","Viewer","Mentor","Admin"]; // same list — Admin 2 can create Admin 2 but not Admin 1 (enforced below)
+
+  // Can this admin edit a given user?
+  const canEditUser = (u) => {
+    if(myLevel===1) return true;
+    // Admin 2 cannot edit Admin 1 users
+    if(u.role==="Admin" && (u.adminLevel||1)===1) return false;
+    return true;
+  };
+  const canDeleteUser = (u) => canEditUser(u);
+  const canCreateUsers = true; // both admin levels can create users
+
+  const blank={name:"",role:"Apprentice",email:"",phone:"",password:"",allocatedTo:[],
+    address:"",suburb:"",city:"",postcode:"",approverUserId:null,viewerUserId:null,secondaryRole:null,adminLevel:1};
   const [form,setForm]=useState(blank);
   const [showForm,setShowForm]=useState(false);
   const [editId,setEditId]=useState(null);
   const [pwField,setPwField]=useState("");
   const [showPw,setShowPw]=useState(false);
+  const [appApprover, setAppApprover] = useState("");
+  const [appViewer,   setAppViewer]   = useState("");
   const sf=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   const toggleAlloc=(uid)=>setForm(f=>({...f,allocatedTo:f.allocatedTo.includes(uid)?f.allocatedTo.filter(x=>x!==uid):[...f.allocatedTo,uid]}));
@@ -967,24 +1346,41 @@ function UserManagement({users,setUsers}) {
     const finalForm={...form};
     if(pwField.trim()) finalForm.password=hashPw(pwField.trim());
     const targetId = editId || uid();
+
+    // Always bake approver/viewer into finalForm for apprentices
+    if(finalForm.role==="Apprentice") {
+      finalForm.approverUserId = appApprover||null;
+      finalForm.viewerUserId   = appViewer||null;
+    }
+    // Clear secondaryRole if not Admin; default adminLevel to 1 for non-admins
+    if(finalForm.role!=="Admin") { finalForm.secondaryRole = null; finalForm.adminLevel = null; }
+    // Admin 2 cannot create/promote to Admin 1
+    if(finalForm.role==="Admin" && myLevel===2) finalForm.adminLevel = 2;
+
     setUsers(prev=>{
       let next = editId
         ? prev.map(u=>u.id===editId?{...u,...finalForm}:u)
         : [...prev,{id:targetId,...finalForm}];
-      // If saving an Apprentice, update Approver/Viewer allocatedTo arrays
+
       if(finalForm.role==="Apprentice") {
+        // Sync allocatedTo on all approver/viewer/admin users so legacy lookup also works
         next = next.map(u=>{
-          if(u.role==="Approver") {
-            const should = appApprovers.includes(u.id);
+          if(u.id===targetId) return u; // already updated above
+          // Is this user a potential approver?
+          if(["Approver","Admin"].includes(u.role)) {
+            const should = appApprover===u.id;
             const has    = (u.allocatedTo||[]).includes(targetId);
             if(should&&!has) return {...u,allocatedTo:[...(u.allocatedTo||[]),targetId]};
             if(!should&&has) return {...u,allocatedTo:(u.allocatedTo||[]).filter(x=>x!==targetId)};
           }
-          if(u.role==="Viewer") {
-            const should = appViewers.includes(u.id);
+          // Is this user a potential viewer? (Admin can be both, handle viewer separately)
+          if(["Viewer","Admin"].includes(u.role)) {
+            const should = appViewer===u.id;
             const has    = (u.allocatedTo||[]).includes(targetId);
+            // Only add if not already counted as approver allocation for same admin
             if(should&&!has) return {...u,allocatedTo:[...(u.allocatedTo||[]),targetId]};
-            if(!should&&has) return {...u,allocatedTo:(u.allocatedTo||[]).filter(x=>x!==targetId)};
+            // Only remove if neither approver nor viewer anymore
+            if(!should&&has&&appApprover!==u.id) return {...u,allocatedTo:(u.allocatedTo||[]).filter(x=>x!==targetId)};
           }
           return u;
         });
@@ -997,12 +1393,21 @@ function UserManagement({users,setUsers}) {
   };
 
   const startEdit=(u)=>{
-    setForm({name:u.name,role:u.role,email:u.email||"",phone:u.phone||"",password:u.password,allocatedTo:u.allocatedTo||[]});
+    setForm({name:u.name,role:u.role,email:u.email||"",phone:u.phone||"",password:u.password,
+      allocatedTo:u.allocatedTo||[],address:u.address||"",suburb:u.suburb||"",
+      city:u.city||"",postcode:u.postcode||"",
+      approverUserId:u.approverUserId||null,viewerUserId:u.viewerUserId||null,
+      secondaryRole:u.secondaryRole||null,adminLevel:u.adminLevel||1});
     setPwField(""); setEditId(u.id); setShowForm(true);
-    // Pre-populate approver/viewer selections for apprentices
     if(u.role==="Apprentice") {
-      setAppApprover(users.find(x=>x.role==="Approver"&&(x.allocatedTo||[]).includes(u.id))?.id||"");
-      setAppViewer(  users.find(x=>x.role==="Viewer"  &&(x.allocatedTo||[]).includes(u.id))?.id||"");
+      // Prefer the value stored directly on the apprentice record (new approach)
+      // Fall back to searching allocatedTo on approver/viewer users (legacy + always works without DB migration)
+      const approverFromRecord = u.approverUserId||"";
+      const viewerFromRecord   = u.viewerUserId||"";
+      const approverFromAlloc  = users.find(x=>["Approver","Admin"].includes(x.role)&&(x.allocatedTo||[]).includes(u.id))?.id||"";
+      const viewerFromAlloc    = users.find(x=>["Viewer","Admin"].includes(x.role)&&(x.allocatedTo||[]).includes(u.id))?.id||"";
+      setAppApprover(approverFromRecord||approverFromAlloc);
+      setAppViewer(viewerFromRecord||viewerFromAlloc);
     }
     setTimeout(()=>document.getElementById("um-form")?.scrollIntoView({behavior:"smooth",block:"start"}),50);
   };
@@ -1013,9 +1418,9 @@ function UserManagement({users,setUsers}) {
     (["Approver","Viewer"].includes(form.role)?u.role==="Apprentice":
      form.role==="Mentor"?["Apprentice","Viewer"].includes(u.role):false));
 
-  // For Apprentice: which Approvers/Viewers currently have this apprentice in their allocatedTo
-  const [appApprover, setAppApprover] = useState("");
-  const [appViewer,   setAppViewer]   = useState("");
+  // For Apprentice approver/viewer dropdowns: include Admins with matching secondary role too
+  const approverOptions = users.filter(u=>u.role==="Approver"||(u.role==="Admin"&&u.secondaryRole==="Approver")||(u.role==="Admin"&&!u.secondaryRole));
+  const viewerOptions   = users.filter(u=>u.role==="Viewer"  ||(u.role==="Admin"&&u.secondaryRole==="Viewer")  ||(u.role==="Admin"&&!u.secondaryRole));
 
   return (
     <div className="fu">
@@ -1030,7 +1435,7 @@ function UserManagement({users,setUsers}) {
           <div style={{fontWeight:700,fontSize:14,marginBottom:16,color:T.blue}}>
             {editId?"✎ Edit User":"+ New User"}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+          <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
             <div><FL req>Full Name</FL><input placeholder="Jane Smith" value={form.name} onChange={e=>sf("name",e.target.value)}/></div>
             <div>
               <FL req>Role</FL>
@@ -1039,8 +1444,57 @@ function UserManagement({users,setUsers}) {
               </select>
               <div style={{marginTop:6}}><RolePill role={form.role}/></div>
             </div>
+            {form.role==="Admin"&&(
+              <div>
+                <FL>Secondary Role <span style={{fontWeight:400,color:T.muted}}>(optional — grants additional access)</span></FL>
+                <select value={form.secondaryRole||""} onChange={e=>sf("secondaryRole",e.target.value||null)}>
+                  <option value="">— None —</option>
+                  <option value="Approver">Approver — can approve timesheets for allocated apprentices</option>
+                  <option value="Viewer">Viewer — read-only access to allocated apprentices' timesheets</option>
+                </select>
+                {form.secondaryRole&&(
+                  <div style={{marginTop:6,display:"flex",alignItems:"center",gap:8}}>
+                    <RolePill role="Admin"/>
+                    <span style={{fontSize:12,color:T.muted}}>+</span>
+                    <RolePill role={form.secondaryRole}/>
+                  </div>
+                )}
+              </div>
+            )}
+            {form.role==="Admin"&&(
+              <div>
+                <FL>Admin Level</FL>
+                <div style={{display:"flex",gap:10,marginTop:4}}>
+                  {[1,2].map(lvl=>{
+                    const locked = myLevel===2 && lvl===1; // Admin 2 cannot create Admin 1
+                    return (
+                      <button key={lvl} type="button"
+                        onClick={()=>!locked&&sf("adminLevel",lvl)}
+                        style={{
+                          flex:1,padding:"10px 12px",borderRadius:9,fontSize:13,fontWeight:600,
+                          border:`2px solid ${locked?T.border:(form.adminLevel||1)===lvl?T.accent:T.border}`,
+                          background:locked?T.bg:(form.adminLevel||1)===lvl?T.accentL:T.surface,
+                          color:locked?T.muted:(form.adminLevel||1)===lvl?T.accent:T.sub,
+                          cursor:locked?"not-allowed":"pointer",textAlign:"left",
+                          fontFamily:"DM Sans,sans-serif",transition:"all .15s",opacity:locked?.5:1}}>
+                        <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}>
+                          <span style={{fontSize:16}}>{lvl===1?"★":"☆"}</span>
+                          <span>Admin Level {lvl}{locked?" (requires Admin 1)":""}</span>
+                        </div>
+                        <div style={{fontSize:11,fontWeight:400,lineHeight:1.4,
+                          color:locked?T.muted:(form.adminLevel||1)===lvl?T.accent:T.muted}}>
+                          {lvl===1
+                            ? "Full access — edit, delete & manage all data including message history"
+                            : "User management & timesheet viewing — cannot edit or delete messages"}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <div><FL req>Email</FL><input type="email" placeholder="jane@work.com" value={form.email} onChange={e=>sf("email",e.target.value)}/></div>
-            <div><FL>Phone</FL><input placeholder="+61 4xx xxx xxx" value={form.phone} onChange={e=>sf("phone",e.target.value)}/></div>
+            <div><FL>Phone</FL><input placeholder="+64 4xx xxx xxx" value={form.phone} onChange={e=>sf("phone",e.target.value)}/></div>
             <div>
               <FL>{editId?"New Password (leave blank to keep)":"Password"}</FL>
               <div style={{position:"relative"}}>
@@ -1054,7 +1508,20 @@ function UserManagement({users,setUsers}) {
                   {showPw?"Hide":"Show"}
                 </button>
               </div>
-              {!editId&&<div style={{fontSize:11,color:T.muted,marginTop:4}}>Default: "password"</div>}
+              {!editId&&<div style={{fontSize:11,color:T.muted,marginTop:4}}>Required for new users</div>}
+            </div>
+          </div>
+
+          {/* Address fields — optional */}
+          <div style={{borderTop:`1px dashed ${T.border}`,paddingTop:12,marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:10}}>
+              Address <span style={{fontWeight:400,textTransform:"none",letterSpacing:0}}>(optional)</span>
+            </div>
+            <div className="fg-addr" style={{display:"grid",gap:12}}>
+              <div><FL>Street Address</FL><input placeholder="123 Main Street" value={form.address} onChange={e=>sf("address",e.target.value)}/></div>
+              <div><FL>Suburb</FL><input placeholder="Ponsonby" value={form.suburb} onChange={e=>sf("suburb",e.target.value)}/></div>
+              <div><FL>City</FL><input placeholder="Auckland" value={form.city} onChange={e=>sf("city",e.target.value)}/></div>
+              <div><FL>Postcode</FL><input placeholder="1011" value={form.postcode} onChange={e=>sf("postcode",e.target.value)}/></div>
             </div>
           </div>
 
@@ -1107,13 +1574,14 @@ function UserManagement({users,setUsers}) {
 
           {/* Apprentice: pick which Approver and Viewer are assigned to them */}
           {form.role==="Apprentice"&&(
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+            <div className="fg2" style={{display:"grid",gap:16,marginBottom:16}}>
               <div>
                 <FL>Approver <span style={{fontWeight:400,color:T.muted}}>(approves timesheets)</span></FL>
                 <select value={appApprover} onChange={e=>setAppApprover(e.target.value)}>
                   <option value="">— None —</option>
-                  {users.filter(u=>u.role==="Approver").map(u=>(
-                    <option key={u.id} value={u.id}>{u.name}</option>
+                  {approverOptions.map(u=>(
+                    <option key={u.id} value={u.id}>
+                      {u.name}{u.role==="Admin"?` (Admin${u.secondaryRole?` + ${u.secondaryRole}`:""})`:""}</option>
                   ))}
                 </select>
               </div>
@@ -1121,8 +1589,9 @@ function UserManagement({users,setUsers}) {
                 <FL>Viewer <span style={{fontWeight:400,color:T.muted}}>(read-only access)</span></FL>
                 <select value={appViewer} onChange={e=>setAppViewer(e.target.value)}>
                   <option value="">— None —</option>
-                  {users.filter(u=>u.role==="Viewer").map(u=>(
-                    <option key={u.id} value={u.id}>{u.name}</option>
+                  {viewerOptions.map(u=>(
+                    <option key={u.id} value={u.id}>
+                      {u.name}{u.role==="Admin"?` (Admin${u.secondaryRole?` + ${u.secondaryRole}`:""})`:""}</option>
                   ))}
                 </select>
               </div>
@@ -1150,17 +1619,24 @@ function UserManagement({users,setUsers}) {
             padding:"12px 16px",borderBottom:i<users.length-1?`1px solid ${T.border}44`:"none",
             background:isEditing?T.blueL:i%2===0?T.surface:T.bg,
             alignItems:"center",gap:8,animationDelay:`${i*.03}s`,
-            cursor:"pointer"}}
-            onClick={()=>startEdit(u)}
-            onMouseEnter={e=>{if(!isEditing)e.currentTarget.style.background=T.blueL+"99";}}
+            cursor:canEditUser(u)?"pointer":"default"}}
+            onClick={()=>canEditUser(u)&&startEdit(u)}
+            onMouseEnter={e=>{if(!isEditing&&canEditUser(u))e.currentTarget.style.background=T.blueL+"99";}}
             onMouseLeave={e=>{e.currentTarget.style.background=isEditing?T.blueL:i%2===0?T.surface:T.bg;}}>
             <Avatar name={u.name} role={u.role}/>
             <div>
               <div style={{fontWeight:700,fontSize:13}}>{u.name}</div>
               {u.phone&&<div style={{fontSize:11,color:T.muted}}>{u.phone}</div>}
-              <div style={{fontSize:11,color:T.blue,marginTop:1}}>{isEditing?"editing…":"click to edit"}</div>
+              <div style={{fontSize:11,color:canEditUser(u)?T.blue:T.muted,marginTop:1}}>
+                {isEditing?"editing…":canEditUser(u)?"click to edit":"view only"}
+              </div>
             </div>
-            <RolePill role={u.role} size="sm"/>
+            <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
+              <RolePill role={u.role} adminLevel={u.adminLevel||null} size="sm"/>
+              {u.role==="Admin"&&u.secondaryRole&&(
+                <><span style={{fontSize:10,color:T.muted}}>+</span><RolePill role={u.secondaryRole} size="sm"/></>
+              )}
+            </div>
             <div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email||"—"}</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
               {(u.allocatedTo||[]).length===0&&<span style={{fontSize:11,color:T.muted,fontStyle:"italic"}}>—</span>}
@@ -1172,17 +1648,24 @@ function UserManagement({users,setUsers}) {
               })}
             </div>
             <div style={{display:"flex",gap:5,justifyContent:"flex-end"}} onClick={e=>e.stopPropagation()}>
-              <button onClick={()=>startEdit(u)} style={{width:26,height:26,borderRadius:6,fontSize:12,
-                background:isEditing?T.blueL:"transparent",color:isEditing?T.blue:T.muted,
-                border:`1px solid ${isEditing?T.blue+"66":T.border}`,
-                display:"flex",alignItems:"center",justifyContent:"center"}}
-                onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
-                onMouseLeave={e=>{e.currentTarget.style.background=isEditing?T.blueL:"transparent";e.currentTarget.style.color=isEditing?T.blue:T.muted;}}>✎</button>
-              <button onClick={()=>deleteUser(u.id)} style={{width:26,height:26,borderRadius:6,fontSize:12,
-                background:"transparent",color:T.muted,border:`1px solid ${T.border}`,
-                display:"flex",alignItems:"center",justifyContent:"center"}}
-                onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
-                onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
+              {canEditUser(u)&&(
+                <button onClick={()=>startEdit(u)} style={{width:26,height:26,borderRadius:6,fontSize:12,
+                  background:isEditing?T.blueL:"transparent",color:isEditing?T.blue:T.muted,
+                  border:`1px solid ${isEditing?T.blue+"66":T.border}`,
+                  display:"flex",alignItems:"center",justifyContent:"center"}}
+                  onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
+                  onMouseLeave={e=>{e.currentTarget.style.background=isEditing?T.blueL:"transparent";e.currentTarget.style.color=isEditing?T.blue:T.muted;}}>✎</button>
+              )}
+              {canDeleteUser(u)&&(
+                <button onClick={()=>deleteUser(u.id)} style={{width:26,height:26,borderRadius:6,fontSize:12,
+                  background:"transparent",color:T.muted,border:`1px solid ${T.border}`,
+                  display:"flex",alignItems:"center",justifyContent:"center"}}
+                  onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
+                  onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
+              )}
+              {!canEditUser(u)&&(
+                <span style={{fontSize:11,color:T.muted,fontStyle:"italic",padding:"0 4px"}}>🔒</span>
+              )}
             </div>
           </div>
           );
@@ -1205,6 +1688,9 @@ function CRMModule({currentUser,allUsers}) {
   const [cForm,setCForm]=useState({name:"",company:"",email:"",phone:"",status:"Active",notes:""});
   const [dForm,setDForm]=useState({title:"",contact:"",value:"",stage:"Lead",closeDate:"",notes:""});
   const [editCId,setEditCId]=useState(null);
+  const [hsEmail,setHsEmail]=useState("");
+  const [hsStatus,setHsStatus]=useState(null); // null | "searching" | "found" | "notfound" | "error"
+  const [hsSource,setHsSource]=useState(false); // true if form was populated from HubSpot
 
   useEffect(()=>{
     (async()=>{
@@ -1219,10 +1705,33 @@ function CRMModule({currentUser,allUsers}) {
 
   const role=currentUser.role;
   const fullAccess=role==="Admin"||role==="Mentor";
-  const canEdit=role==="Admin";
+  const canEdit=role==="Admin"||role==="Mentor"; // Both Admins (all levels) and Mentors can create/edit contacts & deals
 
   const sc=(k,v)=>setCForm(f=>({...f,[k]:v}));
   const sd=(k,v)=>setDForm(f=>({...f,[k]:v}));
+
+  const resetContactForm = () => {
+    setCForm({name:"",company:"",email:"",phone:"",status:"Active",notes:""});
+    setHsEmail(""); setHsStatus(null); setHsSource(false);
+  };
+
+  const handleHsLookup = async () => {
+    const val = hsEmail.trim();
+    if(!val) return;
+    setHsStatus("searching");
+    const result = await lookupHubspot(val);
+    if(result) {
+      setCForm(result);
+      setHsStatus("found");
+      setHsSource(true);
+    } else {
+      // Pre-fill whichever field they typed so they don't have to retype
+      const isPhone = /^[+\d\s\-()]{6,}$/.test(val) && !/[@.]/.test(val);
+      setCForm(f=>({...f, [isPhone?"phone":"email"]: val}));
+      setHsStatus("notfound");
+      setHsSource(false);
+    }
+  };
 
   const saveContact=()=>{
     if(!cForm.name.trim()) return;
@@ -1237,7 +1746,7 @@ function CRMModule({currentUser,allUsers}) {
       setContacts(prev=>[{id,...row},...prev]);
       upsertRow('crm_contacts',{id,name:row.name,company:row.company||"",email:row.email||"",phone:row.phone||"",status:row.status||"Active",notes:row.notes||""}).catch(console.error);
     }
-    setCForm({name:"",company:"",email:"",phone:"",status:"Active",notes:""});setShowCF(false);
+    setCForm({name:"",company:"",email:"",phone:"",status:"Active",notes:""});resetContactForm();setShowCF(false);
   };
   const saveDeal=()=>{
     if(!dForm.title.trim()) return;
@@ -1248,7 +1757,7 @@ function CRMModule({currentUser,allUsers}) {
     setDForm({title:"",contact:"",value:"",stage:"Lead",closeDate:"",notes:""});setShowDF(false);
   };
   const moveDeal=(id,stage)=>{ setDeals(prev=>prev.map(d=>d.id===id?{...d,stage}:d)); upsertRow("crm_deals",{id,stage}).catch(console.error); };
-  const startEditC=(c)=>{setCForm({name:c.name,company:c.company||"",email:c.email||"",phone:c.phone||"",status:c.status,notes:c.notes||""});setEditCId(c.id);setShowCF(true);};
+  const startEditC=(c)=>{setCForm({name:c.name,company:c.company||"",email:c.email||"",phone:c.phone||"",status:c.status,notes:c.notes||""});setEditCId(c.id);setHsStatus(null);setHsSource(false);setHsEmail("");setShowCF(true);};
 
   const pipeline=STAGES.map(s=>({stage:s,color:STAGE_C[s],
     items:deals.filter(d=>d.stage===s),
@@ -1276,7 +1785,7 @@ function CRMModule({currentUser,allUsers}) {
         <span style={{fontWeight:700,color:ROLE_META[role].color,fontSize:13}}>{role} View — </span>
         <span style={{fontSize:13,color:T.sub}}>{canEdit?"Full CRM access — edit contacts and deals":"Read-only CRM view"}</span>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:22}}>
+      <div className="stat-grid-4">
         <StatCard label="Contacts" value={contacts.length} color={T.blue}/>
         <StatCard label="Active Deals" value={deals.filter(d=>!["Won","Lost"].includes(d.stage)).length} color={T.warn}/>
         <StatCard label="Pipeline" value={`$${(totalOpen/1000).toFixed(1)}k`} color={T.accent}/>
@@ -1294,25 +1803,92 @@ function CRMModule({currentUser,allUsers}) {
       </div>
       {tab==="contacts"&&(<>
         {canEdit&&<div style={{marginBottom:14}}>
-          <Btn sm onClick={()=>{setCForm({name:"",company:"",email:"",phone:"",status:"Active",notes:""});setEditCId(null);setShowCF(s=>!s);}}>
+          <Btn sm onClick={()=>{ resetContactForm(); setEditCId(null); setShowCF(s=>!s); }}>
             {showCF?"✕ Cancel":"+ Add Contact"}
           </Btn>
         </div>}
+
         {showCF&&<Card style={{marginBottom:16,border:`1.5px solid ${T.blue}44`}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
-            <div><FL req>Name</FL><input value={cForm.name} onChange={e=>sc("name",e.target.value)} placeholder="Contact name"/></div>
-            <div><FL>Company</FL><input value={cForm.company} onChange={e=>sc("company",e.target.value)} placeholder="Company"/></div>
-            <div><FL>Email</FL><input value={cForm.email} onChange={e=>sc("email",e.target.value)} placeholder="email@co.com"/></div>
-            <div><FL>Phone</FL><input value={cForm.phone} onChange={e=>sc("phone",e.target.value)} placeholder="+61…"/></div>
-            <div><FL>Status</FL><select value={cForm.status} onChange={e=>sc("status",e.target.value)}>
-              {["Active","Prospect","Inactive"].map(s=><option key={s}>{s}</option>)}
-            </select></div>
-          </div>
-          <div style={{marginBottom:12}}><FL>Notes</FL><textarea value={cForm.notes} onChange={e=>sc("notes",e.target.value)} placeholder="Notes…"/></div>
-          <div style={{display:"flex",gap:8}}>
-            <Btn onClick={saveContact}>{editCId?"Update":"Save Contact"}</Btn>
-            <Btn v="ghost" onClick={()=>{setShowCF(false);setEditCId(null);}}>Cancel</Btn>
-          </div>
+          {/* ── Step 1: HubSpot lookup (only shown for new contacts) ── */}
+          {!editCId&&hsStatus!=="found"&&hsStatus!=="notfound"&&(
+            <div style={{marginBottom:16}}>
+              <div style={{fontWeight:700,fontSize:13,color:T.ink,marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:16}}>🔍</span> Look up in HubSpot
+              </div>
+              <div style={{fontSize:12,color:T.sub,marginBottom:10}}>Enter an email or phone number to auto-fill from HubSpot.</div>
+              <div style={{display:"flex",gap:8}}>
+                <input
+                  placeholder="Email address or phone number…"
+                  value={hsEmail}
+                  onChange={e=>setHsEmail(e.target.value)}
+                  onKeyDown={e=>e.key==="Enter"&&handleHsLookup()}
+                  style={{flex:1,borderColor:T.border}}
+                />
+                <button onClick={handleHsLookup} disabled={hsStatus==="searching"||!hsEmail.trim()} style={{
+                  padding:"9px 18px",background:T.accent,color:"#fff",border:`1.5px solid ${T.accentD}`,
+                  borderRadius:9,fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",
+                  fontFamily:"DM Sans,sans-serif",opacity:(!hsEmail.trim()||hsStatus==="searching")?0.5:1,
+                  display:"flex",alignItems:"center",gap:7,transition:"all .15s"
+                }}>
+                  {hsStatus==="searching"
+                    ? <><span style={{width:13,height:13,border:"2px solid #ffffff66",borderTopColor:"#fff",borderRadius:"50%",display:"inline-block",animation:"spin .7s linear infinite"}}/>Searching…</>
+                    : "Search HubSpot"
+                  }
+                </button>
+              </div>
+              <div style={{marginTop:10,textAlign:"right"}}>
+                <button onClick={()=>setHsStatus("notfound")} style={{
+                  background:"none",border:"none",color:T.muted,fontSize:12,
+                  cursor:"pointer",fontFamily:"DM Sans,sans-serif",textDecoration:"underline"
+                }}>Skip — enter manually</button>
+              </div>
+            </div>
+          )}
+
+          {/* ── HubSpot result banner ── */}
+          {hsStatus==="found"&&(
+            <div style={{background:T.accentL,border:`1.5px solid ${T.accent}44`,borderRadius:9,
+              padding:"9px 14px",marginBottom:14,display:"flex",gap:10,alignItems:"center",fontSize:13}}>
+              <span style={{fontSize:16}}>✓</span>
+              <div style={{flex:1}}>
+                <strong style={{color:T.accent}}>Found in HubSpot</strong>
+                <span style={{color:T.sub,marginLeft:8}}>Fields auto-filled — review and save.</span>
+              </div>
+              <button onClick={()=>{setHsStatus(null);setHsSource(false);resetContactForm();}} style={{
+                background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:13,fontFamily:"DM Sans,sans-serif"
+              }}>✕ Clear</button>
+            </div>
+          )}
+          {hsStatus==="notfound"&&!editCId&&(
+            <div style={{background:T.warnL,border:`1.5px solid ${T.warn}44`,borderRadius:9,
+              padding:"9px 14px",marginBottom:14,display:"flex",gap:10,alignItems:"center",fontSize:13}}>
+              <span>⚠</span>
+              <span style={{color:T.warn,flex:1}}>Not found in HubSpot — fill in manually below.</span>
+              <button onClick={()=>{setHsStatus(null);setHsEmail("");}} style={{
+                background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:13,fontFamily:"DM Sans,sans-serif"
+              }}>← Try again</button>
+            </div>
+          )}
+
+          {/* ── Contact fields (shown after lookup result or skip) ── */}
+          {(editCId||hsStatus==="found"||hsStatus==="notfound")&&(<>
+            <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
+              <div><FL req>Name</FL><input value={cForm.name} onChange={e=>sc("name",e.target.value)} placeholder="Contact name"/></div>
+              <div><FL>Company</FL><input value={cForm.company} onChange={e=>sc("company",e.target.value)} placeholder="Company"/></div>
+              <div><FL>Email</FL><input value={cForm.email} onChange={e=>sc("email",e.target.value)} placeholder="email@co.com"/></div>
+              <div><FL>Phone</FL><input value={cForm.phone} onChange={e=>sc("phone",e.target.value)} placeholder="+64…"/></div>
+              <div><FL>Status</FL>
+                <select value={cForm.status} onChange={e=>sc("status",e.target.value)}>
+                  {["Active","Prospect","Inactive"].map(s=><option key={s}>{s}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{marginBottom:12}}><FL>Notes</FL><textarea value={cForm.notes} onChange={e=>sc("notes",e.target.value)} placeholder="Notes…"/></div>
+            <div style={{display:"flex",gap:8}}>
+              <Btn onClick={saveContact}>{editCId?"Update":"Save Contact"}</Btn>
+              <Btn v="ghost" onClick={()=>{setShowCF(false);setEditCId(null);resetContactForm();}}>Cancel</Btn>
+            </div>
+          </>)}
         </Card>}
         <Card style={{padding:0,overflow:"hidden"}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 140px 160px 100px 60px",
@@ -1379,7 +1955,7 @@ function CRMModule({currentUser,allUsers}) {
           <Btn sm onClick={()=>setShowDF(s=>!s)}>{showDF?"✕ Cancel":"+ Add Deal"}</Btn>
         </div>}
         {showDF&&<Card style={{marginBottom:16,border:`1.5px solid ${T.warn}44`}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+          <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
             <div><FL req>Title</FL><input value={dForm.title} onChange={e=>sd("title",e.target.value)} placeholder="Deal name"/></div>
             <div><FL>Contact</FL><input value={dForm.contact} onChange={e=>sd("contact",e.target.value)} placeholder="Name / Company"/></div>
             <div><FL>Value ($)</FL><input type="number" value={dForm.value} onChange={e=>sd("value",e.target.value)} placeholder="10000"/></div>
@@ -1626,7 +2202,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
   const approvers   = allUsers.filter(u => u.role === "Approver");
   const viewers     = allUsers.filter(u => u.role === "Viewer");
 
-  const blank = {firstName:"", lastName:"", email:"", phone:"", trade:"", licenceExpiry:"", role:"Apprentice", allocatedTo:[], password: hashPw("password")};
+  const blank = {firstName:"", lastName:"", email:"", phone:"", trade:"", licenceExpiry:"", role:"Apprentice", allocatedTo:[], password:"", overtimeType:null, overtimeThreshold:"", overtimeRateId:""};
   const [form, setForm]         = useState(blank);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId]     = useState(null);
@@ -1693,7 +2269,8 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
       lastName:  u.lastName  || parts.slice(1).join(" ") || "",
       email: u.email||"", phone: u.phone||"",
       trade: u.trade||"", licenceExpiry: u.licenceExpiry||"",
-      role:"Apprentice", allocatedTo:[], password:u.password
+      role:"Apprentice", allocatedTo:[], password:u.password,
+      overtimeType: u.overtimeType||null, overtimeThreshold: u.overtimeThreshold||"", overtimeRateId: u.overtimeRateId||"",
     });
     // Pre-select current approver/viewer
     const curApprover = allUsers.find(x=>x.role==="Approver"&&(x.allocatedTo||[]).includes(u.id));
@@ -1735,7 +2312,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
       {showForm && (
         <Card style={{marginBottom:20, border:`1.5px solid ${T.blue}44`}}>
           <div style={{fontWeight:700, fontSize:14, marginBottom:16, color:T.blue}}>{editId?"✎ Edit Apprentice":"+ New Apprentice"}</div>
-          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:12}}>
+          <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
             <div><FL req>First Name</FL><input placeholder="Jamie" value={form.firstName} onChange={e=>sf("firstName",e.target.value)}/></div>
             <div><FL req>Last Name</FL><input placeholder="Smith" value={form.lastName} onChange={e=>sf("lastName",e.target.value)}/></div>
             <div><FL req>Email</FL><input type="email" placeholder="jamie@work.com" value={form.email} onChange={e=>sf("email",e.target.value)}/></div>
@@ -1747,6 +2324,46 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
               </select>
             </div>
             <div><FL>Licence Expiry</FL><input type="date" value={form.licenceExpiry} onChange={e=>sf("licenceExpiry",e.target.value)}/></div>
+            {/* ── Overtime Settings ── */}
+            <div style={{gridColumn:"1/-1"}}>
+              <div style={{fontWeight:700,fontSize:12,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>
+                Overtime Settings
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+                <div>
+                  <FL>Overtime Type</FL>
+                  <select value={form.overtimeType||""} onChange={e=>sf("overtimeType",e.target.value||null)}>
+                    <option value="">— No overtime —</option>
+                    <option value="daily">Daily threshold</option>
+                    <option value="weekly">Weekly threshold</option>
+                  </select>
+                </div>
+                {form.overtimeType&&<div>
+                  <FL>Threshold Hours</FL>
+                  <input type="number" min="1" max="24" step="0.5"
+                    placeholder={form.overtimeType==="daily"?"e.g. 8":"e.g. 40"}
+                    value={form.overtimeThreshold}
+                    onChange={e=>sf("overtimeThreshold",parseFloat(e.target.value)||"")}/>
+                  <div style={{fontSize:10,color:T.muted,marginTop:2}}>
+                    {form.overtimeType==="daily"?"Hours per day before overtime":"Hours per week before overtime"}
+                  </div>
+                </div>}
+                {form.overtimeType&&<div>
+                  <FL>Xero Overtime Rate ID</FL>
+                  <input placeholder="Xero earnings rate UUID"
+                    value={form.overtimeRateId||""}
+                    onChange={e=>sf("overtimeRateId",e.target.value)}/>
+                  <div style={{fontSize:10,color:T.muted,marginTop:2}}>Find in Xero → Payroll → Pay Items</div>
+                </div>}
+              </div>
+              {form.overtimeType&&(
+                <div style={{marginTop:8,padding:"8px 12px",background:T.accentL,borderRadius:7,fontSize:12,color:T.accent}}>
+                  {form.overtimeType==="daily"
+                    ? `Any hours beyond ${form.overtimeThreshold||"?"}h in a single day will submit to Xero as overtime`
+                    : `Any hours beyond ${form.overtimeThreshold||"?"}h in a week will submit to Xero as overtime`}
+                </div>
+              )}
+            </div>
             <div>
               <FL>Approver <span style={{fontWeight:400,color:T.muted}}>(can approve timesheets)</span></FL>
               <select value={formApproverId} onChange={e=>setFormApproverId(e.target.value)}>
@@ -1768,7 +2385,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
                   value={pwField} onChange={e=>setPwField(e.target.value)} style={{paddingRight:60}}/>
                 <button onClick={()=>setShowPw(s=>!s)} type="button" style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:12,fontFamily:"DM Sans,sans-serif"}}>{showPw?"Hide":"Show"}</button>
               </div>
-              {!editId && <div style={{fontSize:11,color:T.muted,marginTop:3}}>Default: "password"</div>}
+              {!editId && <div style={{fontSize:11,color:T.muted,marginTop:3}}>Required for new users</div>}
             </div>
           </div>
           <div style={{display:"flex", gap:8}}>
@@ -2000,7 +2617,7 @@ function ContactsList() {
       {showForm&&(
         <Card style={{marginBottom:20,border:`1.5px solid ${T.slate}44`}}>
           <div style={{fontWeight:700,fontSize:14,marginBottom:16,color:T.slate}}>{editId?"✎ Edit Contact":"+ New Contact"}</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+          <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
             <div><FL req>Name</FL><input placeholder="Jane Smith" value={form.name} onChange={e=>sf("name",e.target.value)}/></div>
             <div><FL>Organisation</FL><input placeholder="Company / Agency" value={form.company} onChange={e=>sf("company",e.target.value)}/></div>
             <div><FL>Type</FL>
@@ -2096,7 +2713,7 @@ function HostBusinessList() {
       {showForm&&(
         <Card style={{marginBottom:20,border:`1.5px solid ${T.teal}44`}}>
           <div style={{fontWeight:700,fontSize:14,marginBottom:16,color:T.teal}}>{editId?"✎ Edit Host Business":"+ New Host Business"}</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+          <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
             <div><FL req>Business Name</FL><input placeholder="Acme Constructions" value={form.name} onChange={e=>sf("name",e.target.value)}/></div>
             <div><FL>Industry</FL>
               <select value={form.industry} onChange={e=>sf("industry",e.target.value)}>
@@ -2207,7 +2824,7 @@ function TargetDealsList() {
       {showForm&&(
         <Card style={{marginBottom:20,border:`1.5px solid ${T.gold}44`}}>
           <div style={{fontWeight:700,fontSize:14,marginBottom:16,color:T.gold}}>{editId?"✎ Edit Deal":"+ New Deal"}</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+          <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
             <div><FL req>Deal Title</FL><input placeholder="e.g. Funding Round 2025" value={form.title} onChange={e=>sf("title",e.target.value)}/></div>
             <div><FL>Contact Person</FL><input placeholder="Name" value={form.contact} onChange={e=>sf("contact",e.target.value)}/></div>
             <div><FL>Organisation</FL><input placeholder="Company / Agency" value={form.org} onChange={e=>sf("org",e.target.value)}/></div>
@@ -2286,7 +2903,7 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
   return (
     <div className="fu">
       {/* Top summary strip */}
-      <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:32}}>
+      <div className="stat-grid-4">
         <button onClick={onViewApprenticeList} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
           onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
           onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
@@ -2317,7 +2934,7 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
       </div>
 
       {/* Second row — CRM-style quick access */}
-      <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14, marginBottom:32}}>
+      <div className="stat-grid-3">
         {[
           {label:"Contacts",       sub:"business & other contacts", color:T.slate, key:"contacts",  icon:"◉"},
           {label:"Host Businesses",sub:"companies hosting apprentices",color:T.teal, key:"hosts",    icon:"◆"},
@@ -2475,10 +3092,19 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
 // ─────────────────────────────────────────────────────────────────────────────
 // NOTIFICATION BELL
 // ─────────────────────────────────────────────────────────────────────────────
-function NotificationBell({notifs, onRead, onReadAll, onDelete, show, setShow}) {
+function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, show, setShow, onReply}) {
   const unread = notifs.filter(n=>!n.read).length;
-  const typeIcon = t => t==="licence_expiry"?"⚠":t==="approval"?"✓":t==="decline"?"✕":t==="broadcast"?"📢":"◈";
-  const typeColor = t => t==="licence_expiry"?T.warn:t==="approval"?T.accent:t==="decline"?T.red:t==="broadcast"?T.blue:T.sub;
+  const typeIcon = t => t==="licence_expiry"?"⚠":t==="approval"?"✓":t==="decline"?"✕":t==="broadcast"?"📢":t==="reply"?"↩":"◈";
+  const typeColor = t => t==="licence_expiry"?T.warn:t==="approval"?T.accent:t==="decline"?T.red:t==="broadcast"?T.blue:t==="reply"?T.teal:T.sub;
+  const [replyId, setReplyId] = useState(null);
+  const [replyText, setReplyText] = useState("");
+
+  const handleReply = (n) => {
+    if(!replyText.trim()) return;
+    onReply(n, replyText.trim());
+    setReplyText("");
+    setReplyId(null);
+  };
 
   return (
     <div style={{position:"relative"}}>
@@ -2498,7 +3124,7 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, show, setShow}) 
         )}
       </button>
       {show&&(
-        <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,width:360,
+        <div className="notif-dropdown" style={{position:"absolute",top:"calc(100% + 8px)",right:0,width:380,
           background:T.surface,borderRadius:12,boxShadow:"0 8px 32px #00000033",
           border:`1px solid ${T.border}`,zIndex:200,overflow:"hidden"}}>
           {/* Header */}
@@ -2513,34 +3139,1063 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, show, setShow}) 
             )}
           </div>
           {/* List */}
-          <div style={{maxHeight:400,overflowY:"auto"}}>
+          <div style={{maxHeight:"min(460px, 70vh)",overflowY:"auto"}}>
             {notifs.length===0&&(
               <div style={{padding:24,textAlign:"center",color:T.muted,fontSize:13}}>No notifications</div>
             )}
             {notifs.map(n=>(
-              <div key={n.id} style={{
-                padding:"12px 16px",borderBottom:`1px solid ${T.border}44`,
-                background:n.read?T.surface:T.blueL+"55",
-                display:"flex",gap:10,alignItems:"flex-start",cursor:"pointer"}}
-                onClick={()=>{ if(!n.read) onRead(n.id); }}>
-                <span style={{fontSize:16,marginTop:1,color:typeColor(n.type)}}>{typeIcon(n.type)}</span>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:n.read?500:700,fontSize:13,color:typeColor(n.type)}}>{n.title}</div>
-                  <div style={{fontSize:12,color:T.sub,marginTop:2,lineHeight:1.4}}>{n.message}</div>
-                  <div style={{fontSize:10,color:T.muted,marginTop:4}}>
-                    {new Date(n.created_at).toLocaleString("en-AU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}
+              <div key={n.id} style={{borderBottom:`1px solid ${T.border}44`,
+                background:n.read?T.surface:T.blueL+"55"}}>
+                <div style={{padding:"12px 16px",display:"flex",gap:10,alignItems:"flex-start",cursor:"pointer"}}
+                  onClick={()=>{ if(!n.read) onRead(n.id); }}>
+                  <span style={{fontSize:16,marginTop:2,color:typeColor(n.type),flexShrink:0}}>{typeIcon(n.type)}</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div className="notif-title" style={{fontWeight:n.read?500:700,fontSize:13,color:typeColor(n.type),
+                      wordBreak:"break-word",lineHeight:1.35}}>{n.title}</div>
+                    <div className="notif-msg" style={{fontSize:12,color:T.sub,marginTop:3,lineHeight:1.5,
+                      wordBreak:"break-word",whiteSpace:"pre-wrap"}}>{n.message}</div>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:6,flexWrap:"wrap",gap:4}}>
+                      <div style={{fontSize:10,color:T.muted}}>
+                        {n.created_at ? new Date(n.created_at).toLocaleString("en-AU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : "Just now"}
+                      </div>
+                      {n.created_by&&n.type!=="reply"&&(
+                        <button onClick={e=>{e.stopPropagation();setReplyId(replyId===n.id?null:n.id);setReplyText("");}}
+                          style={{fontSize:11,color:T.teal,background:replyId===n.id?T.tealL:"none",border:"none",cursor:"pointer",
+                            fontFamily:"DM Sans,sans-serif",fontWeight:600,padding:"2px 6px",borderRadius:4}}>
+                          ↩ Reply
+                        </button>
+                      )}
+                    </div>
                   </div>
+                  {canDelete&&(
+                    <button onClick={e=>{e.stopPropagation();onDelete(n.id);setReplyId(null);}} style={{
+                      background:"none",border:"none",color:T.muted,cursor:"pointer",
+                      fontSize:14,padding:"0 2px",flexShrink:0,marginLeft:2}}
+                      onMouseEnter={e=>e.currentTarget.style.color=T.red}
+                      onMouseLeave={e=>e.currentTarget.style.color=T.muted}>✕</button>
+                  )}
                 </div>
-                <button onClick={e=>{e.stopPropagation();onDelete(n.id);}} style={{
-                  background:"none",border:"none",color:T.muted,cursor:"pointer",
-                  fontSize:14,padding:"0 2px",flexShrink:0}}
-                  onMouseEnter={e=>e.currentTarget.style.color=T.red}
-                  onMouseLeave={e=>e.currentTarget.style.color=T.muted}>✕</button>
+                {replyId===n.id&&(
+                  <div style={{padding:"0 12px 12px 12px"}}>
+                    <textarea
+                      placeholder="Write a reply…"
+                      value={replyText}
+                      onChange={e=>setReplyText(e.target.value)}
+                      rows={2}
+                      style={{width:"100%",fontSize:13,padding:"8px 10px",borderRadius:7,
+                        border:`1.5px solid ${T.teal}66`,fontFamily:"DM Sans,sans-serif",
+                        background:T.bg,resize:"none",outline:"none",color:T.ink,boxSizing:"border-box"}}
+                      onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();handleReply(n);}}}
+                      autoFocus
+                    />
+                    <div style={{display:"flex",gap:6,marginTop:6}}>
+                      <button onClick={()=>handleReply(n)} disabled={!replyText.trim()} style={{
+                        fontSize:12,fontWeight:600,padding:"6px 14px",borderRadius:6,
+                        background:replyText.trim()?T.teal:"#ccc",color:"#fff",border:"none",
+                        cursor:replyText.trim()?"pointer":"default",fontFamily:"DM Sans,sans-serif"}}>
+                        Send Reply
+                      </button>
+                      <button onClick={()=>setReplyId(null)} style={{
+                        fontSize:12,padding:"6px 10px",borderRadius:6,background:"none",
+                        border:`1px solid ${T.border}`,color:T.sub,cursor:"pointer",
+                        fontFamily:"DM Sans,sans-serif"}}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTACT US — Apprentice view
+// ─────────────────────────────────────────────────────────────────────────────
+function ContactUs({currentUser, allUsers, onSend}) {
+  const [selectedId, setSelectedId] = useState(null);
+  const [msgMode, setMsgMode] = useState(false);
+  const [msgText, setMsgText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  // Show Admin and Mentor users as contactable staff (excluding the current user)
+  const staffColors = [T.accent, T.teal, T.warn, T.gold, T.blue];
+  const staff = allUsers
+    .filter(u => ["Admin","Mentor"].includes(u.role) && u.id !== currentUser.id)
+    .map((u, i) => ({
+      ...u,
+      color: staffColors[i % staffColors.length],
+      avatar: u.name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase(),
+    }));
+
+  const selected = staff.find(u => u.id === selectedId) || null;
+
+  const handleSendMsg = async () => {
+    if(!msgText.trim() || !selected) return;
+    setSending(true);
+    await onSend(selected, msgText.trim());
+    setSending(false);
+    setSent(true);
+    setTimeout(()=>{ setSent(false); setMsgText(""); setMsgMode(false); }, 2500);
+  };
+
+  if(staff.length === 0) return null;
+
+  return (
+    <Card style={{marginTop:20,border:`1.5px solid ${T.border}`}} className="fu">
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
+        <div style={{width:36,height:36,borderRadius:10,background:T.accentL,
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📞</div>
+        <div>
+          <div style={{fontWeight:700,fontSize:15}}>Contact Us</div>
+          <div style={{fontSize:12,color:T.sub}}>Get in touch with your KTA team</div>
+        </div>
+      </div>
+
+      {/* Staff cards */}
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:selectedId?16:0}}>
+        {staff.map(person=>(
+          <button key={person.id}
+            onClick={()=>{setSelectedId(selectedId===person.id?null:person.id);setMsgMode(false);setSent(false);setMsgText("");}}
+            style={{padding:"12px 14px",borderRadius:12,textAlign:"left",cursor:"pointer",
+              border:`2px solid ${selectedId===person.id?person.color:T.border}`,
+              background:selectedId===person.id?person.color+"11":T.surface,
+              transition:"all .15s",fontFamily:"DM Sans,sans-serif",width:"100%",
+              display:"flex",alignItems:"center",gap:12}}>
+            <div style={{width:44,height:44,borderRadius:99,background:person.color,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              color:"#fff",fontWeight:700,fontSize:14,flexShrink:0}}>
+              {person.avatar}
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{person.name}</div>
+              <div style={{marginTop:3}}><RolePill role={person.role} size="sm"/></div>
+            </div>
+            {selectedId===person.id
+              ? <span style={{fontSize:16,color:person.color,flexShrink:0}}>✓</span>
+              : <span style={{fontSize:14,color:T.muted,flexShrink:0}}>›</span>
+            }
+          </button>
+        ))}
+      </div>
+
+      {/* Contact options */}
+      {selected&&!msgMode&&!sent&&(
+        <div className="fu" style={{background:T.bg,borderRadius:10,padding:14}}>
+          <div style={{fontSize:12,fontWeight:600,color:T.sub,marginBottom:10,textTransform:"uppercase",letterSpacing:".5px"}}>
+            How would you like to reach {selected.name.split(" ")[0]}?
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {selected.phone&&(
+              <a href={`tel:${selected.phone.replace(/\s/g,"")}`}
+                style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",
+                  borderRadius:9,background:T.surface,border:`1.5px solid ${T.border}`,
+                  textDecoration:"none",color:T.ink,transition:"all .14s"}}
+                onMouseEnter={e=>e.currentTarget.style.borderColor=T.accent}
+                onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+                <span style={{fontSize:20}}>📱</span>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600}}>Call</div>
+                  <div style={{fontSize:12,color:T.sub}}>{selected.phone}</div>
+                </div>
+              </a>
+            )}
+            {selected.email&&(
+              <a href={`mailto:${selected.email}`}
+                style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",
+                  borderRadius:9,background:T.surface,border:`1.5px solid ${T.border}`,
+                  textDecoration:"none",color:T.ink,transition:"all .14s"}}
+                onMouseEnter={e=>e.currentTarget.style.borderColor=T.accent}
+                onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+                <span style={{fontSize:20}}>✉️</span>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600}}>Email</div>
+                  <div style={{fontSize:12,color:T.sub}}>{selected.email}</div>
+                </div>
+              </a>
+            )}
+            {!selected.phone&&!selected.email&&(
+              <div style={{fontSize:12,color:T.muted,fontStyle:"italic",padding:"8px 0"}}>
+                No phone or email on file — use the in-app message below.
+              </div>
+            )}
+            <button onClick={()=>setMsgMode(true)}
+              style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",
+                borderRadius:9,background:T.surface,border:`1.5px solid ${T.border}`,
+                textAlign:"left",cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                color:T.ink,transition:"all .14s",width:"100%"}}
+              onMouseEnter={e=>e.currentTarget.style.borderColor=selected.color}
+              onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
+              <span style={{fontSize:20}}>💬</span>
+              <div>
+                <div style={{fontSize:13,fontWeight:600}}>Message in App</div>
+                <div style={{fontSize:12,color:T.sub}}>Send a message via the KTA app</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* In-app message composer */}
+      {selected&&msgMode&&!sent&&(
+        <div className="fu" style={{background:T.bg,borderRadius:10,padding:14}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>
+            Message to {selected.name}
+          </div>
+          <textarea
+            placeholder={`Hi ${selected.name.split(" ")[0]}, I wanted to reach out about…`}
+            value={msgText}
+            onChange={e=>setMsgText(e.target.value)}
+            rows={4}
+            style={{width:"100%",fontSize:13,padding:"10px 12px",borderRadius:8,
+              border:`1.5px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",
+              background:T.surface,resize:"none",color:T.ink,outline:"none",
+              boxSizing:"border-box"}}
+          />
+          <div style={{display:"flex",gap:8,marginTop:10}}>
+            <Btn onClick={handleSendMsg} disabled={sending||!msgText.trim()}>
+              {sending?"Sending…":"Send Message"}
+            </Btn>
+            <Btn v="ghost" onClick={()=>{setMsgMode(false);setMsgText("");}}>Cancel</Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Sent confirmation */}
+      {sent&&(
+        <div className="fu" style={{background:T.accentL,borderRadius:10,padding:16,textAlign:"center"}}>
+          <div style={{fontSize:20,marginBottom:4}}>✓</div>
+          <div style={{fontWeight:700,color:T.accent,fontSize:14}}>Message sent!</div>
+          <div style={{fontSize:12,color:T.sub,marginTop:2}}>{selected?.name} will get back to you soon.</div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MENTOR MODULE
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Meeting Report — Email sender ─────────────────────────────────────────────
+const sendMeetingReportEmail = async (report, apprentice, mentor, approver) => {
+  emailjs.init(EJS_KEY);
+  const fD = (iso) => { if(!iso) return "TBC"; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
+  const lines = [
+    `APPRENTICE CHECK IN REPORT`,
+    `Kiwi Trade Apprentices`,
+    `════════════════════════════════════════════`,
+    ``,
+    `Trainee Name:       ${apprentice.name}`,
+    `Trade:              ${apprentice.trade||"Not specified"}`,
+    `Location:           ${report.location||"Not specified"}`,
+    `Date:               ${fD(report.date)}`,
+    `KTA Representative: ${mentor.name}`,
+    `Licence Expiry:     ${apprentice.licenceExpiry ? fD(apprentice.licenceExpiry) : "Not set"}`,
+    `Date of Next Visit: ${fD(report.next_visit_date)}`,
+    ``,
+    `────────────────────────────────────────────`,
+    `OFF JOB PROGRESS SINCE LAST VISIT`,
+    `────────────────────────────────────────────`,
+    report.off_job_progress || "N/a",
+    ``,
+    `────────────────────────────────────────────`,
+    `ON JOB PROGRESS SINCE LAST VISIT`,
+    `────────────────────────────────────────────`,
+    report.on_job_progress || "N/a",
+    ``,
+    `────────────────────────────────────────────`,
+    `PREVIOUS GOALS`,
+    `────────────────────────────────────────────`,
+    report.previous_goals || "N/a",
+    ``,
+    `────────────────────────────────────────────`,
+    `GOALS BEFORE NEXT VISIT`,
+    `────────────────────────────────────────────`,
+    report.goals_this_meeting || "N/a",
+    ``,
+    `────────────────────────────────────────────`,
+    `COMMENTS AND FEEDBACK`,
+    `────────────────────────────────────────────`,
+    report.comments_feedback || "N/a",
+    ``,
+    `════════════════════════════════════════════`,
+    `This report was generated by the KTA Workforce Management System`,
+    `kta.org.nz`,
+  ].join("\n");
+  const recipients = [
+    { email: apprentice.email, name: apprentice.name },
+    approver ? { email: approver.email, name: approver.name } : null,
+  ].filter(r=>r&&r.email);
+  for(const r of recipients) {
+    try {
+      await emailjs.send(EJS_SERVICE, EJS_TEMPLATE, {
+        to_email: r.email, approver_name: r.name, apprentice_name: apprentice.name,
+        entry_count: "", entry_list: lines,
+        status: `Apprentice Check In Report — ${fD(report.date)}`, message: lines,
+      });
+    } catch(e) { console.error("Meeting report email failed:", e); }
+  }
+};
+
+// Stable textarea + section-header components for MeetingReportForm
+// MUST live outside MeetingReportForm — if defined inside, every keystroke
+// recreates them as new component types, unmounting/remounting and losing focus.
+const ReportTA = ({rows=4, value, onChange, placeholder}) => (
+  <textarea rows={rows} value={value} onChange={onChange} placeholder={placeholder||""}
+    style={{width:"100%",fontSize:13,padding:"10px 12px",border:`1px solid ${T.border}`,
+      borderTop:"none",borderRadius:0,fontFamily:"DM Sans,sans-serif",background:"#fff",
+      resize:"vertical",color:T.ink,outline:"none",boxSizing:"border-box",minHeight:90}}/>
+);
+const ReportSH = ({children, req}) => (
+  <div style={{background:"#f5f7fa",border:`1px solid ${T.border}`,borderBottom:"none",
+    padding:"9px 12px",fontWeight:700,fontSize:13,color:T.ink,display:"flex",alignItems:"center",gap:5}}>
+    {children}{req&&<span style={{color:T.red,fontSize:11,marginLeft:2}}>*</span>}
+  </div>
+);
+
+// ── Meeting Report Form — KTA "Apprentice Check In Report" template ───────────
+function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
+  const today = new Date().toISOString().slice(0,10);
+  const approver = allUsers.find(u=>
+    u.id === apprentice.approverUserId ||
+    (u.role==="Approver" && (u.allocatedTo||[]).includes(apprentice.id))
+  );
+  const [form, setForm] = useState({
+    date: today, location: "",
+    offJobProgress: "", onJobProgress: "",
+    previousGoals: "", goalsNextVisit: "",
+    commentsFeedback: "", nextVisitDate: "",
+  });
+  const [saving, setSaving]           = useState(false);
+  const [emailStatus, setEmailStatus] = useState(null);
+  const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+  const fD = (iso) => { if(!iso) return "—"; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
+
+  const handleSave = async () => {
+    if(!form.commentsFeedback.trim() && !form.onJobProgress.trim()) {
+      alert("Please fill in at least On Job Progress or Comments & Feedback."); return;
+    }
+    setSaving(true);
+    const report = {
+      id: uid(), apprentice_id: apprentice.id, mentor_id: mentor.id,
+      date: form.date, location: form.location.trim(),
+      off_job_progress:  form.offJobProgress.trim(),
+      on_job_progress:   form.onJobProgress.trim(),
+      previous_goals:    form.previousGoals.trim(),
+      goals_this_meeting: form.goalsNextVisit.trim(),
+      comments_feedback: form.commentsFeedback.trim(),
+      next_visit_date:   form.nextVisitDate || null,
+      created_at:        new Date().toISOString(),
+    };
+    try {
+      await upsertRow('meeting_reports', report);
+      setEmailStatus("sending");
+      await sendMeetingReportEmail(report, apprentice, mentor, approver);
+      setEmailStatus("sent");
+      setTimeout(()=>onSave(report), 900);
+    } catch(e) { alert("Failed to save: " + e.message); setSaving(false); }
+  };
+
+  return (
+    <div style={{border:`1.5px solid ${T.border}`,borderRadius:10,overflow:"hidden",background:"#fff"}}>
+      {/* KTA Header */}
+      <div style={{background:T.dark,padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div>
+          <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:16,color:"#fff"}}>Apprentice Check In Report</div>
+          <div style={{fontSize:11,color:"#ffffff88",marginTop:2}}>Kiwi Trade Apprentices</div>
+        </div>
+        <img src={KTA_LOGO} alt="KTA" style={{height:36,objectFit:"contain",filter:"brightness(0) invert(1)"}}
+          onError={e=>e.target.style.display="none"}/>
+      </div>
+
+      {/* Top table — Trainee Name / Location / Date */}
+      <div style={{border:`1px solid ${T.border}`,borderTop:"none"}}>
+        {[
+          {label:"Trainee Name", content:<div style={{padding:"4px 6px",fontSize:13,fontWeight:600}}>{apprentice.name}</div>},
+          {label:"Location",     content:<input value={form.location} onChange={e=>sf("location",e.target.value)}
+            placeholder="e.g. Worksite, Zoom, Head Office"
+            onKeyDown={e=>e.stopPropagation()}
+            style={{border:"none",fontSize:13,width:"100%",outline:"none",padding:"6px",fontFamily:"DM Sans,sans-serif",background:"transparent"}}/>},
+          {label:"Date",         content:<input type="date" value={form.date} onChange={e=>sf("date",e.target.value)}
+            style={{border:"none",fontSize:13,width:"100%",outline:"none",padding:"6px",fontFamily:"DM Sans,sans-serif",background:"transparent"}}/>},
+        ].map(({label,content})=>(
+          <div key={label} style={{display:"grid",gridTemplateColumns:"160px 1fr",borderBottom:`1px solid ${T.border}`}}>
+            <div style={{padding:"10px 12px",fontWeight:700,fontSize:13,borderRight:`1px solid ${T.border}`,background:"#f5f7fa"}}>{label}</div>
+            <div>{content}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Main sections */}
+      <div style={{border:`1px solid ${T.border}`,borderTop:"none"}}>
+        <ReportSH>Off Job Progress Since Last Visit</ReportSH>
+        <ReportTA rows={4} value={form.offJobProgress} onChange={e=>sf("offJobProgress",e.target.value)}
+          placeholder="Training courses, assessments, NZQA unit standards, classroom learning…"/>
+        <ReportSH>On Job Progress Since Last Visit</ReportSH>
+        <ReportTA rows={4} value={form.onJobProgress} onChange={e=>sf("onJobProgress",e.target.value)}
+          placeholder="Practical skills, site work, tasks completed, employer feedback…"/>
+        <ReportSH>Previous Goals</ReportSH>
+        <ReportTA rows={4} value={form.previousGoals} onChange={e=>sf("previousGoals",e.target.value)}
+          placeholder="Goals set at the last visit — have they been met?"/>
+        <ReportSH req>Goals Before Next Visit</ReportSH>
+        <ReportTA rows={4} value={form.goalsNextVisit} onChange={e=>sf("goalsNextVisit",e.target.value)}
+          placeholder="Specific goals for the apprentice to work toward before the next visit…"/>
+        <ReportSH req>Comments and Feedback</ReportSH>
+        <ReportTA rows={5} value={form.commentsFeedback} onChange={e=>sf("commentsFeedback",e.target.value)}
+          placeholder="Overall summary, observations, any concerns or positive feedback…"/>
+      </div>
+
+      {/* Bottom table — Licence Expiry / Next Visit / KTA Rep */}
+      <div style={{border:`1px solid ${T.border}`,borderTop:"none"}}>
+        {[
+          {label:"Licence Expiry",      content:<div style={{padding:"6px",fontSize:13,fontWeight:600,
+            color: apprentice.licenceExpiry && new Date(apprentice.licenceExpiry+"T00:00:00")<new Date() ? T.red : T.ink}}>
+            {apprentice.licenceExpiry ? fD(apprentice.licenceExpiry) : "Not set"}</div>},
+          {label:"Date of Next Visit",  content:<input type="date" value={form.nextVisitDate} onChange={e=>sf("nextVisitDate",e.target.value)}
+            style={{border:"none",fontSize:13,width:"100%",outline:"none",padding:"6px",fontFamily:"DM Sans,sans-serif",background:"transparent"}}/>},
+          {label:"KTA Representative",  content:<div style={{padding:"6px",fontSize:13,fontWeight:600}}>{mentor.name}</div>},
+        ].map(({label,content})=>(
+          <div key={label} style={{display:"grid",gridTemplateColumns:"180px 1fr",borderBottom:`1px solid ${T.border}`}}>
+            <div style={{padding:"10px 12px",fontWeight:700,fontSize:13,borderRight:`1px solid ${T.border}`,background:"#f5f7fa"}}>{label}</div>
+            <div>{content}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Email notice + save */}
+      <div style={{padding:"14px 16px",background:T.bg,borderTop:`1px solid ${T.border}`}}>
+        <div style={{fontSize:12,color:T.accent,marginBottom:12,padding:"8px 12px",
+          background:T.accentL,borderRadius:7,border:`1px solid ${T.accent}33`}}>
+          📧 On save this report will be emailed to:
+          <strong> {apprentice.name}</strong>{apprentice.email?` (${apprentice.email})`:` — no email set`}
+          {approver&&<>, <strong>{approver.name}</strong>{approver.email?` (${approver.email})`:""}</>}
+        </div>
+        {emailStatus==="sending"&&<div style={{background:T.warnL,border:`1px solid ${T.warn}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:12,color:T.warn}}>⏳ Sending emails…</div>}
+        {emailStatus==="sent"&&<div style={{background:T.tealL,border:`1px solid ${T.teal}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:12,color:T.teal}}>✓ Saved and emailed!</div>}
+        <div style={{display:"flex",gap:8}}>
+          <Btn onClick={handleSave} disabled={saving}>{saving?"Saving…":"💾 Save & Email Report"}</Btn>
+          <Btn v="ghost" onClick={onCancel}>Cancel</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Past Meeting Reports ──────────────────────────────────────────────────────
+function PastMeetingReports({apprentice, allUsers, canEdit=false}) {
+  const [reports, setReports]   = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [expandId, setExpandId] = useState(null);
+
+  useEffect(()=>{
+    loadTable('meeting_reports')
+      .then(rows=>setReports(rows.filter(r=>r.apprentice_id===apprentice.id).sort((a,b)=>b.date.localeCompare(a.date))))
+      .catch(()=>setReports([]))
+      .finally(()=>setLoading(false));
+  },[apprentice.id]);
+
+  const handleDelete = async (id) => {
+    if(!window.confirm("Delete this meeting report?")) return;
+    await deleteRow('meeting_reports', id).catch(console.error);
+    setReports(prev=>prev.filter(r=>r.id!==id));
+  };
+
+  const fD = (iso) => { if(!iso) return "—"; try{ const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; }catch{ return iso; } };
+
+  const Section = ({label,value}) => value ? (
+    <div style={{marginBottom:10}}>
+      <div style={{fontSize:11,fontWeight:700,color:T.dark,textTransform:"uppercase",
+        letterSpacing:".6px",marginBottom:3,paddingBottom:3,borderBottom:`1px solid ${T.border}`}}>{label}</div>
+      <div style={{fontSize:13,color:T.ink,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{value}</div>
+    </div>
+  ) : null;
+
+  if(loading) return <div style={{padding:24,textAlign:"center",color:T.muted,fontSize:13}}>Loading reports…</div>;
+
+  return (
+    <div>
+      {reports.length===0&&(
+        <div style={{padding:"24px 0",textAlign:"center",color:T.muted,fontSize:13,fontStyle:"italic"}}>No check in reports yet</div>
+      )}
+      {reports.map(r=>{
+        const mentorUser = allUsers.find(u=>u.id===r.mentor_id);
+        const isOpen = expandId===r.id;
+        return (
+          <div key={r.id} style={{border:`1.5px solid ${T.border}`,borderRadius:10,marginBottom:10,overflow:"hidden"}}>
+            <div onClick={()=>setExpandId(isOpen?null:r.id)} style={{
+              display:"flex",alignItems:"center",gap:12,padding:"12px 16px",
+              background:isOpen?T.dark:T.surface,cursor:"pointer",
+              borderBottom:isOpen?`1px solid ${T.border}`:"none",transition:"background .15s"}}>
+              <div style={{width:34,height:34,borderRadius:8,
+                background:isOpen?"#ffffff20":T.accentL,
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>📋</div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700,fontSize:14,color:isOpen?"#fff":T.ink}}>
+                  {fD(r.date)}{r.location?` — ${r.location}`:""}
+                </div>
+                <div style={{fontSize:12,color:isOpen?"#ffffff88":T.sub,marginTop:1}}>
+                  {mentorUser?.name||"Unknown"} · KTA Representative
+                  {r.next_visit_date&&<span style={{marginLeft:8}}>Next visit: {fD(r.next_visit_date)}</span>}
+                </div>
+              </div>
+              <div style={{fontSize:11,color:isOpen?"#ffffff66":T.muted}}>{isOpen?"▲ collapse":"▼ view"}</div>
+            </div>
+            {isOpen&&(
+              <div style={{padding:"16px",background:"#fff"}}>
+                <Section label="Off Job Progress Since Last Visit" value={r.off_job_progress}/>
+                <Section label="On Job Progress Since Last Visit"  value={r.on_job_progress}/>
+                <Section label="Previous Goals"                    value={r.previous_goals}/>
+                <Section label="Goals Before Next Visit"           value={r.goals_this_meeting}/>
+                <Section label="Comments and Feedback"             value={r.comments_feedback}/>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginTop:12,
+                  padding:"10px 12px",background:T.bg,borderRadius:8,border:`1px solid ${T.border}`}}>
+                  {[
+                    {label:"Licence Expiry",      value: apprentice.licenceExpiry ? fD(apprentice.licenceExpiry) : "Not set"},
+                    {label:"Date of Next Visit",  value: r.next_visit_date ? fD(r.next_visit_date) : "TBC"},
+                    {label:"KTA Representative",  value: mentorUser?.name||"—"},
+                  ].map(({label,value})=>(
+                    <div key={label}>
+                      <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
+                      <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+                {canEdit&&(
+                  <button onClick={()=>handleDelete(r.id)} style={{
+                    marginTop:12,fontSize:12,color:T.red,background:"none",
+                    border:`1px solid ${T.red}44`,borderRadius:6,padding:"4px 12px",
+                    cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>🗑 Delete Report</button>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── PPE Allocation ────────────────────────────────────────────────────────────
+const PPE_ITEMS = ["Hard Hat","High-Vis Vest","Safety Boots","Safety Glasses","Gloves","Ear Protection","Dust Mask / P2 Respirator","Harness","Knee Pads","Face Shield","First Aid Kit","Other"];
+
+function PPEAllocation({apprentice, mentor, canEdit=false}) {
+  const [allocations, setAllocations] = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [showForm, setShowForm]       = useState(false);
+  const [form, setForm] = useState({item:"Hard Hat", quantity:"1", issuedDate: new Date().toISOString().slice(0,10), notes:""});
+  const [saving, setSaving] = useState(false);
+  const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  useEffect(()=>{
+    loadTable('ppe_allocations')
+      .then(rows=>setAllocations(rows.filter(r=>r.apprentice_id===apprentice.id).sort((a,b)=>b.issued_date.localeCompare(a.issued_date))))
+      .catch(()=>setAllocations([]))
+      .finally(()=>setLoading(false));
+  },[apprentice.id]);
+
+  const handleAdd = async () => {
+    if(!form.item) return;
+    setSaving(true);
+    const row = {
+      id: uid(),
+      apprentice_id: apprentice.id,
+      mentor_id: mentor.id,
+      item: form.item,
+      quantity: parseInt(form.quantity)||1,
+      issued_date: form.issuedDate,
+      notes: form.notes.trim(),
+      created_at: new Date().toISOString(),
+    };
+    try {
+      await upsertRow('ppe_allocations', row);
+      setAllocations(prev=>[row,...prev]);
+      setShowForm(false);
+      setForm({item:"Hard Hat",quantity:"1",issuedDate:new Date().toISOString().slice(0,10),notes:""});
+    } catch(e) { alert("Failed: "+e.message); }
+    setSaving(false);
+  };
+
+  const handleDelete = async (id) => {
+    if(!window.confirm("Remove this PPE record?")) return;
+    await deleteRow('ppe_allocations', id).catch(console.error);
+    setAllocations(prev=>prev.filter(r=>r.id!==id));
+  };
+
+  const fmtDate = (iso) => { if(!iso) return "—"; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
+
+  if(loading) return <div style={{padding:16,textAlign:"center",color:T.muted,fontSize:13}}>Loading…</div>;
+
+  return (
+    <div>
+      {canEdit&&(
+        <div style={{marginBottom:14}}>
+          {!showForm
+            ? <Btn sm onClick={()=>setShowForm(true)}>+ Issue PPE Item</Btn>
+            : (
+              <Card style={{border:`1.5px solid ${T.accent}44`,marginBottom:0}}>
+                <div style={{fontWeight:700,fontSize:13,marginBottom:12}}>Issue PPE to {apprentice.name}</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 80px",gap:10,marginBottom:10}}>
+                  <div>
+                    <FL req>Item</FL>
+                    <select value={form.item} onChange={e=>sf("item",e.target.value)}>
+                      {PPE_ITEMS.map(i=><option key={i}>{i}</option>)}
+                    </select>
+                  </div>
+                  <div><FL>Qty</FL><input type="number" min="1" value={form.quantity} onChange={e=>sf("quantity",e.target.value)}/></div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                  <div><FL>Date Issued</FL><input type="date" value={form.issuedDate} onChange={e=>sf("issuedDate",e.target.value)}/></div>
+                  <div><FL>Notes</FL><input placeholder="Size, colour, condition…" value={form.notes} onChange={e=>sf("notes",e.target.value)}/></div>
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  <Btn sm onClick={handleAdd} disabled={saving}>{saving?"Saving…":"Save"}</Btn>
+                  <Btn sm v="ghost" onClick={()=>setShowForm(false)}>Cancel</Btn>
+                </div>
+              </Card>
+            )
+          }
+        </div>
+      )}
+
+      {allocations.length===0&&!showForm&&(
+        <div style={{padding:"16px 0",textAlign:"center",color:T.muted,fontSize:13,fontStyle:"italic"}}>No PPE issued yet</div>
+      )}
+
+      {allocations.length>0&&(
+        <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 50px 110px 1fr 36px",
+            padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
+            fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
+            <span>Item</span><span style={{textAlign:"center"}}>Qty</span><span>Date Issued</span><span>Notes</span><span/>
+          </div>
+          {allocations.map((r,i)=>(
+            <div key={r.id} style={{display:"grid",gridTemplateColumns:"1fr 50px 110px 1fr 36px",
+              padding:"9px 14px",gap:8,alignItems:"center",fontSize:13,
+              borderBottom:i<allocations.length-1?`1px solid ${T.border}44`:"none",
+              background:i%2===0?T.surface:T.bg}}>
+              <div style={{fontWeight:600}}>{r.item}</div>
+              <div style={{textAlign:"center",color:T.accent,fontWeight:700}}>{r.quantity}</div>
+              <div style={{color:T.sub}}>{fmtDate(r.issued_date)}</div>
+              <div style={{color:r.notes?T.ink:T.muted,fontStyle:r.notes?"normal":"italic",fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.notes||"—"}</div>
+              <div>
+                {canEdit&&(
+                  <button onClick={()=>handleDelete(r.id)} style={{
+                    width:28,height:28,borderRadius:6,background:"none",color:T.muted,
+                    border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",
+                    alignItems:"center",justifyContent:"center",fontSize:13}}
+                    onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;}}
+                    onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color=T.muted;}}>✕</button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Apprentice Detail Page (used by both Mentor and Admin) ────────────────────
+function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, isAdmin=false}) {
+  const [showMeetingForm, setShowMeetingForm] = useState(false);
+  const [meetingKey, setMeetingKey]           = useState(0);
+  const [lastVisit, setLastVisit]             = useState(null);
+  const [loadingVisit, setLoadingVisit]       = useState(true);
+  const [reports, setReports]                 = useState([]);
+
+  useEffect(()=>{
+    loadTable('meeting_reports')
+      .then(rows=>{
+        const sorted = rows.filter(r=>r.apprentice_id===apprentice.id).sort((a,b)=>b.date.localeCompare(a.date));
+        setReports(sorted);
+        setLastVisit(sorted[0]?.date||null);
+      })
+      .catch(()=>{ setReports([]); setLastVisit(null); })
+      .finally(()=>setLoadingVisit(false));
+  },[apprentice.id, meetingKey]);
+
+  const fmtDate = (iso) => { if(!iso) return null; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
+  const daysUntil = (iso) => { if(!iso) return null; const today=new Date(); today.setHours(0,0,0,0); const exp=new Date(iso+"T00:00:00"); return Math.round((exp-today)/86400000); };
+
+  const licDays = daysUntil(apprentice.licenceExpiry);
+  const licColor = licDays===null?T.muted:licDays<0?T.red:licDays<=7?T.red:licDays<=30?T.warn:T.teal;
+
+  const lastReport    = reports[0] || null;
+  const prevReport    = reports[1] || null;
+
+  // Timesheet entries for this apprentice (admin view)
+  const appEntries = (entries||[]).filter(e=>e.userId===apprentice.id).sort((a,b)=>b.date.localeCompare(a.date));
+  const approvedH  = appEntries.filter(e=>e.approval==="approved").reduce((s,e)=>s+e.netHours,0).toFixed(1);
+  const submittedH = appEntries.filter(e=>e.approval==="submitted").reduce((s,e)=>s+e.netHours,0).toFixed(1);
+
+  // Approver for this apprentice
+  const approver = allUsers.find(u=>
+    u.id===apprentice.approverUserId ||
+    (u.role==="Approver"&&(u.allocatedTo||[]).includes(apprentice.id))
+  );
+
+  const ratingColor = (r) => r==="Excellent"?T.teal:r==="Good"?T.accent:r==="Satisfactory"?T.gold:r==="Needs Improvement"?T.warn:r==="Concerning"?T.red:T.muted;
+
+  return (
+    <div className="fu">
+      <button onClick={onBack} style={{
+        display:"inline-flex",alignItems:"center",gap:6,background:"none",border:"none",
+        color:T.sub,fontSize:13,fontFamily:"DM Sans,sans-serif",cursor:"pointer",
+        marginBottom:16,padding:0,fontWeight:500}}
+        onMouseEnter={e=>e.currentTarget.style.color=T.ink}
+        onMouseLeave={e=>e.currentTarget.style.color=T.sub}>
+        ← {isAdmin?"Back to Dashboard":"Back to My Apprentices"}
+      </button>
+
+      {/* ── Card 1: Apprentice Summary ── */}
+      <Card style={{marginBottom:16,border:`2px solid ${T.dark}33`}}>
+        <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:16,
+          paddingBottom:16,borderBottom:`1px solid ${T.border}`}}>
+          <div style={{width:54,height:54,borderRadius:"50%",flexShrink:0,
+            background:T.dark,display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:22,fontWeight:700,color:"#fff",fontFamily:"'Libre Baskerville'"}}>
+            {apprentice.name?.[0]?.toUpperCase()||"?"}
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:"'Libre Baskerville'",fontSize:22,fontWeight:700,color:T.ink}}>{apprentice.name}</div>
+            <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>
+              <RolePill role="Apprentice" size="sm"/>
+              {approver&&<Pill label={`Approver: ${approver.name}`} size="sm" color={T.warn} bg={T.warnL}/>}
+            </div>
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10}}>
+          {[
+            {label:"Trade",            value:apprentice.trade||"Not set",   icon:"🔧", bg:T.accentL,  valColor:T.accent},
+            {label:"Licence Expiry",
+              value:apprentice.licenceExpiry
+                ?(licDays!==null?`${fmtDate(apprentice.licenceExpiry)} (${licDays<0?"Expired":licDays===0?"Today":`${licDays}d`})`:fmtDate(apprentice.licenceExpiry))
+                :"Not set",
+              icon:"📄",
+              bg:licDays===null?T.bg:licDays<=7?T.redL:licDays<=30?T.warnL:T.tealL,
+              valColor:licColor},
+            {label:"Last Mentor Visit",value:loadingVisit?"…":lastVisit?fmtDate(lastVisit):"No visits yet",icon:"📅",bg:T.tealL,valColor:T.teal},
+            {label:"Email",            value:apprentice.email||"Not set",   icon:"✉",  bg:T.bg,       valColor:T.sub},
+            {label:"Phone",            value:apprentice.phone||"Not set",   icon:"📞", bg:T.bg,       valColor:T.sub},
+          ].map(({label,value,icon,bg,valColor})=>(
+            <div key={label} style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`}}>
+              <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>{icon} {label}</div>
+              <div style={{fontSize:13,fontWeight:700,color:valColor,wordBreak:"break-all",lineHeight:1.4}}>{value}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* ── Goals cards (side by side if both exist) ── */}
+      <div style={{display:"grid",gridTemplateColumns:prevReport?"1fr 1fr":"1fr",gap:12,marginBottom:16}}>
+        {/* Goals from last meeting */}
+        <Card style={{border:`1.5px solid ${T.accent}33`}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+            <div style={{width:32,height:32,borderRadius:8,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>🎯</div>
+            <div>
+              <div style={{fontWeight:700,fontSize:14}}>Goals from Last Meeting</div>
+              {lastReport&&<div style={{fontSize:11,color:T.sub}}>{fmtDate(lastReport.date)}</div>}
+            </div>
+          </div>
+          {lastReport?.goals_this_meeting
+            ? <div style={{fontSize:13,color:T.ink,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{lastReport.goals_this_meeting}</div>
+            : <div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>{lastReport?"No goals recorded for this visit":"No meeting reports yet"}</div>
+          }
+          {lastReport?.rating&&(
+            <div style={{marginTop:10,display:"inline-flex",alignItems:"center",gap:6,
+              background:ratingColor(lastReport.rating)+"15",borderRadius:6,padding:"3px 10px"}}>
+              <span style={{fontSize:12,fontWeight:700,color:ratingColor(lastReport.rating)}}>{lastReport.rating}</span>
+            </div>
+          )}
+        </Card>
+
+        {/* Goals from meeting before */}
+        {prevReport&&(
+          <Card style={{border:`1.5px solid ${T.gold}33`}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+              <div style={{width:32,height:32,borderRadius:8,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>📌</div>
+              <div>
+                <div style={{fontWeight:700,fontSize:14}}>Goals from Previous Meeting</div>
+                <div style={{fontSize:11,color:T.sub}}>{fmtDate(prevReport.date)}</div>
+              </div>
+            </div>
+            {prevReport.goals_this_meeting
+              ? <div style={{fontSize:13,color:T.ink,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{prevReport.goals_this_meeting}</div>
+              : <div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>No goals recorded for this visit</div>
+            }
+            {prevReport.rating&&(
+              <div style={{marginTop:10,display:"inline-flex",alignItems:"center",gap:6,
+                background:ratingColor(prevReport.rating)+"15",borderRadius:6,padding:"3px 10px"}}>
+                <span style={{fontSize:12,fontWeight:700,color:ratingColor(prevReport.rating)}}>{prevReport.rating}</span>
+              </div>
+            )}
+          </Card>
+        )}
+      </div>
+
+      {/* ── Timesheet Summary (Admin only) ── */}
+      {isAdmin && (
+        <Card style={{marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+            <div style={{width:36,height:36,borderRadius:10,background:T.blueL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>⏱</div>
+            <div>
+              <div style={{fontWeight:700,fontSize:15}}>Timesheet Summary</div>
+              <div style={{fontSize:12,color:T.sub}}>All entries for {apprentice.name}</div>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:16}}>
+            {[
+              {label:"Total Entries",   value: appEntries.length,                                           color:T.accent},
+              {label:"Approved Hours",  value: `${approvedH}h`,                                             color:T.teal},
+              {label:"Pending (hrs)",   value: `${submittedH}h`,                                            color:T.warn},
+              {label:"Drafts",          value: appEntries.filter(e=>e.approval==="draft").length,            color:T.muted},
+              {label:"Declined",        value: appEntries.filter(e=>e.approval==="declined").length,         color:T.red},
+            ].map(({label,value,color})=>(
+              <div key={label} style={{background:T.bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`,textAlign:"center"}}>
+                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>{label}</div>
+                <div style={{fontSize:20,fontWeight:700,color,fontFamily:"'Libre Baskerville'"}}>{value}</div>
+              </div>
+            ))}
+          </div>
+          {/* Recent entries list */}
+          {appEntries.length>0&&(
+            <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
+              <div style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 70px 90px",
+                padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
+                fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
+                <span>Date</span><span>Type / Note</span><span style={{textAlign:"center"}}>Hours</span><span>Status</span><span>Start–End</span>
+              </div>
+              {appEntries.slice(0,20).map((e,i)=>{
+                const am = APPROVAL_META[e.approval]||APPROVAL_META.draft;
+                const tm = TYPE_META[e.type]||TYPE_META["Normal Hours"];
+                return (
+                  <div key={e.id} style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 70px 90px",
+                    padding:"9px 14px",gap:8,alignItems:"center",fontSize:13,
+                    borderBottom:i<Math.min(appEntries.length,20)-1?`1px solid ${T.border}44`:"none",
+                    background:i%2===0?T.surface:T.bg}}>
+                    <div style={{fontWeight:600,fontSize:12}}>{fmtD(e.date)}</div>
+                    <div>
+                      <Pill label={e.type} size="sm" color={tm.color} bg={tm.bg}/>
+                      {e.note&&<div style={{fontSize:11,color:T.muted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.note}</div>}
+                    </div>
+                    <div style={{textAlign:"center",fontWeight:700,color:T.accent}}>{e.netHours}h</div>
+                    <Pill label={am.label} size="sm" color={am.color} bg={am.bg}/>
+                    <div style={{fontSize:11,color:T.sub}}>{e.start}–{e.end}</div>
+                  </div>
+                );
+              })}
+              {appEntries.length>20&&<div style={{padding:"8px 14px",fontSize:12,color:T.muted,textAlign:"center"}}>Showing 20 of {appEntries.length} entries</div>}
+            </div>
+          )}
+          {appEntries.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:T.muted,fontSize:13,fontStyle:"italic"}}>No timesheet entries yet</div>}
+        </Card>
+      )}
+
+      {/* ── New Meeting Report ── */}
+      <Card style={{marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:showMeetingForm?16:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📋</div>
+            <div>
+              <div style={{fontWeight:700,fontSize:15}}>New Meeting Report</div>
+              <div style={{fontSize:12,color:T.sub}}>Record a visit or check-in with {apprentice.name}</div>
+            </div>
+          </div>
+          {!showMeetingForm&&<Btn onClick={()=>setShowMeetingForm(true)}>+ New Report</Btn>}
+        </div>
+        {showMeetingForm&&(
+          <MeetingReportForm
+            apprentice={apprentice}
+            mentor={viewer}
+            allUsers={allUsers}
+            onSave={(report)=>{
+              setShowMeetingForm(false);
+              setMeetingKey(k=>k+1);
+            }}
+            onCancel={()=>setShowMeetingForm(false)}
+          />
+        )}
+      </Card>
+
+      {/* ── Past Meeting Reports ── */}
+      <Card style={{marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+          <div style={{width:36,height:36,borderRadius:10,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📁</div>
+          <div>
+            <div style={{fontWeight:700,fontSize:15}}>Past Meeting Reports</div>
+            <div style={{fontSize:12,color:T.sub}}>History of all visits with {apprentice.name}</div>
+          </div>
+        </div>
+        <PastMeetingReports key={meetingKey} apprentice={apprentice} allUsers={allUsers} canEdit={true}/>
+      </Card>
+
+      {/* ── PPE Allocation ── */}
+      <Card style={{marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+          <div style={{width:36,height:36,borderRadius:10,background:T.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🦺</div>
+          <div>
+            <div style={{fontWeight:700,fontSize:15}}>PPE Allocation</div>
+            <div style={{fontSize:12,color:T.sub}}>Personal protective equipment issued to {apprentice.name}</div>
+          </div>
+        </div>
+        <PPEAllocation apprentice={apprentice} mentor={viewer} canEdit={true}/>
+      </Card>
+
+      {/* ── Activity & Email Timeline ── */}
+      {apprentice.email && (
+        <Card style={{marginBottom:16}}>
+          <EmailActivityFeed
+            personEmail={apprentice.email}
+            personName={apprentice.name}
+            personId={apprentice.id}
+            canEdit={true}
+            extraItems={reports.map(r=>({
+              id: r.id,
+              created_at: r.created_at||r.date+"T12:00:00",
+              date: r.date,
+              label: `Meeting Report — ${r.date ? (()=>{const [y,m,d]=r.date.split('-');return`${d}/${m}/${y}`;})() : ""}`,
+              detail: r.goals_this_meeting ? `Goals: ${r.goals_this_meeting}` : r.comments_feedback||"",
+            }))}
+          />
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// Legacy wrapper for Mentor
+function MentorApprenticeDetail({apprentice, mentor, allUsers, onBack}) {
+  return <ApprenticeDetailView apprentice={apprentice} viewer={mentor} allUsers={allUsers} onBack={onBack} isAdmin={false} entries={[]}/>;
+}
+
+// ── Mentor Dashboard (home screen) ───────────────────────────────────────────
+function MentorDashboard({currentUser, allUsers}) {
+  const [selectedApprentice, setSelectedApprentice] = useState(null);
+  const [apprenticeSummaries, setApprenticeSummaries] = useState({}); // id -> {lastVisit, reportCount}
+  const [loadingMeta, setLoadingMeta] = useState(true);
+
+  // Mentor's allocated apprentices
+  const myApprentices = allUsers.filter(u=>
+    u.role==="Apprentice" && (currentUser.allocatedTo||[]).includes(u.id)
+  ).sort((a,b)=>a.name.localeCompare(b.name));
+
+  // Load meeting report meta for each apprentice
+  useEffect(()=>{
+    loadTable('meeting_reports')
+      .then(rows=>{
+        const map = {};
+        myApprentices.forEach(app=>{
+          const appRows = rows.filter(r=>r.apprentice_id===app.id).sort((a,b)=>b.date.localeCompare(a.date));
+          map[app.id] = { lastVisit: appRows[0]?.date||null, reportCount: appRows.length };
+        });
+        setApprenticeSummaries(map);
+      })
+      .catch(()=>{})
+      .finally(()=>setLoadingMeta(false));
+  },[allUsers, currentUser.id]);
+
+  const fmtDate = (iso) => { if(!iso) return null; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
+  const daysUntil = (iso) => { if(!iso) return null; const today=new Date(); today.setHours(0,0,0,0); const exp=new Date(iso+"T00:00:00"); return Math.round((exp-today)/86400000); };
+
+  if(selectedApprentice) {
+    return (
+      <ApprenticeDetailView
+        apprentice={selectedApprentice}
+        viewer={currentUser}
+        allUsers={allUsers}
+        entries={[]}
+        isAdmin={false}
+        onBack={()=>setSelectedApprentice(null)}
+      />
+    );
+  }
+
+  return (
+    <div className="fu">
+      <div style={{marginBottom:20}}>
+        <h1 style={{fontFamily:"'Libre Baskerville'",fontSize:26,fontWeight:700,letterSpacing:"-.4px",marginBottom:4}}>
+          Welcome, {currentUser.name.split(" ")[0]}
+        </h1>
+        <p style={{fontSize:13,color:T.sub}}>Your apprentice overview and mentor tools</p>
+      </div>
+
+      {/* ── Apprentices Card ── */}
+      <Card style={{marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+          <div style={{width:38,height:38,borderRadius:11,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>👷</div>
+          <div>
+            <div style={{fontWeight:700,fontSize:16}}>My Apprentices</div>
+            <div style={{fontSize:12,color:T.sub}}>{myApprentices.length} apprentice{myApprentices.length!==1?"s":""} allocated to you</div>
+          </div>
+        </div>
+
+        {myApprentices.length===0&&(
+          <div style={{padding:"24px 0",textAlign:"center",color:T.muted,fontSize:13,fontStyle:"italic"}}>
+            No apprentices allocated to you yet — contact an Admin.
+          </div>
+        )}
+
+        {myApprentices.map((app,i)=>{
+          const meta   = apprenticeSummaries[app.id]||{};
+          const licDays = daysUntil(app.licenceExpiry);
+          const licWarn = licDays!==null && licDays<=30;
+          return (
+            <div key={app.id} onClick={()=>setSelectedApprentice(app)}
+              className="ri"
+              style={{display:"flex",alignItems:"center",gap:14,padding:"12px 4px",
+                borderBottom:i<myApprentices.length-1?`1px solid ${T.border}44`:"none",
+                cursor:"pointer",borderRadius:8,animationDelay:`${i*.04}s`}}
+              onMouseEnter={e=>e.currentTarget.style.background=T.accentL+"66"}
+              onMouseLeave={e=>e.currentTarget.style.background="none"}>
+              <Avatar name={app.name} role="Apprentice" size={42}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:700,fontSize:14}}>{app.name}</div>
+                <div style={{fontSize:12,color:T.sub,marginTop:1,display:"flex",gap:10,flexWrap:"wrap"}}>
+                  {app.trade&&<span>🔧 {app.trade}</span>}
+                  {meta.lastVisit&&<span>📅 Last visit {fmtDate(meta.lastVisit)}</span>}
+                  {!meta.lastVisit&&!loadingMeta&&<span style={{color:T.muted,fontStyle:"italic"}}>No visits yet</span>}
+                  {meta.reportCount>0&&<span>📋 {meta.reportCount} report{meta.reportCount!==1?"s":""}</span>}
+                </div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
+                {licWarn&&(
+                  <div style={{fontSize:11,fontWeight:700,color:licDays<0?T.red:licDays<=7?T.red:T.warn,
+                    background:licDays<=7?T.redL:T.warnL,borderRadius:6,padding:"2px 8px"}}>
+                    {licDays<0?"Licence expired":licDays===0?"Expires today":`Licence: ${licDays}d`}
+                  </div>
+                )}
+                <div style={{fontSize:11,color:T.muted}}>View →</div>
+              </div>
+            </div>
+          );
+        })}
+      </Card>
+
+      {/* ── Resources Card ── */}
+      <Card style={{marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+          <div style={{width:38,height:38,borderRadius:11,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📂</div>
+          <div>
+            <div style={{fontWeight:700,fontSize:16}}>Resources</div>
+            <div style={{fontSize:12,color:T.sub}}>Guides, templates, and reference materials</div>
+          </div>
+        </div>
+        <div style={{background:T.bg,borderRadius:10,padding:"14px 16px",
+          border:`1px dashed ${T.border}`,textAlign:"center"}}>
+          <div style={{fontSize:28,marginBottom:8}}>📁</div>
+          <div style={{fontWeight:600,fontSize:14,color:T.sub,marginBottom:4}}>Resource Folder Coming Soon</div>
+          <div style={{fontSize:12,color:T.muted,lineHeight:1.6}}>
+            This section will link to shared files, templates, and training resources.<br/>
+            Contact your Admin to set up the resource folder.
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -2624,6 +4279,1558 @@ function BroadcastComposer({users, currentUser, onSend, onClose}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// APPRENTICE CONVERSATION HISTORY
+// ─────────────────────────────────────────────────────────────────────────────
+function ApprenticeConversation({apprentice, allUsers, currentUser, canManageMessages=false, onNotify}) {
+  const [messages, setMessages] = useState([]);
+  const [msgText, setMsgText]   = useState("");
+  const [sending, setSending]   = useState(false);
+  const [loadErr, setLoadErr]   = useState(null);
+  const [hoverMsg, setHoverMsg] = useState(null);
+
+  // Load messages whenever the apprentice changes
+  useEffect(()=>{
+    if(!apprentice?.id) return;
+    setMessages([]);
+    setLoadErr(null);
+    loadMessages(apprentice.id)
+      .then(setMessages)
+      .catch(e=>setLoadErr(e.message));
+  },[apprentice?.id]);
+
+  const handleSend = async () => {
+    if(!msgText.trim()||!currentUser) return;
+    setSending(true);
+    const msg = {
+      id: uid(),
+      apprentice_id: apprentice.id,
+      sender_id: currentUser.id,
+      body: msgText.trim(),
+      created_at: new Date().toISOString(),
+    };
+    try {
+      await insertMessage(msg);
+      setMessages(prev=>[...prev, msg]);
+      setMsgText("");
+      if(onNotify) {
+        await onNotify(
+          [apprentice.id],
+          "broadcast",
+          `💬 Message from ${currentUser.name}`,
+          msgText.trim(),
+          currentUser.id,
+          { messageId: msg.id }
+        );
+      }
+    } catch(e) {
+      alert("Failed to send: "+e.message);
+    }
+    setSending(false);
+  };
+
+  const handleDelete = async (msgId) => {
+    if(!window.confirm("Permanently delete this message?")) return;
+    await deleteMessage(msgId).catch(console.error);
+    setMessages(prev=>prev.filter(m=>m.id!==msgId));
+  };
+
+  // Group messages by date
+  const grouped = {};
+  messages.forEach(m=>{
+    const day = m.created_at ? m.created_at.slice(0,10) : "unknown";
+    if(!grouped[day]) grouped[day]=[];
+    grouped[day].push(m);
+  });
+
+  const fmtDay = (iso) => {
+    if(iso==="unknown") return "Unknown date";
+    const [y,m,d] = iso.split('-');
+    return new Date(Date.UTC(+y,+m-1,+d)).toLocaleDateString("en-NZ",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  };
+  const fmtTime = (iso) => iso ? new Date(iso).toLocaleTimeString("en-NZ",{hour:"2-digit",minute:"2-digit"}) : "";
+  const getSender = (m) => allUsers.find(u=>u.id===m.sender_id);
+  const isFromApprentice = (m) => m.sender_id === apprentice.id;
+
+  return (
+    <Card style={{marginTop:20,border:`1.5px solid ${T.border}`}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+        <div style={{width:34,height:34,borderRadius:10,background:T.accentL,
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>💬</div>
+        <div>
+          <div style={{fontWeight:700,fontSize:14}}>Conversation</div>
+          <div style={{fontSize:12,color:T.sub}}>
+            Permanent message history with {apprentice.name}
+            {canManageMessages&&<span style={{marginLeft:8,fontSize:11,color:T.muted}}>(hover a message to delete)</span>}
+          </div>
+        </div>
+      </div>
+
+      {loadErr&&<div style={{fontSize:12,color:T.red,marginBottom:12}}>⚠ Could not load messages: {loadErr}</div>}
+
+      {Object.keys(grouped).length===0&&!loadErr&&(
+        <div style={{padding:"24px 0",textAlign:"center",color:T.muted,fontSize:13,fontStyle:"italic"}}>
+          No messages yet
+        </div>
+      )}
+
+      {Object.entries(grouped).map(([day, dayMsgs])=>(
+        <div key={day} style={{marginBottom:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+            <div style={{flex:1,height:1,background:T.border}}/>
+            <div style={{fontSize:11,color:T.muted,fontWeight:600,whiteSpace:"nowrap"}}>{fmtDay(day)}</div>
+            <div style={{flex:1,height:1,background:T.border}}/>
+          </div>
+          {dayMsgs.map(m=>{
+            const fromApp = isFromApprentice(m);
+            const sender  = getSender(m);
+            return (
+              <div key={m.id}
+                onMouseEnter={()=>setHoverMsg(m.id)}
+                onMouseLeave={()=>setHoverMsg(null)}
+                style={{display:"flex",flexDirection:"column",
+                  alignItems:fromApp?"flex-start":"flex-end",marginBottom:8,position:"relative"}}>
+                <div style={{maxWidth:"80%",padding:"9px 13px",
+                  borderRadius:fromApp?"4px 12px 12px 12px":"12px 4px 12px 12px",
+                  background:fromApp?T.bg:T.accentL,
+                  border:`1px solid ${fromApp?T.border:T.accent+"44"}`,position:"relative"}}>
+                  <div style={{fontSize:12,color:T.ink,lineHeight:1.5,wordBreak:"break-word"}}>{m.body}</div>
+                  {/* Delete button — Admin 1 only, shown on hover */}
+                  {canManageMessages&&hoverMsg===m.id&&(
+                    <button onClick={()=>handleDelete(m.id)} title="Delete message" style={{
+                      position:"absolute",top:-8,right:-8,width:20,height:20,borderRadius:"50%",
+                      background:T.red,color:"#fff",border:"none",cursor:"pointer",
+                      fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",
+                      lineHeight:1,fontWeight:700}}>✕</button>
+                  )}
+                </div>
+                <div style={{fontSize:10,color:T.muted,marginTop:3,display:"flex",gap:6}}>
+                  <span>{sender?.name||"Unknown"}</span>
+                  {m.created_at&&<span>· {fmtTime(m.created_at)}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+
+      {/* Reply box */}
+      <div style={{borderTop:`1px solid ${T.border}`,paddingTop:12,marginTop:4}}>
+        <textarea
+          placeholder={`Message ${apprentice.name}…`}
+          value={msgText}
+          onChange={e=>setMsgText(e.target.value)}
+          rows={2}
+          style={{width:"100%",fontSize:13,padding:"9px 12px",borderRadius:8,
+            border:`1.5px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",
+            background:T.surface,resize:"none",color:T.ink,outline:"none",boxSizing:"border-box"}}
+          onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();handleSend();}}}
+        />
+        <div style={{display:"flex",gap:8,marginTop:8}}>
+          <Btn onClick={handleSend} disabled={sending||!msgText.trim()}>
+            {sending?"Sending…":"Send"}
+          </Btn>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// XERO INTEGRATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Xero Payroll NZ earnings rate IDs — these must be configured per organisation
+// Admins set their own IDs in the Xero module settings
+const XERO_DEFAULT_RATES = {
+  "Normal Hours":   null,  // set per-org
+  "Annual Leave":   null,
+  "Sick Leave":     null,
+  "Public Holiday": null,
+  "Other":          null,
+};
+
+// Submit a single approved entry to Xero via a Supabase Edge Function proxy
+// The edge function handles OAuth token management and CORS
+// Calculate overtime split for an entry given apprentice settings + all entries this week
+const calcOvertimeSplit = (entry, apprentice, allEntries) => {
+  const { overtimeType, overtimeThreshold, overtimeRateId } = apprentice;
+  if(!overtimeType || !overtimeThreshold || !overtimeRateId || entry.type !== "Normal Hours") {
+    return [{ hours: entry.netHours, isOvertime: false }];
+  }
+
+  if(overtimeType === "daily") {
+    const threshold = parseFloat(overtimeThreshold);
+    const normal = Math.min(entry.netHours, threshold);
+    const overtime = Math.max(0, entry.netHours - threshold);
+    const splits = [{ hours: normal, isOvertime: false }];
+    if(overtime > 0) splits.push({ hours: overtime, isOvertime: true });
+    return splits;
+  }
+
+  if(overtimeType === "weekly") {
+    const threshold = parseFloat(overtimeThreshold);
+    // Get Mon of entry's week
+    const d = new Date(entry.date + "T00:00:00");
+    const day = d.getDay();
+    const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    const monStr = mon.toISOString().slice(0,10);
+    const sunStr = sun.toISOString().slice(0,10);
+
+    // Sum all approved/submitted entries this week for this apprentice BEFORE this entry
+    const weekEntries = allEntries.filter(e =>
+      e.userId === apprentice.id &&
+      e.date >= monStr && e.date <= sunStr &&
+      e.date < entry.date && // entries before this one
+      (e.approval === "approved" || e.xeroStatus === "submitted")
+    );
+    const hoursBeforeThis = weekEntries.reduce((s, e) => s + e.netHours, 0);
+    const hoursAfterThreshold = Math.max(0, hoursBeforeThis - threshold);
+    const remainingNormal = Math.max(0, threshold - hoursBeforeThis);
+
+    if(hoursAfterThreshold >= entry.netHours) {
+      // Entirely overtime
+      return [{ hours: entry.netHours, isOvertime: true }];
+    }
+    const normal = Math.min(entry.netHours, remainingNormal);
+    const overtime = Math.max(0, entry.netHours - normal);
+    const splits = [];
+    if(normal > 0)   splits.push({ hours: normal,   isOvertime: false });
+    if(overtime > 0) splits.push({ hours: overtime, isOvertime: true  });
+    return splits;
+  }
+
+  return [{ hours: entry.netHours, isOvertime: false }];
+};
+
+const submitEntryToXero = async (entry, apprentice, allEntries=[]) => {
+  const xeroSettings = JSON.parse(localStorage.getItem("kta_xero_settings")||"{}");
+  const { edgeFunctionUrl, tenantId, earningsRates = {} } = xeroSettings;
+
+  if(!edgeFunctionUrl) return { ok: false, error: "Xero not configured. Set up in the Xero module." };
+  if(!tenantId)         return { ok: false, error: "Xero Tenant ID not configured." };
+  if(!apprentice.xeroEmployeeId) return { ok: false, error: `No Xero Employee ID for ${apprentice.name}` };
+
+  const normalRateId = earningsRates[entry.type];
+  if(!normalRateId) return { ok: false, error: `No Xero Earnings Rate mapped for "${entry.type}"` };
+
+  // Calculate overtime split
+  const splits = calcOvertimeSplit(entry, apprentice, allEntries);
+  const lines = splits.map(s => ({
+    earningsRateId: s.isOvertime ? apprentice.overtimeRateId : normalRateId,
+    hours: s.hours,
+    isOvertime: s.isOvertime,
+  }));
+
+  const payload = {
+    action:      "upsertTimesheet",
+    tenantId,
+    employeeId:  apprentice.xeroEmployeeId,
+    date:        entry.date,
+    lines,
+    note:        entry.note || "",
+  };
+
+  try {
+    const res = await fetch(edgeFunctionUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if(!res.ok) return { ok: false, error: data.error || `HTTP ${res.status}` };
+    return { ok: true, timesheetId: data.timesheetId };
+  } catch(e) {
+    return { ok: false, error: e.message };
+  }
+};
+
+// ── Xero Module — Admin 1 only ────────────────────────────────────────────────
+function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast, onImportUser}) {
+  const [tab, setTab]             = useState("setup");     // "setup"|"employees"|"pending"|"history"
+  const [settings, setSettings]   = useState(()=>{
+    try{ return JSON.parse(localStorage.getItem("kta_xero_settings")||"{}"); }catch{ return {}; }
+  });
+  const [saved, setSaved]         = useState(false);
+  const [empMap, setEmpMap]               = useState({}); // userId -> xeroEmployeeId (local edits)
+  const [xeroEmployees, setXeroEmployees] = useState([]); // loaded from Xero
+  const [xeroRates, setXeroRates]         = useState([]); // earnings rates loaded from Xero
+  const [savingMap, setSavingMap] = useState({});
+
+  const apprentices = allUsers.filter(u=>u.role==="Apprentice").sort((a,b)=>a.name.localeCompare(b.name));
+  const approvedEntries = entries.filter(e=>e.approval==="approved")
+    .sort((a,b)=>b.date.localeCompare(a.date));
+  const pendingXero = approvedEntries.filter(e=>!e.xeroStatus);
+  const submittedXero = approvedEntries.filter(e=>e.xeroStatus==="submitted");
+
+  const ss = (k,v) => setSettings(s=>({...s,[k]:v}));
+  const saveSettings = () => {
+    localStorage.setItem("kta_xero_settings", JSON.stringify(settings));
+    setSaved(true); setTimeout(()=>setSaved(false), 2000);
+  };
+
+  const fD = (iso) => { if(!iso) return "—"; try{ const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; }catch{ return iso; } };
+  const xeroBlue = "#13b5ea";
+  const xeroBlueDark = "#0d7bb5";
+
+  const ENTRY_TYPE_NAMES = ["Normal Hours","Annual Leave","Sick Leave","Public Holiday","Other"];
+
+  const TabBtn = ({id,label,count}) => (
+    <button onClick={()=>setTab(id)} style={{
+      padding:"8px 16px",borderRadius:8,fontSize:13,fontWeight:600,
+      background: tab===id ? xeroBlue : T.bg,
+      color: tab===id ? "#fff" : T.sub,
+      border: tab===id ? `1.5px solid ${xeroBlueDark}` : `1.5px solid ${T.border}`,
+      cursor:"pointer",fontFamily:"DM Sans,sans-serif",display:"flex",alignItems:"center",gap:6,
+      transition:"all .14s"}}>
+      {label}
+      {count!==undefined&&<span style={{
+        background: tab===id?"#ffffff33":T.border,
+        color: tab===id?"#fff":T.sub,
+        borderRadius:99,padding:"1px 7px",fontSize:11,fontWeight:700}}>{count}</span>}
+    </button>
+  );
+
+  return (
+    <div className="fu">
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:24,
+        padding:"20px 24px",background:"#fff",borderRadius:14,border:`1.5px solid ${xeroBlue}33`,
+        boxShadow:"0 2px 12px #13b5ea11"}}>
+        <div style={{width:52,height:52,borderRadius:12,background:"#e6f7fd",
+          display:"flex",alignItems:"center",justifyContent:"center",
+          fontSize:28,fontWeight:900,color:xeroBlue,fontFamily:"Georgia,serif",flexShrink:0}}>𝕏</div>
+        <div>
+          <div style={{fontFamily:"'Libre Baskerville'",fontSize:20,fontWeight:700,color:T.ink}}>Xero Payroll Integration</div>
+          <div style={{fontSize:13,color:T.sub,marginTop:2}}>
+            Submit approved timesheets to Xero Payroll NZ · Admin Level 1 only
+          </div>
+        </div>
+        <div style={{marginLeft:"auto",display:"flex",gap:8,flexWrap:"wrap"}}>
+          <div style={{textAlign:"center",padding:"8px 16px",background:T.accentL,borderRadius:8}}>
+            <div style={{fontSize:20,fontWeight:700,color:T.accent,fontFamily:"'Libre Baskerville'"}}>{pendingXero.length}</div>
+            <div style={{fontSize:11,color:T.sub,fontWeight:600}}>Awaiting Xero</div>
+          </div>
+          <div style={{textAlign:"center",padding:"8px 16px",background:"#e6f7fd",borderRadius:8}}>
+            <div style={{fontSize:20,fontWeight:700,color:xeroBlue,fontFamily:"'Libre Baskerville'"}}>{submittedXero.length}</div>
+            <div style={{fontSize:11,color:T.sub,fontWeight:600}}>Submitted</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+        <TabBtn id="setup"     label="⚙ Setup & Auth"/>
+        <TabBtn id="employees" label="👤 Employee Mapping" count={apprentices.filter(a=>!a.xeroEmployeeId).length||undefined}/>
+        <TabBtn id="pending"   label="📤 Pending Xero Submission" count={pendingXero.length}/>
+        <TabBtn id="history"   label="✓ Submission History"       count={submittedXero.length}/>
+      </div>
+
+      {/* ── Setup Tab ── */}
+      {tab==="setup"&&(
+        <div>
+          {/* Architecture callout */}
+          <div style={{background:"#fffbeb",border:`1.5px solid ${T.warn}55`,borderRadius:12,
+            padding:"16px 20px",marginBottom:20}}>
+            <div style={{fontWeight:700,fontSize:14,color:T.warn,marginBottom:8}}>⚠ How Xero integration works</div>
+            <div style={{fontSize:13,color:T.ink,lineHeight:1.7}}>
+              Xero requires <strong>OAuth 2.0 authentication</strong> which cannot be done directly from the browser due to CORS restrictions.
+              This integration uses a <strong>Supabase Edge Function</strong> as a proxy — the function holds your Xero credentials securely and forwards requests to the Xero API.
+            </div>
+            <div style={{marginTop:12,fontSize:13,color:T.sub,lineHeight:1.7}}>
+              <strong>Setup steps:</strong><br/>
+              1. Create a Xero API app at <a href="https://developer.xero.com/app/manage" target="_blank" rel="noreferrer" style={{color:xeroBlue}}>developer.xero.com/app/manage</a><br/>
+              2. Deploy the KTA Edge Function to Supabase (file provided below)<br/>
+              3. Set the Edge Function URL and your Xero Tenant ID below<br/>
+              4. Map each apprentice to their Xero Employee ID<br/>
+              5. Map KTA entry types to Xero Earnings Rate IDs
+            </div>
+          </div>
+
+          <Card style={{marginBottom:16}}>
+            <div style={{fontWeight:700,fontSize:15,marginBottom:16,color:T.ink}}>Connection Settings</div>
+            <div style={{marginBottom:12}}>
+              <FL>Supabase Edge Function URL</FL>
+              <input value={settings.edgeFunctionUrl||""} onChange={e=>ss("edgeFunctionUrl",e.target.value)}
+                placeholder="https://your-project.supabase.co/functions/v1/xero-proxy"/>
+              <div style={{fontSize:11,color:T.muted,marginTop:3}}>The URL of your deployed xero-proxy Supabase Edge Function</div>
+            </div>
+            <div style={{marginBottom:16}}>
+              <FL>Xero Tenant / Organisation ID</FL>
+              <input value={settings.tenantId||""} onChange={e=>ss("tenantId",e.target.value)}
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"/>
+              <div style={{fontSize:11,color:T.muted,marginTop:3}}>Found in Xero under My Xero → Connections, or via GET /connections</div>
+            </div>
+
+            <div style={{fontWeight:700,fontSize:14,marginBottom:12,marginTop:4,color:T.ink,borderTop:`1px solid ${T.border}`,paddingTop:16}}>
+              Earnings Rate Mapping
+            </div>
+            <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+              Map each KTA entry type to a Xero Earnings Rate. Click <strong>Load from Xero</strong> to pull your rates automatically.
+            </div>
+            <div style={{marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
+              <Btn sm onClick={async()=>{
+                if(!settings.edgeFunctionUrl||!settings.tenantId){
+                  alert("Save your Edge Function URL and Tenant ID first."); return;
+                }
+                try{
+                  const res = await fetch(settings.edgeFunctionUrl,{
+                    method:"POST", headers:{"Content-Type":"application/json"},
+                    body: JSON.stringify({action:"getEarningsRates",tenantId:settings.tenantId}),
+                  });
+                  const data = await res.json();
+                  if(data.ok && data.earningsRates){
+                    setXeroRates(data.earningsRates);
+                    showToast(`✓ Loaded ${data.earningsRates.length} earnings rates from Xero`);
+                  } else { alert("Error: "+(data.error||"Unknown")); }
+                }catch(e){ alert("Failed: "+e.message); }
+              }}>🔄 Load Earnings Rates from Xero</Btn>
+              {xeroRates.length>0&&<span style={{fontSize:12,color:T.teal,fontWeight:600}}>✓ {xeroRates.length} rates loaded</span>}
+            </div>
+            {ENTRY_TYPE_NAMES.map(type=>(
+              <div key={type} style={{display:"grid",gridTemplateColumns:"180px 1fr",gap:10,alignItems:"center",marginBottom:8}}>
+                <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{type}</div>
+                {xeroRates.length > 0 ? (
+                  <select value={settings.earningsRates?.[type]||""}
+                    onChange={e=>ss("earningsRates",{...settings.earningsRates,[type]:e.target.value})}
+                    style={{fontSize:12,padding:"5px 8px",border:`1px solid ${T.border}`,borderRadius:6,background:"#fff"}}>
+                    <option value="">— Select rate —</option>
+                    {xeroRates.map(r=>(
+                      <option key={r.EarningsRateID} value={r.EarningsRateID}>{r.Name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input value={settings.earningsRates?.[type]||""}
+                    onChange={e=>ss("earningsRates",{...settings.earningsRates,[type]:e.target.value})}
+                    placeholder="Load from Xero above, or paste rate ID manually"/>
+                )}
+              </div>
+            ))}
+
+            <div style={{marginTop:16}}>
+              {saved
+                ? <div style={{display:"inline-flex",alignItems:"center",gap:6,color:T.teal,fontWeight:600,fontSize:13}}>✓ Settings saved</div>
+                : <Btn onClick={saveSettings}>Save Settings</Btn>
+              }
+            </div>
+          </Card>
+
+          {/* Edge function download */}
+          <Card>
+            <div style={{fontWeight:700,fontSize:15,marginBottom:12,color:T.ink}}>📦 Supabase Edge Function</div>
+            <div style={{fontSize:13,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+              Deploy this function to Supabase to act as your Xero API proxy. It securely holds your Xero OAuth token and handles token refresh.
+            </div>
+            <div style={{background:"#1a1a2e",borderRadius:10,padding:"14px 16px",fontFamily:"monospace",fontSize:11,color:"#e2e8f0",lineHeight:1.6,overflowX:"auto",marginBottom:12}}>
+              <div style={{color:"#64748b",marginBottom:4}}>{`// supabase/functions/xero-proxy/index.ts`}</div>
+              <div style={{color:"#94a3b8"}}>{`// Deploy with: supabase functions deploy xero-proxy`}</div>
+              <div>{`// Set secrets: supabase secrets set XERO_CLIENT_ID=... XERO_CLIENT_SECRET=... XERO_REFRESH_TOKEN=...`}</div>
+            </div>
+            <Btn v="ghost" onClick={()=>{
+              const code = `// KTA Xero Proxy — Supabase Edge Function
+// Deploy: supabase functions deploy xero-proxy
+// Secrets: XERO_CLIENT_ID, XERO_CLIENT_SECRET, XERO_REFRESH_TOKEN
+
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+
+const XERO_TOKEN_URL = "https://identity.xero.com/connect/token";
+const XERO_API_BASE  = "https://api.xero.com/payroll.xro/2.0";
+
+async function getAccessToken() {
+  const clientId     = Deno.env.get("XERO_CLIENT_ID")!;
+  const clientSecret = Deno.env.get("XERO_CLIENT_SECRET")!;
+  const refreshToken = Deno.env.get("XERO_REFRESH_TOKEN")!;
+  const res = await fetch(XERO_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token", refresh_token: refreshToken,
+      client_id: clientId, client_secret: clientSecret,
+    }),
+  });
+  if (!res.ok) throw new Error("Token refresh failed: " + await res.text());
+  const data = await res.json();
+  return data.access_token as string;
+}
+
+serve(async (req) => {
+  const cors = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+
+  try {
+    const { action, tenantId, employeeId, date, earningsRateId, hours } = await req.json();
+    const token = await getAccessToken();
+    const headers = {
+      Authorization: \`Bearer \${token}\`,
+      "Xero-Tenant-Id": tenantId,
+      "Content-Type": "application/json",
+    };
+
+    if (action === "createTimesheet") {
+      // Determine pay period (week Mon-Sun)
+      const d   = new Date(date + "T00:00:00");
+      const day = d.getDay(); // 0=Sun
+      const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
+      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+      const fmt = (dt: Date) => dt.toISOString().slice(0, 10);
+
+      // Create or update timesheet
+      const tsBody = {
+        EmployeeID: employeeId,
+        StartDate:  "/Date(" + mon.getTime() + ")/",
+        EndDate:    "/Date(" + sun.getTime() + ")/",
+        Status: "DRAFT",
+        TimesheetLines: [{
+          EarningsRateID: earningsRateId,
+          NumberOfUnits: [
+            0, // Sun (index 0)
+            day === 1 ? hours : 0,
+            day === 2 ? hours : 0,
+            day === 3 ? hours : 0,
+            day === 4 ? hours : 0,
+            day === 5 ? hours : 0,
+            day === 6 ? hours : 0, // Sat
+          ],
+        }],
+      };
+
+      const res = await fetch(\`\${XERO_API_BASE}/Timesheets\`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ Timesheets: [tsBody] }),
+      });
+      const data = await res.json();
+      if (!res.ok) return new Response(JSON.stringify({ error: JSON.stringify(data) }), { status: 400, headers: cors });
+      const timesheetId = data.Timesheets?.[0]?.TimesheetID;
+      return new Response(JSON.stringify({ ok: true, timesheetId }), { headers: cors });
+    }
+
+    if (action === "getEmployees") {
+      const res = await fetch(\`\${XERO_API_BASE}/Employees\`, { headers });
+      const data = await res.json();
+      return new Response(JSON.stringify({ ok: true, employees: data.Employees }), { headers: cors });
+    }
+
+    return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: cors });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: cors });
+  }
+});`;
+              const blob = new Blob([code],{type:"text/typescript"});
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a"); a.href=url; a.download="index.ts"; a.click();
+            }}>⬇ Download Edge Function (index.ts)</Btn>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Employees Tab ── */}
+      {tab==="employees"&&(
+        <Card>
+          {!settings.edgeFunctionUrl&&(
+            <div style={{background:T.warnL,border:`1px solid ${T.warn}44`,borderRadius:8,
+              padding:"10px 14px",marginBottom:16,fontSize:12,color:T.warn}}>
+              ⚠ Set up your Edge Function URL and Tenant ID in the <strong>Setup</strong> tab first.
+            </div>
+          )}
+
+          {/* Load from Xero button */}
+          <div style={{marginBottom:20,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <Btn sm onClick={async()=>{
+              if(!settings.edgeFunctionUrl||!settings.tenantId){
+                alert("Please set up your Edge Function URL and Tenant ID in the Setup tab first.");
+                return;
+              }
+              try{
+                const res = await fetch(settings.edgeFunctionUrl,{
+                  method:"POST", headers:{"Content-Type":"application/json"},
+                  body: JSON.stringify({action:"getEmployees",tenantId:settings.tenantId}),
+                });
+                const data = await res.json();
+                if(data.ok && data.employees){
+                  setXeroEmployees(data.employees);
+                  showToast(`✓ Loaded ${data.employees.length} employees from Xero`);
+                } else { alert("Error: " + (data.error||"Unknown")); }
+              }catch(e){ alert("Failed: "+e.message); }
+            }}>🔄 Load Employees from Xero</Btn>
+            {xeroEmployees.length>0&&(
+              <span style={{fontSize:12,color:T.teal,fontWeight:600}}>
+                ✓ {xeroEmployees.length} Xero employees loaded
+              </span>
+            )}
+          </div>
+
+          {/* ── Section 1: Import Xero employees as new KTA apprentices ── */}
+          {(()=>{
+            const existingXeroIds = apprentices.map(a=>a.xeroEmployeeId).filter(Boolean);
+            const unlinked = xeroEmployees.filter(xe=>!existingXeroIds.includes(xe.EmployeeID));
+            if(!xeroEmployees.length || !unlinked.length) return null;
+            return (
+              <div style={{marginBottom:24}}>
+                <div style={{fontWeight:700,fontSize:14,marginBottom:6}}>⬇ Import from Xero</div>
+                <div style={{fontSize:12,color:T.sub,marginBottom:12}}>
+                  These Xero employees are not yet in KTA. Click <strong>Import</strong> to create them as Apprentices.
+                </div>
+                <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 100px",
+                    padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
+                    fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:10}}>
+                    <span>Xero Employee</span><span>Employee ID</span><span></span>
+                  </div>
+                  {unlinked.map((xe,i)=>(
+                    <div key={xe.EmployeeID} style={{display:"grid",gridTemplateColumns:"1fr 1fr 100px",
+                      padding:"10px 14px",gap:10,alignItems:"center",fontSize:13,
+                      borderBottom:i<unlinked.length-1?`1px solid ${T.border}44`:"none",
+                      background:i%2===0?T.surface:T.bg}}>
+                      <div style={{fontWeight:600}}>{xe.FirstName} {xe.LastName}</div>
+                      <div style={{fontSize:11,fontFamily:"monospace",color:T.muted}}>{xe.EmployeeID?.slice(0,18)}…</div>
+                      <button onClick={async()=>{
+                        const newId = uid();
+                        const newUser = {
+                          id: newId,
+                          name: `${xe.FirstName} ${xe.LastName}`,
+                          firstName: xe.FirstName,
+                          lastName: xe.LastName,
+                          email: xe.Email || "",
+                          phone: "",
+                          role: "Apprentice",
+                          password: "changeme123",
+                          allocatedTo: [],
+                          trade: "",
+                          licenceExpiry: "",
+                          xeroEmployeeId: xe.EmployeeID,
+                          adminLevel: 1,
+                        };
+                        try {
+                          await upsertRow('users', {
+                            id: newId,
+                            name: newUser.name,
+                            first_name: xe.FirstName,
+                            last_name: xe.LastName,
+                            email: newUser.email,
+                            phone: "",
+                            role: "Apprentice",
+                            password: "changeme123",
+                            allocated_to: [],
+                            trade: null,
+                            licence_expiry: null,
+                            xero_employee_id: xe.EmployeeID,
+                            admin_level: 1,
+                          });
+                          onImportUser(newUser);
+                          setXeroEmployees(prev=>prev.filter(e=>e.EmployeeID!==xe.EmployeeID));
+                          showToast(`✓ ${xe.FirstName} ${xe.LastName} imported as Apprentice`);
+                        } catch(e) { alert("Import failed: "+e.message); }
+                      }} style={{fontSize:12,padding:"4px 10px",borderRadius:6,fontWeight:600,
+                        background:xeroBlue,color:"#fff",border:`1px solid ${xeroBlueDark}`,
+                        cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                        ⬇ Import
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Section 2: Link existing KTA apprentices to Xero ── */}
+          <div style={{fontWeight:700,fontSize:14,marginBottom:6}}>🔗 Link Existing Apprentices</div>
+          <div style={{fontSize:12,color:T.sub,marginBottom:12}}>
+            Match each KTA apprentice to their Xero payroll record.
+          </div>
+          <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 120px",
+              padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
+              fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:10}}>
+              <span>KTA Apprentice</span><span>Xero Employee</span><span>Status</span>
+            </div>
+            {apprentices.map((a,i)=>(
+              <div key={a.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 120px",
+                padding:"10px 14px",gap:10,alignItems:"center",fontSize:13,
+                borderBottom:i<apprentices.length-1?`1px solid ${T.border}44`:"none",
+                background:i%2===0?T.surface:T.bg}}>
+                <div>
+                  <div style={{fontWeight:700}}>{a.name}</div>
+                  <div style={{fontSize:11,color:T.sub}}>{a.trade||"No trade set"}</div>
+                </div>
+                {xeroEmployees.length > 0 ? (
+                  <select
+                    value={empMap[a.id]!==undefined ? empMap[a.id] : (a.xeroEmployeeId||"")}
+                    onChange={e=>setEmpMap(m=>({...m,[a.id]:e.target.value}))}
+                    style={{fontSize:12,padding:"5px 8px",border:`1px solid ${T.border}`,
+                      borderRadius:6,width:"100%",boxSizing:"border-box",background:"#fff"}}>
+                    <option value="">— Select Xero employee —</option>
+                    {xeroEmployees.map(xe=>(
+                      <option key={xe.EmployeeID} value={xe.EmployeeID}>
+                        {xe.FirstName} {xe.LastName}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    value={empMap[a.id]!==undefined ? empMap[a.id] : (a.xeroEmployeeId||"")}
+                    onChange={e=>setEmpMap(m=>({...m,[a.id]:e.target.value}))}
+                    placeholder="Click Load from Xero above, or paste ID manually"
+                    style={{fontSize:12,padding:"5px 8px",border:`1px solid ${T.border}`,
+                      borderRadius:6,fontFamily:"monospace",width:"100%",boxSizing:"border-box"}}
+                  />
+                )}
+                <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                  {savingMap[a.id]==="saved"
+                    ? <span style={{fontSize:12,color:T.teal,fontWeight:600}}>✓ Saved</span>
+                    : (
+                      <button onClick={async()=>{
+                        const newId = empMap[a.id];
+                        if(newId===undefined) return;
+                        setSavingMap(m=>({...m,[a.id]:"saving"}));
+                        try {
+                          await upsertRow('users',{...a,xero_employee_id:newId});
+                          setSavingMap(m=>({...m,[a.id]:"saved"}));
+                          setTimeout(()=>setSavingMap(m=>({...m,[a.id]:null})),2000);
+                        } catch(e) { alert("Save failed: "+e.message); setSavingMap(m=>({...m,[a.id]:null})); }
+                      }} disabled={empMap[a.id]===undefined||savingMap[a.id]==="saving"}
+                        style={{fontSize:12,padding:"4px 10px",borderRadius:6,
+                          background: empMap[a.id]!==undefined ? xeroBlue : T.bg,
+                          color: empMap[a.id]!==undefined ? "#fff" : T.muted,
+                          border:`1px solid ${empMap[a.id]!==undefined?xeroBlueDark:T.border}`,
+                          cursor: empMap[a.id]!==undefined ? "pointer" : "default",
+                          fontFamily:"DM Sans,sans-serif",fontWeight:600}}>
+                        {savingMap[a.id]==="saving"?"…":"Save"}
+                      </button>
+                    )
+                  }
+                  {a.xeroEmployeeId && !empMap[a.id]
+                    ? <span style={{fontSize:11,color:T.teal}}>✓ Linked</span>
+                    : !a.xeroEmployeeId && empMap[a.id]===undefined
+                    ? <span style={{fontSize:11,color:T.warn}}>⚠ Not set</span>
+                    : null
+                  }
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* ── Pending Tab ── */}
+      {tab==="pending"&&(
+        <div>
+          {pendingXero.length===0
+            ? <Card><div style={{textAlign:"center",padding:"32px 0",color:T.muted,fontStyle:"italic"}}>
+                No approved entries awaiting Xero submission
+              </div></Card>
+            : (
+              <>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                  <div style={{fontSize:13,color:T.sub}}>{pendingXero.length} approved {pendingXero.length===1?"entry":"entries"} ready to submit</div>
+                </div>
+                <Card style={{padding:0,overflow:"hidden"}}>
+                  <div style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 90px 80px 90px",
+                    padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
+                    fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
+                    <span>Date</span><span>Apprentice</span><span style={{textAlign:"center"}}>Hours</span>
+                    <span>Type</span><span>Status</span><span style={{textAlign:"right"}}>Action</span>
+                  </div>
+                  {pendingXero.map((e,i)=>{
+                    const app = allUsers.find(u=>u.id===e.userId);
+                    const tm = TYPE_META[e.type]||TYPE_META["Normal Hours"];
+                    const hasXeroId = !!app?.xeroEmployeeId;
+                    const hasRate   = !!(settings.earningsRates?.[e.type]);
+                    const canSubmit = hasXeroId && hasRate && settings.edgeFunctionUrl && settings.tenantId;
+                    return (
+                      <div key={e.id} style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 90px 80px 90px",
+                        padding:"10px 14px",gap:8,alignItems:"center",fontSize:13,
+                        borderBottom:i<pendingXero.length-1?`1px solid ${T.border}44`:"none",
+                        background:i%2===0?T.surface:T.bg}}>
+                        <div style={{fontWeight:600,fontSize:12}}>{fD(e.date)}</div>
+                        <div>
+                          <div style={{fontWeight:700,fontSize:13}}>{app?.name||"Unknown"}</div>
+                          {!hasXeroId&&<div style={{fontSize:11,color:T.warn}}>⚠ No Xero ID</div>}
+                          {!hasRate&&<div style={{fontSize:11,color:T.warn}}>⚠ Rate not mapped</div>}
+                        </div>
+                        <div style={{textAlign:"center",fontWeight:700,color:T.accent,fontFamily:"'Libre Baskerville'"}}>{e.netHours}h</div>
+                        <Pill label={e.type} size="sm" color={tm.color} bg={tm.bg}/>
+                        <div>
+                          {e.xeroStatus==="submitting"
+                            ? <span style={{fontSize:11,color:T.muted}}>Sending…</span>
+                            : e.xeroStatus==="error"
+                            ? <span style={{fontSize:11,color:T.red}} title={e.xeroError}>✕ Error</span>
+                            : <span style={{fontSize:11,color:T.muted}}>Pending</span>
+                          }
+                        </div>
+                        <div style={{display:"flex",justifyContent:"flex-end"}}>
+                          <button disabled={!canSubmit||e.xeroStatus==="submitting"}
+                            onClick={async()=>{
+                              if(!canSubmit) return;
+                              onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"submitting"}:x));
+                              const res = await submitEntryToXero(e, app, entries);
+                              if(res.ok){
+                                onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"submitted",xeroTimesheetId:res.timesheetId}:x));
+                              } else {
+                                onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"error",xeroError:res.error}:x));
+                              }
+                            }}
+                            style={{fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:7,
+                              background: canSubmit?"#e6f7fd":T.bg,
+                              color: canSubmit?xeroBlueDark:T.muted,
+                              border:`1.5px solid ${canSubmit?xeroBlue:T.border}`,
+                              cursor: canSubmit?"pointer":"not-allowed",
+                              fontFamily:"DM Sans,sans-serif"}}>
+                            𝕏 Submit
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </Card>
+              </>
+            )
+          }
+        </div>
+      )}
+
+      {/* ── History Tab ── */}
+      {tab==="history"&&(
+        <Card style={{padding:0,overflow:"hidden"}}>
+          {submittedXero.length===0
+            ? <div style={{textAlign:"center",padding:"32px 0",color:T.muted,fontStyle:"italic"}}>No entries submitted to Xero yet</div>
+            : <>
+                <div style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 90px 1fr",
+                  padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
+                  fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
+                  <span>Date</span><span>Apprentice</span><span style={{textAlign:"center"}}>Hours</span>
+                  <span>Type</span><span>Xero Timesheet ID</span>
+                </div>
+                {submittedXero.map((e,i)=>{
+                  const app = allUsers.find(u=>u.id===e.userId);
+                  const tm = TYPE_META[e.type]||TYPE_META["Normal Hours"];
+                  return (
+                    <div key={e.id} style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 90px 1fr",
+                      padding:"10px 14px",gap:8,alignItems:"center",fontSize:13,
+                      borderBottom:i<submittedXero.length-1?`1px solid ${T.border}44`:"none",
+                      background:i%2===0?T.surface:T.bg}}>
+                      <div style={{fontWeight:600,fontSize:12}}>{fD(e.date)}</div>
+                      <div style={{fontWeight:700}}>{app?.name||"Unknown"}</div>
+                      <div style={{textAlign:"center",fontWeight:700,color:T.accent,fontFamily:"'Libre Baskerville'"}}>{e.netHours}h</div>
+                      <Pill label={e.type} size="sm" color={tm.color} bg={tm.bg}/>
+                      <div style={{fontSize:11,color:xeroBlue,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                        {e.xeroTimesheetId||"—"}
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+          }
+        </Card>
+      )}
+    </div>
+  );
+}
+
+
+// =============================================================================
+// EMAIL ACTIVITY TRACKING — Microsoft 365 / Graph API via Supabase Edge Function
+// =============================================================================
+//
+// Architecture:
+//   Browser → Supabase Edge Function (holds M365 OAuth token) → Microsoft Graph API
+//   Activity notes are stored in Supabase `activity_notes` table.
+//   Timeline merges: emails (live from M365) + pinned emails + manual notes + meeting reports
+//
+// Edge Function env vars: MS_CLIENT_ID, MS_CLIENT_SECRET, MS_REFRESH_TOKEN, MS_TENANT_ID
+// Deploy: supabase functions deploy email-proxy
+
+const EMAIL_PROXY_KEY = "kta_email_proxy_url";
+const getEmailProxyUrl = () => { try{ return localStorage.getItem(EMAIL_PROXY_KEY)||""; }catch{ return ""; } };
+
+// Call the M365 edge function proxy
+const callEmailProxy = async (payload) => {
+  const url = getEmailProxyUrl();
+  if(!url) return { ok:false, error:"Email proxy not configured. Set up in Settings." };
+  try {
+    const res = await fetch(url, {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if(!res.ok) return { ok:false, error: data.error||`HTTP ${res.status}` };
+    return { ok:true, ...data };
+  } catch(e) { return { ok:false, error: e.message }; }
+};
+
+// Search emails for a specific email address (inbound + outbound)
+const fetchEmailsForPerson = async (emailAddress, maxResults=30) => {
+  if(!emailAddress) return { ok:false, emails:[], error:"No email address" };
+  return callEmailProxy({ action:"searchByAddress", emailAddress, maxResults });
+};
+
+// Fetch all recent org emails for the global inbox view
+const fetchOrgInbox = async (folder="inbox", maxResults=50) => {
+  return callEmailProxy({ action:"listFolder", folder, maxResults });
+};
+
+// ── Stable sub-components (defined outside to preserve focus) ────────────────
+const NoteTextarea = ({value, onChange, placeholder}) => (
+  <textarea value={value} onChange={onChange} placeholder={placeholder}
+    rows={3}
+    style={{width:"100%",fontSize:13,padding:"10px 12px",border:`1.5px solid ${T.border}`,
+      borderRadius:8,fontFamily:"DM Sans,sans-serif",background:"#fff",resize:"vertical",
+      color:T.ink,outline:"none",boxSizing:"border-box",minHeight:72}}/>
+);
+
+// ── EmailActivityFeed ─────────────────────────────────────────────────────────
+// HubSpot-style activity timeline for any person record.
+// Props:
+//   personEmail — the email address to search
+//   personName  — display name
+//   personId    — Supabase user id (nullable for CRM contacts)
+//   extraItems  — pre-loaded items to merge (e.g. meeting reports as {_kind,_ts,label,detail})
+//   canEdit     — whether notes/pins are allowed
+function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[], canEdit=true}) {
+  const [emails, setEmails]             = useState([]);
+  const [notes, setNotes]               = useState([]);
+  const [loadingEmails, setLoadingEmails] = useState(false);
+  const [loadingNotes, setLoadingNotes]   = useState(true);
+  const [emailError, setEmailError]     = useState(null);
+  const [expanded, setExpanded]         = useState({});
+  const [noteText, setNoteText]         = useState("");
+  const [addingNote, setAddingNote]     = useState(false);
+  const [savingNote, setSavingNote]     = useState(false);
+  const [pinning, setPinning]           = useState({});
+  const proxyOk = !!getEmailProxyUrl();
+
+  // Load saved activity notes from Supabase
+  useEffect(()=>{
+    if(!personEmail && !personId) { setLoadingNotes(false); return; }
+    loadTable('activity_notes')
+      .then(rows => setNotes(
+        rows.filter(r=> (personEmail && r.person_email===personEmail) || (personId && r.person_id===personId))
+            .sort((a,b)=>b.created_at.localeCompare(a.created_at))
+      ))
+      .catch(()=>setNotes([]))
+      .finally(()=>setLoadingNotes(false));
+  },[personEmail, personId]);
+
+  // Load live emails from M365
+  const loadEmails = async () => {
+    if(!personEmail||!proxyOk) return;
+    setLoadingEmails(true); setEmailError(null);
+    const result = await fetchEmailsForPerson(personEmail);
+    if(result.ok) setEmails(result.emails||[]);
+    else setEmailError(result.error);
+    setLoadingEmails(false);
+  };
+  useEffect(()=>{ loadEmails(); },[personEmail]);
+
+  const saveNote = async () => {
+    if(!noteText.trim()) return;
+    setSavingNote(true);
+    const note = {
+      id: uid(), person_email: personEmail||null, person_id: personId||null,
+      person_name: personName||null, type:"note", subject:"Note",
+      body: noteText.trim(), direction:"note",
+      created_at: new Date().toISOString(),
+    };
+    try {
+      await upsertRow('activity_notes', note);
+      setNotes(prev=>[note,...prev]);
+      setNoteText(""); setAddingNote(false);
+    } catch(e) { alert("Failed to save: "+e.message); }
+    setSavingNote(false);
+  };
+
+  const pinEmail = async (email) => {
+    const already = notes.some(n=>n.email_id===email.id);
+    if(already) return;
+    setPinning(p=>({...p,[email.id]:true}));
+    const note = {
+      id: uid(), person_email: personEmail||null, person_id: personId||null,
+      person_name: personName||null, type:"email",
+      subject: email.subject||"(no subject)", body: email.bodyPreview||email.snippet||"",
+      direction: email.direction||"inbound", email_id: email.id,
+      from_address: email.from||"", to_address: email.to||"",
+      email_date: email.date||null,
+      created_at: new Date().toISOString(),
+    };
+    try {
+      await upsertRow('activity_notes', note);
+      setNotes(prev=>[note,...prev]);
+    } catch(e) { alert("Failed to pin: "+e.message); }
+    setPinning(p=>({...p,[email.id]:false}));
+  };
+
+  const deleteNote = async (id) => {
+    if(!window.confirm("Remove this activity?")) return;
+    await deleteRow('activity_notes', id).catch(console.error);
+    setNotes(prev=>prev.filter(n=>n.id!==id));
+  };
+
+  // Merge notes + extraItems into a single timeline
+  const timeline = [
+    ...notes.map(n=>({...n, _src:"note"})),
+    ...extraItems.map(x=>({...x, _src:"extra"})),
+  ].sort((a,b)=>{
+    const ta = a.created_at||a.date+"T00:00:00";
+    const tb = b.created_at||b.date+"T00:00:00";
+    return tb.localeCompare(ta);
+  });
+
+  const fmtTs = (iso) => {
+    if(!iso) return "—";
+    try{
+      const d = new Date(iso);
+      return d.toLocaleDateString("en-NZ",{day:"2-digit",month:"short",year:"numeric"})
+        +" · "+d.toLocaleTimeString("en-NZ",{hour:"2-digit",minute:"2-digit",hour12:true});
+    }catch{ return iso; }
+  };
+
+  const dirMeta = (dir) => ({
+    inbound:  {label:"↓ Received", color:T.teal,  bg:T.tealL},
+    outbound: {label:"↑ Sent",     color:T.accent, bg:T.accentL},
+    note:     {label:"📝 Note",    color:T.gold,   bg:T.goldL},
+    report:   {label:"📋 Report",  color:T.blue,   bg:T.blueL},
+  })[dir||"note"]||{label:"◈ Activity", color:T.sub, bg:T.bg};
+
+  const pinnedIds = new Set(notes.map(n=>n.email_id).filter(Boolean));
+
+  return (
+    <div>
+      {/* Toolbar */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+        marginBottom:14,flexWrap:"wrap",gap:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:32,height:32,borderRadius:8,background:"#f0f7ff",
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>✉</div>
+          <div>
+            <div style={{fontWeight:700,fontSize:14,color:T.ink}}>Activity & Email Timeline</div>
+            <div style={{fontSize:11,color:T.sub}}>{personEmail||"No email set"}</div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {canEdit&&(
+            <Btn sm onClick={()=>setAddingNote(s=>!s)} v={addingNote?"ghost":"primary"}>
+              {addingNote?"✕ Cancel":"+ Log Activity"}
+            </Btn>
+          )}
+          {proxyOk&&personEmail&&(
+            <Btn sm v="ghost" onClick={loadEmails} disabled={loadingEmails}>
+              {loadingEmails?"Loading…":"↻ Refresh Emails"}
+            </Btn>
+          )}
+        </div>
+      </div>
+
+      {/* Add note box */}
+      {addingNote&&(
+        <div style={{background:T.goldL,border:`1.5px solid ${T.gold}44`,borderRadius:10,
+          padding:14,marginBottom:14}}>
+          <div style={{fontWeight:600,fontSize:13,marginBottom:8,color:T.gold}}>
+            📝 Log Activity Note
+          </div>
+          <NoteTextarea
+            value={noteText}
+            onChange={e=>setNoteText(e.target.value)}
+            placeholder={`Log a call, meeting, email summary, or any interaction with ${personName||"this contact"}…`}
+          />
+          <div style={{display:"flex",gap:8,marginTop:10}}>
+            <Btn sm onClick={saveNote} disabled={savingNote||!noteText.trim()}>
+              {savingNote?"Saving…":"💾 Save Note"}
+            </Btn>
+            <Btn sm v="ghost" onClick={()=>{setAddingNote(false);setNoteText("");}}>Cancel</Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Not configured banner */}
+      {!proxyOk&&(
+        <div style={{background:T.warnL,border:`1px solid ${T.warn}44`,borderRadius:8,
+          padding:"10px 14px",marginBottom:14,fontSize:12,color:T.warn,lineHeight:1.6}}>
+          ⚠ <strong>Email tracking not configured.</strong> Set up the M365 Email Proxy URL in Admin → Settings to enable live email sync. Activity notes can still be logged manually.
+        </div>
+      )}
+      {emailError&&(
+        <div style={{background:T.redL,border:`1px solid ${T.red}44`,borderRadius:8,
+          padding:"10px 14px",marginBottom:14,fontSize:12,color:T.red}}>
+          ✕ Email sync error: {emailError}
+        </div>
+      )}
+
+      {/* Live emails from M365 (unpinned) */}
+      {proxyOk&&emails.length>0&&(
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",
+            letterSpacing:".6px",marginBottom:8}}>
+            📬 Emails from Microsoft 365 — {emails.length} found
+          </div>
+          {emails.map(em=>{
+            const isOpen = expanded[em.id];
+            const isPinned = pinnedIds.has(em.id);
+            const dm = dirMeta(em.direction);
+            return (
+              <div key={em.id} style={{border:`1.5px solid ${T.border}`,borderRadius:10,
+                marginBottom:6,overflow:"hidden",opacity:isPinned?.7:1}}>
+                <div onClick={()=>setExpanded(x=>({...x,[em.id]:!x[em.id]}))}
+                  style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",
+                    cursor:"pointer",background:isOpen?T.bg:T.surface,
+                    borderBottom:isOpen?`1px solid ${T.border}`:"none"}}>
+                  <div style={{width:6,height:6,borderRadius:"50%",background:dm.color,flexShrink:0}}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:600,fontSize:13,color:T.ink,
+                      overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {em.subject||"(no subject)"}
+                    </div>
+                    <div style={{fontSize:11,color:T.sub,marginTop:1}}>
+                      <span style={{color:dm.color,fontWeight:600}}>{dm.label}</span>
+                      {" · "}{em.from||em.to||""}
+                      {" · "}{fmtTs(em.date)}
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
+                    {canEdit&&!isPinned&&(
+                      <button onClick={e=>{e.stopPropagation();pinEmail(em);}}
+                        disabled={pinning[em.id]}
+                        title="Pin to activity log"
+                        style={{fontSize:11,fontWeight:600,padding:"3px 9px",borderRadius:6,
+                          background:T.accentL,color:T.accent,border:`1px solid ${T.accent}44`,
+                          cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                        {pinning[em.id]?"…":"📌 Pin"}
+                      </button>
+                    )}
+                    {isPinned&&<span style={{fontSize:11,color:T.teal,fontWeight:600}}>✓ Pinned</span>}
+                    <span style={{fontSize:11,color:T.muted}}>{isOpen?"▲":"▼"}</span>
+                  </div>
+                </div>
+                {isOpen&&(
+                  <div style={{padding:"12px 14px",background:"#fff",fontSize:13,
+                    color:T.ink,lineHeight:1.7,whiteSpace:"pre-wrap",borderTop:`1px solid ${T.border}`}}>
+                    <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+                      {em.from&&<span style={{fontSize:11,color:T.sub}}><strong>From:</strong> {em.from}</span>}
+                      {em.to&&<span style={{fontSize:11,color:T.sub}}><strong>To:</strong> {em.to}</span>}
+                    </div>
+                    {em.bodyPreview||em.snippet||"(no preview available)"}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Activity timeline (notes + pinned emails + reports) */}
+      {(loadingNotes)
+        ? <div style={{textAlign:"center",padding:"24px 0",color:T.muted,fontSize:13}}>Loading activity…</div>
+        : timeline.length===0
+        ? <div style={{textAlign:"center",padding:"24px 0",color:T.muted,fontSize:13,fontStyle:"italic"}}>
+            No activity logged yet. Use "+ Log Activity" to add a note.
+          </div>
+        : (
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",
+              letterSpacing:".6px",marginBottom:8}}>Activity Log</div>
+            {timeline.map((item,i)=>{
+              if(item._src==="extra") {
+                // Meeting report or other injected item
+                return (
+                  <div key={item.id||i} style={{display:"flex",gap:12,marginBottom:10}}>
+                    <div style={{width:2,background:T.blueL,borderRadius:2,flexShrink:0,marginTop:4,marginBottom:4}}/>
+                    <div style={{flex:1,background:T.blueL,border:`1px solid ${T.blue}33`,
+                      borderRadius:8,padding:"10px 13px"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                        <span style={{fontSize:13}}>📋</span>
+                        <span style={{fontWeight:600,fontSize:13,color:T.blue}}>{item.label||"Meeting Report"}</span>
+                        <span style={{fontSize:11,color:T.sub,marginLeft:"auto"}}>{fmtTs(item.created_at||item.date)}</span>
+                      </div>
+                      {item.detail&&<div style={{fontSize:12,color:T.ink,lineHeight:1.6}}>{item.detail}</div>}
+                    </div>
+                  </div>
+                );
+              }
+              const dm = dirMeta(item.direction);
+              return (
+                <div key={item.id} style={{display:"flex",gap:12,marginBottom:10}}>
+                  <div style={{width:2,background:dm.bg,borderRadius:2,flexShrink:0,marginTop:4,marginBottom:4}}/>
+                  <div style={{flex:1,background:dm.bg,border:`1px solid ${dm.color}33`,
+                    borderRadius:8,padding:"10px 13px"}}>
+                    <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:3,flexWrap:"wrap"}}>
+                          <span style={{fontSize:11,fontWeight:700,color:dm.color,
+                            background:"#ffffff55",borderRadius:4,padding:"1px 6px",
+                            border:`1px solid ${dm.color}33`}}>{dm.label}</span>
+                          <span style={{fontWeight:600,fontSize:13,color:T.ink,
+                            overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                            {item.subject||"Note"}
+                          </span>
+                        </div>
+                        {item.from_address&&<div style={{fontSize:11,color:T.sub,marginBottom:3}}>
+                          {item.direction==="inbound"?"From":"To"}: {item.from_address||item.to_address}
+                        </div>}
+                        <div style={{fontSize:13,color:T.ink,lineHeight:1.65,
+                          whiteSpace:"pre-wrap",marginTop:4}}>{item.body}</div>
+                        <div style={{fontSize:11,color:T.muted,marginTop:6}}>{fmtTs(item.email_date||item.created_at)}</div>
+                      </div>
+                      {canEdit&&(
+                        <button onClick={()=>deleteNote(item.id)}
+                          title="Remove activity"
+                          style={{flexShrink:0,background:"none",border:"none",
+                            color:T.muted,fontSize:14,cursor:"pointer",padding:"0 4px",lineHeight:1}}
+                          onMouseEnter={e=>e.currentTarget.style.color=T.red}
+                          onMouseLeave={e=>e.currentTarget.style.color=T.muted}>✕</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
+      }
+    </div>
+  );
+}
+
+// ── EmailsModule — Global org inbox/sent view (Admin only) ────────────────────
+function EmailsModule({allUsers, currentUser}) {
+  const [tab, setTab]           = useState("inbox");
+  const [emails, setEmails]     = useState([]);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState(null);
+  const [expanded, setExpanded] = useState({});
+  const [proxyUrl, setProxyUrl] = useState(()=>getEmailProxyUrl());
+  const [savedUrl, setSavedUrl] = useState(false);
+  const [search, setSearch]     = useState("");
+
+  const saveProxyUrl = () => {
+    try{ localStorage.setItem(EMAIL_PROXY_KEY, proxyUrl.trim()); }catch{}
+    setSavedUrl(true); setTimeout(()=>setSavedUrl(false),2000);
+  };
+
+  const loadEmails = async (folder) => {
+    setLoading(true); setError(null); setEmails([]);
+    const result = await fetchOrgInbox(folder);
+    if(result.ok) setEmails(result.emails||[]);
+    else setError(result.error);
+    setLoading(false);
+  };
+
+  useEffect(()=>{ if(getEmailProxyUrl()) loadEmails(tab); },[tab]);
+
+  const fmtTs = (iso) => {
+    if(!iso) return "—";
+    try{
+      const d = new Date(iso);
+      const today = new Date(); today.setHours(0,0,0,0);
+      const isToday = d >= today;
+      return isToday
+        ? d.toLocaleTimeString("en-NZ",{hour:"2-digit",minute:"2-digit",hour12:true})
+        : d.toLocaleDateString("en-NZ",{day:"2-digit",month:"short",year:"numeric"});
+    }catch{ return iso; }
+  };
+
+  // Try to match an email address to a known user or CRM contact
+  const matchPerson = (address) => {
+    if(!address) return null;
+    const clean = address.toLowerCase().replace(/.*<(.+)>.*/, "$1").trim();
+    return allUsers.find(u=>u.email&&u.email.toLowerCase()===clean);
+  };
+
+  const filtered = emails.filter(em=>{
+    if(!search.trim()) return true;
+    const q = search.toLowerCase();
+    return (em.subject||"").toLowerCase().includes(q)
+      || (em.from||"").toLowerCase().includes(q)
+      || (em.to||"").toLowerCase().includes(q)
+      || (em.bodyPreview||"").toLowerCase().includes(q);
+  });
+
+  const TabBtn = ({id,label,icon}) => (
+    <button onClick={()=>setTab(id)} style={{
+      padding:"8px 18px",borderRadius:8,fontSize:13,fontWeight:700,
+      background: tab===id ? T.accent : T.bg,
+      color: tab===id ? "#fff" : T.sub,
+      border:`1.5px solid ${tab===id?T.accentD:T.border}`,
+      cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+      display:"flex",alignItems:"center",gap:6,transition:"all .14s"}}>
+      <span>{icon}</span>{label}
+    </button>
+  );
+
+  const proxyConfigured = !!getEmailProxyUrl();
+
+  return (
+    <div className="fu">
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:20,
+        padding:"18px 22px",background:"#fff",borderRadius:14,
+        border:`1.5px solid ${T.border}`,boxShadow:"0 2px 12px #00000008"}}>
+        <div style={{width:48,height:48,borderRadius:12,background:T.accentL,
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>✉</div>
+        <div style={{flex:1}}>
+          <div style={{fontFamily:"'Libre Baskerville'",fontSize:18,fontWeight:700,color:T.ink}}>
+            Email Tracking
+          </div>
+          <div style={{fontSize:13,color:T.sub,marginTop:2}}>
+            Microsoft 365 inbox & sent mail · All contacts matched to KTA records
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <div style={{textAlign:"center",padding:"8px 14px",background:T.accentL,borderRadius:8}}>
+            <div style={{fontSize:18,fontWeight:700,color:T.accent,fontFamily:"'Libre Baskerville'"}}>{emails.length}</div>
+            <div style={{fontSize:10,color:T.sub,fontWeight:600,textTransform:"uppercase"}}>Emails</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+        <TabBtn id="inbox"  label="Inbox"    icon="↓"/>
+        <TabBtn id="sent"   label="Sent"     icon="↑"/>
+        <TabBtn id="setup"  label="⚙ Setup"  icon=""/>
+      </div>
+
+      {/* Setup tab */}
+      {tab==="setup"&&(
+        <div>
+          <Card style={{marginBottom:16}}>
+            <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>Microsoft 365 Connection</div>
+
+            <div style={{background:T.accentL,border:`1px solid ${T.accent}33`,borderRadius:8,
+              padding:"12px 16px",marginBottom:16,fontSize:13,color:T.ink,lineHeight:1.7}}>
+              <strong>How it works:</strong> A Supabase Edge Function acts as a proxy between KTA and the Microsoft Graph API.
+              It uses your M365 organisation credentials to read your inbox and sent mail, then returns emails matching any contact in the system.
+              <br/><br/>
+              <strong>Setup steps:</strong><br/>
+              1. Register an app in <a href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noreferrer" style={{color:T.accent}}>Azure Active Directory</a> with <code>Mail.Read</code> and <code>Mail.Send</code> permissions<br/>
+              2. Download and deploy the Edge Function below to Supabase<br/>
+              3. Set the secrets: <code>MS_CLIENT_ID</code>, <code>MS_CLIENT_SECRET</code>, <code>MS_TENANT_ID</code>, <code>MS_REFRESH_TOKEN</code><br/>
+              4. Paste your Edge Function URL here and save
+            </div>
+
+            <div style={{marginBottom:14}}>
+              <FL>Supabase Edge Function URL</FL>
+              <input value={proxyUrl} onChange={e=>setProxyUrl(e.target.value)}
+                placeholder="https://your-project.supabase.co/functions/v1/email-proxy"/>
+              <div style={{fontSize:11,color:T.muted,marginTop:3}}>
+                The deployed email-proxy Edge Function URL
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <Btn onClick={saveProxyUrl}>Save URL</Btn>
+              {savedUrl&&<span style={{fontSize:12,color:T.teal,fontWeight:600}}>✓ Saved</span>}
+              {proxyConfigured&&<Btn v="ghost" sm onClick={()=>loadEmails("inbox")}>Test Connection</Btn>}
+            </div>
+          </Card>
+
+          <Card>
+            <div style={{fontWeight:700,fontSize:15,marginBottom:12}}>📦 Supabase Edge Function</div>
+            <div style={{fontSize:13,color:T.sub,marginBottom:14,lineHeight:1.6}}>
+              Download and deploy this Edge Function to Supabase. It handles M365 OAuth token refresh and proxies Microsoft Graph API calls.
+            </div>
+            <Btn v="ghost" onClick={()=>{
+              const code = `// KTA Email Proxy — Supabase Edge Function
+// Deploy: supabase functions deploy email-proxy
+// Secrets: MS_CLIENT_ID, MS_CLIENT_SECRET, MS_TENANT_ID, MS_REFRESH_TOKEN
+
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+
+const TOKEN_URL = (tenantId) =>
+  \`https://login.microsoftonline.com/\${tenantId}/oauth2/v2.0/token\`;
+const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+async function getAccessToken() {
+  const tenantId     = Deno.env.get("MS_TENANT_ID")!;
+  const clientId     = Deno.env.get("MS_CLIENT_ID")!;
+  const clientSecret = Deno.env.get("MS_CLIENT_SECRET")!;
+  const refreshToken = Deno.env.get("MS_REFRESH_TOKEN")!;
+
+  const res = await fetch(TOKEN_URL(tenantId), {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: clientId,
+      client_secret: clientSecret,
+      scope: "https://graph.microsoft.com/Mail.Read offline_access",
+    }),
+  });
+  if (!res.ok) throw new Error("Token refresh failed: " + await res.text());
+  const data = await res.json();
+  return data.access_token as string;
+}
+
+function formatEmail(msg: any, folder: string) {
+  const from = msg.from?.emailAddress;
+  const toList = msg.toRecipients?.map((r: any) => r.emailAddress?.address).join(", ");
+  return {
+    id:          msg.id,
+    subject:     msg.subject,
+    from:        from ? \`\${from.name} <\${from.address}>\` : "",
+    to:          toList || "",
+    date:        msg.receivedDateTime || msg.sentDateTime,
+    bodyPreview: msg.bodyPreview,
+    direction:   folder === "sentItems" ? "outbound" : "inbound",
+    isRead:      msg.isRead,
+  };
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+
+  try {
+    const body = await req.json();
+    const { action, emailAddress, folder = "inbox", maxResults = 50 } = body;
+    const token = await getAccessToken();
+    const headers = { Authorization: \`Bearer \${token}\` };
+
+    if (action === "searchByAddress") {
+      // Search both inbox and sent for this address
+      const [inboundRes, outboundRes] = await Promise.all([
+        fetch(\`\${GRAPH_BASE}/me/mailFolders/inbox/messages?\$filter=from/emailAddress/address eq '\${emailAddress}'&\$top=\${maxResults}&\$orderby=receivedDateTime desc\`, { headers }),
+        fetch(\`\${GRAPH_BASE}/me/mailFolders/sentItems/messages?\$filter=toRecipients/any(r:r/emailAddress/address eq '\${emailAddress}')&\$top=\${maxResults}&\$orderby=sentDateTime desc\`, { headers }),
+      ]);
+      const [inbox, sent] = await Promise.all([inboundRes.json(), outboundRes.json()]);
+      const emails = [
+        ...(inbox.value||[]).map((m: any) => formatEmail(m, "inbox")),
+        ...(sent.value||[]).map((m: any) => formatEmail(m, "sentItems")),
+      ].sort((a, b) => b.date.localeCompare(a.date));
+      return new Response(JSON.stringify({ ok: true, emails }), { headers: cors });
+    }
+
+    if (action === "listFolder") {
+      const folderPath = folder === "sent" ? "sentItems" : "inbox";
+      const res = await fetch(
+        \`\${GRAPH_BASE}/me/mailFolders/\${folderPath}/messages?\$top=\${maxResults}&\$orderby=receivedDateTime desc\`,
+        { headers }
+      );
+      const data = await res.json();
+      const emails = (data.value||[]).map((m: any) => formatEmail(m, folderPath));
+      return new Response(JSON.stringify({ ok: true, emails }), { headers: cors });
+    }
+
+    return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: cors });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: cors });
+  }
+});`;
+              const blob = new Blob([code],{type:"text/typescript"});
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a"); a.href=url; a.download="index.ts"; a.click();
+            }}>⬇ Download Edge Function (index.ts)</Btn>
+          </Card>
+        </div>
+      )}
+
+      {/* Inbox / Sent tabs */}
+      {(tab==="inbox"||tab==="sent")&&(
+        <div>
+          {!proxyConfigured?(
+            <Card>
+              <div style={{textAlign:"center",padding:"32px 0",color:T.muted}}>
+                <div style={{fontSize:32,marginBottom:12}}>✉</div>
+                <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>Email proxy not configured</div>
+                <div style={{fontSize:13}}>Go to the Setup tab to connect Microsoft 365.</div>
+              </div>
+            </Card>
+          ) : (
+            <>
+              {/* Search */}
+              <div style={{marginBottom:12}}>
+                <input value={search} onChange={e=>setSearch(e.target.value)}
+                  placeholder="Search subject, sender, recipient…"
+                  style={{width:"100%",boxSizing:"border-box"}}/>
+              </div>
+
+              {loading&&<div style={{textAlign:"center",padding:"32px 0",color:T.muted,fontSize:13}}>Loading emails…</div>}
+              {error&&<div style={{background:T.redL,border:`1px solid ${T.red}44`,borderRadius:8,padding:"10px 14px",fontSize:12,color:T.red,marginBottom:12}}>✕ {error}</div>}
+
+              {!loading&&!error&&(
+                <Card style={{padding:0,overflow:"hidden"}}>
+                  {filtered.length===0
+                    ? <div style={{textAlign:"center",padding:"32px 0",color:T.muted,fontStyle:"italic",fontSize:13}}>No emails found</div>
+                    : filtered.map((em,i)=>{
+                        const isOpen = expanded[em.id];
+                        const matched = matchPerson(em.from)||matchPerson(em.to);
+                        return (
+                          <div key={em.id} style={{borderBottom:i<filtered.length-1?`1px solid ${T.border}44`:"none"}}>
+                            <div onClick={()=>setExpanded(x=>({...x,[em.id]:!x[em.id]}))}
+                              style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",
+                                cursor:"pointer",background:isOpen?T.bg:em.isRead===false?"#f0f7ff":T.surface,
+                                borderBottom:isOpen?`1px solid ${T.border}`:"none"}}>
+                              {/* Unread dot */}
+                              <div style={{width:7,height:7,borderRadius:"50%",flexShrink:0,
+                                background:em.isRead===false?T.accent:"transparent",
+                                border:`1.5px solid ${em.isRead===false?T.accent:T.border}`}}/>
+                              <div style={{flex:1,minWidth:0}}>
+                                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                                  <span style={{fontWeight:em.isRead===false?700:500,fontSize:13,color:T.ink,
+                                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:300}}>
+                                    {em.subject||"(no subject)"}
+                                  </span>
+                                  {matched&&(
+                                    <RolePill role={matched.role} size="sm"/>
+                                  )}
+                                  <span style={{fontSize:11,padding:"1px 7px",borderRadius:4,fontWeight:600,
+                                    background:em.direction==="outbound"?T.accentL:T.tealL,
+                                    color:em.direction==="outbound"?T.accent:T.teal}}>
+                                    {em.direction==="outbound"?"↑ Sent":"↓ Received"}
+                                  </span>
+                                </div>
+                                <div style={{fontSize:11,color:T.sub,marginTop:2,
+                                  overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                  {em.direction==="outbound"?`To: ${em.to}`:`From: ${em.from}`}
+                                </div>
+                              </div>
+                              <div style={{fontSize:11,color:T.muted,flexShrink:0,textAlign:"right"}}>
+                                <div>{fmtTs(em.date)}</div>
+                                {matched&&<div style={{fontSize:10,color:T.accent,marginTop:2}}>{matched.name}</div>}
+                              </div>
+                            </div>
+                            {isOpen&&(
+                              <div style={{padding:"14px 16px",background:"#fff",
+                                borderTop:`1px solid ${T.border}`}}>
+                                <div style={{display:"flex",gap:16,marginBottom:10,flexWrap:"wrap",fontSize:12,color:T.sub}}>
+                                  <span><strong>From:</strong> {em.from}</span>
+                                  <span><strong>To:</strong> {em.to}</span>
+                                  <span><strong>Date:</strong> {new Date(em.date).toLocaleString("en-NZ")}</span>
+                                </div>
+                                <div style={{fontSize:13,color:T.ink,lineHeight:1.7,
+                                  whiteSpace:"pre-wrap",padding:"10px 12px",
+                                  background:T.bg,borderRadius:8,border:`1px solid ${T.border}`}}>
+                                  {em.bodyPreview||"(no preview)"}
+                                </div>
+                                {matched&&(
+                                  <div style={{marginTop:10,fontSize:12,color:T.sub,fontStyle:"italic"}}>
+                                    ↗ This email is linked to <strong style={{color:T.ink}}>{matched.name}</strong> ({matched.role}) and will appear in their activity timeline.
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                  }
+                </Card>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [users,setUsers]         = useState([]);
   const [entries,setEntries]     = useState([]);
@@ -2677,6 +5884,22 @@ export default function App() {
   // ── Request push permission on login ────────────────────────────────────
   useEffect(()=>{ if(sessionId) requestPushPermission(); },[sessionId]);
 
+  // ── Block spacebar page-scroll when typing in any input/textarea ────────────
+  useEffect(()=>{
+    const onKeyDown = (e) => {
+      if(e.key !== " ") return;
+      const tag = document.activeElement?.tagName;
+      if(tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT") {
+        // Stop the event reaching the window scroll handler
+        // but do NOT preventDefault — that would eat the space character
+        e.stopPropagation();
+      }
+    };
+    // Use capture:false so React's own synthetic events fire first, undisturbed
+    document.addEventListener("keydown", onKeyDown, false);
+    return () => document.removeEventListener("keydown", onKeyDown, false);
+  }, []);
+
   // ── Licence expiry check — runs for Admin + Mentor on load & daily ────────
   useEffect(()=>{
     if(!sessionId||!users.length) return;
@@ -2721,15 +5944,18 @@ export default function App() {
   useEffect(()=>{ try{localStorage.setItem("wos_session_sb",sessionId||"");}catch{} },[sessionId]);
 
   // ── Supabase-aware state updaters ────────────────────────────────────────
+  const stableJson = (obj) => JSON.stringify(obj, Object.keys(obj).sort());
   const updateUsers = useCallback((updater) => {
     setUsers(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       const nextIds = new Set(next.map(u=>u.id));
+      const prevMap = Object.fromEntries(prev.map(u=>[u.id,u]));
       // Sync to Supabase outside the render cycle
       setTimeout(() => {
         next.forEach(u => {
-          const old = prev.find(p=>p.id===u.id);
-          if(!old || JSON.stringify(old)!==JSON.stringify(u)) {
+          const old = prevMap[u.id];
+          // Always upsert if new user, or if any field changed (stable key-sorted comparison)
+          if(!old || stableJson(old) !== stableJson(u)) {
             upsertUser(u).catch(e=>console.error('upsertUser',e));
           }
         });
@@ -2746,11 +5972,12 @@ export default function App() {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       const prevMap = Object.fromEntries(prev.map(e=>[e.id,e]));
       const nextIds = new Set(next.map(e=>e.id));
+      const stableJ = (obj) => JSON.stringify(obj, Object.keys(obj).sort());
       // Sync to Supabase outside the render cycle
       setTimeout(() => {
         next.forEach(e => {
           const old = prevMap[e.id];
-          if(!old || JSON.stringify(old)!==JSON.stringify(e)) {
+          if(!old || stableJ(old) !== stableJ(e)) {
             upsertEntry(e).catch(err=>console.error('upsertEntry',err));
           }
         });
@@ -2776,11 +6003,14 @@ export default function App() {
 
   const currentUser = users.find(u=>u.id===sessionId);
   const role = currentUser?.role;
+  // Admin level helpers — Admin 1 = full superadmin, Admin 2 = limited (no message delete/edit)
+  const isAdmin1 = role==="Admin" && (currentUser?.adminLevel||1) === 1;
+  const isAdmin2 = role==="Admin" && (currentUser?.adminLevel||1) === 2;
 
   const handleLogin  = (userId) => {
     const u = users.find(x=>x.id===userId);
     // Admin lands on dashboard, others on timesheet
-    setModule(u?.role==="Admin"?"dashboard":u?.role==="Mentor"?"crm":"timesheet");
+    setModule(u?.role==="Admin"?"dashboard":u?.role==="Mentor"?"mentor":"timesheet");
     setSessionId(userId);
     setViewingAppId(null);
   };
@@ -2793,12 +6023,9 @@ export default function App() {
     <>
       <style>{CSS}</style>
       <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",
-      background:`linear-gradient(135deg,${T.dark},${T.dark2},#0d2d5e)`}}>
+        background:`linear-gradient(135deg,${T.dark},${T.dark2},#2060a0)`}}>
         <div style={{textAlign:"center",color:"#fff"}}>
-          <img src={KTA_LOGO} alt="KTA"
-            style={{height:64,objectFit:"contain",filter:"brightness(0) invert(1)",marginBottom:20}}
-            onError={e=>{e.target.style.display="none";}}
-          />
+          <img src={KTA_LOGO} alt="KTA" style={{height:60,objectFit:"contain",filter:"brightness(0) invert(1)",marginBottom:20}} onError={e=>{e.target.style.display="none";}}/>
           <div style={{fontFamily:"'Libre Baskerville'",fontSize:20,fontWeight:700,marginBottom:8}}>Kiwi Trade Apprentices</div>
           <div style={{fontSize:13,color:"#ffffff66"}}>Connecting to database…</div>
           {dbError&&<div style={{fontSize:12,color:"#ff8888",marginTop:12,maxWidth:300}}>⚠ {dbError}</div>}
@@ -2814,23 +6041,94 @@ export default function App() {
     </>
   );
 
+  // ── Apprentice notification gate — must read all notifications before proceeding ──
+  const unreadNotifs = notifications.filter(n=>!n.read);
+  if(role==="Apprentice" && unreadNotifs.length > 0 && !showNotifs) {
+    return (
+      <>
+        <style>{CSS}</style>
+        <div style={{minHeight:"100vh",background:T.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
+          <div style={{maxWidth:480,width:"100%"}}>
+            <div style={{textAlign:"center",marginBottom:28}}>
+              <img src={KTA_LOGO} alt="KTA" style={{height:50,objectFit:"contain",marginBottom:16}}
+                onError={e=>e.target.style.display="none"}/>
+              <div style={{width:64,height:64,borderRadius:"50%",background:T.warnL,border:`3px solid ${T.warn}`,
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,margin:"0 auto 16px"}}>
+                🔔
+              </div>
+              <h2 style={{fontFamily:"'Libre Baskerville'",fontSize:22,fontWeight:700,color:T.ink,marginBottom:8}}>
+                You have unread notifications
+              </h2>
+              <p style={{fontSize:13,color:T.sub,lineHeight:1.6}}>
+                Please read and acknowledge your notifications before continuing.<br/>
+                You have <strong style={{color:T.warn}}>{unreadNotifs.length}</strong> unread message{unreadNotifs.length!==1?"s":""}.
+              </p>
+            </div>
+
+            <Card style={{marginBottom:16}}>
+              {unreadNotifs.map((n,i)=>{
+                const typeIcons={approval:"✓",decline:"✕",licence:"⚠",broadcast:"📢",reply:"↩",info:"◈"};
+                const typeColors={approval:T.teal,decline:T.red,licence:T.warn,broadcast:T.accent,reply:T.blue,info:T.sub};
+                return (
+                  <div key={n.id} style={{
+                    padding:"14px 16px",
+                    borderBottom:i<unreadNotifs.length-1?`1px solid ${T.border}`:"none",
+                    background:T.warnL+"44",borderRadius:i===0?`10px 10px 0 0`:i===unreadNotifs.length-1?"0 0 10px 10px":"0"
+                  }}>
+                    <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                      <span style={{fontSize:16,color:typeColors[n.type]||T.sub,flexShrink:0,marginTop:1}}>{typeIcons[n.type]||"◈"}</span>
+                      <div style={{flex:1}}>
+                        <div style={{fontWeight:700,fontSize:13,marginBottom:2}}>{n.title}</div>
+                        <div style={{fontSize:12,color:T.sub,lineHeight:1.5}}>{n.message}</div>
+                      </div>
+                      <button onClick={()=>{
+                        markNotifRead(n.id).catch(console.error);
+                        setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
+                      }} style={{
+                        background:T.accentL,border:`1px solid ${T.accent}44`,color:T.accent,
+                        borderRadius:6,padding:"4px 12px",fontSize:12,fontWeight:600,
+                        cursor:"pointer",fontFamily:"DM Sans,sans-serif",flexShrink:0
+                      }}>✓ Read</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </Card>
+
+            <Btn full onClick={()=>{
+              markAllNotifsRead(sessionId).catch(console.error);
+              setNotifications(prev=>prev.map(n=>({...n,read:true})));
+            }}>✓ Mark All as Read &amp; Continue</Btn>
+
+            <div style={{textAlign:"center",marginTop:12}}>
+              <button onClick={handleLogout} style={{
+                background:"none",border:"none",color:T.muted,fontSize:12,
+                cursor:"pointer",fontFamily:"DM Sans,sans-serif"
+              }}>Sign out</button>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   // Nav items per role
   const navItems=[
     {id:"dashboard", label:"⊞ Dashboard",  roles:["Admin"]},
+    {id:"mentor",    label:"👷 Apprentices", roles:["Mentor"]},
     {id:"timesheet", label:"⏱ Timesheet",  roles:["Apprentice","Approver","Viewer"]},
     {id:"crm",       label:"◈ CRM",         roles:["Mentor","Admin"]},
     {id:"users",     label:"★ Users",       roles:["Admin"]},
+    // {id:"emails",    label:"✉ Emails",      roles:["Admin","Mentor"]}, // DISABLED — uncomment to re-enable
   ].filter(n=>n.roles.includes(role));
 
   const validMods=navItems.map(n=>n.id);
   const activeMod=validMods.includes(module)?module:validMods[0];
 
-  // When admin drills into an apprentice's timesheet, show a pseudo-timesheet
-  // scoped to that apprentice, with back button
+  // When admin drills into an apprentice — use the full ApprenticeDetailView
   const viewingApp = viewingAppId ? users.find(u=>u.id===viewingAppId) : null;
-
-  // Admin timesheet view is a scoped read/edit view for one apprentice
-  const adminViewingTimesheet = role==="Admin" && activeMod==="dashboard" && viewingApp && !showAppList;
+  const adminViewingApprentice = role==="Admin" && activeMod==="dashboard" && viewingApp && !showAppList;
+  const adminViewingTimesheet  = adminViewingApprentice; // alias for breadcrumb logic
   const adminAppList = role==="Admin" && activeMod==="dashboard" && !!showAppList && !viewingAppId;
 
   return (
@@ -2839,67 +6137,129 @@ export default function App() {
       <div style={{minHeight:"100vh",background:T.bg,opacity:loggingOut?0:1,transition:"opacity .35s"}}>
 
         {/* HEADER */}
-        <header style={{background:T.dark,height:62,padding:"0 28px",
+        <header style={{background:T.dark,height:66,padding:"0 20px",
           display:"flex",alignItems:"center",justifyContent:"space-between",
-          position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 12px #00000022"}}>
-          <div style={{display:"flex",alignItems:"center",gap:18}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <img src={KTA_LOGO} alt="KTA"
-                style={{height:36,objectFit:"contain",filter:"brightness(0) invert(1)"}}
-                onError={e=>{e.target.style.display="none";}}
-              />
-            </div>
-            <div style={{width:1,height:22,background:"#ffffff20"}}/>
-            <nav style={{display:"flex",gap:4}}>
-              {navItems.map(n=>(
-                <button key={n.id} onClick={()=>{setModule(n.id);setViewingAppId(null);setShowAppList(false);}} style={{
-                  padding:"6px 15px",borderRadius:8,fontSize:13,fontWeight:600,
-                  background:activeMod===n.id?T.accent+"33":"transparent",
-                  color:activeMod===n.id?T.accentL:"#ffffff55",
-                  border:activeMod===n.id?`1px solid ${T.accent}55`:"1px solid transparent",
-                  fontFamily:"DM Sans,sans-serif",cursor:"pointer",transition:"all .14s"
-                }}>{n.label}</button>
-              ))}
+          position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px #00000033"}}>
+          <div style={{display:"flex",alignItems:"center",gap:16}}>
+            <img src={KTA_LOGO} alt="KTA"
+              style={{height:44,objectFit:"contain",filter:"brightness(0) invert(1)",flexShrink:0}}
+              onError={e=>{e.target.style.display="none";}}
+            />
+            <div style={{width:1,height:28,background:"#ffffff25",flexShrink:0}} className="desktop-nav"/>
+            <nav className="desktop-nav" style={{gap:6}}>
+              {navItems.map(n=>{
+                const isActive = activeMod===n.id;
+                const navIcons={dashboard:"⊞",mentor:"👷",timesheet:"⏱",crm:"◈",users:"★",emails:"✉"};
+                const navLabels={dashboard:"Dashboard",mentor:"Apprentices",timesheet:"Timesheet",crm:"CRM",users:"Users",emails:"Emails"};
+                return (
+                  <button key={n.id}
+                    onClick={()=>{setModule(n.id);setViewingAppId(null);setShowAppList(false);}}
+                    style={{
+                      padding:"8px 18px",borderRadius:9,fontSize:13,fontWeight:700,
+                      letterSpacing:"-.1px",
+                      background: isActive ? "#ffffff" : "#ffffff15",
+                      color: isActive ? T.dark : "#ffffffcc",
+                      border: isActive ? `1.5px solid #ffffff44` : "1.5px solid #ffffff18",
+                      fontFamily:"DM Sans,sans-serif",cursor:"pointer",
+                      transition:"all .14s",
+                      boxShadow: isActive ? "0 2px 8px #00000022" : "none",
+                      display:"flex",alignItems:"center",gap:6,
+                    }}
+                    onMouseEnter={e=>{ if(!isActive){ e.currentTarget.style.background="#ffffff25"; e.currentTarget.style.color="#fff"; } }}
+                    onMouseLeave={e=>{ if(!isActive){ e.currentTarget.style.background="#ffffff15"; e.currentTarget.style.color="#ffffffcc"; } }}>
+                    <span style={{fontSize:14}}>{navIcons[n.id]||"◈"}</span>
+                    <span>{navLabels[n.id]||n.label}</span>
+                  </button>
+                );
+              })}
             </nav>
           </div>
 
-          {/* User info + logout */}
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            {/* Notification Bell */}
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
             <NotificationBell
               notifs={notifications}
               show={showNotifs}
               setShow={(v)=>{setShowNotifs(v);if(v)setShowBroadcast(false);}}
               onRead={id=>{ markNotifRead(id).catch(console.error); setNotifications(prev=>prev.map(n=>n.id===id?{...n,read:true}:n)); }}
               onReadAll={()=>{ markAllNotifsRead(sessionId).catch(console.error); setNotifications(prev=>prev.map(n=>({...n,read:true}))); }}
+              canDelete={isAdmin1||role!=="Admin"}
               onDelete={id=>{ deleteNotif(id).catch(console.error); setNotifications(prev=>prev.filter(n=>n.id!==id)); }}
+              onReply={async(origNotif, text)=>{
+                const senderId = origNotif.created_by;
+                if(!senderId) return;
+                const sender = users.find(u=>u.id===senderId);
+                if(!sender) return;
+                const participants = [currentUser.id, senderId];
+                const apprenticeId = participants.find(id=>{
+                  const u = users.find(x=>x.id===id);
+                  return u?.role==="Apprentice";
+                }) || currentUser.id;
+                await insertMessage({
+                  id: uid(), apprentice_id: apprenticeId, sender_id: currentUser.id,
+                  body: text, created_at: new Date().toISOString(),
+                }).catch(console.error);
+                await pushNotif([senderId],"reply",`↩ Reply from ${currentUser.name}`,text,currentUser.id,{replyToId:origNotif.id});
+              }}
             />
-            {/* Broadcast button — Admin + Mentor only */}
             {["Admin","Mentor"].includes(role)&&(
-              <button onClick={()=>{setShowBroadcast(s=>!s);setShowNotifs(false);}} title="Send notification to users" style={{
-                background:"none",border:"1px solid #ffffff33",color:"#ffffffbb",
-                borderRadius:7,padding:"5px 9px",fontSize:15,cursor:"pointer",transition:"all .14s"}}
-                onMouseEnter={e=>e.currentTarget.style.background="#ffffff22"}
-                onMouseLeave={e=>e.currentTarget.style.background="none"}>
-                📢
+              <button onClick={()=>{setShowBroadcast(s=>!s);setShowNotifs(false);}}
+                title="Broadcast message"
+                style={{background:"#ffffff18",border:"1.5px solid #ffffff28",color:"#fff",
+                  borderRadius:9,padding:"7px 10px",fontSize:16,cursor:"pointer",
+                  display:"flex",alignItems:"center",justifyContent:"center",transition:"all .14s"}}
+                onMouseEnter={e=>{e.currentTarget.style.background="#ffffff30";}}
+                onMouseLeave={e=>{e.currentTarget.style.background="#ffffff18";}}>📢</button>
+            )}
+            {isAdmin1&&(
+              <button onClick={()=>setModule("xero")}
+                title="Xero Integration"
+                style={{background: module==="xero"?"#13b5ea22":"#ffffff18",
+                  border: module==="xero"?"1.5px solid #13b5ea88":"1.5px solid #ffffff28",
+                  color: module==="xero"?"#13b5ea":"#ffffffcc",
+                  borderRadius:9,padding:"7px 12px",fontSize:12,fontWeight:700,
+                  cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                  display:"flex",alignItems:"center",gap:5,transition:"all .14s"}}
+                onMouseEnter={e=>{e.currentTarget.style.background="#13b5ea22";e.currentTarget.style.color="#13b5ea";}}
+                onMouseLeave={e=>{if(module!=="xero"){e.currentTarget.style.background="#ffffff18";e.currentTarget.style.color="#ffffffcc";}}}>
+                <span style={{fontSize:14}}>𝕏</span> Xero
               </button>
             )}
-            <div style={{textAlign:"right"}}>
-              <div style={{fontSize:13,fontWeight:600,color:"#fff"}}>{currentUser.name}</div>
-              <div style={{marginTop:2}}><RolePill role={role} size="sm"/></div>
+            <div className="desktop-user-name" style={{textAlign:"right",marginLeft:4}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#fff",letterSpacing:"-.1px"}}>{currentUser.name}</div>
+              <div style={{marginTop:2}}><RolePill role={role} adminLevel={role==="Admin"?(currentUser?.adminLevel||1):null} size="sm"/></div>
             </div>
-            <Avatar name={currentUser.name} role={role} size={36}/>
-            <button onClick={handleLogout} style={{
-              background:"#ffffff10",border:"1px solid #ffffff20",borderRadius:8,
-              padding:"7px 14px",fontSize:12,color:"#ffffff77",fontWeight:600,
-              fontFamily:"DM Sans,sans-serif",cursor:"pointer",transition:"all .14s"
-            }}
-              onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"44";}}
-              onMouseLeave={e=>{e.currentTarget.style.background="#ffffff10";e.currentTarget.style.color="#ffffff77";e.currentTarget.style.borderColor="#ffffff20";}}>
-              Sign out
+            <Avatar name={currentUser.name} role={role} size={34}/>
+            <button className="desktop-signout" onClick={handleLogout}
+              style={{background:"#ffffff15",border:"1.5px solid #ffffff28",borderRadius:9,
+                padding:"8px 14px",fontSize:12,color:"#ffffffbb",fontWeight:700,
+                fontFamily:"DM Sans,sans-serif",cursor:"pointer",letterSpacing:"-.1px",transition:"all .14s"}}
+              onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
+              onMouseLeave={e=>{e.currentTarget.style.background="#ffffff15";e.currentTarget.style.color="#ffffffbb";e.currentTarget.style.borderColor="#ffffff28";}}>
+              ⏏ Sign out
             </button>
           </div>
         </header>
+
+        {/* BOTTOM NAV — mobile only */}
+        <nav className="bottom-nav">
+          {navItems.map(n=>{
+            const icons={dashboard:"⊞",timesheet:"⏱",crm:"◈",users:"★"};
+            const labels={dashboard:"Dashboard",timesheet:"Timesheet",crm:"CRM",users:"Users"};
+            return (
+              <button key={n.id}
+                className={`bottom-nav-btn${activeMod===n.id?" active":""}`}
+                onClick={()=>{setModule(n.id);setViewingAppId(null);setShowAppList(false);}}>
+                <span className="bottom-nav-icon">{icons[n.id]||"◈"}</span>
+                <span className="bottom-nav-label">{labels[n.id]||n.id}</span>
+              </button>
+            );
+          })}
+          {/* Sign out as last tab on mobile */}
+          <button className="bottom-nav-btn" onClick={handleLogout}>
+            <span className="bottom-nav-icon">⏏</span>
+            <span className="bottom-nav-label">Sign out</span>
+          </button>
+        </nav>
 
         {/* BROADCAST MODAL */}
         {showBroadcast&&["Admin","Mentor"].includes(role)&&(
@@ -2912,7 +6272,7 @@ export default function App() {
         )}
 
         {/* MAIN */}
-        <main style={{maxWidth:1300,margin:"0 auto",padding:"28px 24px"}}>
+        <main className="main-content">
 
           {/* Breadcrumb / page title */}
           <div style={{marginBottom:22}}>
@@ -2974,12 +6334,12 @@ export default function App() {
             ) : (
               <div>
                 <h1 style={{fontFamily:"'Libre Baskerville'",fontSize:26,fontWeight:700,letterSpacing:"-.4px"}}>
-                  {activeMod==="dashboard"?"Dashboard":activeMod==="timesheet"?"Timesheet":activeMod==="crm"?"CRM":"User Management"}
+                  {activeMod==="dashboard"?"Dashboard":activeMod==="timesheet"?"Timesheet":activeMod==="crm"?"CRM":activeMod==="mentor"?"My Apprentices":"User Management"}
                 </h1>
                 <p style={{fontSize:13,color:T.sub,marginTop:4}}>
                   {activeMod==="dashboard"&&"Overview of all apprentice timesheets"}
                   {activeMod==="timesheet"&&"Time entries — access enforced by role"}
-                  {activeMod==="crm"&&"Contacts, deals & pipeline"}
+                  {activeMod==="mentor"&&"Your apprentices, meeting reports and PPE records"}
                   {activeMod==="users"&&"Manage all users, roles and allocations"}
                 </p>
               </div>
@@ -2987,13 +6347,14 @@ export default function App() {
           </div>
 
           {/* Module routing */}
-          {adminViewingTimesheet && (
-            <TimesheetModule
-              currentUser={currentUser}
+          {adminViewingApprentice && (
+            <ApprenticeDetailView
+              apprentice={viewingApp}
+              viewer={currentUser}
               allUsers={users}
               entries={entries}
-              setEntries={updateEntries}
-              forcedApprenticeId={viewingAppId}
+              isAdmin={true}
+              onBack={()=>setViewingAppId(null)}
             />
           )}
           {adminAppList && showAppList==="apprentices" && (
@@ -3027,7 +6388,8 @@ export default function App() {
           {adminAppList && showAppList==="contacts" && <ContactsList/>}
           {adminAppList && showAppList==="hosts"    && <HostBusinessList/>}
           {adminAppList && showAppList==="deals"    && <TargetDealsList/>}
-          {!adminViewingTimesheet && !adminAppList && activeMod==="dashboard" && role==="Admin" && (
+          {module!=="xero" && <>
+          {!adminViewingApprentice && !adminAppList && activeMod==="dashboard" && role==="Admin" && (
             <AdminDashboard
               allUsers={users}
               entries={entries}
@@ -3037,13 +6399,57 @@ export default function App() {
             />
           )}
           {activeMod==="timesheet" && (
-            <TimesheetModule currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
+            <>
+              <TimesheetModule currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
+              {["Apprentice","Approver","Viewer"].includes(role) && (
+                <ContactUs
+                  currentUser={currentUser}
+                  allUsers={users}
+                  onSend={async(selectedUser, message)=>{
+                    const apprenticeId = role==="Apprentice" ? currentUser.id
+                      : allUsers.find(u=>u.id===selectedUser.id&&u.role==="Apprentice")?.id || currentUser.id;
+                    await insertMessage({
+                      id: uid(),
+                      apprentice_id: apprenticeId,
+                      sender_id: currentUser.id,
+                      body: message,
+                      created_at: new Date().toISOString(),
+                    }).catch(console.error);
+                    await pushNotif(
+                      [selectedUser.id],
+                      "broadcast",
+                      `💬 Message from ${currentUser.name}`,
+                      message,
+                      currentUser.id,
+                      {}
+                    );
+                  }}
+                />
+              )}
+            </>
+          )}
+          {activeMod==="mentor" && role==="Mentor" && (
+            <MentorDashboard currentUser={currentUser} allUsers={users}/>
           )}
           {activeMod==="crm" && (
             <CRMModule currentUser={currentUser} allUsers={users}/>
           )}
           {activeMod==="users" && role==="Admin" && (
-            <UserManagement users={users} setUsers={updateUsers}/>
+            <UserManagement users={users} setUsers={updateUsers} currentUser={currentUser}/>
+          )}
+          {activeMod==="emails" && (
+            <EmailsModule allUsers={users} currentUser={currentUser}/>
+          )}
+          </>}
+          {module==="xero" && isAdmin1 && (
+            <XeroModule
+              allUsers={users}
+              entries={entries}
+              currentUser={currentUser}
+              onUpdateEntries={updateEntries}
+              showToast={showToast}
+              onImportUser={u=>setUsers(prev=>[...prev, u])}
+            />
           )}
         </main>
       </div>
