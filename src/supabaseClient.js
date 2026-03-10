@@ -20,6 +20,18 @@ export const rowToUser = (r) => ({
   allocatedTo:   r.allocated_to || [],
   trade:         r.trade        || "",
   licenceExpiry: r.licence_expiry || "",
+  address:       r.address      || "",
+  suburb:        r.suburb       || "",
+  city:          r.city         || "",
+  postcode:      r.postcode     || "",
+  approverUserId: r.approver_user_id || null,
+  viewerUserId:   r.viewer_user_id   || null,
+  secondaryRole:  r.secondary_role   || null,
+  adminLevel:     r.admin_level      || 1,
+  xeroEmployeeId: r.xero_employee_id || null,
+  overtimeType:      r.overtime_type      || null,  // 'daily' | 'weekly' | null
+  overtimeThreshold: r.overtime_threshold || null,  // hours number
+  overtimeRateId:    r.overtime_rate_id   || null,  // Xero earnings rate ID
 });
 
 export const rowToEntry = (r) => ({
@@ -33,6 +45,9 @@ export const rowToEntry = (r) => ({
   netHours:  parseFloat(r.net_hours),
   note:      r.note || "",
   approval:  r.approval,
+  xeroStatus:      r.xero_status      || null,
+  xeroTimesheetId: r.xero_timesheet_id || null,
+  xeroError:       r.xero_error       || null,
 });
 
 export const userToRow = (u) => ({
@@ -47,6 +62,18 @@ export const userToRow = (u) => ({
   allocated_to:   u.allocatedTo || [],
   trade:          u.trade        || null,
   licence_expiry: u.licenceExpiry || null,
+  address:        u.address      || null,
+  suburb:         u.suburb       || null,
+  city:           u.city         || null,
+  postcode:       u.postcode     || null,
+  approver_user_id: u.approverUserId || null,
+  viewer_user_id:   u.viewerUserId   || null,
+  secondary_role:   u.secondaryRole  || null,
+  admin_level:      u.adminLevel     || 1,
+  xero_employee_id: u.xeroEmployeeId || null,
+  overtime_type:      u.overtimeType      || null,
+  overtime_threshold: u.overtimeThreshold || null,
+  overtime_rate_id:   u.overtimeRateId    || null,
 });
 
 export const entryToRow = (e) => ({
@@ -60,6 +87,9 @@ export const entryToRow = (e) => ({
   net_hours:   e.netHours,
   note:        e.note || "",
   approval:    e.approval,
+  xero_status:       e.xeroStatus       || null,
+  xero_timesheet_id: e.xeroTimesheetId  || null,
+  xero_error:        e.xeroError        || null,
 });
 
 // ─── Data loaders ────────────────────────────────────────────────────────────
@@ -147,7 +177,28 @@ export const deleteNotif = async (id) => {
   if (error) throw error;
 };
 
-// Check if a licence reminder was already sent recently (within 2 days) to avoid duplicates
+// ─── Messages (permanent conversation store) ────────────────────────────────
+
+// A message row: { id, apprentice_id, sender_id, body, created_at }
+export const insertMessage = async (msg) => {
+  const { error } = await sb.from('messages').insert(msg);
+  if (error) throw error;
+};
+
+export const loadMessages = async (apprenticeId) => {
+  const { data, error } = await sb
+    .from('messages')
+    .select('*')
+    .eq('apprentice_id', apprenticeId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data;
+};
+
+export const deleteMessage = async (id) => {
+  const { error } = await sb.from('messages').delete().eq('id', id);
+  if (error) throw error;
+};
 export const licenceReminderExists = async (userId, apprenticeId, daysUntil) => {
   const twoDaysAgo = new Date(Date.now() - 2*24*60*60*1000).toISOString();
   const { data, error } = await sb
