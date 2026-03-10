@@ -612,6 +612,7 @@ function LoginScreen({users, onLogin}) {
               </div>
             </div>
           )}
+        </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
           v1.4.0
