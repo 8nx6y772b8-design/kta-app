@@ -4279,51 +4279,44 @@ async function sha256hex(str) {
 }
 
 function ConfidentialNotesCard({ currentUser }) {
-  // ── HARD IDENTITY GUARD ─────────────────────────────────────────────────────
-  // This component must NEVER render for anyone other than Kristeena.
-  // This check runs inside the component as a second layer of protection,
-  // independent of any conditional rendering at the call site.
-  if (!currentUser || currentUser.email?.toLowerCase() !== CONF_OWNER_EMAIL) {
-    return null;
-  }
-  // ────────────────────────────────────────────────────────────────────────────
   const STORAGE_PIN_KEY  = "kta_conf_pin_hash_v1";
   const STORAGE_LOCK_KEY = "kta_conf_lockuntil_v1";
-  const AUTO_LOCK_MS     = 5 * 60 * 1000; // 5 min
-  const LOCKOUT_MS       = 15 * 60 * 1000; // 15 min lockout after 3 wrong
+  const AUTO_LOCK_MS     = 5 * 60 * 1000;
+  const LOCKOUT_MS       = 15 * 60 * 1000;
 
-  const [phase, setPhase]         = useState("locked"); // locked | setup | unlocked
-  const [pin, setPin]             = useState("");
-  const [pinError, setPinError]   = useState("");
+  // ALL hooks must be declared before any conditional return (React rules)
+  const [phase, setPhase]           = useState("locked");
+  const [pin, setPin]               = useState("");
+  const [pinError, setPinError]     = useState("");
   const [wrongCount, setWrongCount] = useState(0);
-  const [lockUntil, setLockUntil] = useState(null);
-  const [now, setNow]             = useState(Date.now());
-  const [notes, setNotes]         = useState([]);
-  const [loading, setLoading]     = useState(false);
-  const [newTitle, setNewTitle]   = useState("");
-  const [newBody, setNewBody]     = useState("");
-  const [adding, setAdding]       = useState(false);
-  const [saving, setSaving]       = useState(false);
+  const [lockUntil, setLockUntil]   = useState(null);
+  const [now, setNow]               = useState(Date.now());
+  const [notes, setNotes]           = useState([]);
+  const [loading, setLoading]       = useState(false);
+  const [newTitle, setNewTitle]     = useState("");
+  const [newBody, setNewBody]       = useState("");
+  const [adding, setAdding]         = useState(false);
+  const [saving, setSaving]         = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const lockTimer = useRef(null);
+  const lockTimer  = useRef(null);
   const pinInputRef = useRef(null);
 
-  // Tick clock for lockout countdown
-  useEffect(()=>{
-    const t = setInterval(()=>setNow(Date.now()), 1000);
-    return ()=>clearInterval(t);
-  },[]);
+  // ── HARD IDENTITY GUARD — after hooks, returns nothing for non-Kristeena ──
+  const isOwner = currentUser?.email?.toLowerCase() === CONF_OWNER_EMAIL;
 
-  // Check for existing lockout on mount
   useEffect(()=>{
+    if(!isOwner) return;
     const lu = parseInt(localStorage.getItem(STORAGE_LOCK_KEY)||"0");
     if(lu > Date.now()) setLockUntil(lu);
-    // Check if PIN already set
-    const stored = localStorage.getItem(STORAGE_PIN_KEY);
-    if(!stored) setPhase("setup");
-  },[]);
+    if(!localStorage.getItem(STORAGE_PIN_KEY)) setPhase("setup");
+  },[isOwner]);
 
-  // Auto-lock timer reset on unlock
+  useEffect(()=>{
+    if(!isOwner) return;
+    const t = setInterval(()=>setNow(Date.now()), 1000);
+    return ()=>clearInterval(t);
+  },[isOwner]);
+
   const resetLockTimer = useCallback(()=>{
     if(lockTimer.current) clearTimeout(lockTimer.current);
     lockTimer.current = setTimeout(()=>{ setPhase("locked"); setPin(""); }, AUTO_LOCK_MS);
@@ -4331,15 +4324,17 @@ function ConfidentialNotesCard({ currentUser }) {
 
   useEffect(()=>{ if(phase==="unlocked") resetLockTimer(); return ()=>{ if(lockTimer.current) clearTimeout(lockTimer.current); }; },[phase,resetLockTimer]);
 
-  // Load notes from Supabase when unlocked
   useEffect(()=>{
-    if(phase!=="unlocked") return;
+    if(phase!=="unlocked" || !isOwner) return;
     setLoading(true);
     loadTable("confidential_notes")
       .then(rows=>setNotes((rows||[]).sort((a,b)=>b.created_at?.localeCompare(a.created_at||"")||0)))
       .catch(()=>setNotes([]))
       .finally(()=>setLoading(false));
-  },[phase]);
+  },[phase, isOwner]);
+
+  // ── GUARD: render nothing for anyone other than Kristeena ──────────────────
+  if(!isOwner) return null;
 
   const handlePinKey = (digit) => {
     if(lockUntil && lockUntil > Date.now()) return;
