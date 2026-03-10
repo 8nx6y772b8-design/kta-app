@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage } from "./supabaseClient";
+import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
 
 const EMAIL_PROXY = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/email-proxy";
@@ -2227,7 +2227,21 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
 
   const getAllocated = (role, appId) =>
-    allUsers.filter(u => u.role===role && (u.allocatedTo||[]).includes(appId));
+    allUsers.filter(u => (u.role===role || u.role==="Admin") && (u.allocatedTo||[]).includes(appId));
+
+  // Get approver/viewer/mentor using direct fields (source of truth) with allocatedTo fallback
+  const getApprover = (apprentice) => {
+    if(apprentice.approverUserId) return allUsers.find(u=>u.id===apprentice.approverUserId);
+    return allUsers.find(u=>(u.role==="Approver"||u.role==="Admin")&&(u.allocatedTo||[]).includes(apprentice.id));
+  };
+  const getViewer = (apprentice) => {
+    if(apprentice.viewerUserId) return allUsers.find(u=>u.id===apprentice.viewerUserId);
+    return allUsers.find(u=>(u.role==="Viewer"||u.role==="Admin")&&(u.allocatedTo||[]).includes(apprentice.id));
+  };
+  const getMentor = (apprentice) => {
+    if(apprentice.mentorUserId) return allUsers.find(u=>u.id===apprentice.mentorUserId);
+    return null;
+  };
 
   const toggleAlloc = (staffId, appId) => {
     setUsers(prev => prev.map(u => {
@@ -2434,10 +2448,11 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
         )}
 
         {apprentices.map((u,i) => {
-          const allocApprovers = getAllocated("Approver", u.id);
-          const allocViewers   = getAllocated("Viewer",   u.id);
-          const isExpanded     = expandId === u.id;
-          const lc             = licColour(u.licenceExpiry);
+          const approver   = getApprover(u);
+          const viewer     = getViewer(u);
+          const mentor     = getMentor(u);
+          const isExpanded = expandId === u.id;
+          const lc         = licColour(u.licenceExpiry);
 
           return (
             <div key={u.id}>
@@ -2485,12 +2500,15 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
                 <button onClick={()=>setExpandId(isExpanded?null:u.id)} style={{
                   background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left"}}>
                   <div style={{fontSize:11}}>
-                    <div style={{color:allocApprovers.length?T.warn:T.muted, fontWeight:allocApprovers.length?600:400}}>
-                      ▲ {allocApprovers.length?allocApprovers.map(x=>x.name.split(" ")[0]).join(", "):"No approver"}
+                    <div style={{color:approver?T.warn:T.muted, fontWeight:approver?600:400}}>
+                      ▲ {approver?approver.name.split(" ")[0]:"No approver"}
                     </div>
-                    <div style={{color:allocViewers.length?T.teal:T.muted, fontWeight:allocViewers.length?600:400, marginTop:2}}>
-                      ◆ {allocViewers.length?allocViewers.map(x=>x.name.split(" ")[0]).join(", "):"No viewer"}
+                    <div style={{color:viewer?T.teal:T.muted, fontWeight:viewer?600:400, marginTop:2}}>
+                      ◆ {viewer?viewer.name.split(" ")[0]:"No viewer"}
                     </div>
+                    {mentor&&<div style={{color:T.accent, fontWeight:600, marginTop:2}}>
+                      ✦ {mentor.name.split(" ")[0]}
+                    </div>}
                   </div>
                   <div style={{fontSize:10,color:T.blue,marginTop:3}}>{isExpanded?"▲ collapse":"✎ manage"}</div>
                 </button>
@@ -5897,6 +5915,16 @@ export default function App() {
         setLoading(false);
       }
     })();
+
+    // Realtime: re-fetch users whenever the users table changes
+    const channel = sb.channel('users-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, async () => {
+        const u = await loadUsers();
+        setUsers(u);
+      })
+      .subscribe();
+
+    return () => { sb.removeChannel(channel); };
   },[]);
 
   // ── Load notifications when session changes ──────────────────────────────
