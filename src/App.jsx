@@ -5845,6 +5845,12 @@ export default function App() {
   const [notifications,setNotifications] = useState([]);
   const [showNotifs,setShowNotifs] = useState(false);
   const [showBroadcast,setShowBroadcast] = useState(false);
+  const [appToast,setAppToast]   = useState(null);
+
+  const showToast = (msg, ok=true) => {
+    setAppToast({msg,ok});
+    setTimeout(()=>setAppToast(null), 4000);
+  };
 
   // ── Initial load from Supabase ──────────────────────────────────────────
   useEffect(()=>{
@@ -6454,6 +6460,15 @@ export default function App() {
           )}
         </main>
       </div>
+      {appToast&&(
+        <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",
+          background:appToast.ok?"#1a8a7a":"#bf2b2b",color:"#fff",
+          padding:"10px 20px",borderRadius:10,fontWeight:600,fontSize:13,
+          boxShadow:"0 4px 16px #0004",zIndex:9999,fontFamily:"DM Sans,sans-serif",
+          animation:"fadeIn .2s"}}>
+          {appToast.msg}
+        </div>
+      )}
     </>
   );
 }
