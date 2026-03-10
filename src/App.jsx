@@ -1,10 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage } from "./supabaseClient";
-import emailjs from "@emailjs/browser";
+// Email via Microsoft Graph (timesheet@kta.org.nz)
 
-const EJS_SERVICE  = "service_j3lmexe";
-const EJS_TEMPLATE = "template_iu09ubw";
-const EJS_KEY      = "ZNIRo4QdPVB2kJJ6m";
+const EMAIL_PROXY = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/email-proxy";
+const sendKTAEmail = async ({ to, subject, html }) => {
+  const res = await fetch(EMAIL_PROXY, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "sendEmail", to, subject, html }),
+  });
+  if (!res.ok) throw new Error("Email send failed: " + await res.text());
+};
 
 // ─── Browser push notifications ─────────────────────────────────────────────
 const requestPushPermission = async () => {
@@ -163,21 +169,22 @@ const daysAgoStr = n => { const d=new Date(); d.setDate(d.getDate()-n); return d
 // Send email notification to approvers when apprentice submits timesheets
 const notifyApprovers = async (apprentice, approvers, entries) => {
   if(!approvers.length) return;
-  emailjs.init(EJS_KEY);
   const entryList = entries.map(e=>
-    `• ${fmtD(e.date)} — ${e.type} — ${e.netHours}h${e.note?" ("+e.note+")":""}`
-  ).join("\n");
+    `<li>${fmtD(e.date)} — ${e.type} — ${e.netHours}h${e.note?" ("+e.note+")":""}</li>`
+  ).join("");
   for(const approver of approvers) {
     try {
-      await emailjs.send(EJS_SERVICE, EJS_TEMPLATE, {
-        to_email: approver.email,
-        approver_name: approver.name,
-        apprentice_name: apprentice.name,
-        entry_count: entries.length,
-        entry_list: entryList,
+      await sendKTAEmail({
+        to: approver.email,
+        subject: `Timesheet submitted — ${apprentice.name}`,
+        html: `<p>Hi ${approver.name},</p>
+<p><strong>${apprentice.name}</strong> has submitted ${entries.length} timesheet entr${entries.length===1?"y":"ies"} for approval:</p>
+<ul>${entryList}</ul>
+<p>Please log in to <a href="https://crmkta.com">crmkta.com</a> to review.</p>
+<p style="color:#888;font-size:12px">KTA Workforce Management · timesheet@kta.org.nz</p>`,
       });
     } catch(err) {
-      console.error("EmailJS error:", err);
+      console.error("notifyApprovers error:", err);
     }
   }
 };
@@ -185,21 +192,23 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
 // Notify apprentice of approval or decline
 const notifyApprentice = async (apprentice, approver, entries, approved) => {
   if(!apprentice?.email) return;
-  emailjs.init(EJS_KEY);
   const entryList = entries.map(e=>
-    `• ${fmtD(e.date)} — ${e.type} — ${e.netHours}h${e.note?" ("+e.note+")":""}`
-  ).join("\n");
+    `<li>${fmtD(e.date)} — ${e.type} — ${e.netHours}h${e.note?" ("+e.note+")":""}</li>`
+  ).join("");
+  const statusColor = approved ? "#1a8a7a" : "#bf2b2b";
+  const statusText  = approved ? "APPROVED ✓" : "DECLINED ✕";
+  const message     = approved
+    ? `Your timesheet entr${entries.length===1?"y has":"ies have"} been approved.`
+    : `Your timesheet entr${entries.length===1?"y has":"ies have"} been declined. Please check with your approver.`;
   try {
-    await emailjs.send(EJS_SERVICE, EJS_TEMPLATE, {
-      to_email:        apprentice.email,
-      approver_name:   approver?.name || "Your approver",
-      apprentice_name: apprentice.name,
-      entry_count:     entries.length,
-      entry_list:      entryList,
-      status:          approved ? "APPROVED ✓" : "DECLINED ✕",
-      message:         approved
-        ? `Your timesheet${entries.length>1?" entries have":" entry has"} been approved.`
-        : `Your timesheet${entries.length>1?" entries have":" entry has"} been declined. Please check with your approver.`,
+    await sendKTAEmail({
+      to: apprentice.email,
+      subject: `Timesheet ${approved?"approved":"declined"} — ${approver?.name||"KTA"}`,
+      html: `<p>Hi ${apprentice.name},</p>
+<p><strong style="color:${statusColor}">${statusText}</strong></p>
+<p>${message}</p>
+<ul>${entryList}</ul>
+<p style="color:#888;font-size:12px">KTA Workforce Management · timesheet@kta.org.nz</p>`,
     });
   } catch(err) {
     console.error("notifyApprentice error:", err);
@@ -447,18 +456,16 @@ function LoginScreen({users, onLogin}) {
       setForgotMsg({ok:true,text:"If that email is registered, a reset link has been sent."});
       return;
     }
-    // Send reset email via EmailJS
+    // Send reset email via Graph API
     try {
-      emailjs.init(EJS_KEY);
-      const resetToken = btoa(`${user.id}:${Date.now()}`);
-      await emailjs.send(EJS_SERVICE, EJS_TEMPLATE, {
-        to_email:        user.email,
-        approver_name:   user.name,
-        apprentice_name: user.name,
-        entry_count:     "",
-        entry_list:      "",
-        status:          "Password Reset Request",
-        message:         `Hi ${user.name},\n\nA password reset was requested for your KTA account. Please contact your administrator to have your password reset.\n\nIf you did not request this, please ignore this email.`,
+      await sendKTAEmail({
+        to: user.email,
+        subject: "KTA Password Reset Request",
+        html: `<p>Hi ${user.name},</p>
+<p>A password reset was requested for your KTA account.</p>
+<p>Please contact your administrator to have your password reset.</p>
+<p>If you did not request this, please ignore this email.</p>
+<p style="color:#888;font-size:12px">KTA Workforce Management · timesheet@kta.org.nz</p>`,
       });
       setForgotMsg({ok:true,text:"Reset instructions have been sent to your email."});
     } catch(e) {
@@ -1364,25 +1371,16 @@ function UserManagement({users, setUsers, currentUser}) {
         : [...prev,{id:targetId,...finalForm}];
 
       if(finalForm.role==="Apprentice") {
-        // Sync allocatedTo on all approver/viewer/admin users so legacy lookup also works
-        next = next.map(u=>{
-          if(u.id===targetId) return u; // already updated above
-          // Is this user a potential approver?
-          if(["Approver","Admin"].includes(u.role)) {
-            const should = appApprover===u.id;
-            const has    = (u.allocatedTo||[]).includes(targetId);
-            if(should&&!has) return {...u,allocatedTo:[...(u.allocatedTo||[]),targetId]};
-            if(!should&&has) return {...u,allocatedTo:(u.allocatedTo||[]).filter(x=>x!==targetId)};
-          }
-          // Is this user a potential viewer? (Admin can be both, handle viewer separately)
-          if(["Viewer","Admin"].includes(u.role)) {
-            const should = appViewer===u.id;
-            const has    = (u.allocatedTo||[]).includes(targetId);
-            // Only add if not already counted as approver allocation for same admin
-            if(should&&!has) return {...u,allocatedTo:[...(u.allocatedTo||[]),targetId]};
-            // Only remove if neither approver nor viewer anymore
-            if(!should&&has&&appApprover!==u.id) return {...u,allocatedTo:(u.allocatedTo||[]).filter(x=>x!==targetId)};
-          }
+        // Sync allocatedTo on approver/viewer users (legacy support)
+        next = next.map(u => {
+          if(u.id === targetId) return u;
+          if(![\"Approver\",\"Viewer\",\"Admin\"].includes(u.role)) return u;
+          const isApprover = appApprover === u.id;
+          const isViewer   = appViewer   === u.id;
+          const shouldHave = isApprover || isViewer;
+          const has        = (u.allocatedTo||[]).includes(targetId);
+          if(shouldHave && !has) return {...u, allocatedTo:[...(u.allocatedTo||[]), targetId]};
+          if(!shouldHave && has) return {...u, allocatedTo:(u.allocatedTo||[]).filter(x=>x!==targetId)};
           return u;
         });
       }
@@ -3385,7 +3383,6 @@ function ContactUs({currentUser, allUsers, onSend}) {
 
 // ── Meeting Report — Email sender ─────────────────────────────────────────────
 const sendMeetingReportEmail = async (report, apprentice, mentor, approver) => {
-  emailjs.init(EJS_KEY);
   const fD = (iso) => { if(!iso) return "TBC"; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
   const lines = [
     `APPRENTICE CHECK IN REPORT`,
@@ -3433,12 +3430,17 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver) => {
     { email: apprentice.email, name: apprentice.name },
     approver ? { email: approver.email, name: approver.name } : null,
   ].filter(r=>r&&r.email);
+  const htmlLines = lines.replace(/\n/g, "<br>");
   for(const r of recipients) {
     try {
-      await emailjs.send(EJS_SERVICE, EJS_TEMPLATE, {
-        to_email: r.email, approver_name: r.name, apprentice_name: apprentice.name,
-        entry_count: "", entry_list: lines,
-        status: `Apprentice Check In Report — ${fD(report.date)}`, message: lines,
+      await sendKTAEmail({
+        to: r.email,
+        subject: `Apprentice Check In Report — ${apprentice.name}`,
+        html: `<p>Hi ${r.name},</p>
+<p>Please find below the apprentice check in report for <strong>${apprentice.name}</strong>.</p>
+<hr>
+<pre style="font-family:monospace;font-size:13px;line-height:1.6">${lines}</pre>
+<p style="color:#888;font-size:12px">KTA Workforce Management · timesheet@kta.org.nz</p>`,
       });
     } catch(e) { console.error("Meeting report email failed:", e); }
   }
