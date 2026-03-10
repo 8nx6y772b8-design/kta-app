@@ -2225,7 +2225,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
   const viewers     = allUsers.filter(u => u.role === "Viewer"   || u.role === "Admin");
   const mentors     = allUsers.filter(u => u.role === "Mentor"   || u.role === "Admin");
 
-  const blank = {firstName:"", lastName:"", email:"", phone:"", trade:"", licenceExpiry:"", role:"Apprentice", allocatedTo:[], password:"", overtimeType:null, overtimeThreshold:"", overtimeRateId:""};
+  const blank = {firstName:"", lastName:"", email:"", phone:"", trade:"", licenceExpiry:"", hostBusiness:"", role:"Apprentice", allocatedTo:[], password:"", overtimeType:null, overtimeThreshold:"", overtimeRateId:""};
   const [form, setForm]         = useState(blank);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId]     = useState(null);
@@ -2303,7 +2303,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
       firstName: u.firstName || parts[0] || "",
       lastName:  u.lastName  || parts.slice(1).join(" ") || "",
       email: u.email||"", phone: u.phone||"",
-      trade: u.trade||"", licenceExpiry: u.licenceExpiry||"",
+      trade: u.trade||"", licenceExpiry: u.licenceExpiry||"", hostBusiness: u.hostBusiness||"",
       role:"Apprentice", allocatedTo:[], password:u.password,
       overtimeType: u.overtimeType||null, overtimeThreshold: u.overtimeThreshold||"", overtimeRateId: u.overtimeRateId||"",
     });
@@ -2361,6 +2361,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
               </select>
             </div>
             <div><FL>Licence Expiry</FL><input type="date" value={form.licenceExpiry} onChange={e=>sf("licenceExpiry",e.target.value)}/></div>
+            <div><FL>Host Business</FL><input placeholder="e.g. Sparks Electrical Ltd" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/></div>
             {/* ── Overtime Settings ── */}
             <div style={{gridColumn:"1/-1"}}>
               <div style={{fontWeight:700,fontSize:12,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>
@@ -4212,9 +4213,16 @@ function MentorDashboard({currentUser, allUsers}) {
                 <div style={{fontWeight:700,fontSize:14,color:T.accent}}>{app.name}</div>
                 <div style={{fontSize:12,color:T.sub,marginTop:1,display:"flex",gap:10,flexWrap:"wrap"}}>
                   {app.trade&&<span>🔧 {app.trade}</span>}
+                  {app.hostBusiness&&<span>🏢 {app.hostBusiness}</span>}
                   {meta.lastVisit&&<span>📅 Last visit {fmtDate(meta.lastVisit)}</span>}
                   {!meta.lastVisit&&!loadingMeta&&<span style={{color:T.muted,fontStyle:"italic"}}>No visits yet</span>}
                   {meta.reportCount>0&&<span>📋 {meta.reportCount} report{meta.reportCount!==1?"s":""}</span>}
+                  {app.licenceExpiry&&(()=>{
+                    const days = daysUntil(app.licenceExpiry);
+                    const color = days<0?T.red:days<=30?T.warn:T.sub;
+                    const label = days<0?"Licence expired":days===0?"Expires today":`Licence ${new Date(app.licenceExpiry+"T00:00:00").toLocaleDateString("en-NZ",{day:"numeric",month:"short",year:"numeric"})}`;
+                    return <span style={{color,fontWeight:days<=30?700:400}}>🪪 {label}</span>;
+                  })()}
                 </div>
               </div>
               <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
