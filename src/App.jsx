@@ -47,6 +47,9 @@ const T = {
 // KTA logo (from kta.org.nz)
 const KTA_LOGO = "https://images.squarespace-cdn.com/content/v1/682fe0a84dcaf578b10d7882/cca16351-c2c6-4895-be1c-24f4a540ee3c/Copy+of+KTA+LOGO+BLUE+No+Background.png?format=300w";
 
+// Confidential notes — only this email can see the card (checked at render + inside component)
+const CONF_OWNER_EMAIL = "kristeena@kta.org.nz";
+
 // ─── HubSpot lookup ──────────────────────────────────────────────────────────
 const lookupHubspot = async (value) => {
   const token = import.meta.env.VITE_HUBSPOT_TOKEN;
@@ -4268,10 +4271,6 @@ function MentorDashboard({currentUser, allUsers}) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONFIDENTIAL NOTES — PIN-protected card, only visible to Kristeena
-// PIN is SHA-256 hashed. Notes stored in supabase table `confidential_notes`.
-// Auto-locks after 5 min inactivity. Locks 15 min after 3 wrong PINs.
-// ─────────────────────────────────────────────────────────────────────────────
-const CONF_OWNER_EMAIL = "kristeena@kta.org.nz"; // ← UPDATE if Kristeena's email differs
 
 async function sha256hex(str) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));

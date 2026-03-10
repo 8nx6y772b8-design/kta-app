@@ -33,6 +33,7 @@ export const rowToUser = (r) => ({
   overtimeThreshold: r.overtime_threshold || null,
   overtimeRateId:    r.overtime_rate_id   || null,
   mentorUserId:      r.mentor_user_id     || null,
+  hostBusiness:      r.host_business      || "",
 });
 
 export const rowToEntry = (r) => ({
@@ -76,6 +77,7 @@ export const userToRow = (u) => ({
   overtime_threshold: u.overtimeThreshold || null,
   overtime_rate_id:   u.overtimeRateId    || null,
   mentor_user_id:     u.mentorUserId      || null,
+  host_business:      u.hostBusiness      || null,
 });
 
 export const entryToRow = (e) => ({
