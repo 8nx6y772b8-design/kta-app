@@ -4914,15 +4914,24 @@ serve(async (req) => {
                       <div style={{fontSize:11,fontFamily:"monospace",color:T.muted}}>{xe.EmployeeID?.slice(0,18)}…</div>
                       <button onClick={async()=>{
                         const newId = uid();
+                        const phone = (xe.PhoneNumber && !xe.PhoneNumber.includes('@')) ? xe.PhoneNumber : "";
                         const newUser = {
                           id: newId,
                           name: `${xe.FirstName} ${xe.LastName}`,
                           firstName: xe.FirstName,
                           lastName: xe.LastName,
                           email: xe.Email || "",
-                          phone: (xe.PhoneNumber && !xe.PhoneNumber.includes('@')) ? xe.PhoneNumber : "",
+                          phone,
+                          trade: xe.JobTitle || "",
+                          address: xe.Address1 || "",
+                          suburb: xe.Suburb || "",
+                          city: xe.City || "",
+                          postcode: xe.PostCode || "",
                           licenceExpiry: "",
                           xeroEmployeeId: xe.EmployeeID,
+                          role: "Apprentice",
+                          password: "changeme123",
+                          allocatedTo: [],
                           adminLevel: 1,
                         };
                         try {
@@ -4932,11 +4941,15 @@ serve(async (req) => {
                             first_name: xe.FirstName,
                             last_name: xe.LastName,
                             email: newUser.email,
-                            phone: (xe.PhoneNumber && !xe.PhoneNumber.includes('@')) ? xe.PhoneNumber : "",
+                            phone,
                             role: "Apprentice",
                             password: "changeme123",
                             allocated_to: [],
                             trade: xe.JobTitle || null,
+                            address: xe.Address1 || null,
+                            suburb: xe.Suburb || null,
+                            city: xe.City || null,
+                            postcode: xe.PostCode || null,
                             licence_expiry: null,
                             xero_employee_id: xe.EmployeeID,
                             admin_level: 1,
