@@ -612,14 +612,14 @@ function LoginScreen({users, onLogin}) {
               </div>
             </div>
           )}
+        {/* Version */}
+        <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
+          v1.4.0
         </div>
       </div>
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ENTRY FORM
 // ─────────────────────────────────────────────────────────────────────────────
 function EntryForm({onSave,onCancel,initial=null,minDate=null,maxDate=null,usedDates=[]}) {
   const blank = {date:tod(),type:"Normal Hours",start:"09:00",end:"17:00",breakMins:30,note:""};
