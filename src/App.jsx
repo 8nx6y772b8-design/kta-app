@@ -2483,8 +2483,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
 
                 {/* Name — click → timesheet */}
                 <div onClick={()=>onViewTimesheet(u.id)} style={{cursor:"pointer"}}>
-                  <div style={{fontWeight:700, fontSize:13}}>{u.firstName||u.name.split(" ")[0]} <span style={{color:T.sub}}>{u.lastName||u.name.split(" ").slice(1).join(" ")}</span></div>
-                  <div style={{fontSize:11, color:T.blue, marginTop:1}}>View timesheet →</div>
+                  <div style={{fontWeight:700, fontSize:13, color:T.accent}}>{u.firstName||u.name.split(" ")[0]} <span style={{color:T.sub}}>{u.lastName||u.name.split(" ").slice(1).join(" ")}</span></div>
                 </div>
 
                 <div style={{fontSize:12, color:T.sub, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{u.email||"—"}</div>
@@ -4210,7 +4209,7 @@ function MentorDashboard({currentUser, allUsers}) {
               onMouseLeave={e=>e.currentTarget.style.background="none"}>
               <Avatar name={app.name} role="Apprentice" size={42}/>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontWeight:700,fontSize:14}}>{app.name}</div>
+                <div style={{fontWeight:700,fontSize:14,color:T.accent}}>{app.name}</div>
                 <div style={{fontSize:12,color:T.sub,marginTop:1,display:"flex",gap:10,flexWrap:"wrap"}}>
                   {app.trade&&<span>🔧 {app.trade}</span>}
                   {meta.lastVisit&&<span>📅 Last visit {fmtDate(meta.lastVisit)}</span>}
@@ -4225,7 +4224,6 @@ function MentorDashboard({currentUser, allUsers}) {
                     {licDays<0?"Licence expired":licDays===0?"Expires today":`Licence: ${licDays}d`}
                   </div>
                 )}
-                <div style={{fontSize:11,color:T.muted}}>View →</div>
               </div>
             </div>
           );
