@@ -622,7 +622,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.4.1
+          v1.4.2
         </div>
       </div>
     </div>
@@ -1421,8 +1421,8 @@ function UserManagement({users, setUsers, currentUser}) {
      form.role==="Mentor"?["Apprentice","Viewer"].includes(u.role):false));
 
   // For Apprentice approver/viewer dropdowns: include Admins with matching secondary role too
-  const approverOptions = users.filter(u=>u.role==="Approver"||(u.role==="Admin"&&u.secondaryRole==="Approver")||(u.role==="Admin"&&!u.secondaryRole));
-  const viewerOptions   = users.filter(u=>u.role==="Viewer"  ||(u.role==="Admin"&&u.secondaryRole==="Viewer")  ||(u.role==="Admin"&&!u.secondaryRole));
+  const approverOptions = users.filter(u=>u.role==="Approver"||u.role==="Admin");
+  const viewerOptions   = users.filter(u=>u.role==="Viewer"  ||u.role==="Admin");
 
   return (
     <div className="fu">
