@@ -1374,7 +1374,7 @@ function UserManagement({users, setUsers, currentUser}) {
         // Sync allocatedTo on approver/viewer users (legacy support)
         next = next.map(u => {
           if(u.id === targetId) return u;
-          if(![\"Approver\",\"Viewer\",\"Admin\"].includes(u.role)) return u;
+          if(!["Approver","Viewer","Admin"].includes(u.role)) return u;
           const isApprover = appApprover === u.id;
           const isViewer   = appViewer   === u.id;
           const shouldHave = isApprover || isViewer;
