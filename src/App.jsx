@@ -4271,7 +4271,7 @@ function MentorDashboard({currentUser, allUsers}) {
 // PIN is SHA-256 hashed. Notes stored in supabase table `confidential_notes`.
 // Auto-locks after 5 min inactivity. Locks 15 min after 3 wrong PINs.
 // ─────────────────────────────────────────────────────────────────────────────
-const CONF_OWNER_EMAIL = "kristeena@kta.org.nz"; // Only this user sees the card
+const CONF_OWNER_EMAIL = "kristeena@kta.org.nz"; // ← UPDATE if Kristeena's email differs
 
 async function sha256hex(str) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
@@ -4279,6 +4279,14 @@ async function sha256hex(str) {
 }
 
 function ConfidentialNotesCard({ currentUser }) {
+  // ── HARD IDENTITY GUARD ─────────────────────────────────────────────────────
+  // This component must NEVER render for anyone other than Kristeena.
+  // This check runs inside the component as a second layer of protection,
+  // independent of any conditional rendering at the call site.
+  if (!currentUser || currentUser.email?.toLowerCase() !== CONF_OWNER_EMAIL) {
+    return null;
+  }
+  // ────────────────────────────────────────────────────────────────────────────
   const STORAGE_PIN_KEY  = "kta_conf_pin_hash_v1";
   const STORAGE_LOCK_KEY = "kta_conf_lockuntil_v1";
   const AUTO_LOCK_MS     = 5 * 60 * 1000; // 5 min
@@ -6725,13 +6733,18 @@ export default function App() {
           {adminAppList && showAppList==="deals"    && <TargetDealsList/>}
           {module!=="xero" && <>
           {!adminViewingApprentice && !adminAppList && activeMod==="dashboard" && role==="Admin" && (
-            <AdminDashboard
-              allUsers={users}
-              entries={entries}
-              onViewApprentice={(id)=>setViewingAppId(id)}
-              onViewApprenticeList={()=>{setShowAppList('apprentices');setViewingAppId(null);}}
-              onViewList={(key)=>{setShowAppList(key);setViewingAppId(null);}}
-            />
+            <>
+              <AdminDashboard
+                allUsers={users}
+                entries={entries}
+                onViewApprentice={(id)=>setViewingAppId(id)}
+                onViewApprenticeList={()=>{setShowAppList('apprentices');setViewingAppId(null);}}
+                onViewList={(key)=>{setShowAppList(key);setViewingAppId(null);}}
+              />
+              {currentUser.email?.toLowerCase() === CONF_OWNER_EMAIL && (
+                <ConfidentialNotesCard currentUser={currentUser}/>
+              )}
+            </>
           )}
           {activeMod==="timesheet" && (
             <>
