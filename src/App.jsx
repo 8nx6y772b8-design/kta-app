@@ -622,7 +622,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.4.2
+          v1.4.3
         </div>
       </div>
     </div>
@@ -2210,8 +2210,9 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
 // ─────────────────────────────────────────────────────────────────────────────
 function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
   const apprentices = [...allUsers.filter(u => u.role === "Apprentice")].sort((a,b)=>a.name.localeCompare(b.name));
-  const approvers   = allUsers.filter(u => u.role === "Approver");
-  const viewers     = allUsers.filter(u => u.role === "Viewer");
+  const approvers   = allUsers.filter(u => u.role === "Approver" || u.role === "Admin");
+  const viewers     = allUsers.filter(u => u.role === "Viewer"   || u.role === "Admin");
+  const mentors     = allUsers.filter(u => u.role === "Mentor"   || u.role === "Admin");
 
   const blank = {firstName:"", lastName:"", email:"", phone:"", trade:"", licenceExpiry:"", role:"Apprentice", allocatedTo:[], password:"", overtimeType:null, overtimeThreshold:"", overtimeRateId:""};
   const [form, setForm]         = useState(blank);
@@ -2219,16 +2220,15 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
   const [editId, setEditId]     = useState(null);
   const [pwField, setPwField]   = useState("");
   const [showPw, setShowPw]     = useState(false);
-  const [expandId, setExpandId] = useState(null); // expanded allocation row
-  const [formApproverId, setFormApproverId] = useState(""); // selected approver in form
-  const [formViewerId,   setFormViewerId]   = useState(""); // selected viewer in form
+  const [expandId, setExpandId] = useState(null);
+  const [formApproverId, setFormApproverId] = useState("");
+  const [formViewerId,   setFormViewerId]   = useState("");
+  const [formMentorId,   setFormMentorId]   = useState("");
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
 
-  // helpers to get allocated approver/viewer for a given apprentice
   const getAllocated = (role, appId) =>
     allUsers.filter(u => u.role===role && (u.allocatedTo||[]).includes(appId));
 
-  // toggle allocation: add/remove appId from a staff member's allocatedTo
   const toggleAlloc = (staffId, appId) => {
     setUsers(prev => prev.map(u => {
       if(u.id !== staffId) return u;
@@ -2244,7 +2244,11 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
     const lastName  = form.lastName.trim();
     if(!firstName||!form.email.trim()) return;
     const fullName = `${firstName} ${lastName}`.trim();
-    const finalForm = {...form, name: fullName, firstName, lastName};
+    const finalForm = {...form, name: fullName, firstName, lastName,
+      approverUserId: formApproverId||null,
+      viewerUserId:   formViewerId||null,
+      mentorUserId:   formMentorId||null,
+    };
     if(pwField.trim()) finalForm.password = hashPw(pwField.trim());
     let appId = editId;
     if(editId) {
@@ -2254,23 +2258,18 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
       appId = uid();
       setUsers(prev => [...prev, {id:appId, ...finalForm}]);
     }
-    // Sync approver/viewer allocations
+    // Sync allocatedTo on approver/viewer/admin users
     setUsers(prev => prev.map(u => {
-      if(u.role==="Approver") {
-        const has = (u.allocatedTo||[]).includes(appId);
-        const want = u.id === formApproverId;
-        if(want && !has) return {...u, allocatedTo:[...(u.allocatedTo||[]), appId]};
-        if(!want && has) return {...u, allocatedTo:(u.allocatedTo||[]).filter(x=>x!==appId)};
-      }
-      if(u.role==="Viewer") {
-        const has = (u.allocatedTo||[]).includes(appId);
-        const want = u.id === formViewerId;
-        if(want && !has) return {...u, allocatedTo:[...(u.allocatedTo||[]), appId]};
-        if(!want && has) return {...u, allocatedTo:(u.allocatedTo||[]).filter(x=>x!==appId)};
-      }
+      if(!["Approver","Viewer","Admin"].includes(u.role)) return u;
+      const isApprover = u.id === formApproverId;
+      const isViewer   = u.id === formViewerId;
+      const shouldHave = isApprover || isViewer;
+      const has        = (u.allocatedTo||[]).includes(appId);
+      if(shouldHave && !has) return {...u, allocatedTo:[...(u.allocatedTo||[]), appId]};
+      if(!shouldHave && has) return {...u, allocatedTo:(u.allocatedTo||[]).filter(x=>x!==appId)};
       return u;
     }));
-    setForm(blank); setPwField(""); setFormApproverId(""); setFormViewerId(""); setShowForm(false);
+    setForm(blank); setPwField(""); setFormApproverId(""); setFormViewerId(""); setFormMentorId(""); setShowForm(false);
   };
 
   const startEdit = (u) => {
@@ -2283,11 +2282,13 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
       role:"Apprentice", allocatedTo:[], password:u.password,
       overtimeType: u.overtimeType||null, overtimeThreshold: u.overtimeThreshold||"", overtimeRateId: u.overtimeRateId||"",
     });
-    // Pre-select current approver/viewer
-    const curApprover = allUsers.find(x=>x.role==="Approver"&&(x.allocatedTo||[]).includes(u.id));
-    const curViewer   = allUsers.find(x=>x.role==="Viewer"  &&(x.allocatedTo||[]).includes(u.id));
-    setFormApproverId(curApprover?.id||"");
-    setFormViewerId(curViewer?.id||"");
+    // Pre-select from approverUserId/viewerUserId/mentorUserId (new) or fall back to allocatedTo (legacy)
+    const curApprover = u.approverUserId || allUsers.find(x=>(x.role==="Approver"||x.role==="Admin")&&(x.allocatedTo||[]).includes(u.id))?.id || "";
+    const curViewer   = u.viewerUserId   || allUsers.find(x=>(x.role==="Viewer"  ||x.role==="Admin")&&(x.allocatedTo||[]).includes(u.id)&&x.id!==curApprover)?.id || "";
+    const curMentor   = u.mentorUserId   || "";
+    setFormApproverId(curApprover);
+    setFormViewerId(curViewer);
+    setFormMentorId(curMentor);
     setPwField(""); setEditId(u.id); setShowForm(true);
     setExpandId(null);
   };
@@ -2379,14 +2380,21 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
               <FL>Approver <span style={{fontWeight:400,color:T.muted}}>(can approve timesheets)</span></FL>
               <select value={formApproverId} onChange={e=>setFormApproverId(e.target.value)}>
                 <option value="">— None —</option>
-                {approvers.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+                {approvers.map(a=><option key={a.id} value={a.id}>{a.name}{a.role==="Admin"?" (Admin)":""}</option>)}
               </select>
             </div>
             <div>
               <FL>Viewer <span style={{fontWeight:400,color:T.muted}}>(read-only access)</span></FL>
               <select value={formViewerId} onChange={e=>setFormViewerId(e.target.value)}>
                 <option value="">— None —</option>
-                {viewers.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}
+                {viewers.map(v=><option key={v.id} value={v.id}>{v.name}{v.role==="Admin"?" (Admin)":""}</option>)}
+              </select>
+            </div>
+            <div>
+              <FL>Mentor <span style={{fontWeight:400,color:T.muted}}>(assigned KTA mentor)</span></FL>
+              <select value={formMentorId} onChange={e=>setFormMentorId(e.target.value)}>
+                <option value="">— None —</option>
+                {mentors.map(m=><option key={m.id} value={m.id}>{m.name}{m.role==="Admin"?" (Admin)":""}</option>)}
               </select>
             </div>
             <div>
@@ -2401,7 +2409,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
           </div>
           <div style={{display:"flex", gap:8}}>
             <Btn onClick={submit}>{editId?"Update":"Add Apprentice"}</Btn>
-            <Btn v="ghost" onClick={()=>{setShowForm(false);setEditId(null);}}>Cancel</Btn>
+            <Btn v="ghost" onClick={()=>{setShowForm(false);setEditId(null);setFormApproverId("");setFormViewerId("");setFormMentorId("");}}>Cancel</Btn>
           </div>
         </Card>
       )}
