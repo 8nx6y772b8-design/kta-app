@@ -1,4 +1,4 @@
-// KTA Workforce Management — v1.6.0
+// KTA Workforce Management — v1.6.3
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -17,6 +17,9 @@
 //   v1.5.8 — fix delete button not showing for Admin 1 on leave requests page
 //   v1.5.9 — fix delete hidden on approved/declined leave (was inside canApprove guard)
 //   v1.6.0 — Xero settings moved from localStorage to Supabase; edge fn uses refresh_token
+//   v1.6.1 — persist xeroStatus to Supabase on submit (was in-memory only)
+//   v1.6.2 — Xero OAuth connect button; refresh token stored in Supabase app_settings
+//   v1.6.1 — Xero import checks for email match; merges into existing user instead of duplicating
 import { useState, useEffect, useCallback, useRef } from "react";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
@@ -846,7 +849,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.6.0
+          v1.6.3
         </div>
       </div>
     </div>
@@ -1503,13 +1506,16 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                 try {
                   const res = await submitEntryToXero(en, app, entries);
                   if(res.ok) {
+                    await updateRow("entries", id, { xero_status: "submitted", xero_timesheet_id: res.timesheetId||null }).catch(console.error);
                     setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"submitted",xeroTimesheetId:res.timesheetId}:x));
                     showToast(`✓ Submitted to Xero for ${app.name}`);
                   } else {
+                    await updateRow("entries", id, { xero_status: "error" }).catch(console.error);
                     setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"error",xeroError:res.error}:x));
                     showToast(`Xero error: ${res.error}`, false);
                   }
                 } catch(e) {
+                  await updateRow("entries", id, { xero_status: "error" }).catch(console.error);
                   setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"error",xeroError:e.message}:x));
                   showToast(`Xero error: ${e.message}`, false);
                 }
@@ -6405,6 +6411,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
   const [xeroRates, setXeroRates]         = useState([]); // earnings rates loaded from Xero
   const [savingMap, setSavingMap] = useState({});
 
+
   const apprentices = allUsers.filter(u=>u.role==="Apprentice").sort((a,b)=>a.name.localeCompare(b.name));
   const approvedEntries = entries.filter(e=>e.approval==="approved")
     .sort((a,b)=>b.date.localeCompare(a.date));
@@ -6477,21 +6484,15 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
       {/* ── Setup Tab ── */}
       {tab==="setup"&&(
         <div>
-          {/* Architecture callout */}
-          <div style={{background:"#fffbeb",border:`1.5px solid ${T.warn}55`,borderRadius:12,
-            padding:"16px 20px",marginBottom:20}}>
-            <div style={{fontWeight:700,fontSize:14,color:T.warn,marginBottom:8}}>⚠ How Xero integration works</div>
-            <div style={{fontSize:13,color:T.ink,lineHeight:1.7}}>
-              Xero requires <strong>OAuth 2.0 authentication</strong> which cannot be done directly from the browser due to CORS restrictions.
-              This integration uses a <strong>Supabase Edge Function</strong> as a proxy — the function holds your Xero credentials securely and forwards requests to the Xero API.
-            </div>
-            <div style={{marginTop:12,fontSize:13,color:T.sub,lineHeight:1.7}}>
-              <strong>Setup steps:</strong><br/>
-              1. Create a Xero API app at <a href="https://developer.xero.com/app/manage" target="_blank" rel="noreferrer" style={{color:xeroBlue}}>developer.xero.com/app/manage</a><br/>
-              2. Deploy the KTA Edge Function to Supabase (file provided below)<br/>
-              3. Set the Edge Function URL and your Xero Tenant ID below<br/>
-              4. Map each apprentice to their Xero Employee ID<br/>
-              5. Map KTA entry types to Xero Earnings Rate IDs
+          {/* Custom connection status */}
+          <div style={{background:T.tealL,border:`1.5px solid ${T.teal}55`,borderRadius:12,
+            padding:"14px 18px",marginBottom:20,display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:20}}>✓</span>
+            <div>
+              <div style={{fontWeight:700,fontSize:13,color:T.teal}}>Xero Custom Connection</div>
+              <div style={{fontSize:12,color:T.sub,marginTop:2}}>
+                Using client credentials — no OAuth flow required. Save your Edge Function URL and Tenant ID below, then load earnings rates.
+              </div>
             </div>
           </div>
 
@@ -6712,80 +6713,106 @@ serve(async (req) => {
             )}
           </div>
 
-          {/* ── Section 1: Import Xero employees as new KTA apprentices ── */}
+          {/* ── Section 1: Import / Merge Xero employees ── */}
           {(()=>{
             const existingXeroIds = apprentices.map(a=>a.xeroEmployeeId).filter(Boolean);
             const unlinked = xeroEmployees.filter(xe=>!existingXeroIds.includes(xe.EmployeeID));
             if(!xeroEmployees.length || !unlinked.length) return null;
+
+            // For each unlinked Xero employee, check if an existing KTA user matches on email
+            const withMatch = unlinked.map(xe => ({
+              xe,
+              match: allUsers.find(u =>
+                xe.Email && u.email &&
+                u.email.trim().toLowerCase() === xe.Email.trim().toLowerCase()
+              ) || null,
+            }));
+
+            const mergeCount  = withMatch.filter(x=>x.match).length;
+            const importCount = withMatch.filter(x=>!x.match).length;
+
             return (
               <div style={{marginBottom:24}}>
-                <div style={{fontWeight:700,fontSize:14,marginBottom:6}}>⬇ Import from Xero</div>
-                <div style={{fontSize:12,color:T.sub,marginBottom:12}}>
-                  These Xero employees are not yet in KTA. Click <strong>Import</strong> to create them as Apprentices.
+                <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>⬇ Import / Merge from Xero</div>
+                <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+                  These Xero employees are not yet linked to KTA.
+                  {mergeCount>0 && <> <span style={{color:T.teal,fontWeight:600}}>{mergeCount} email match{mergeCount>1?"es":""}</span> found — merging will link their Xero ID and fill any missing fields.</>}
+                  {importCount>0 && <> <span style={{color:xeroBlue,fontWeight:600}}>{importCount} new</span> will be created as Apprentices.</>}
                 </div>
                 <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 100px",
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 110px",
                     padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
                     fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:10}}>
-                    <span>Xero Employee</span><span>Employee ID</span><span></span>
+                    <span>Xero Employee</span><span>Email</span><span>KTA Match</span><span></span>
                   </div>
-                  {unlinked.map((xe,i)=>(
-                    <div key={xe.EmployeeID} style={{display:"grid",gridTemplateColumns:"1fr 1fr 100px",
+                  {withMatch.map(({xe,match},i)=>(
+                    <div key={xe.EmployeeID} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 110px",
                       padding:"10px 14px",gap:10,alignItems:"center",fontSize:13,
-                      borderBottom:i<unlinked.length-1?`1px solid ${T.border}44`:"none",
-                      background:i%2===0?T.surface:T.bg}}>
+                      borderBottom:i<withMatch.length-1?`1px solid ${T.border}44`:"none",
+                      background:match?`${T.tealL}55`:i%2===0?T.surface:T.bg}}>
                       <div style={{fontWeight:600}}>{xe.FirstName} {xe.LastName}</div>
-                      <div style={{fontSize:11,fontFamily:"monospace",color:T.muted}}>{xe.EmployeeID?.slice(0,18)}…</div>
+                      <div style={{fontSize:11,color:T.sub,wordBreak:"break-all"}}>{xe.Email||<span style={{color:T.muted}}>—</span>}</div>
+                      <div style={{fontSize:11}}>
+                        {match
+                          ? <span style={{color:T.teal,fontWeight:600,display:"flex",alignItems:"center",gap:4}}>
+                              <span style={{width:6,height:6,borderRadius:"50%",background:T.teal,display:"inline-block"}}/>
+                              {match.name}
+                            </span>
+                          : <span style={{color:T.muted}}>No match — new</span>
+                        }
+                      </div>
                       <button onClick={async()=>{
-                        const newId = uid();
                         const phone = (xe.PhoneNumber && !xe.PhoneNumber.includes('@')) ? xe.PhoneNumber : "";
-                        const newUser = {
-                          id: newId,
-                          name: `${xe.FirstName} ${xe.LastName}`,
-                          firstName: xe.FirstName,
-                          lastName: xe.LastName,
-                          email: xe.Email || "",
-                          phone,
-                          trade: xe.JobTitle || "",
-                          address: xe.Address1 || "",
-                          suburb: xe.Suburb || "",
-                          city: xe.City || "",
-                          postcode: xe.PostCode || "",
-                          licenceExpiry: "",
-                          xeroEmployeeId: xe.EmployeeID,
-                          role: "Apprentice",
-                          password: "changeme123",
-                          allocatedTo: [],
-                          adminLevel: 1,
-                        };
                         try {
-                          await upsertRow('users', {
-                            id: newId,
-                            name: newUser.name,
-                            first_name: xe.FirstName,
-                            last_name: xe.LastName,
-                            email: newUser.email,
-                            phone,
-                            role: "Apprentice",
-                            password: "changeme123",
-                            allocated_to: [],
-                            trade: xe.JobTitle || null,
-                            address: xe.Address1 || null,
-                            suburb: xe.Suburb || null,
-                            city: xe.City || null,
-                            postcode: xe.PostCode || null,
-                            licence_expiry: null,
-                            xero_employee_id: xe.EmployeeID,
-                            admin_level: 1,
-                          });
-                          onImportUser(newUser);
-                          setXeroEmployees(prev=>prev.filter(e=>e.EmployeeID!==xe.EmployeeID));
-                          showToast(`✓ ${xe.FirstName} ${xe.LastName} imported as Apprentice`);
-                        } catch(e) { alert("Import failed: "+e.message); }
-                      }} style={{fontSize:12,padding:"4px 10px",borderRadius:6,fontWeight:600,
-                        background:xeroBlue,color:"#fff",border:`1px solid ${xeroBlueDark}`,
-                        cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
-                        ⬇ Import
+                          if(match) {
+                            // ── MERGE: link Xero ID + fill empty fields on existing user ──
+                            const updates = { xero_employee_id: xe.EmployeeID };
+                            if(!match.email    && xe.Email)      updates.email    = xe.Email;
+                            if(!match.phone    && phone)         updates.phone    = phone;
+                            if(!match.trade    && xe.JobTitle)   updates.trade    = xe.JobTitle;
+                            if(!match.address  && xe.Address1)   updates.address  = xe.Address1;
+                            if(!match.suburb   && xe.Suburb)     updates.suburb   = xe.Suburb;
+                            if(!match.city     && xe.City)       updates.city     = xe.City;
+                            if(!match.postcode && xe.PostCode)   updates.postcode = xe.PostCode;
+                            await updateRow('users', match.id, updates);
+                            onImportUser({...match, xeroEmployeeId: xe.EmployeeID, ...Object.fromEntries(
+                              Object.entries(updates).map(([k,v])=>[k.replace(/_([a-z])/g,(_,c)=>c.toUpperCase()),v])
+                            )});
+                            setXeroEmployees(prev=>prev.filter(e=>e.EmployeeID!==xe.EmployeeID));
+                            showToast(`✓ Merged Xero data into ${match.name}`);
+                          } else {
+                            // ── IMPORT: create new Apprentice ──
+                            const newId = uid();
+                            const newUser = {
+                              id: newId, name: `${xe.FirstName} ${xe.LastName}`,
+                              firstName: xe.FirstName, lastName: xe.LastName,
+                              email: xe.Email||"", phone,
+                              trade: xe.JobTitle||"", address: xe.Address1||"",
+                              suburb: xe.Suburb||"", city: xe.City||"", postcode: xe.PostCode||"",
+                              licenceExpiry:"", xeroEmployeeId: xe.EmployeeID,
+                              role:"Apprentice", password:"changeme123", allocatedTo:[], adminLevel:1,
+                            };
+                            await upsertRow('users', {
+                              id: newId, name: newUser.name,
+                              first_name: xe.FirstName, last_name: xe.LastName,
+                              email: newUser.email, phone, role:"Apprentice",
+                              password:"changeme123", allocated_to:[],
+                              trade: xe.JobTitle||null, address: xe.Address1||null,
+                              suburb: xe.Suburb||null, city: xe.City||null,
+                              postcode: xe.PostCode||null, licence_expiry:null,
+                              xero_employee_id: xe.EmployeeID, admin_level:1,
+                            });
+                            onImportUser(newUser);
+                            setXeroEmployees(prev=>prev.filter(e=>e.EmployeeID!==xe.EmployeeID));
+                            showToast(`✓ ${xe.FirstName} ${xe.LastName} imported as Apprentice`);
+                          }
+                        } catch(e) { alert((match?"Merge":"Import")+" failed: "+e.message); }
+                      }} style={{fontSize:12,padding:"5px 10px",borderRadius:6,fontWeight:600,
+                        background: match ? T.teal : xeroBlue,
+                        color:"#fff",
+                        border:`1px solid ${match ? T.teal : xeroBlueDark}`,
+                        cursor:"pointer",fontFamily:"DM Sans,sans-serif",whiteSpace:"nowrap"}}>
+                        {match ? "🔗 Merge" : "⬇ Import"}
                       </button>
                     </div>
                   ))}
@@ -6926,8 +6953,10 @@ serve(async (req) => {
                               onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"submitting"}:x));
                               const res = await submitEntryToXero(e, app, entries);
                               if(res.ok){
+                                await updateRow("entries", e.id, { xero_status: "submitted", xero_timesheet_id: res.timesheetId||null }).catch(console.error);
                                 onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"submitted",xeroTimesheetId:res.timesheetId}:x));
                               } else {
+                                await updateRow("entries", e.id, { xero_status: "error" }).catch(console.error);
                                 onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"error",xeroError:res.error}:x));
                               }
                             }}
