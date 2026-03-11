@@ -1,4 +1,4 @@
-// KTA Workforce Management — v1.5.0
+// KTA Workforce Management — v1.5.1
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -7,6 +7,7 @@
 //   v1.4.9 — add fully-approved leave to M365 team calendar (calendar-proxy edge fn)
 //   v1.5.0 — auto-fill timesheet entries for approved leave (Mon-Fri, 8hrs/day)
 //             added Bereavement Leave + Leave Without Pay to entry types
+//   v1.5.1 — leave overview card in admin dashboard timesheet section (colour-coded table)
 import { useState, useEffect, useCallback, useRef } from "react";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
@@ -836,7 +837,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.5.0
+          v1.5.1
         </div>
       </div>
     </div>
@@ -3335,6 +3336,7 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
             <div style={{fontSize:12, color:T.sub, marginTop:3}}>Click any card to view and manage that apprentice's timesheet entries.</div>
           </div>
         </div>
+        <LeaveOverviewCard allUsers={allUsers}/>
         {apprentices.length===0 && (
           <Card style={{textAlign:"center", padding:"52px 24px"}}>
             <div style={{fontSize:36, marginBottom:10}}>◑</div>
@@ -4019,6 +4021,118 @@ function LeaveToggleCard({ currentUser, allUsers }) {
           <div style={{fontWeight:700, color:T.teal, fontSize:15}}>Leave request submitted!</div>
         </div>
       )}
+    </Card>
+  );
+}
+
+
+// ── Leave Overview Card (Admin Dashboard — compact table in timesheets section) ──
+function LeaveOverviewCard({ allUsers }) {
+  const [requests, setRequests] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+
+  const load = () => {
+    loadTable("leave_requests")
+      .then(rows => setRequests((rows||[]).sort((a,b)=>b.created_at.localeCompare(a.created_at))))
+      .catch(()=>setRequests([]))
+      .finally(()=>setLoading(false));
+  };
+  useEffect(()=>{ load(); },[]);
+  useEffect(()=>{ const t=setInterval(load,30000); return()=>clearInterval(t); },[]);
+
+  const STATUS = {
+    pending:           { label:"Awaiting Approver", color:"#b86e1a", bg:"#faebd7", dot:"🟠" },
+    approver_approved: { label:"Awaiting KTA",      color:"#1b4f8c", bg:"#dce8f7", dot:"🔵" },
+    kta_approved:      { label:"Approved",           color:"#1a6b3a", bg:"#d4f0e0", dot:"🟢" },
+    declined:          { label:"Declined",           color:"#bf2b2b", bg:"#fde8e8", dot:"🔴" },
+  };
+
+  const getName = (id) => allUsers.find(u=>u.id===id)?.name || "—";
+  const fmt = (d) => { if(!d) return "—"; const[y,m,dy]=d.split("-"); return `${dy}/${m}/${y}`; };
+
+  if(loading) return (
+    <Card style={{marginBottom:16,padding:"18px 20px"}}>
+      <div style={{fontSize:12,color:T.muted}}>Loading leave requests…</div>
+    </Card>
+  );
+  if(requests.length===0) return null;
+
+  return (
+    <Card style={{marginBottom:16,border:`1.5px solid ${T.border}`}}>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+        <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🏖️</div>
+        <div style={{flex:1}}>
+          <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:16}}>Leave Requests</div>
+          <div style={{fontSize:12,color:T.sub,marginTop:2}}>{requests.length} request{requests.length!==1?"s":""} — click a row to manage in the panel below</div>
+        </div>
+        <button onClick={load} title="Refresh" style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:T.muted,padding:4}}>↻</button>
+      </div>
+
+      {/* Legend */}
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:12}}>
+        {Object.entries(STATUS).map(([k,v])=>(
+          <span key={k} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,
+            color:v.color,background:v.bg,borderRadius:99,padding:"3px 10px",fontWeight:600,
+            border:`1px solid ${v.color}33`}}>
+            <span style={{width:7,height:7,borderRadius:"50%",background:v.color,display:"inline-block"}}/>
+            {v.label}
+          </span>
+        ))}
+      </div>
+
+      {/* Table */}
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <thead>
+            <tr style={{background:T.bg}}>
+              {["Apprentice","Leave Type","Start","End","Status"].map(h=>(
+                <th key={h} style={{padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,
+                  color:T.muted,textTransform:"uppercase",letterSpacing:".6px",
+                  borderBottom:`1.5px solid ${T.border}`,whiteSpace:"nowrap"}}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {requests.map((r,i)=>{
+              const s = STATUS[r.status] || STATUS.pending;
+              return (
+                <tr key={r.id}
+                  style={{borderBottom:`1px solid ${T.border}44`,
+                    background:i%2===0?T.surface:T.bg,
+                    transition:"background .12s"}}
+                  onMouseEnter={e=>e.currentTarget.style.background=s.bg}
+                  onMouseLeave={e=>e.currentTarget.style.background=i%2===0?T.surface:T.bg}>
+                  {/* Apprentice */}
+                  <td style={{padding:"10px 12px",fontWeight:600,color:T.ink,whiteSpace:"nowrap"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <Avatar name={getName(r.apprentice_id)} role="Apprentice" size={26}/>
+                      {getName(r.apprentice_id)}
+                    </div>
+                  </td>
+                  {/* Leave Type */}
+                  <td style={{padding:"10px 12px",color:T.sub,whiteSpace:"nowrap"}}>{r.leave_type}</td>
+                  {/* Start */}
+                  <td style={{padding:"10px 12px",color:T.sub,whiteSpace:"nowrap",fontVariantNumeric:"tabular-nums"}}>{fmt(r.date_from)}</td>
+                  {/* End */}
+                  <td style={{padding:"10px 12px",color:T.sub,whiteSpace:"nowrap",fontVariantNumeric:"tabular-nums"}}>{fmt(r.date_to)}</td>
+                  {/* Status pill */}
+                  <td style={{padding:"10px 12px",whiteSpace:"nowrap"}}>
+                    <span style={{display:"inline-flex",alignItems:"center",gap:5,
+                      background:s.bg,color:s.color,border:`1px solid ${s.color}44`,
+                      borderRadius:99,padding:"3px 10px",fontSize:11,fontWeight:700}}>
+                      <span style={{width:7,height:7,borderRadius:"50%",background:s.color,display:"inline-block"}}/>
+                      {s.label}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </Card>
   );
 }
