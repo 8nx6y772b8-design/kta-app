@@ -6704,7 +6704,8 @@ serve(async (req) => {
                 let data; try{ data=JSON.parse(text); }catch{ alert("Non-JSON response: "+text.slice(0,300)); return; }
                 if(data.ok && data.employees){
                   setXeroEmployees(data.employees);
-                  showToast(`✓ Loaded ${data.employees.length} employees from Xero`);
+                  const dbg = data.debug ? `\nDebug: total=${data.debug.total} active=${data.debug.active}\nSample inactive keys: ${JSON.stringify(data.debug.inactiveSample?.[0]?.allKeys)}\nSample inactive: ${JSON.stringify(data.debug.inactiveSample?.[0])}` : "";
+                  alert(`✓ Loaded ${data.employees.length} employees from Xero${dbg}`);
                 } else { alert("Error: " + (data.error||JSON.stringify(data))); }
               }catch(e){ alert("Failed: "+e.message); }
             }}>🔄 Load Employees from Xero</Btn>
