@@ -1,4 +1,4 @@
-// KTA Workforce Management — v1.5.1
+// KTA Workforce Management — v1.5.2
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -8,6 +8,7 @@
 //   v1.5.0 — auto-fill timesheet entries for approved leave (Mon-Fri, 8hrs/day)
 //             added Bereavement Leave + Leave Without Pay to entry types
 //   v1.5.1 — leave overview card in admin dashboard timesheet section (colour-coded table)
+//   v1.5.2 — timesheets moved to stat card; dashboard no longer shows full timesheet grid
 import { useState, useEffect, useCallback, useRef } from "react";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
@@ -837,7 +838,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.5.1
+          v1.5.2
         </div>
       </div>
     </div>
@@ -3247,7 +3248,7 @@ function DraggableSection({ id, dragProps, children, style = {} }) {
   );
 }
 
-function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeList, onViewList, currentUser}) {
+function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeList, onViewList, onViewTimesheets, currentUser}) {
   const apprentices = allUsers.filter(u=>u.role==="Apprentice");
   const wsStart = ()=>{ const d=new Date(); d.setDate(d.getDate()-d.getDay()); return d.toISOString().slice(0,10); };
   const ws = wsStart();
@@ -3259,16 +3260,20 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
   const totalHrsWeek      = entries.filter(e=>e.date>=ws).reduce((a,e)=>a+e.netHours,0).toFixed(1);
 
   // Section order (top-level)
-  const DEFAULT_ORDER = ["stats", "crm", "timesheets"];
+  const DEFAULT_ORDER = ["stats", "crm"];
   const { order, dragProps } = useDraggableOrder(currentUser?.id || "admin", DEFAULT_ORDER);
 
   // Card order within Stats section
-  const STATS_DEFAULT = ["apprentices","hours","submitted","approved","declined"];
+  const STATS_DEFAULT = ["apprentices","hours","submitted","approved","declined","timesheets"];
   const { order: statsOrder, dragProps: statsDrag } = useDraggableOrder((currentUser?.id||"admin") + "_stats", STATS_DEFAULT);
 
   // Card order within CRM section
   const CRM_DEFAULT = ["contacts","hosts","deals"];
   const { order: crmOrder, dragProps: crmDrag } = useDraggableOrder((currentUser?.id||"admin") + "_crm", CRM_DEFAULT);
+
+  // Timesheet summary for stat card
+  const pendingCount  = entries.filter(e=>e.approval==="submitted").length;
+  const activeApps    = apprentices.filter(a=>entries.some(e=>e.userId===a.id)).length;
 
   const statsData = {
     apprentices: (
@@ -3286,6 +3291,23 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
     submitted: <button onClick={()=>onViewList("submitted")} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalSubmitted>0?T.warn:T.muted}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Pending</div><div style={{fontSize:24,fontWeight:700,color:totalSubmitted>0?T.warn:T.muted,fontFamily:"'Libre Baskerville'"}}>{totalSubmitted}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>submitted, awaiting review</div><div style={{fontSize:11,color:totalSubmitted>0?T.warn:T.muted,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
     approved:  <button onClick={()=>onViewList("approved")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${T.teal}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Approved</div><div style={{fontSize:24,fontWeight:700,color:T.teal,fontFamily:"'Libre Baskerville'"}}>{totalApproved}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>approved by approver</div><div style={{fontSize:11,color:T.teal,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
     declined:  <button onClick={()=>onViewList("declined")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalNotApproved>0?T.red:T.muted}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Not Approved</div><div style={{fontSize:24,fontWeight:700,color:totalNotApproved>0?T.red:T.muted,fontFamily:"'Libre Baskerville'"}}>{totalNotApproved}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>declined by approver</div><div style={{fontSize:11,color:totalNotApproved>0?T.red:T.muted,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
+    timesheets: (
+      <button onClick={onViewTimesheets} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
+        onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+        <Card style={{paddingBlock:18,border:`1.5px solid ${T.teal}44`,height:"100%"}}>
+          <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Timesheets</div>
+          <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:2}}>
+            <div style={{fontSize:24,fontWeight:700,color:T.teal,fontFamily:"'Libre Baskerville'"}}>{activeApps}</div>
+            <div style={{fontSize:11,color:T.muted}}>/ {apprentices.length}</div>
+          </div>
+          <div style={{fontSize:11,color:T.sub,marginTop:2}}>apprentices with entries</div>
+          {pendingCount>0
+            ? <div style={{fontSize:11,color:T.warn,marginTop:6,fontWeight:600}}>⚠ {pendingCount} pending review</div>
+            : <div style={{fontSize:11,color:T.teal,marginTop:6,fontWeight:600}}>View timesheets →</div>
+          }
+        </Card>
+      </button>
+    ),
   };
 
   const crmData = {
@@ -3323,77 +3345,6 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
                   </Card>
                 </button>
               </div>
-            );
-          })}
-        </div>
-      </DraggableSection>
-    ),
-    timesheets: (
-      <DraggableSection id="timesheets" dragProps={dragProps}>
-        <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18}}>
-          <div>
-            <div style={{fontFamily:"'Libre Baskerville'", fontSize:18, fontWeight:700}}>Apprentice Timesheets</div>
-            <div style={{fontSize:12, color:T.sub, marginTop:3}}>Click any card to view and manage that apprentice's timesheet entries.</div>
-          </div>
-        </div>
-        <LeaveOverviewCard allUsers={allUsers}/>
-        {apprentices.length===0 && (
-          <Card style={{textAlign:"center", padding:"52px 24px"}}>
-            <div style={{fontSize:36, marginBottom:10}}>◑</div>
-            <div style={{fontWeight:600, fontSize:15}}>No apprentices yet</div>
-            <div style={{fontSize:13, color:T.sub, marginTop:6}}>Add apprentices in User Management to see their timesheets here.</div>
-          </Card>
-        )}
-        <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px,1fr))", gap:16}}>
-          {apprentices.map(app=>{
-            const appEntries   = entries.filter(e=>e.userId===app.id);
-            const weekEntries  = appEntries.filter(e=>e.date>=ws);
-            const weekHrs      = weekEntries.reduce((a,e)=>a+e.netHours,0).toFixed(1);
-            const pendingCount = appEntries.filter(e=>e.approval==="submitted").length;
-            const lastEntry    = [...appEntries].sort((a,b)=>b.date.localeCompare(a.date))[0];
-            const totalEntries = appEntries.length;
-            const typeHrs = ENTRY_TYPES.map(t=>({type:t,hrs:appEntries.reduce((a,e)=>e.type===t?a+e.netHours:a,0)})).filter(x=>x.hrs>0);
-            const totalTypeHrs = typeHrs.reduce((a,x)=>a+x.hrs,0)||1;
-            return (
-              <button key={app.id} onClick={()=>onViewApprentice(app.id)}
-                style={{background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:16,padding:0,textAlign:"left",cursor:"pointer",fontFamily:"DM Sans,sans-serif",transition:"all .18s",overflow:"hidden",display:"flex",flexDirection:"column"}}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor=T.blue+"88";e.currentTarget.style.boxShadow=`0 6px 24px ${T.blue}18`;e.currentTarget.style.transform="translateY(-2px)";}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.boxShadow="none";e.currentTarget.style.transform="translateY(0)";}}>
-                <div style={{padding:"18px 20px 14px",borderBottom:`1px solid ${T.border}55`}}>
-                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-                    <Avatar name={app.name} role="Apprentice" size={44}/>
-                    <div style={{flex:1}}>
-                      <div style={{fontWeight:700,fontSize:15,color:T.ink}}>{app.name}</div>
-                      <div style={{fontSize:12,color:T.muted,marginTop:1}}>{app.email}</div>
-                    </div>
-                    {pendingCount>0&&(<div style={{background:T.warnL,color:T.warn,border:`1px solid ${T.warn}44`,borderRadius:99,padding:"3px 10px",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{pendingCount} pending</div>)}
-                  </div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-                    {[{label:"This Week",value:`${weekHrs}h`,color:T.accent},{label:"Total Entries",value:totalEntries,color:T.blue},{label:"Last Entry",value:lastEntry?fmtD(lastEntry.date):"—",color:T.sub}].map(s=>(
-                      <div key={s.label} style={{background:T.bg,borderRadius:8,padding:"8px 10px"}}>
-                        <div style={{fontSize:10,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:2}}>{s.label}</div>
-                        <div style={{fontSize:13,fontWeight:700,color:s.color,fontFamily:"'Libre Baskerville'"}}>{s.value}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                {typeHrs.length>0&&(
-                  <div style={{padding:"12px 20px 14px"}}>
-                    <div style={{fontSize:10,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:7}}>Hours by type</div>
-                    <div style={{display:"flex",height:7,borderRadius:99,overflow:"hidden",gap:1,marginBottom:8}}>
-                      {typeHrs.map(x=>(<div key={x.type} style={{flex:x.hrs/totalTypeHrs,background:TYPE_META[x.type]?.color||T.muted,minWidth:4}}/>))}
-                    </div>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                      {typeHrs.map(x=>(<span key={x.type} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,color:TYPE_META[x.type]?.color||T.muted,fontWeight:600}}><span style={{width:7,height:7,borderRadius:"50%",background:TYPE_META[x.type]?.color||T.muted,display:"inline-block"}}/>{x.type} {x.hrs}h</span>))}
-                    </div>
-                  </div>
-                )}
-                {typeHrs.length===0&&(<div style={{padding:"14px 20px",color:T.muted,fontSize:12,fontStyle:"italic"}}>No timesheet entries yet</div>)}
-                <div style={{marginTop:"auto",padding:"11px 20px",background:T.bg,borderTop:`1px solid ${T.border}55`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                  <span style={{fontSize:12,color:T.blue,fontWeight:600}}>View Timesheet →</span>
-                  {pendingCount>0?<span style={{fontSize:11,color:T.warn}}>⚠ Needs attention</span>:<span style={{fontSize:11,color:T.muted}}>All up to date</span>}
-                </div>
-              </button>
             );
           })}
         </div>
@@ -8213,7 +8164,9 @@ export default function App() {
                 onViewApprentice={(id)=>setViewingAppId(id)}
                 onViewApprenticeList={()=>{setShowAppList('apprentices');setViewingAppId(null);}}
                 onViewList={(key)=>{setShowAppList(key);setViewingAppId(null);}}
+                onViewTimesheets={()=>setModule("timesheet")}
               />
+              <LeaveOverviewCard allUsers={users}/>
               <LeaveRequestsPanel currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
               {currentUser.email?.toLowerCase() === CONF_OWNER_EMAIL && (
                 <ConfidentialNotesCard currentUser={currentUser} allUsers={users}/>
