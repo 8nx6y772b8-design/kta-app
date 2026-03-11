@@ -3324,6 +3324,449 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// LEAVE REQUESTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LEAVE_TYPES = ["Annual Leave","Sick Leave","Leave Without Pay","Bereavement Leave","Other"];
+
+const LEAVE_STATUS_META = {
+  pending:           { label:"Pending Approver",  color:"#b86e1a", bg:"#faebd7", sym:"⏳" },
+  approver_approved: { label:"Approved by Approver", color:"#1a8a7a", bg:"#d4f0ec", sym:"✓" },
+  kta_approved:      { label:"Approved by KTA",   color:"#1b4f8c", bg:"#dce8f7", sym:"★" },
+  declined:          { label:"Declined",           color:"#bf2b2b", bg:"#fde8e8", sym:"✕" },
+};
+
+const sendLeaveEmail = async ({ to, toName, subject, html }) => {
+  try {
+    await sendKTAEmail({ to, subject, html });
+  } catch(e) {
+    console.error(`Leave email to ${to} failed:`, e);
+  }
+};
+
+const leaveEmailHtml = (title, body) => `
+<div style="font-family:DM Sans,sans-serif;max-width:600px;margin:0 auto;background:#f0f4f9;padding:24px">
+  <div style="background:#1b4f8c;borderRadius:10px;padding:18px 24px;margin-bottom:0;border-radius:10px 10px 0 0">
+    <div style="color:#fff;font-size:18px;font-weight:700">KTA Leave Request</div>
+    <div style="color:#dce8f7;font-size:12px;margin-top:4px">Kiwi Trade Apprentices</div>
+  </div>
+  <div style="background:#fff;padding:24px;border-radius:0 0 10px 10px;border:1px solid #d0daea">
+    <p style="font-size:15px;color:#0d1b2e;margin-top:0">${title}</p>
+    ${body}
+    <hr style="border:none;border-top:1px solid #d0daea;margin:20px 0">
+    <p style="font-size:11px;color:#8fa0b8">KTA Workforce Management · timesheet@kta.org.nz</p>
+  </div>
+</div>`;
+
+const leaveDetailTable = (req, apprenticeName, approverName) => `
+<table style="width:100%;border-collapse:collapse;font-size:13px;margin:16px 0">
+  <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:700;width:40%">Apprentice</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${apprenticeName}</td></tr>
+  <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:700">Leave Type</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${req.leave_type}</td></tr>
+  <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:700">From</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${fmtDateNZ(req.date_from)}</td></tr>
+  <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:700">To</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${fmtDateNZ(req.date_to)}</td></tr>
+  <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:700">Approver</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${approverName}</td></tr>
+  ${req.notes ? `<tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:700">Notes</td><td style="padding:8px 12px">${req.notes}</td></tr>` : ""}
+</table>`;
+
+const fmtDateNZ = (iso) => {
+  if(!iso) return "—";
+  const [y,m,d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+};
+
+// ── Leave Application Form (Apprentice) ──────────────────────────────────────
+function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
+  const approver = allUsers.find(u =>
+    u.id === currentUser.approverUserId ||
+    (u.role === "Approver" && (u.allocatedTo||[]).includes(currentUser.id))
+  );
+  const [form, setForm] = useState({
+    dateFrom: "", dateTo: "", leaveType: "Annual Leave", notes: "",
+  });
+  const [saving, setSaving]   = useState(false);
+  const [done, setDone]       = useState(false);
+  const [error, setError]     = useState("");
+  const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  const handleSubmit = async () => {
+    if(!form.dateFrom || !form.dateTo) { setError("Please select start and end dates."); return; }
+    if(form.dateTo < form.dateFrom)    { setError("End date must be after start date."); return; }
+    setError(""); setSaving(true);
+    const req = {
+      id: uid(),
+      apprentice_id:  currentUser.id,
+      approver_id:    approver?.id || null,
+      date_from:      form.dateFrom,
+      date_to:        form.dateTo,
+      leave_type:     form.leaveType,
+      notes:          form.notes.trim(),
+      status:         "pending",
+      created_at:     new Date().toISOString(),
+    };
+    await upsertRow("leave_requests", req).catch(console.error);
+
+    // Email to approver
+    if(approver?.email) {
+      await sendLeaveEmail({
+        to: approver.email,
+        subject: `Leave Request — ${currentUser.name} (${form.leaveType})`,
+        html: leaveEmailHtml(
+          `<strong>${currentUser.name}</strong> has submitted a leave request requiring your approval.`,
+          leaveDetailTable(req, currentUser.name, approver.name) +
+          `<p style="font-size:13px;color:#4a5a72">Please log in to the KTA system to approve or decline this request.</p>`
+        ),
+      });
+    }
+    // Confirmation email to apprentice
+    if(currentUser.email) {
+      await sendLeaveEmail({
+        to: currentUser.email,
+        subject: `Leave Request Submitted — ${form.leaveType}`,
+        html: leaveEmailHtml(
+          `Your leave request has been submitted and is awaiting approval from <strong>${approver?.name || "your approver"}</strong>.`,
+          leaveDetailTable(req, currentUser.name, approver?.name || "Not assigned")
+        ),
+      });
+    }
+
+    setSaving(false); setDone(true);
+    setTimeout(() => onSubmitted(req), 1500);
+  };
+
+  if(done) return (
+    <div style={{textAlign:"center",padding:"32px 16px"}}>
+      <div style={{fontSize:36,marginBottom:12}}>✅</div>
+      <div style={{fontWeight:700,fontSize:16,color:T.teal}}>Leave request submitted!</div>
+      <div style={{fontSize:13,color:T.sub,marginTop:6}}>
+        {approver?.email ? `An email has been sent to ${approver.name}.` : "No approver email found — please notify your approver directly."}
+      </div>
+    </div>
+  );
+
+  return (
+    <Card style={{marginBottom:16}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
+        <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🏖️</div>
+        <div>
+          <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:16}}>Apply for Leave</div>
+          <div style={{fontSize:12,color:T.sub,marginTop:2}}>Complete the form below — your approver will be notified</div>
+        </div>
+      </div>
+
+      {/* Read-only info */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+        <div style={{background:T.bg,borderRadius:8,padding:"10px 14px"}}>
+          <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3}}>Apprentice</div>
+          <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{currentUser.name}</div>
+        </div>
+        <div style={{background:T.bg,borderRadius:8,padding:"10px 14px"}}>
+          <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3}}>Approver</div>
+          <div style={{fontWeight:700,fontSize:14,color:approver?T.ink:T.warn}}>
+            {approver ? approver.name : "⚠ No approver assigned"}
+          </div>
+        </div>
+      </div>
+
+      {/* Dates */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+        <div>
+          <label style={{fontSize:12,fontWeight:600,color:T.sub,display:"block",marginBottom:5}}>Leave Starting *</label>
+          <input type="date" value={form.dateFrom} onChange={e=>sf("dateFrom",e.target.value)}
+            style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,fontFamily:"DM Sans,sans-serif",color:T.ink,outline:"none",boxSizing:"border-box"}}/>
+        </div>
+        <div>
+          <label style={{fontSize:12,fontWeight:600,color:T.sub,display:"block",marginBottom:5}}>Leave Finishing *</label>
+          <input type="date" value={form.dateTo} onChange={e=>sf("dateTo",e.target.value)}
+            style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,fontFamily:"DM Sans,sans-serif",color:T.ink,outline:"none",boxSizing:"border-box"}}/>
+        </div>
+      </div>
+
+      {/* Leave type */}
+      <div style={{marginBottom:14}}>
+        <label style={{fontSize:12,fontWeight:600,color:T.sub,display:"block",marginBottom:5}}>Type of Leave *</label>
+        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+          {LEAVE_TYPES.map(t=>(
+            <button key={t} onClick={()=>sf("leaveType",t)}
+              style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${form.leaveType===t?T.accent:T.border}`,
+                background:form.leaveType===t?T.accentL:T.surface,
+                color:form.leaveType===t?T.accent:T.ink,
+                fontWeight:form.leaveType===t?700:400,
+                fontSize:12,cursor:"pointer",fontFamily:"DM Sans,sans-serif",transition:"all .12s"}}>
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div style={{marginBottom:16}}>
+        <label style={{fontSize:12,fontWeight:600,color:T.sub,display:"block",marginBottom:5}}>Additional Notes</label>
+        <textarea value={form.notes} onChange={e=>sf("notes",e.target.value)} rows={3}
+          placeholder="Any additional details about your leave request…"
+          style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,fontFamily:"DM Sans,sans-serif",color:T.ink,outline:"none",resize:"vertical",boxSizing:"border-box",lineHeight:1.6}}/>
+      </div>
+
+      {error && <div style={{background:T.redL,border:`1px solid ${T.red}33`,borderRadius:7,padding:"8px 12px",fontSize:12,color:T.red,marginBottom:12}}>{error}</div>}
+
+      <div style={{display:"flex",gap:8}}>
+        <Btn onClick={handleSubmit} disabled={saving}>{saving?"Submitting…":"📨 Submit Leave Request"}</Btn>
+      </div>
+    </Card>
+  );
+}
+
+// ── Leave Request Card (single) ───────────────────────────────────────────────
+function LeaveRequestCard({ req, allUsers, currentUser, isAdmin, isApprover, onUpdate }) {
+  const apprentice = allUsers.find(u=>u.id===req.apprentice_id) || { name:"Unknown" };
+  const approver   = allUsers.find(u=>u.id===req.approver_id)   || { name:"No approver" };
+  const meta       = LEAVE_STATUS_META[req.status] || LEAVE_STATUS_META.pending;
+  const [acting, setActing] = useState(false);
+
+  const admin1s = allUsers.filter(u => u.role==="Admin" && (u.adminLevel||1)===1);
+
+  const approve = async () => {
+    setActing(true);
+    const newStatus = isApprover ? "approver_approved" : "kta_approved";
+    const updated = { ...req, status: newStatus };
+    await upsertRow("leave_requests", { id: req.id, status: newStatus }).catch(console.error);
+
+    if(isApprover) {
+      // Notify apprentice — approver approved
+      if(apprentice.email) {
+        await sendLeaveEmail({
+          to: apprentice.email,
+          subject: `Leave Request Approved by Approver — ${req.leave_type}`,
+          html: leaveEmailHtml(
+            `Great news! Your leave request has been approved by <strong>${approver.name}</strong> and has been forwarded to KTA for final approval.`,
+            leaveDetailTable(req, apprentice.name, approver.name)
+          ),
+        });
+      }
+      // Forward to all Admin 1 users
+      for(const admin of admin1s) {
+        if(admin.email) {
+          await sendLeaveEmail({
+            to: admin.email,
+            subject: `Leave Request for KTA Approval — ${apprentice.name} (${req.leave_type})`,
+            html: leaveEmailHtml(
+              `A leave request from <strong>${apprentice.name}</strong> has been approved by their approver and requires KTA approval.`,
+              leaveDetailTable(req, apprentice.name, approver.name) +
+              `<p style="font-size:13px;color:#4a5a72">Please log in to the KTA system to give final approval.</p>`
+            ),
+          });
+        }
+      }
+    } else {
+      // KTA final approval — notify apprentice
+      if(apprentice.email) {
+        await sendLeaveEmail({
+          to: apprentice.email,
+          subject: `Leave Request Fully Approved by KTA — ${req.leave_type}`,
+          html: leaveEmailHtml(
+            `Your leave request has been <strong>fully approved by KTA</strong>. Enjoy your time off! 🎉`,
+            leaveDetailTable(req, apprentice.name, approver.name)
+          ),
+        });
+      }
+    }
+    onUpdate(updated);
+    setActing(false);
+  };
+
+  const decline = async () => {
+    if(!window.confirm("Decline this leave request?")) return;
+    setActing(true);
+    const updated = { ...req, status: "declined" };
+    await upsertRow("leave_requests", { id: req.id, status: "declined" }).catch(console.error);
+    // Notify apprentice
+    if(apprentice.email) {
+      await sendLeaveEmail({
+        to: apprentice.email,
+        subject: `Leave Request Declined — ${req.leave_type}`,
+        html: leaveEmailHtml(
+          `Unfortunately your leave request has been <strong>declined</strong>. Please contact your approver or KTA for more information.`,
+          leaveDetailTable(req, apprentice.name, approver.name)
+        ),
+      });
+    }
+    onUpdate(updated);
+    setActing(false);
+  };
+
+  const canApprove = (isApprover && req.status==="pending") ||
+                     (isAdmin   && req.status==="approver_approved");
+
+  return (
+    <div style={{background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:12,padding:"14px 16px",marginBottom:10}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
+            <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{apprentice.name}</div>
+            <span style={{background:meta.bg,color:meta.color,borderRadius:99,padding:"2px 10px",fontSize:11,fontWeight:600}}>
+              {meta.sym} {meta.label}
+            </span>
+            <span style={{background:T.bg,color:T.sub,borderRadius:99,padding:"2px 10px",fontSize:11,fontWeight:600}}>
+              {req.leave_type}
+            </span>
+          </div>
+          <div style={{fontSize:12,color:T.sub}}>
+            📅 {fmtDateNZ(req.date_from)} → {fmtDateNZ(req.date_to)}
+            <span style={{marginLeft:12,color:T.muted}}>Approver: {approver.name}</span>
+          </div>
+          {req.notes && <div style={{fontSize:12,color:T.sub,marginTop:4,fontStyle:"italic"}}>"{req.notes}"</div>}
+        </div>
+        {canApprove && (
+          <div style={{display:"flex",gap:6,flexShrink:0}}>
+            <button onClick={approve} disabled={acting}
+              style={{background:T.teal,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+              {acting?"…":"✓ Approve"}
+            </button>
+            <button onClick={decline} disabled={acting}
+              style={{background:T.redL,color:T.red,border:`1.5px solid ${T.red}44`,borderRadius:7,padding:"7px 14px",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+              ✕ Decline
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Leave Requests Panel (Admin / Mentor / Approver) ─────────────────────────
+function LeaveRequestsPanel({ currentUser, allUsers }) {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [tab, setTab]           = useState("pending");
+
+  const role       = currentUser.role;
+  const isAdmin    = role === "Admin";
+  const isApprover = role === "Approver";
+  const isMentor   = role === "Mentor";
+
+  useEffect(()=>{
+    loadTable("leave_requests")
+      .then(rows => {
+        let visible = rows || [];
+        // Approvers only see their own apprentices
+        if(isApprover) {
+          const myApprenticeIds = allUsers
+            .filter(u => u.role==="Apprentice" && (
+              u.approverUserId === currentUser.id ||
+              (u.allocatedTo||[]).includes(currentUser.id)
+            ))
+            .map(u=>u.id);
+          visible = visible.filter(r => myApprenticeIds.includes(r.apprentice_id));
+        }
+        // Mentors only see their own apprentices
+        if(isMentor) {
+          const myApprenticeIds = allUsers
+            .filter(u => u.role==="Apprentice" && (
+              u.allocatedTo === currentUser.id ||
+              u.mentorUserId === currentUser.id
+            ))
+            .map(u=>u.id);
+          visible = visible.filter(r => myApprenticeIds.includes(r.apprentice_id));
+        }
+        setRequests(visible.sort((a,b)=>b.created_at.localeCompare(a.created_at)));
+      })
+      .catch(()=>setRequests([]))
+      .finally(()=>setLoading(false));
+  },[currentUser.id]);
+
+  const handleUpdate = (updated) => {
+    setRequests(prev => prev.map(r => r.id===updated.id ? updated : r));
+  };
+
+  const pending  = requests.filter(r => r.status==="pending" || r.status==="approver_approved");
+  const approved = requests.filter(r => r.status==="kta_approved");
+  const declined = requests.filter(r => r.status==="declined");
+  const shown    = tab==="pending" ? pending : tab==="approved" ? approved : declined;
+
+  if(loading) return null;
+  if(requests.length === 0) return null;
+
+  const tabBtn = (id, label, count) => (
+    <button onClick={()=>setTab(id)}
+      style={{padding:"6px 14px",borderRadius:8,border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:12,fontWeight:600,
+        background:tab===id?T.accent:T.bg, color:tab===id?"#fff":T.sub, transition:"all .12s"}}>
+      {label} {count>0 && <span style={{marginLeft:4,background:tab===id?"#ffffff33":T.accentL,borderRadius:99,padding:"1px 7px",fontSize:10}}>{count}</span>}
+    </button>
+  );
+
+  return (
+    <Card style={{marginBottom:16,border:`1.5px solid ${T.border}`}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+        <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🏖️</div>
+        <div style={{flex:1}}>
+          <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:16}}>Leave Requests</div>
+          <div style={{fontSize:12,color:T.sub,marginTop:2}}>Review and approve apprentice leave applications</div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:8,marginBottom:14}}>
+        {tabBtn("pending",  "Pending",  pending.length)}
+        {tabBtn("approved", "Approved", approved.length)}
+        {tabBtn("declined", "Declined", declined.length)}
+      </div>
+      {shown.length===0
+        ? <div style={{textAlign:"center",padding:"20px",color:T.muted,fontSize:13,fontStyle:"italic"}}>No {tab} leave requests.</div>
+        : shown.map(r => (
+            <LeaveRequestCard key={r.id} req={r} allUsers={allUsers} currentUser={currentUser}
+              isAdmin={isAdmin} isApprover={isApprover} onUpdate={handleUpdate}/>
+          ))
+      }
+    </Card>
+  );
+}
+
+// ── My Leave Requests (Apprentice view of own requests) ───────────────────────
+function MyLeaveRequests({ currentUser }) {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [showForm, setShowForm] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    loadTable("leave_requests")
+      .then(rows => setRequests((rows||[]).filter(r=>r.apprentice_id===currentUser.id).sort((a,b)=>b.created_at.localeCompare(a.created_at))))
+      .catch(()=>setRequests([]))
+      .finally(()=>setLoading(false));
+  };
+
+  useEffect(()=>{ load(); },[currentUser.id]);
+
+  if(showForm) return null; // form shown separately above
+
+  if(loading) return null;
+  if(requests.length===0) return null;
+
+  return (
+    <Card style={{marginBottom:16}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:32,height:32,borderRadius:8,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>📋</div>
+          <div style={{fontWeight:700,fontSize:15}}>My Leave Requests</div>
+        </div>
+      </div>
+      {requests.map(r => {
+        const meta = LEAVE_STATUS_META[r.status] || LEAVE_STATUS_META.pending;
+        return (
+          <div key={r.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${T.border}`,gap:10,flexWrap:"wrap"}}>
+            <div>
+              <div style={{fontWeight:600,fontSize:13,color:T.ink}}>{r.leave_type}</div>
+              <div style={{fontSize:12,color:T.sub,marginTop:2}}>📅 {fmtDateNZ(r.date_from)} → {fmtDateNZ(r.date_to)}</div>
+              {r.notes && <div style={{fontSize:11,color:T.muted,marginTop:2,fontStyle:"italic"}}>"{r.notes}"</div>}
+            </div>
+            <span style={{background:meta.bg,color:meta.color,borderRadius:99,padding:"3px 12px",fontSize:11,fontWeight:700,flexShrink:0}}>
+              {meta.sym} {meta.label}
+            </span>
+          </div>
+        );
+      })}
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CONTACT US — Apprentice view
 // ─────────────────────────────────────────────────────────────────────────────
 function ContactUs({currentUser, allUsers, onSend}) {
@@ -7078,6 +7521,7 @@ export default function App() {
                 onViewApprenticeList={()=>{setShowAppList('apprentices');setViewingAppId(null);}}
                 onViewList={(key)=>{setShowAppList(key);setViewingAppId(null);}}
               />
+              <LeaveRequestsPanel currentUser={currentUser} allUsers={users}/>
               {currentUser.email?.toLowerCase() === CONF_OWNER_EMAIL && (
                 <ConfidentialNotesCard currentUser={currentUser} allUsers={users}/>
               )}
@@ -7085,6 +7529,19 @@ export default function App() {
           )}
           {activeMod==="timesheet" && (
             <>
+              {role==="Apprentice" && (
+                <LeaveRequestForm
+                  currentUser={currentUser}
+                  allUsers={users}
+                  onSubmitted={()=>{}}
+                />
+              )}
+              {role==="Apprentice" && (
+                <MyLeaveRequests currentUser={currentUser}/>
+              )}
+              {role==="Approver" && (
+                <LeaveRequestsPanel currentUser={currentUser} allUsers={users}/>
+              )}
               <TimesheetModule currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
               {["Apprentice","Approver","Viewer"].includes(role) && (
                 <ContactUs
@@ -7114,7 +7571,10 @@ export default function App() {
             </>
           )}
           {activeMod==="mentor" && role==="Mentor" && (
-            <MentorDashboard currentUser={currentUser} allUsers={users}/>
+            <>
+              <LeaveRequestsPanel currentUser={currentUser} allUsers={users}/>
+              <MentorDashboard currentUser={currentUser} allUsers={users}/>
+            </>
           )}
           {activeMod==="crm" && (
             <CRMModule currentUser={currentUser} allUsers={users}/>
