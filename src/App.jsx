@@ -1,4 +1,4 @@
-// KTA Workforce Management — v1.5.2
+// KTA Workforce Management — v1.5.3
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -9,6 +9,7 @@
 //             added Bereavement Leave + Leave Without Pay to entry types
 //   v1.5.1 — leave overview card in admin dashboard timesheet section (colour-coded table)
 //   v1.5.2 — timesheets moved to stat card; dashboard no longer shows full timesheet grid
+//   v1.5.3 — leave requests stat card added; clicking scrolls to leave panel
 import { useState, useEffect, useCallback, useRef } from "react";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
@@ -838,7 +839,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.5.2
+          v1.5.3
         </div>
       </div>
     </div>
@@ -3248,7 +3249,7 @@ function DraggableSection({ id, dragProps, children, style = {} }) {
   );
 }
 
-function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeList, onViewList, onViewTimesheets, currentUser}) {
+function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeList, onViewList, onViewTimesheets, onViewLeave, currentUser}) {
   const apprentices = allUsers.filter(u=>u.role==="Apprentice");
   const wsStart = ()=>{ const d=new Date(); d.setDate(d.getDate()-d.getDay()); return d.toISOString().slice(0,10); };
   const ws = wsStart();
@@ -3264,7 +3265,7 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
   const { order, dragProps } = useDraggableOrder(currentUser?.id || "admin", DEFAULT_ORDER);
 
   // Card order within Stats section
-  const STATS_DEFAULT = ["apprentices","hours","submitted","approved","declined","timesheets"];
+  const STATS_DEFAULT = ["apprentices","hours","submitted","approved","declined","timesheets","leave"];
   const { order: statsOrder, dragProps: statsDrag } = useDraggableOrder((currentUser?.id||"admin") + "_stats", STATS_DEFAULT);
 
   // Card order within CRM section
@@ -3274,6 +3275,17 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
   // Timesheet summary for stat card
   const pendingCount  = entries.filter(e=>e.approval==="submitted").length;
   const activeApps    = apprentices.filter(a=>entries.some(e=>e.userId===a.id)).length;
+  const [leaveStats, setLeaveStats] = useState({total:0, pending:0, awaiting:0});
+  useEffect(()=>{
+    loadTable("leave_requests").then(rows=>{
+      const r = rows||[];
+      setLeaveStats({
+        total:   r.length,
+        pending: r.filter(x=>x.status==="pending"||x.status==="approver_approved").length,
+        awaiting: r.filter(x=>x.status==="approver_approved").length,
+      });
+    }).catch(()=>{});
+  },[]);
 
   const statsData = {
     apprentices: (
@@ -3304,6 +3316,23 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
           {pendingCount>0
             ? <div style={{fontSize:11,color:T.warn,marginTop:6,fontWeight:600}}>⚠ {pendingCount} pending review</div>
             : <div style={{fontSize:11,color:T.teal,marginTop:6,fontWeight:600}}>View timesheets →</div>
+          }
+        </Card>
+      </button>
+    ),
+    leave: (
+      <button onClick={onViewLeave} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
+        onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+        <Card style={{paddingBlock:18,border:`1.5px solid ${leaveStats.pending>0?T.warn:T.hol}44`,height:"100%"}}>
+          <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Leave Requests</div>
+          <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:2}}>
+            <div style={{fontSize:24,fontWeight:700,color:leaveStats.pending>0?T.warn:T.hol,fontFamily:"'Libre Baskerville'"}}>{leaveStats.total}</div>
+            {leaveStats.pending>0&&<div style={{fontSize:11,color:T.warn,fontWeight:600}}>{leaveStats.pending} pending</div>}
+          </div>
+          <div style={{fontSize:11,color:T.sub,marginTop:2}}>total requests</div>
+          {leaveStats.pending>0
+            ? <div style={{fontSize:11,color:T.warn,marginTop:6,fontWeight:600}}>⚠ Needs attention</div>
+            : <div style={{fontSize:11,color:T.hol,marginTop:6,fontWeight:600}}>View all requests →</div>
           }
         </Card>
       </button>
@@ -8165,9 +8194,12 @@ export default function App() {
                 onViewApprenticeList={()=>{setShowAppList('apprentices');setViewingAppId(null);}}
                 onViewList={(key)=>{setShowAppList(key);setViewingAppId(null);}}
                 onViewTimesheets={()=>setModule("timesheet")}
+                onViewLeave={()=>{ setTimeout(()=>document.getElementById("leave-panel-anchor")?.scrollIntoView({behavior:"smooth",block:"start"}),50); }}
               />
-              <LeaveOverviewCard allUsers={users}/>
-              <LeaveRequestsPanel currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
+              <div id="leave-panel-anchor" style={{scrollMarginTop:16}}>
+                <LeaveOverviewCard allUsers={users}/>
+                <LeaveRequestsPanel currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
+              </div>
               {currentUser.email?.toLowerCase() === CONF_OWNER_EMAIL && (
                 <ConfidentialNotesCard currentUser={currentUser} allUsers={users}/>
               )}
