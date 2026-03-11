@@ -1,4 +1,4 @@
-// KTA Workforce Management — v1.5.5
+// KTA Workforce Management — v1.5.6
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -12,6 +12,7 @@
 //   v1.5.3 — leave requests stat card added; clicking scrolls to leave panel
 //   v1.5.4 — leave card shows colour-coded breakdown by status
 //   v1.5.5 — leave card opens full page; awaiting KTA listed first; consistent card height
+//   v1.5.6 — conf notes PIN stored in Supabase (fixes mobile PIN reset issue)
 import { useState, useEffect, useCallback, useRef } from "react";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
@@ -841,7 +842,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.5.5
+          v1.5.6
         </div>
       </div>
     </div>
@@ -5623,9 +5624,6 @@ async function sha256hex(str) {
 }
 
 function ConfidentialNotesCard({ currentUser, allUsers = [] }) {
-  const STORAGE_PIN_KEY         = "kta_conf_pin_hash_v1";
-  const STORAGE_LOCK_KEY        = "kta_conf_lockuntil_v1";
-  const STORAGE_MUST_CHANGE_KEY = "kta_conf_must_change_v1";
   // SHA-256 of "4444" — pre-set temporary PIN
   const TEMP_PIN_HASH = "79f06f8fde333461739f220090a23cb2a79f6d714bee100d0e4b4af249294619";
   const AUTO_LOCK_MS  = 5 * 60 * 1000;
@@ -5652,19 +5650,32 @@ function ConfidentialNotesCard({ currentUser, allUsers = [] }) {
   // ── HARD IDENTITY GUARD — after hooks, returns nothing for non-Kristeena ──
   const isOwner = currentUser?.email?.toLowerCase() === CONF_OWNER_EMAIL;
 
+  // Load PIN hash from Supabase on mount (persists across devices/browsers)
+  const [pinHash,      setPinHash]      = useState(null);  // null = still loading
+  const [mustChange,   setMustChange]   = useState(false);
+  const [pinLoading,   setPinLoading]   = useState(true);
+
   useEffect(()=>{
     if(!isOwner) return;
-    const lu = parseInt(localStorage.getItem(STORAGE_LOCK_KEY)||"0");
-    if(lu > Date.now()) setLockUntil(lu);
-    // Pre-set PIN to 4444 if none exists, and mark must-change
-    if(!localStorage.getItem(STORAGE_PIN_KEY)) {
-      localStorage.setItem(STORAGE_PIN_KEY, TEMP_PIN_HASH);
-      localStorage.setItem(STORAGE_MUST_CHANGE_KEY, "1");
-    }
-    // If PIN exists but is still the temp one, ensure must-change is set
-    if(localStorage.getItem(STORAGE_PIN_KEY) === TEMP_PIN_HASH) {
-      localStorage.setItem(STORAGE_MUST_CHANGE_KEY, "1");
-    }
+    sb.from("users").select("conf_pin_hash,conf_pin_must_change").eq("id", currentUser.id).single()
+      .then(({data})=>{
+        if(!data?.conf_pin_hash) {
+          // No PIN set yet — write temp PIN and must-change flag
+          sb.from("users").update({conf_pin_hash: TEMP_PIN_HASH, conf_pin_must_change: true}).eq("id", currentUser.id).then(()=>{});
+          setPinHash(TEMP_PIN_HASH);
+          setMustChange(true);
+        } else {
+          setPinHash(data.conf_pin_hash);
+          setMustChange(!!data.conf_pin_must_change);
+          // If still using temp PIN, ensure must-change is set
+          if(data.conf_pin_hash === TEMP_PIN_HASH && !data.conf_pin_must_change) {
+            sb.from("users").update({conf_pin_must_change: true}).eq("id", currentUser.id).then(()=>{});
+            setMustChange(true);
+          }
+        }
+      })
+      .catch(()=>{ setPinHash(TEMP_PIN_HASH); setMustChange(true); })
+      .finally(()=>setPinLoading(false));
   },[isOwner]);
 
   useEffect(()=>{
@@ -5693,6 +5704,11 @@ function ConfidentialNotesCard({ currentUser, allUsers = [] }) {
 
   // ── GUARD: render nothing for anyone other than Kristeena ──────────────────
   if(!isOwner) return null;
+  if(pinLoading) return (
+    <Card style={{padding:"24px 20px",textAlign:"center",color:T.muted,fontSize:13}}>
+      Loading secure notes…
+    </Card>
+  );
 
   const handlePinKey = (digit) => {
     if(lockUntil && lockUntil > Date.now()) return;
@@ -5703,11 +5719,9 @@ function ConfidentialNotesCard({ currentUser, allUsers = [] }) {
   };
 
   const verifyPin = async (attempt) => {
-    const stored = localStorage.getItem(STORAGE_PIN_KEY);
-    const hash   = await sha256hex(attempt);
-    if(hash === stored) {
-      // Check if must-change flag is set (first login with temp PIN)
-      if(localStorage.getItem(STORAGE_MUST_CHANGE_KEY) === "1") {
+    const hash = await sha256hex(attempt);
+    if(hash === pinHash) {
+      if(mustChange) {
         setPhase("change"); setPin(""); setPinError("");
       } else {
         setPhase("unlocked"); setPin(""); setWrongCount(0); setPinError("");
@@ -5719,7 +5733,6 @@ function ConfidentialNotesCard({ currentUser, allUsers = [] }) {
       if(wc >= 3) {
         const lu = Date.now() + LOCKOUT_MS;
         setLockUntil(lu);
-        localStorage.setItem(STORAGE_LOCK_KEY, String(lu));
         setPinError("Too many attempts — locked for 15 minutes.");
         setWrongCount(0);
       } else {
@@ -5756,16 +5769,16 @@ function ConfidentialNotesCard({ currentUser, allUsers = [] }) {
       return;
     }
     const hash = await sha256hex(attempt);
-    localStorage.setItem(STORAGE_PIN_KEY, hash);
-    localStorage.removeItem(STORAGE_MUST_CHANGE_KEY);
+    await sb.from("users").update({conf_pin_hash: hash, conf_pin_must_change: false}).eq("id", currentUser.id);
+    setPinHash(hash); setMustChange(false);
     setPhase("unlocked"); setNewPin(""); setConfirmPin(""); setChangingStep("new"); setPinError("");
   };
 
   const setupPin = async () => {
     if(pin.length < 4) return;
     const hash = await sha256hex(pin);
-    localStorage.setItem(STORAGE_PIN_KEY, hash);
-    localStorage.removeItem(STORAGE_LOCK_KEY);
+    await sb.from("users").update({conf_pin_hash: hash, conf_pin_must_change: false}).eq("id", currentUser.id);
+    setPinHash(hash); setMustChange(false);
     setPhase("locked"); setPin(""); setPinError("PIN set — please enter it to unlock.");
   };
 
