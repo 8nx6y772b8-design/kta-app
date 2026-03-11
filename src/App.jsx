@@ -3444,15 +3444,7 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
   );
 
   return (
-    <Card style={{marginBottom:16}}>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
-        <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🏖️</div>
-        <div>
-          <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:16}}>Apply for Leave</div>
-          <div style={{fontSize:12,color:T.sub,marginTop:2}}>Complete the form below — your approver will be notified</div>
-        </div>
-      </div>
-
+    <div>
       {/* Read-only info */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
         <div style={{background:T.bg,borderRadius:8,padding:"10px 14px"}}>
@@ -3511,7 +3503,7 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
       <div style={{display:"flex",gap:8}}>
         <Btn onClick={handleSubmit} disabled={saving}>{saving?"Submitting…":"📨 Submit Leave Request"}</Btn>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -3629,6 +3621,47 @@ function LeaveRequestCard({ req, allUsers, currentUser, isAdmin, isApprover, onU
         )}
       </div>
     </div>
+  );
+}
+
+// ── Leave Toggle Card — compact, same style as ContactUs, expands to form ────
+function LeaveToggleCard({ currentUser, allUsers }) {
+  const [open, setOpen]       = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  return (
+    <Card style={{marginTop:20, border:`1.5px solid ${T.border}`}} className="fu">
+      {/* Header row — always visible, matches ContactUs style */}
+      <button onClick={()=>{ setOpen(s=>!s); setSubmitted(false); }}
+        style={{width:"100%", background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif"}}>
+        <div style={{display:"flex", alignItems:"center", gap:10}}>
+          <div style={{width:36, height:36, borderRadius:10, background:T.accentL,
+            display:"flex", alignItems:"center", justifyContent:"center", fontSize:18}}>🏖️</div>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:700, fontSize:15}}>Apply for Leave</div>
+            <div style={{fontSize:12, color:T.sub}}>Submit a leave request to your approver</div>
+          </div>
+          <div style={{fontSize:13, color:T.muted, marginLeft:"auto"}}>{open ? "▲" : "▼"}</div>
+        </div>
+      </button>
+
+      {/* Expandable form */}
+      {open && !submitted && (
+        <div style={{marginTop:18, borderTop:`1px solid ${T.border}`, paddingTop:18}}>
+          <LeaveRequestForm
+            currentUser={currentUser}
+            allUsers={allUsers}
+            onSubmitted={()=>{ setSubmitted(true); setTimeout(()=>setOpen(false), 2000); }}
+          />
+        </div>
+      )}
+      {open && submitted && (
+        <div style={{marginTop:18, borderTop:`1px solid ${T.border}`, paddingTop:18, textAlign:"center", padding:"24px 16px"}}>
+          <div style={{fontSize:32, marginBottom:10}}>✅</div>
+          <div style={{fontWeight:700, color:T.teal, fontSize:15}}>Leave request submitted!</div>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -7529,20 +7562,16 @@ export default function App() {
           )}
           {activeMod==="timesheet" && (
             <>
-              {role==="Apprentice" && (
-                <LeaveRequestForm
-                  currentUser={currentUser}
-                  allUsers={users}
-                  onSubmitted={()=>{}}
-                />
-              )}
-              {role==="Apprentice" && (
-                <MyLeaveRequests currentUser={currentUser}/>
-              )}
               {role==="Approver" && (
                 <LeaveRequestsPanel currentUser={currentUser} allUsers={users}/>
               )}
               <TimesheetModule currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
+              {role==="Apprentice" && (
+                <MyLeaveRequests currentUser={currentUser}/>
+              )}
+              {role==="Apprentice" && (
+                <LeaveToggleCard currentUser={currentUser} allUsers={users}/>
+              )}
               {["Apprentice","Approver","Viewer"].includes(role) && (
                 <ContactUs
                   currentUser={currentUser}
