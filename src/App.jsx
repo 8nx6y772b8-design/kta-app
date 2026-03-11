@@ -4189,8 +4189,23 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
   });
   const [saving, setSaving]           = useState(false);
   const [emailStatus, setEmailStatus] = useState(null);
+  const [prevGoalsSource, setPrevGoalsSource] = useState(null);
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
   const fD = (iso) => { if(!iso) return "—"; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
+
+  // On mount: fetch the most recent past report and pre-fill Previous Goals from its goals_this_meeting
+  useEffect(() => {
+    loadTable('meeting_reports').then(reports => {
+      const past = (reports || [])
+        .filter(r => r.apprentice_id === apprentice.id && r.goals_this_meeting?.trim())
+        .sort((a,b) => (b.date||b.created_at||"").localeCompare(a.date||a.created_at||""));
+      if(past.length > 0) {
+        const last = past[0];
+        setForm(f => ({ ...f, previousGoals: last.goals_this_meeting.trim() }));
+        setPrevGoalsSource(last.date || last.created_at?.slice(0,10));
+      }
+    }).catch(() => {});
+  }, [apprentice.id]);
 
   const handleSave = async () => {
     if(!form.commentsFeedback.trim() && !form.onJobProgress.trim()) {
@@ -4269,6 +4284,11 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
         <ReportTA rows={4} value={form.onJobProgress} onChange={e=>sf("onJobProgress",e.target.value)}
           placeholder="Practical skills, site work, tasks completed, employer feedback…"/>
         <ReportSH>Previous Goals</ReportSH>
+        {prevGoalsSource && (
+          <div style={{fontSize:11,color:T.teal,marginBottom:4,paddingLeft:2}}>
+            ✓ Auto-filled from report dated {prevGoalsSource.split('-').reverse().join('/')} — edit as needed
+          </div>
+        )}
         <ReportTA rows={4} value={form.previousGoals} onChange={e=>sf("previousGoals",e.target.value)}
           placeholder="Goals set at the last visit — have they been met?"/>
         <ReportSH req>Goals Before Next Visit</ReportSH>
