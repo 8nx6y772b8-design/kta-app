@@ -41,7 +41,7 @@ const generateReportPDF = (report, apprentice, mentor) => {
   S.push(`${margin - 10} ${H - 70} ${W - 80} 50 re f`);
   S.push("1 1 1 rg");
   S.push(`BT /F1 14 Tf ${margin} ${H - 45} Td (${esc("Apprentice Check In Report")}) Tj ET`);
-  S.push(`BT /F2 8 Tf 1 1 1 rg ${margin} ${H - 58} Td (${esc("Kiwi Trade Apprentices  \u00b7  kta.org.nz  \u00b7  timesheet@kta.org.nz")}) Tj ET`);
+  S.push(`BT /F2 8 Tf 1 1 1 rg ${margin} ${H - 58} Td (${esc("Kiwi Trade Apprentices  -  kta.org.nz  -  timesheet@kta.org.nz")}) Tj ET`);
 
   y = H - 90;
 
@@ -106,8 +106,15 @@ const generateReportPDF = (report, apprentice, mentor) => {
   for(const o of objs) pdf += String(offsets[o.id]).padStart(10,"0") + " 00000 n \n";
   pdf += `trailer\n<< /Size ${objs.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xOff}\n%%EOF\n`;
 
-  // Encode to base64 using browser btoa (works on ASCII PDF)
-  return btoa(unescape(encodeURIComponent(pdf)));
+  // Encode to base64 — use Uint8Array to handle any characters safely
+  const bytes = new Uint8Array(pdf.length);
+  for(let i = 0; i < pdf.length; i++) bytes[i] = pdf.charCodeAt(i) & 0xff;
+  let b64 = "";
+  const CHUNK = 0x8000;
+  for(let i = 0; i < bytes.length; i += CHUNK) {
+    b64 += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(b64);
 };
 
 // ─── Browser push notifications ─────────────────────────────────────────────
@@ -4143,8 +4150,10 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver) => {
   let pdfBase64 = null;
   try {
     pdfBase64 = generateReportPDF(report, apprentice, mentor);
+    if(!pdfBase64 || pdfBase64.length < 100) throw new Error("PDF output was empty");
   } catch(e) {
-    console.warn("PDF generation failed, sending without attachment:", e);
+    console.error("PDF generation failed:", e);
+    // Don't throw — still send email without attachment
   }
 
   const pdfFilename = `KTA_Report_${apprentice.name.replace(/\s+/g,"_")}_${report.date}.pdf`;
