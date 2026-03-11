@@ -3,13 +3,101 @@ import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry
 // Email via Microsoft Graph (timesheet@kta.org.nz)
 
 const EMAIL_PROXY = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/email-proxy";
-const sendKTAEmail = async ({ to, subject, html }) => {
+const sendKTAEmail = async ({ to, subject, html, attachments }) => {
   const res = await fetch(EMAIL_PROXY, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "sendEmail", to, subject, html }),
+    body: JSON.stringify({ action: "sendEmail", to, subject, html, attachments }),
   });
   if (!res.ok) throw new Error("Email send failed: " + await res.text());
+};
+
+// Generate a meeting report PDF and return base64 string
+const generateReportPDF = async (report, apprentice, mentor) => {
+  // Dynamically load jsPDF from CDN
+  const { jsPDF } = await import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm");
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+  const W = 210, margin = 18, col = margin, lineH = 6.5;
+  let y = 20;
+
+  const fD = (iso) => { if(!iso) return "TBC"; const [yr,m,d]=iso.split('-'); return `${d}/${m}/${yr}`; };
+  const navy = [27, 79, 140], teal = [26, 138, 122], ink = [13, 27, 46], sub = [74, 90, 114], white = [255,255,255];
+
+  // Header bar
+  doc.setFillColor(...navy);
+  doc.rect(0, 0, W, 28, "F");
+  doc.setTextColor(...white);
+  doc.setFontSize(16); doc.setFont("helvetica","bold");
+  doc.text("Apprentice Check In Report", col, 12);
+  doc.setFontSize(9); doc.setFont("helvetica","normal");
+  doc.text("Kiwi Trade Apprentices  ·  kta.org.nz  ·  timesheet@kta.org.nz", col, 21);
+
+  y = 38;
+
+  // Meta table
+  const metaRows = [
+    ["Trainee Name",       apprentice.name],
+    ["Trade",              apprentice.trade || "Not specified"],
+    ["Host Business",      apprentice.hostBusiness || "Not specified"],
+    ["Location",           report.location || "Not specified"],
+    ["Date of Visit",      fD(report.date)],
+    ["KTA Representative", mentor.name],
+    ["Licence Expiry",     apprentice.licenceExpiry ? fD(apprentice.licenceExpiry) : "Not set"],
+    ["Date of Next Visit", fD(report.next_visit_date)],
+  ];
+
+  doc.setFontSize(9);
+  metaRows.forEach(([label, val], i) => {
+    const rowY = y + i * 7;
+    doc.setFillColor(i % 2 === 0 ? 240 : 248, i % 2 === 0 ? 244 : 250, i % 2 === 0 ? 249 : 252);
+    doc.rect(col, rowY - 5, W - margin*2, 7, "F");
+    doc.setTextColor(...sub); doc.setFont("helvetica","bold");
+    doc.text(label, col + 2, rowY);
+    doc.setTextColor(...ink); doc.setFont("helvetica","normal");
+    doc.text(String(val), col + 52, rowY);
+  });
+
+  y += metaRows.length * 7 + 8;
+
+  // Section helper
+  const section = (title, content) => {
+    if(y > 260) { doc.addPage(); y = 20; }
+    // Section header
+    doc.setFillColor(...teal);
+    doc.rect(col, y - 5, W - margin*2, 7, "F");
+    doc.setTextColor(...white); doc.setFontSize(9); doc.setFont("helvetica","bold");
+    doc.text(title, col + 2, y);
+    y += 5;
+    // Content
+    doc.setTextColor(...ink); doc.setFont("helvetica","normal"); doc.setFontSize(9);
+    const lines = doc.splitTextToSize(content || "N/a", W - margin*2 - 4);
+    lines.forEach(line => {
+      if(y > 270) { doc.addPage(); y = 20; }
+      doc.text(line, col + 2, y);
+      y += lineH;
+    });
+    y += 4;
+  };
+
+  section("Off Job Progress Since Last Visit",   report.off_job_progress);
+  section("On Job Progress Since Last Visit",    report.on_job_progress);
+  section("Previous Goals",                      report.previous_goals);
+  section("Goals Before Next Visit",             report.goals_this_meeting);
+  section("Comments and Feedback",               report.comments_feedback);
+
+  // Footer on each page
+  const pageCount = doc.getNumberOfPages();
+  for(let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFillColor(...navy);
+    doc.rect(0, 287, W, 10, "F");
+    doc.setTextColor(...white); doc.setFontSize(7.5); doc.setFont("helvetica","normal");
+    doc.text(`KTA Workforce Management  ·  Generated ${new Date().toLocaleDateString("en-NZ")}`, col, 293);
+    doc.text(`Page ${i} of ${pageCount}`, W - margin - 12, 293);
+  }
+
+  return doc.output("datauristring").split(",")[1]; // base64 only
 };
 
 // ─── Browser push notifications ─────────────────────────────────────────────
@@ -3987,6 +4075,8 @@ function ContactUs({currentUser, allUsers, onSend}) {
 // ── Meeting Report — Email sender ─────────────────────────────────────────────
 const sendMeetingReportEmail = async (report, apprentice, mentor, approver) => {
   const fD = (iso) => { if(!iso) return "TBC"; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
+
+  // HTML body (existing plain-text format)
   const lines = [
     `APPRENTICE CHECK IN REPORT`,
     `Kiwi Trade Apprentices`,
@@ -4039,15 +4129,31 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver) => {
     throw new Error("No valid email addresses found — check that the apprentice and approver both have email addresses set in their profiles.");
   }
 
+  // Generate PDF attachment
+  let pdfBase64 = null;
+  try {
+    pdfBase64 = await generateReportPDF(report, apprentice, mentor);
+  } catch(e) {
+    console.warn("PDF generation failed, sending without attachment:", e);
+  }
+
+  const pdfFilename = `KTA_Report_${apprentice.name.replace(/\s+/g,"_")}_${report.date}.pdf`;
+  const attachments = pdfBase64 ? [{
+    name: pdfFilename,
+    contentType: "application/pdf",
+    contentBytes: pdfBase64,
+  }] : [];
+
   for(const r of recipients) {
     await sendKTAEmail({
       to: r.email.trim(),
       subject: `Apprentice Check In Report — ${apprentice.name}`,
       html: `<p>Hi ${r.name},</p>
-<p>Please find below the apprentice check in report for <strong>${apprentice.name}</strong>.</p>
+<p>Please find attached the apprentice check in report for <strong>${apprentice.name}</strong>.</p>
 <hr>
 <pre style="font-family:monospace;font-size:13px;line-height:1.6">${lines}</pre>
 <p style="color:#888;font-size:12px">KTA Workforce Management · timesheet@kta.org.nz</p>`,
+      attachments,
     });
   }
 };
