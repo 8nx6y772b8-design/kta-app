@@ -1,4 +1,4 @@
-// KTA Workforce Management — v1.6.4
+// KTA Workforce Management — v1.6.5
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -849,7 +849,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.6.4
+          v1.6.5
         </div>
       </div>
     </div>
@@ -6523,15 +6523,16 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
                   alert("Save your Edge Function URL and Tenant ID first."); return;
                 }
                 try{
-                  const res = await fetch(settings.edgeFunctionUrl,{
+                  const res  = await fetch(settings.edgeFunctionUrl,{
                     method:"POST", headers:{"Content-Type":"application/json"},
                     body: JSON.stringify({action:"getEarningsRates",tenantId:settings.tenantId}),
                   });
-                  const data = await res.json();
+                  const text = await res.text();
+                  let data; try{ data=JSON.parse(text); }catch{ alert("Non-JSON response: "+text.slice(0,300)); return; }
                   if(data.ok && data.earningsRates){
                     setXeroRates(data.earningsRates);
                     showToast(`✓ Loaded ${data.earningsRates.length} earnings rates from Xero`);
-                  } else { alert("Error: "+(data.error||"Unknown")); }
+                  } else { alert("Error: "+(data.error||JSON.stringify(data))); }
                 }catch(e){ alert("Failed: "+e.message); }
               }}>🔄 Load Earnings Rates from Xero</Btn>
               {xeroRates.length>0&&<span style={{fontSize:12,color:T.teal,fontWeight:600}}>✓ {xeroRates.length} rates loaded</span>}
@@ -6695,15 +6696,16 @@ serve(async (req) => {
                 return;
               }
               try{
-                const res = await fetch(settings.edgeFunctionUrl,{
+                const res  = await fetch(settings.edgeFunctionUrl,{
                   method:"POST", headers:{"Content-Type":"application/json"},
                   body: JSON.stringify({action:"getEmployees",tenantId:settings.tenantId}),
                 });
-                const data = await res.json();
+                const text = await res.text();
+                let data; try{ data=JSON.parse(text); }catch{ alert("Non-JSON response: "+text.slice(0,300)); return; }
                 if(data.ok && data.employees){
                   setXeroEmployees(data.employees);
                   showToast(`✓ Loaded ${data.employees.length} employees from Xero`);
-                } else { alert("Error: " + (data.error||"Unknown")); }
+                } else { alert("Error: " + (data.error||JSON.stringify(data))); }
               }catch(e){ alert("Failed: "+e.message); }
             }}>🔄 Load Employees from Xero</Btn>
             {xeroEmployees.length>0&&(
