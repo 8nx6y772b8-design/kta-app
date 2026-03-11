@@ -4177,6 +4177,116 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver) => {
   }
 };
 
+// ─── Fullscreen New Report Modal ────────────────────────────────────────────
+// Renders MeetingReportForm full-screen with a collapsible Past Reports panel
+function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave, onClose}) {
+  const [showPast, setShowPast] = useState(false);
+
+  // Prevent body scroll while open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  return (
+    <div style={{
+      position:"fixed", inset:0, zIndex:2000,
+      background:"rgba(13,27,46,0.55)", backdropFilter:"blur(3px)",
+      display:"flex", alignItems:"stretch",
+    }}>
+      {/* Main form panel */}
+      <div style={{
+        flex:1, overflowY:"auto", background:T.bg,
+        display:"flex", flexDirection:"column",
+        transition:"margin-right .25s",
+        marginRight: showPast ? 400 : 0,
+      }}>
+        {/* Top bar */}
+        <div style={{
+          position:"sticky", top:0, zIndex:10,
+          background:T.dark, padding:"0 20px",
+          display:"flex", alignItems:"center", justifyContent:"space-between",
+          height:52, flexShrink:0, boxShadow:"0 2px 8px rgba(0,0,0,.18)",
+        }}>
+          <div style={{display:"flex", alignItems:"center", gap:12}}>
+            <div style={{fontSize:20}}>📋</div>
+            <div>
+              <div style={{fontWeight:700, fontSize:15, color:"#fff"}}>New Meeting Report</div>
+              <div style={{fontSize:11, color:"rgba(255,255,255,.65)"}}>{apprentice.name}</div>
+            </div>
+          </div>
+          <div style={{display:"flex", alignItems:"center", gap:10}}>
+            {/* Past Reports toggle */}
+            <button
+              onClick={() => setShowPast(s => !s)}
+              style={{
+                display:"flex", alignItems:"center", gap:7,
+                background: showPast ? T.gold : "rgba(255,255,255,.12)",
+                border: `1.5px solid ${showPast ? T.gold : "rgba(255,255,255,.25)"}`,
+                borderRadius:8, padding:"6px 14px", cursor:"pointer",
+                color: showPast ? T.dark : "#fff", fontSize:12, fontWeight:600,
+                fontFamily:"DM Sans,sans-serif", transition:"all .15s",
+              }}
+            >
+              <span>📁</span>
+              <span>Past Reports</span>
+              <span style={{fontSize:10, opacity:.7}}>{showPast ? "▶" : "◀"}</span>
+            </button>
+            {/* Close */}
+            <button
+              onClick={onClose}
+              style={{
+                background:"rgba(255,255,255,.12)", border:"1.5px solid rgba(255,255,255,.25)",
+                borderRadius:8, padding:"6px 12px", cursor:"pointer",
+                color:"#fff", fontSize:13, fontWeight:600,
+                fontFamily:"DM Sans,sans-serif", transition:"all .15s",
+              }}
+            >✕ Cancel</button>
+          </div>
+        </div>
+
+        {/* Form body */}
+        <div style={{flex:1, padding:"24px 20px", maxWidth:860, margin:"0 auto", width:"100%", boxSizing:"border-box"}}>
+          <MeetingReportForm
+            apprentice={apprentice}
+            mentor={mentor}
+            allUsers={allUsers}
+            onSave={onSave}
+            onCancel={onClose}
+          />
+        </div>
+      </div>
+
+      {/* Past Reports side panel */}
+      <div style={{
+        position:"fixed", top:0, right:0, bottom:0, width:400,
+        background:"#fff", borderLeft:`1.5px solid ${T.border}`,
+        overflowY:"auto", transform: showPast ? "translateX(0)" : "translateX(100%)",
+        transition:"transform .25s ease", zIndex:2001, boxShadow:"-4px 0 20px rgba(0,0,0,.1)",
+        display:"flex", flexDirection:"column",
+      }}>
+        <div style={{
+          position:"sticky", top:0, zIndex:1,
+          background:T.goldL, borderBottom:`1px solid ${T.gold}`,
+          padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between",
+        }}>
+          <div style={{display:"flex", alignItems:"center", gap:8}}>
+            <span style={{fontSize:16}}>📁</span>
+            <div style={{fontWeight:700, fontSize:14, color:T.gold}}>Past Reports</div>
+          </div>
+          <button onClick={() => setShowPast(false)} style={{
+            background:"none", border:"none", cursor:"pointer", fontSize:16, color:T.gold, padding:4,
+          }}>✕</button>
+        </div>
+        <div style={{padding:"16px", flex:1}}>
+          <PastMeetingReports key={meetingKey} apprentice={apprentice} allUsers={allUsers} canEdit={false}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Stable textarea + section-header components for MeetingReportForm
 // MUST live outside MeetingReportForm — if defined inside, every keystroke
 // recreates them as new component types, unmounting/remounting and losing focus.
@@ -4782,7 +4892,7 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
                   <div style={{fontWeight:700, fontSize:12, color:showMeetingForm?T.accent:T.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>New Report</div>
                   <div style={{fontSize:10, color:T.sub, marginTop:1}}>Record a visit</div>
                 </div>
-                <div style={{marginLeft:"auto", fontSize:11, color:T.muted, flexShrink:0}}>{showMeetingForm?"▲":"▼"}</div>
+                <div style={{marginLeft:"auto", fontSize:11, color:T.muted, flexShrink:0}}>↗</div>
               </div>
             </button>
             {/* Past Reports */}
@@ -4825,15 +4935,14 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
 
           {/* Expanded panels */}
           {showMeetingForm && (
-            <Card style={{marginBottom:16}}>
-              <MeetingReportForm
-                apprentice={apprentice}
-                mentor={viewer}
-                allUsers={allUsers}
-                onSave={()=>{ setShowMeetingForm(false); setMeetingKey(k=>k+1); }}
-                onCancel={()=>setShowMeetingForm(false)}
-              />
-            </Card>
+            <ReportFullscreenModal
+              apprentice={apprentice}
+              mentor={viewer}
+              allUsers={allUsers}
+              meetingKey={meetingKey}
+              onSave={()=>{ setShowMeetingForm(false); setMeetingKey(k=>k+1); }}
+              onClose={()=>setShowMeetingForm(false)}
+            />
           )}
           {showPastReports && (
             <Card style={{marginBottom:16}}>
@@ -4880,12 +4989,13 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
               {!showMeetingForm&&<Btn onClick={()=>setShowMeetingForm(true)}>+ New Report</Btn>}
             </div>
             {showMeetingForm&&(
-              <MeetingReportForm
+              <ReportFullscreenModal
                 apprentice={apprentice}
                 mentor={viewer}
                 allUsers={allUsers}
+                meetingKey={meetingKey}
                 onSave={()=>{ setShowMeetingForm(false); setMeetingKey(k=>k+1); }}
-                onCancel={()=>setShowMeetingForm(false)}
+                onClose={()=>setShowMeetingForm(false)}
               />
             )}
           </Card>
