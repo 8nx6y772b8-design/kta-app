@@ -3337,6 +3337,22 @@ function ContactUs({currentUser, allUsers, onSend}) {
   const staffColors = [T.accent, T.teal, T.warn, T.gold, T.blue];
   const staff = allUsers
     .filter(u => ["Admin","Mentor"].includes(u.role) && u.id !== currentUser.id)
+    .sort((a, b) => {
+      const isMentorA = a.role === "Mentor";
+      const isMentorB = b.role === "Mentor";
+      const isKristeenaA = a.email?.toLowerCase() === "kristeena@kta.org.nz";
+      const isKristeenaB = b.email?.toLowerCase() === "kristeena@kta.org.nz";
+      // Mentors first
+      if(isMentorA && !isMentorB) return -1;
+      if(!isMentorA && isMentorB) return 1;
+      // Among non-mentors: Kristeena immediately after last mentor
+      if(!isMentorA && !isMentorB) {
+        if(isKristeenaA) return -1;
+        if(isKristeenaB) return 1;
+      }
+      // Otherwise alphabetical
+      return a.name.localeCompare(b.name);
+    })
     .map((u, i) => ({
       ...u,
       color: staffColors[i % staffColors.length],
