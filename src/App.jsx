@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
+import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
 
 const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/email-proxy";
@@ -3711,7 +3711,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
     setActing(true);
     const newStatus = isApprover ? "approver_approved" : "kta_approved";
     const updated   = { ...req, status: newStatus };
-    await upsertRow("leave_requests", { id: req.id, status: newStatus }).catch(console.error);
+    await updateRow("leave_requests", req.id, { status: newStatus }).catch(console.error);
 
     if(isApprover) {
       // 1. Notify apprentice their request moved forward
@@ -3771,7 +3771,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
     setReasonErr("");
     setActing(true);
     const updated = { ...req, status: "declined", decline_reason: declineReason.trim() };
-    await upsertRow("leave_requests", { id: req.id, status: "declined", decline_reason: declineReason.trim() }).catch(console.error);
+    await updateRow("leave_requests", req.id, { status: "declined", decline_reason: declineReason.trim() }).catch(console.error);
     if(apprentice.email) {
       await sendLeaveEmail({
         to: apprentice.email,

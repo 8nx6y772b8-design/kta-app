@@ -143,6 +143,12 @@ export const upsertRow = async (table, row) => {
   if (error) throw error;
 };
 
+// Update specific columns only (never overwrites other columns unlike upsert)
+export const updateRow = async (table, id, changes) => {
+  const { error } = await sb.from(table).update(changes).eq('id', id);
+  if (error) throw error;
+};
+
 export const deleteRow = async (table, id) => {
   const { error } = await sb.from(table).delete().eq('id', id);
   if (error) throw error;
