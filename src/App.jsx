@@ -1,3 +1,9 @@
+// KTA Workforce Management — v1.4.8
+// Changelog:
+//   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
+//   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
+//             inline decline reason, Admin 1 delete, KTA email → admin@kta.org.nz only
+//   v1.4.8 — fix leave status reverting on refresh (updateRow vs partial upsert)
 import { useState, useEffect, useCallback, useRef } from "react";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
@@ -752,7 +758,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.4.6
+          v1.4.8
         </div>
       </div>
     </div>
