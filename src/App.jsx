@@ -3704,13 +3704,8 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
   const approver   = allUsers.find(u=>u.id===req.approver_id)   || { name:"No approver" };
   const meta       = LEAVE_STATUS_META[req.status] || LEAVE_STATUS_META.pending;
 
-  // Always email admin@kta.org.nz PLUS any Admin-level-1 users in the system
-  const ktaAdminEmails = [
-    "admin@kta.org.nz",
-    ...allUsers
-      .filter(u => u.role==="Admin" && (u.adminLevel===1 || !u.adminLevel) && u.email && u.email !== "admin@kta.org.nz")
-      .map(u => u.email)
-  ];
+  // KTA approval emails go to admin@kta.org.nz only
+  const ktaAdminEmails = ["admin@kta.org.nz"];
 
   const approve = async () => {
     setActing(true);
