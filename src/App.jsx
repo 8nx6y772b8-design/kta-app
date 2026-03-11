@@ -4334,10 +4334,13 @@ async function sha256hex(str) {
 }
 
 function ConfidentialNotesCard({ currentUser }) {
-  const STORAGE_PIN_KEY  = "kta_conf_pin_hash_v1";
-  const STORAGE_LOCK_KEY = "kta_conf_lockuntil_v1";
-  const AUTO_LOCK_MS     = 5 * 60 * 1000;
-  const LOCKOUT_MS       = 15 * 60 * 1000;
+  const STORAGE_PIN_KEY         = "kta_conf_pin_hash_v1";
+  const STORAGE_LOCK_KEY        = "kta_conf_lockuntil_v1";
+  const STORAGE_MUST_CHANGE_KEY = "kta_conf_must_change_v1";
+  // SHA-256 of "4444" — pre-set temporary PIN
+  const TEMP_PIN_HASH = "79f06f8fde333461739f220090a23cb2a79f6d714bee100d0e4b4af249294619";
+  const AUTO_LOCK_MS  = 5 * 60 * 1000;
+  const LOCKOUT_MS    = 15 * 60 * 1000;
 
   // ALL hooks must be declared before any conditional return (React rules)
   const [phase, setPhase]           = useState("locked");
@@ -4363,7 +4366,15 @@ function ConfidentialNotesCard({ currentUser }) {
     if(!isOwner) return;
     const lu = parseInt(localStorage.getItem(STORAGE_LOCK_KEY)||"0");
     if(lu > Date.now()) setLockUntil(lu);
-    if(!localStorage.getItem(STORAGE_PIN_KEY)) setPhase("setup");
+    // Pre-set PIN to 4444 if none exists, and mark must-change
+    if(!localStorage.getItem(STORAGE_PIN_KEY)) {
+      localStorage.setItem(STORAGE_PIN_KEY, TEMP_PIN_HASH);
+      localStorage.setItem(STORAGE_MUST_CHANGE_KEY, "1");
+    }
+    // If PIN exists but is still the temp one, ensure must-change is set
+    if(localStorage.getItem(STORAGE_PIN_KEY) === TEMP_PIN_HASH) {
+      localStorage.setItem(STORAGE_MUST_CHANGE_KEY, "1");
+    }
   },[isOwner]);
 
   useEffect(()=>{
@@ -4403,7 +4414,12 @@ function ConfidentialNotesCard({ currentUser }) {
     const stored = localStorage.getItem(STORAGE_PIN_KEY);
     const hash   = await sha256hex(attempt);
     if(hash === stored) {
-      setPhase("unlocked"); setPin(""); setWrongCount(0); setPinError("");
+      // Check if must-change flag is set (first login with temp PIN)
+      if(localStorage.getItem(STORAGE_MUST_CHANGE_KEY) === "1") {
+        setPhase("change"); setPin(""); setPinError("");
+      } else {
+        setPhase("unlocked"); setPin(""); setWrongCount(0); setPinError("");
+      }
     } else {
       const wc = wrongCount + 1;
       setWrongCount(wc);
@@ -4418,6 +4434,39 @@ function ConfidentialNotesCard({ currentUser }) {
         setPinError(`Incorrect PIN (${3-wc} attempt${3-wc===1?"":"s"} remaining)`);
       }
     }
+  };
+
+  const [newPin, setNewPin]         = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [changingStep, setChangingStep] = useState("new"); // "new" | "confirm"
+
+  const handleChangePinKey = (digit) => {
+    if(changingStep === "new") {
+      const next = (newPin + digit).slice(0, 4);
+      setNewPin(next); setPinError("");
+      if(next.length === 4) { setTimeout(()=>setChangingStep("confirm"), 150); }
+    } else {
+      const next = (confirmPin + digit).slice(0, 4);
+      setConfirmPin(next); setPinError("");
+      if(next.length === 4) { setTimeout(()=>confirmChangePin(next), 80); }
+    }
+  };
+
+  const confirmChangePin = async (attempt) => {
+    if(attempt !== newPin) {
+      setPinError("PINs don't match — try again.");
+      setNewPin(""); setConfirmPin(""); setChangingStep("new");
+      return;
+    }
+    if(attempt === "4444") {
+      setPinError("You must choose a different PIN from the temporary one.");
+      setNewPin(""); setConfirmPin(""); setChangingStep("new");
+      return;
+    }
+    const hash = await sha256hex(attempt);
+    localStorage.setItem(STORAGE_PIN_KEY, hash);
+    localStorage.removeItem(STORAGE_MUST_CHANGE_KEY);
+    setPhase("unlocked"); setNewPin(""); setConfirmPin(""); setChangingStep("new"); setPinError("");
   };
 
   const setupPin = async () => {
@@ -4466,37 +4515,64 @@ function ConfidentialNotesCard({ currentUser }) {
   });
 
   // ── Locked / Setup view ──
-  const renderPinScreen = () => (
-    <div style={{textAlign:"center", padding:"8px 0 4px"}}>
-      <div style={{fontSize:13, color:"#7e22ce", marginBottom:18, fontWeight:500}}>
-        {phase==="setup" ? "Set a 4-digit PIN to protect these notes" : "Enter your 4-digit PIN"}
-      </div>
-      {/* PIN dots */}
-      <div style={{display:"flex", gap:12, justifyContent:"center", marginBottom:20}}>
-        {[0,1,2,3].map(i=><div key={i} style={dotStyle(pin.length>i)}/>)}
-      </div>
-      {/* Numpad */}
-      <div style={{display:"inline-grid", gridTemplateColumns:"repeat(3,64px)", gap:10, marginBottom:16}}>
-        {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((d,i)=>(
-          d===""
-            ? <div key={i}/>
-            : <button key={i} style={pinBtn(d)}
-                onClick={()=>d==="⌫" ? setPin(p=>p.slice(0,-1)) : handlePinKey(d)}>
-                {d}
-              </button>
-        ))}
-      </div>
-      {phase==="setup" && pin.length===4 && (
-        <div style={{marginTop:4}}>
-          <button onClick={setupPin} style={{background:"#9333ea", color:"#fff", border:"none", borderRadius:8, padding:"10px 28px", fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>
-            Save PIN
-          </button>
+  const renderPinScreen = () => {
+    if(phase === "change") {
+      const activePin = changingStep === "new" ? newPin : confirmPin;
+      return (
+        <div style={{textAlign:"center", padding:"8px 0 4px"}}>
+          <div style={{background:"#fef3c7", border:"1.5px solid #f59e0b", borderRadius:10, padding:"10px 16px", marginBottom:18}}>
+            <div style={{fontSize:13, fontWeight:700, color:"#92400e"}}>🔐 Please set a new personal PIN</div>
+            <div style={{fontSize:12, color:"#78350f", marginTop:3}}>The temporary PIN must be changed before you can access your notes.</div>
+          </div>
+          <div style={{fontSize:13, color:"#7e22ce", marginBottom:18, fontWeight:600}}>
+            {changingStep === "new" ? "Enter your new PIN" : "Confirm your new PIN"}
+          </div>
+          <div style={{display:"flex", gap:12, justifyContent:"center", marginBottom:20}}>
+            {[0,1,2,3].map(i=><div key={i} style={dotStyle(activePin.length>i)}/>)}
+          </div>
+          <div style={{display:"inline-grid", gridTemplateColumns:"repeat(3,64px)", gap:10, marginBottom:16}}>
+            {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((d,i)=>(
+              d===""
+                ? <div key={i}/>
+                : <button key={i} style={pinBtn(d)}
+                    onClick={()=>d==="⌫"
+                      ? (changingStep==="new" ? setNewPin(p=>p.slice(0,-1)) : setConfirmPin(p=>p.slice(0,-1)))
+                      : handleChangePinKey(d)}>
+                    {d}
+                  </button>
+            ))}
+          </div>
+          {changingStep === "confirm" && (
+            <div style={{fontSize:12, color:"#6b7280", marginBottom:8}}>Re-enter the same PIN to confirm</div>
+          )}
+          {pinError && <div style={{fontSize:12, color:"#b91c1c", marginTop:10, fontWeight:600}}>{pinError}</div>}
         </div>
-      )}
-      {pinError && <div style={{fontSize:12, color: isLockedOut?"#991b1b":"#b91c1c", marginTop:10, fontWeight:600}}>{pinError}</div>}
-      {isLockedOut && <div style={{fontSize:12, color:"#6b7280", marginTop:6}}>Try again in {Math.floor(lockedSecs/60)}:{String(lockedSecs%60).padStart(2,"0")}</div>}
-    </div>
-  );
+      );
+    }
+
+    return (
+      <div style={{textAlign:"center", padding:"8px 0 4px"}}>
+        <div style={{fontSize:13, color:"#7e22ce", marginBottom:18, fontWeight:500}}>
+          Enter your 4-digit PIN
+        </div>
+        <div style={{display:"flex", gap:12, justifyContent:"center", marginBottom:20}}>
+          {[0,1,2,3].map(i=><div key={i} style={dotStyle(pin.length>i)}/>)}
+        </div>
+        <div style={{display:"inline-grid", gridTemplateColumns:"repeat(3,64px)", gap:10, marginBottom:16}}>
+          {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((d,i)=>(
+            d===""
+              ? <div key={i}/>
+              : <button key={i} style={pinBtn(d)}
+                  onClick={()=>d==="⌫" ? setPin(p=>p.slice(0,-1)) : handlePinKey(d)}>
+                  {d}
+                </button>
+          ))}
+        </div>
+        {pinError && <div style={{fontSize:12, color: isLockedOut?"#991b1b":"#b91c1c", marginTop:10, fontWeight:600}}>{pinError}</div>}
+        {isLockedOut && <div style={{fontSize:12, color:"#6b7280", marginTop:6}}>Try again in {Math.floor(lockedSecs/60)}:{String(lockedSecs%60).padStart(2,"0")}</div>}
+      </div>
+    );
+  };
 
   // ── Unlocked view ──
   const renderNotes = () => (
