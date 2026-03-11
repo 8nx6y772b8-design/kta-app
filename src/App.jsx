@@ -2940,7 +2940,104 @@ function TargetDealsList() {
   );
 }
 
-function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeList, onViewList}) {
+// ─────────────────────────────────────────────────────────────────────────────
+// DRAGGABLE CARD ORDER — persists per user in localStorage
+// ─────────────────────────────────────────────────────────────────────────────
+function useDraggableOrder(userId, defaultOrder) {
+  const key = `kta_card_order_${userId}`;
+  const [order, setOrder] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || "null");
+      // Merge saved with defaults to handle new cards added later
+      if(saved && Array.isArray(saved)) {
+        const merged = [...saved.filter(id => defaultOrder.includes(id)),
+          ...defaultOrder.filter(id => !saved.includes(id))];
+        return merged;
+      }
+    } catch {}
+    return defaultOrder;
+  });
+  const dragging = useRef(null);
+  const dragOver = useRef(null);
+
+  const save = (newOrder) => {
+    setOrder(newOrder);
+    try { localStorage.setItem(key, JSON.stringify(newOrder)); } catch {}
+  };
+
+  const onDragStart = (id) => { dragging.current = id; };
+  const onDragEnter = (id) => { dragOver.current = id; };
+  const onDragEnd   = () => {
+    if(!dragging.current || !dragOver.current || dragging.current === dragOver.current) return;
+    const next = [...order];
+    const from = next.indexOf(dragging.current);
+    const to   = next.indexOf(dragOver.current);
+    next.splice(from, 1);
+    next.splice(to, 0, dragging.current);
+    save(next);
+    dragging.current = null;
+    dragOver.current = null;
+  };
+
+  const dragProps = (id) => ({
+    draggable: true,
+    onDragStart: () => onDragStart(id),
+    onDragEnter: () => onDragEnter(id),
+    onDragEnd,
+    onDragOver: (e) => e.preventDefault(),
+  });
+
+  return { order, dragProps };
+}
+
+// Wrapper for a draggable dashboard section
+function DraggableSection({ id, dragProps, children, style = {} }) {
+  const [isDragOver, setIsDragOver] = useState(false);
+  const props = dragProps(id);
+  return (
+    <div
+      {...props}
+      onDragEnter={(e) => { props.onDragEnter(e); setIsDragOver(true); }}
+      onDragLeave={() => setIsDragOver(false)}
+      onDrop={() => setIsDragOver(false)}
+      style={{
+        marginBottom: 20,
+        borderRadius: 14,
+        transition: "all .18s",
+        outline: isDragOver ? `2px dashed ${T.accent}` : "2px dashed transparent",
+        outlineOffset: 4,
+        opacity: 1,
+        cursor: "grab",
+        ...style,
+      }}
+    >
+      {/* Drag handle */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 6,
+        marginBottom: 6, paddingLeft: 2, userSelect: "none",
+      }}>
+        <div style={{
+          display: "flex", flexDirection: "column", gap: 3,
+          cursor: "grab", padding: "2px 4px", borderRadius: 4,
+          opacity: 0.3,
+        }}
+          title="Drag to reorder"
+        >
+          {[0,1].map(i=>(
+            <div key={i} style={{display:"flex",gap:3}}>
+              {[0,1,2].map(j=>(
+                <div key={j} style={{width:3,height:3,borderRadius:"50%",background:T.ink}}/>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeList, onViewList, currentUser}) {
   const apprentices = allUsers.filter(u=>u.role==="Apprentice");
   const wsStart = ()=>{ const d=new Date(); d.setDate(d.getDate()-d.getDay()); return d.toISOString().slice(0,10); };
   const ws = wsStart();
@@ -2951,189 +3048,140 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
   const totalNotApproved  = entries.filter(e=>e.approval==="declined").length;
   const totalHrsWeek      = entries.filter(e=>e.date>=ws).reduce((a,e)=>a+e.netHours,0).toFixed(1);
 
+  const DEFAULT_ORDER = ["stats", "crm", "timesheets"];
+  const { order, dragProps } = useDraggableOrder(currentUser?.id || "admin", DEFAULT_ORDER);
+
+  const sections = {
+    stats: (
+      <DraggableSection id="stats" dragProps={dragProps}>
+        <div className="stat-grid-4">
+          <button onClick={onViewApprenticeList} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
+            onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
+            onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+            <Card style={{paddingBlock:18,border:`1.5px solid ${T.blue}44`}}>
+              <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Apprentices</div>
+              <div style={{fontSize:24,fontWeight:700,color:T.blue,fontFamily:"'Libre Baskerville'"}}>{apprentices.length}</div>
+              <div style={{fontSize:11,color:T.sub,marginTop:2}}>active workforce</div>
+              <div style={{fontSize:11,color:T.blue,marginTop:6,fontWeight:600}}>View & manage →</div>
+            </Card>
+          </button>
+          {[
+            {label:"Hours This Week",        value:`${totalHrsWeek}h`,  sub:"all apprentices",           color:T.accent, key:"hours"},
+            {label:"Pending",                value:totalSubmitted,      sub:"submitted, awaiting review", color:totalSubmitted>0?T.warn:T.muted, key:"submitted"},
+            {label:"Submitted — Approved",   value:totalApproved,       sub:"approved by approver",       color:T.teal,   key:"approved"},
+            {label:"Submitted — Not Approved",value:totalNotApproved,   sub:"declined by approver",       color:totalNotApproved>0?T.red:T.muted, key:"declined"},
+          ].map(({label,value,sub,color,key})=>(
+            <button key={key} onClick={()=>onViewList(key)} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
+              onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
+              onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+              <Card style={{paddingBlock:18,border:`1.5px solid ${color}44`,height:"100%"}}>
+                <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{label}</div>
+                <div style={{fontSize:24,fontWeight:700,color,fontFamily:"'Libre Baskerville'"}}>{value}</div>
+                <div style={{fontSize:11,color:T.sub,marginTop:2}}>{sub}</div>
+                <div style={{fontSize:11,color,marginTop:6,fontWeight:600}}>View list →</div>
+              </Card>
+            </button>
+          ))}
+        </div>
+      </DraggableSection>
+    ),
+    crm: (
+      <DraggableSection id="crm" dragProps={dragProps}>
+        <div className="stat-grid-3">
+          {[
+            {label:"Contacts",       sub:"business & other contacts",   color:T.slate, key:"contacts", icon:"◉"},
+            {label:"Host Businesses",sub:"companies hosting apprentices",color:T.teal,  key:"hosts",    icon:"◆"},
+            {label:"Target Deals",   sub:"opportunities & pipeline",     color:T.gold,  key:"deals",    icon:"◈"},
+          ].map(({label,sub,color,key,icon})=>(
+            <button key={key} onClick={()=>onViewList(key)} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
+              onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
+              onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+              <Card style={{paddingBlock:18,border:`1.5px solid ${color}44`}}>
+                <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{label}</div>
+                <div style={{fontSize:28,marginBottom:4,color}}>{icon}</div>
+                <div style={{fontSize:11,color:T.sub}}>{sub}</div>
+                <div style={{fontSize:11,color,marginTop:6,fontWeight:600}}>View & manage →</div>
+              </Card>
+            </button>
+          ))}
+        </div>
+      </DraggableSection>
+    ),
+    timesheets: (
+      <DraggableSection id="timesheets" dragProps={dragProps}>
+        <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18}}>
+          <div>
+            <div style={{fontFamily:"'Libre Baskerville'", fontSize:18, fontWeight:700}}>Apprentice Timesheets</div>
+            <div style={{fontSize:12, color:T.sub, marginTop:3}}>Click any card to view and manage that apprentice's timesheet entries.</div>
+          </div>
+        </div>
+        {apprentices.length===0 && (
+          <Card style={{textAlign:"center", padding:"52px 24px"}}>
+            <div style={{fontSize:36, marginBottom:10}}>◑</div>
+            <div style={{fontWeight:600, fontSize:15}}>No apprentices yet</div>
+            <div style={{fontSize:13, color:T.sub, marginTop:6}}>Add apprentices in User Management to see their timesheets here.</div>
+          </Card>
+        )}
+        <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px,1fr))", gap:16}}>
+          {apprentices.map(app=>{
+            const appEntries   = entries.filter(e=>e.userId===app.id);
+            const weekEntries  = appEntries.filter(e=>e.date>=ws);
+            const weekHrs      = weekEntries.reduce((a,e)=>a+e.netHours,0).toFixed(1);
+            const pendingCount = appEntries.filter(e=>e.approval==="submitted").length;
+            const lastEntry    = [...appEntries].sort((a,b)=>b.date.localeCompare(a.date))[0];
+            const totalEntries = appEntries.length;
+            const typeHrs = ENTRY_TYPES.map(t=>({type:t,hrs:appEntries.reduce((a,e)=>e.type===t?a+e.netHours:a,0)})).filter(x=>x.hrs>0);
+            const totalTypeHrs = typeHrs.reduce((a,x)=>a+x.hrs,0)||1;
+            return (
+              <button key={app.id} onClick={()=>onViewApprentice(app.id)}
+                style={{background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:16,padding:0,textAlign:"left",cursor:"pointer",fontFamily:"DM Sans,sans-serif",transition:"all .18s",overflow:"hidden",display:"flex",flexDirection:"column"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=T.blue+"88";e.currentTarget.style.boxShadow=`0 6px 24px ${T.blue}18`;e.currentTarget.style.transform="translateY(-2px)";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.boxShadow="none";e.currentTarget.style.transform="translateY(0)";}}>
+                <div style={{padding:"18px 20px 14px",borderBottom:`1px solid ${T.border}55`}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                    <Avatar name={app.name} role="Apprentice" size={44}/>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:15,color:T.ink}}>{app.name}</div>
+                      <div style={{fontSize:12,color:T.muted,marginTop:1}}>{app.email}</div>
+                    </div>
+                    {pendingCount>0&&(<div style={{background:T.warnL,color:T.warn,border:`1px solid ${T.warn}44`,borderRadius:99,padding:"3px 10px",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>{pendingCount} pending</div>)}
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+                    {[{label:"This Week",value:`${weekHrs}h`,color:T.accent},{label:"Total Entries",value:totalEntries,color:T.blue},{label:"Last Entry",value:lastEntry?fmtD(lastEntry.date):"—",color:T.sub}].map(s=>(
+                      <div key={s.label} style={{background:T.bg,borderRadius:8,padding:"8px 10px"}}>
+                        <div style={{fontSize:10,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:2}}>{s.label}</div>
+                        <div style={{fontSize:13,fontWeight:700,color:s.color,fontFamily:"'Libre Baskerville'"}}>{s.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {typeHrs.length>0&&(
+                  <div style={{padding:"12px 20px 14px"}}>
+                    <div style={{fontSize:10,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:7}}>Hours by type</div>
+                    <div style={{display:"flex",height:7,borderRadius:99,overflow:"hidden",gap:1,marginBottom:8}}>
+                      {typeHrs.map(x=>(<div key={x.type} style={{flex:x.hrs/totalTypeHrs,background:TYPE_META[x.type]?.color||T.muted,minWidth:4}}/>))}
+                    </div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                      {typeHrs.map(x=>(<span key={x.type} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,color:TYPE_META[x.type]?.color||T.muted,fontWeight:600}}><span style={{width:7,height:7,borderRadius:"50%",background:TYPE_META[x.type]?.color||T.muted,display:"inline-block"}}/>{x.type} {x.hrs}h</span>))}
+                    </div>
+                  </div>
+                )}
+                {typeHrs.length===0&&(<div style={{padding:"14px 20px",color:T.muted,fontSize:12,fontStyle:"italic"}}>No timesheet entries yet</div>)}
+                <div style={{marginTop:"auto",padding:"11px 20px",background:T.bg,borderTop:`1px solid ${T.border}55`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span style={{fontSize:12,color:T.blue,fontWeight:600}}>View Timesheet →</span>
+                  {pendingCount>0?<span style={{fontSize:11,color:T.warn}}>⚠ Needs attention</span>:<span style={{fontSize:11,color:T.muted}}>All up to date</span>}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </DraggableSection>
+    ),
+  };
+
   return (
     <div className="fu">
-      {/* Top summary strip */}
-      <div className="stat-grid-4">
-        <button onClick={onViewApprenticeList} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
-          onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
-          onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
-          <Card style={{paddingBlock:18,border:`1.5px solid ${T.blue}44`}}>
-            <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Apprentices</div>
-            <div style={{fontSize:24,fontWeight:700,color:T.blue,fontFamily:"'Libre Baskerville'"}}>{apprentices.length}</div>
-            <div style={{fontSize:11,color:T.sub,marginTop:2}}>active workforce</div>
-            <div style={{fontSize:11,color:T.blue,marginTop:6,fontWeight:600}}>View & manage →</div>
-          </Card>
-        </button>
-        {[
-          {label:"Hours This Week",        value:`${totalHrsWeek}h`,  sub:"all apprentices",       color:T.accent, key:"hours"},
-          {label:"Pending",                  value:totalSubmitted,      sub:"submitted, awaiting review", color:totalSubmitted>0?T.warn:T.muted, key:"submitted"},
-          {label:"Submitted — Approved",     value:totalApproved,       sub:"approved by approver",   color:T.teal,   key:"approved"},
-          {label:"Submitted — Not Approved", value:totalNotApproved,    sub:"declined by approver",   color:totalNotApproved>0?T.red:T.muted, key:"declined"},
-        ].map(({label,value,sub,color,key})=>(
-          <button key={key} onClick={()=>onViewList(key)} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
-            onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
-            onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
-            <Card style={{paddingBlock:18,border:`1.5px solid ${color}44`,height:"100%"}}>
-              <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{label}</div>
-              <div style={{fontSize:24,fontWeight:700,color,fontFamily:"'Libre Baskerville'"}}>{value}</div>
-              <div style={{fontSize:11,color:T.sub,marginTop:2}}>{sub}</div>
-              <div style={{fontSize:11,color,marginTop:6,fontWeight:600}}>View list →</div>
-            </Card>
-          </button>
-        ))}
-      </div>
-
-      {/* Second row — CRM-style quick access */}
-      <div className="stat-grid-3">
-        {[
-          {label:"Contacts",       sub:"business & other contacts", color:T.slate, key:"contacts",  icon:"◉"},
-          {label:"Host Businesses",sub:"companies hosting apprentices",color:T.teal, key:"hosts",    icon:"◆"},
-          {label:"Target Deals",   sub:"opportunities & pipeline",   color:T.gold, key:"deals",     icon:"◈"},
-        ].map(({label,sub,color,key,icon})=>(
-          <button key={key} onClick={()=>onViewList(key)} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
-            onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
-            onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
-            <Card style={{paddingBlock:18,border:`1.5px solid ${color}44`}}>
-              <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{label}</div>
-              <div style={{fontSize:28,marginBottom:4,color}}>{icon}</div>
-              <div style={{fontSize:11,color:T.sub}}>{sub}</div>
-              <div style={{fontSize:11,color,marginTop:6,fontWeight:600}}>View & manage →</div>
-            </Card>
-          </button>
-        ))}
-      </div>
-
-      {/* Section heading */}
-      <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18}}>
-        <div>
-          <div style={{fontFamily:"'Libre Baskerville'", fontSize:18, fontWeight:700}}>Apprentice Timesheets</div>
-          <div style={{fontSize:12, color:T.sub, marginTop:3}}>Click any card to view and manage that apprentice's timesheet entries.</div>
-        </div>
-      </div>
-
-      {apprentices.length===0 && (
-        <Card style={{textAlign:"center", padding:"52px 24px"}}>
-          <div style={{fontSize:36, marginBottom:10}}>◑</div>
-          <div style={{fontWeight:600, fontSize:15}}>No apprentices yet</div>
-          <div style={{fontSize:13, color:T.sub, marginTop:6}}>Add apprentices in User Management to see their timesheets here.</div>
-        </Card>
-      )}
-
-      <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px,1fr))", gap:16}}>
-        {apprentices.map(app=>{
-          const appEntries    = entries.filter(e=>e.userId===app.id);
-          const weekEntries   = appEntries.filter(e=>e.date>=ws);
-          const weekHrs       = weekEntries.reduce((a,e)=>a+e.netHours,0).toFixed(1);
-          const pendingCount  = appEntries.filter(e=>e.approval==="submitted").length;
-          const lastEntry     = [...appEntries].sort((a,b)=>b.date.localeCompare(a.date))[0];
-          const totalEntries  = appEntries.length;
-
-          // Entry type breakdown for mini bar
-          const typeHrs = ENTRY_TYPES.map(t=>({
-            type:t,
-            hrs:appEntries.reduce((a,e)=>e.type===t?a+e.netHours:a,0)
-          })).filter(x=>x.hrs>0);
-          const totalTypeHrs = typeHrs.reduce((a,x)=>a+x.hrs,0)||1;
-
-          return (
-            <button key={app.id} onClick={()=>onViewApprentice(app.id)}
-              style={{
-                background:T.surface, border:`1.5px solid ${T.border}`,
-                borderRadius:16, padding:0, textAlign:"left", cursor:"pointer",
-                fontFamily:"DM Sans,sans-serif", transition:"all .18s",
-                overflow:"hidden", display:"flex", flexDirection:"column"
-              }}
-              onMouseEnter={e=>{
-                e.currentTarget.style.borderColor=T.blue+"88";
-                e.currentTarget.style.boxShadow=`0 6px 24px ${T.blue}18`;
-                e.currentTarget.style.transform="translateY(-2px)";
-              }}
-              onMouseLeave={e=>{
-                e.currentTarget.style.borderColor=T.border;
-                e.currentTarget.style.boxShadow="none";
-                e.currentTarget.style.transform="translateY(0)";
-              }}>
-
-              {/* Card header */}
-              <div style={{padding:"18px 20px 14px", borderBottom:`1px solid ${T.border}55`}}>
-                <div style={{display:"flex", alignItems:"center", gap:12, marginBottom:12}}>
-                  <Avatar name={app.name} role="Apprentice" size={44}/>
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:700, fontSize:15, color:T.ink}}>{app.name}</div>
-                    <div style={{fontSize:12, color:T.muted, marginTop:1}}>{app.email}</div>
-                  </div>
-                  {pendingCount>0 && (
-                    <div style={{
-                      background:T.warnL, color:T.warn, border:`1px solid ${T.warn}44`,
-                      borderRadius:99, padding:"3px 10px", fontSize:11, fontWeight:700,
-                      whiteSpace:"nowrap"
-                    }}>
-                      {pendingCount} pending
-                    </div>
-                  )}
-                </div>
-
-                {/* Stats row */}
-                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8}}>
-                  {[
-                    {label:"This Week", value:`${weekHrs}h`, color:T.accent},
-                    {label:"Total Entries", value:totalEntries, color:T.blue},
-                    {label:"Last Entry", value:lastEntry?fmtD(lastEntry.date):"—", color:T.sub},
-                  ].map(s=>(
-                    <div key={s.label} style={{background:T.bg, borderRadius:8, padding:"8px 10px"}}>
-                      <div style={{fontSize:10, color:T.muted, textTransform:"uppercase", letterSpacing:".6px", marginBottom:2}}>{s.label}</div>
-                      <div style={{fontSize:13, fontWeight:700, color:s.color, fontFamily:"'Libre Baskerville'"}}>{s.value}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Entry type mini-bar */}
-              {typeHrs.length>0 && (
-                <div style={{padding:"12px 20px 14px"}}>
-                  <div style={{fontSize:10, color:T.muted, textTransform:"uppercase", letterSpacing:".6px", marginBottom:7}}>Hours by type</div>
-                  <div style={{display:"flex", height:7, borderRadius:99, overflow:"hidden", gap:1, marginBottom:8}}>
-                    {typeHrs.map(x=>(
-                      <div key={x.type} style={{
-                        flex:x.hrs/totalTypeHrs,
-                        background:TYPE_META[x.type]?.color||T.muted,
-                        minWidth:4
-                      }}/>
-                    ))}
-                  </div>
-                  <div style={{display:"flex", flexWrap:"wrap", gap:6}}>
-                    {typeHrs.map(x=>(
-                      <span key={x.type} style={{display:"inline-flex", alignItems:"center", gap:4,
-                        fontSize:10, color:TYPE_META[x.type]?.color||T.muted, fontWeight:600}}>
-                        <span style={{width:7,height:7,borderRadius:"50%",background:TYPE_META[x.type]?.color||T.muted,display:"inline-block"}}/>
-                        {x.type} {x.hrs}h
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {typeHrs.length===0 && (
-                <div style={{padding:"14px 20px", color:T.muted, fontSize:12, fontStyle:"italic"}}>
-                  No timesheet entries yet
-                </div>
-              )}
-
-              {/* CTA footer */}
-              <div style={{marginTop:"auto", padding:"11px 20px", background:T.bg,
-                borderTop:`1px solid ${T.border}55`,
-                display:"flex", alignItems:"center", justifyContent:"space-between"}}>
-                <span style={{fontSize:12, color:T.blue, fontWeight:600}}>View Timesheet →</span>
-                {pendingCount>0
-                  ? <span style={{fontSize:11, color:T.warn}}>⚠ Needs attention</span>
-                  : <span style={{fontSize:11, color:T.muted}}>All up to date</span>
-                }
-              </div>
-            </button>
-          );
-        })}
-      </div>
+      {order.map(id => sections[id] || null)}
     </div>
   );
 }
@@ -4174,6 +4222,96 @@ function MentorDashboard({currentUser, allUsers}) {
     );
   }
 
+  const MENTOR_DEFAULT_ORDER = ["apprentices", ...(currentUser.email?.toLowerCase()===CONF_OWNER_EMAIL ? ["confidential"] : []), "resources"];
+  const { order: mentorOrder, dragProps: mentorDragProps } = useDraggableOrder(currentUser.id + "_mentor", MENTOR_DEFAULT_ORDER);
+
+  const mentorSections = {
+    apprentices: (
+      <DraggableSection id="apprentices" dragProps={mentorDragProps}>
+        <Card>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+            <div style={{width:38,height:38,borderRadius:11,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>👷</div>
+            <div>
+              <div style={{fontWeight:700,fontSize:16}}>My Apprentices</div>
+              <div style={{fontSize:12,color:T.sub}}>{myApprentices.length} apprentice{myApprentices.length!==1?"s":""} allocated to you</div>
+            </div>
+          </div>
+          {myApprentices.length===0&&(
+            <div style={{padding:"24px 0",textAlign:"center",color:T.muted,fontSize:13,fontStyle:"italic"}}>
+              No apprentices allocated to you yet — contact an Admin.
+            </div>
+          )}
+          {myApprentices.map((app,i)=>{
+            const meta   = apprenticeSummaries[app.id]||{};
+            const licDays = daysUntil(app.licenceExpiry);
+            const licWarn = licDays!==null && licDays<=30;
+            return (
+              <div key={app.id} onClick={()=>setSelectedApprentice(app)}
+                className="ri"
+                style={{display:"flex",alignItems:"center",gap:14,padding:"12px 4px",
+                  borderBottom:i<myApprentices.length-1?`1px solid ${T.border}44`:"none",
+                  cursor:"pointer",borderRadius:8,animationDelay:`${i*.04}s`}}
+                onMouseEnter={e=>e.currentTarget.style.background=T.accentL+"66"}
+                onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                <Avatar name={app.name} role="Apprentice" size={42}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:700,fontSize:14,color:T.accent}}>{app.name}</div>
+                  <div style={{fontSize:12,color:T.sub,marginTop:1,display:"flex",gap:10,flexWrap:"wrap"}}>
+                    {app.trade&&<span>🔧 {app.trade}</span>}
+                    {app.hostBusiness&&<span>🏢 {app.hostBusiness}</span>}
+                    {meta.lastVisit&&<span>📅 Last visit {fmtDate(meta.lastVisit)}</span>}
+                    {!meta.lastVisit&&!loadingMeta&&<span style={{color:T.muted,fontStyle:"italic"}}>No visits yet</span>}
+                    {meta.reportCount>0&&<span>📋 {meta.reportCount} report{meta.reportCount!==1?"s":""}</span>}
+                    {app.licenceExpiry&&(()=>{
+                      const days = daysUntil(app.licenceExpiry);
+                      const color = days<0?T.red:days<=30?T.warn:T.sub;
+                      const label = days<0?"Licence expired":days===0?"Expires today":`Licence ${new Date(app.licenceExpiry+"T00:00:00").toLocaleDateString("en-NZ",{day:"numeric",month:"short",year:"numeric"})}`;
+                      return <span style={{color,fontWeight:days<=30?700:400}}>🪪 {label}</span>;
+                    })()}
+                  </div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
+                  {licWarn&&(
+                    <div style={{fontSize:11,fontWeight:700,color:licDays<0?T.red:licDays<=7?T.red:T.warn,
+                      background:licDays<=7?T.redL:T.warnL,borderRadius:6,padding:"2px 8px"}}>
+                      {licDays<0?"Licence expired":licDays===0?"Expires today":`Licence: ${licDays}d`}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+      </DraggableSection>
+    ),
+    confidential: (
+      <DraggableSection id="confidential" dragProps={mentorDragProps}>
+        <ConfidentialNotesCard currentUser={currentUser}/>
+      </DraggableSection>
+    ),
+    resources: (
+      <DraggableSection id="resources" dragProps={mentorDragProps}>
+        <Card>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+            <div style={{width:38,height:38,borderRadius:11,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📂</div>
+            <div>
+              <div style={{fontWeight:700,fontSize:16}}>Resources</div>
+              <div style={{fontSize:12,color:T.sub}}>Guides, templates, and reference materials</div>
+            </div>
+          </div>
+          <div style={{background:T.bg,borderRadius:10,padding:"14px 16px",border:`1px dashed ${T.border}`,textAlign:"center"}}>
+            <div style={{fontSize:28,marginBottom:8}}>📁</div>
+            <div style={{fontWeight:600,fontSize:14,color:T.sub,marginBottom:4}}>Resource Folder Coming Soon</div>
+            <div style={{fontSize:12,color:T.muted,lineHeight:1.6}}>
+              This section will link to shared files, templates, and training resources.<br/>
+              Contact your Admin to set up the resource folder.
+            </div>
+          </div>
+        </Card>
+      </DraggableSection>
+    ),
+  };
+
   return (
     <div className="fu">
       <div style={{marginBottom:20}}>
@@ -4182,89 +4320,7 @@ function MentorDashboard({currentUser, allUsers}) {
         </h1>
         <p style={{fontSize:13,color:T.sub}}>Your apprentice overview and mentor tools</p>
       </div>
-
-      {/* ── Apprentices Card ── */}
-      <Card style={{marginBottom:16}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-          <div style={{width:38,height:38,borderRadius:11,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>👷</div>
-          <div>
-            <div style={{fontWeight:700,fontSize:16}}>My Apprentices</div>
-            <div style={{fontSize:12,color:T.sub}}>{myApprentices.length} apprentice{myApprentices.length!==1?"s":""} allocated to you</div>
-          </div>
-        </div>
-
-        {myApprentices.length===0&&(
-          <div style={{padding:"24px 0",textAlign:"center",color:T.muted,fontSize:13,fontStyle:"italic"}}>
-            No apprentices allocated to you yet — contact an Admin.
-          </div>
-        )}
-
-        {myApprentices.map((app,i)=>{
-          const meta   = apprenticeSummaries[app.id]||{};
-          const licDays = daysUntil(app.licenceExpiry);
-          const licWarn = licDays!==null && licDays<=30;
-          return (
-            <div key={app.id} onClick={()=>setSelectedApprentice(app)}
-              className="ri"
-              style={{display:"flex",alignItems:"center",gap:14,padding:"12px 4px",
-                borderBottom:i<myApprentices.length-1?`1px solid ${T.border}44`:"none",
-                cursor:"pointer",borderRadius:8,animationDelay:`${i*.04}s`}}
-              onMouseEnter={e=>e.currentTarget.style.background=T.accentL+"66"}
-              onMouseLeave={e=>e.currentTarget.style.background="none"}>
-              <Avatar name={app.name} role="Apprentice" size={42}/>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontWeight:700,fontSize:14,color:T.accent}}>{app.name}</div>
-                <div style={{fontSize:12,color:T.sub,marginTop:1,display:"flex",gap:10,flexWrap:"wrap"}}>
-                  {app.trade&&<span>🔧 {app.trade}</span>}
-                  {app.hostBusiness&&<span>🏢 {app.hostBusiness}</span>}
-                  {meta.lastVisit&&<span>📅 Last visit {fmtDate(meta.lastVisit)}</span>}
-                  {!meta.lastVisit&&!loadingMeta&&<span style={{color:T.muted,fontStyle:"italic"}}>No visits yet</span>}
-                  {meta.reportCount>0&&<span>📋 {meta.reportCount} report{meta.reportCount!==1?"s":""}</span>}
-                  {app.licenceExpiry&&(()=>{
-                    const days = daysUntil(app.licenceExpiry);
-                    const color = days<0?T.red:days<=30?T.warn:T.sub;
-                    const label = days<0?"Licence expired":days===0?"Expires today":`Licence ${new Date(app.licenceExpiry+"T00:00:00").toLocaleDateString("en-NZ",{day:"numeric",month:"short",year:"numeric"})}`;
-                    return <span style={{color,fontWeight:days<=30?700:400}}>🪪 {label}</span>;
-                  })()}
-                </div>
-              </div>
-              <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
-                {licWarn&&(
-                  <div style={{fontSize:11,fontWeight:700,color:licDays<0?T.red:licDays<=7?T.red:T.warn,
-                    background:licDays<=7?T.redL:T.warnL,borderRadius:6,padding:"2px 8px"}}>
-                    {licDays<0?"Licence expired":licDays===0?"Expires today":`Licence: ${licDays}d`}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </Card>
-
-      {/* ── Kristeena's Confidential Notes — only visible to her ── */}
-      {currentUser.email?.toLowerCase() === CONF_OWNER_EMAIL && (
-        <ConfidentialNotesCard currentUser={currentUser}/>
-      )}
-
-      {/* ── Resources Card ── */}
-      <Card style={{marginBottom:16}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-          <div style={{width:38,height:38,borderRadius:11,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📂</div>
-          <div>
-            <div style={{fontWeight:700,fontSize:16}}>Resources</div>
-            <div style={{fontSize:12,color:T.sub}}>Guides, templates, and reference materials</div>
-          </div>
-        </div>
-        <div style={{background:T.bg,borderRadius:10,padding:"14px 16px",
-          border:`1px dashed ${T.border}`,textAlign:"center"}}>
-          <div style={{fontSize:28,marginBottom:8}}>📁</div>
-          <div style={{fontWeight:600,fontSize:14,color:T.sub,marginBottom:4}}>Resource Folder Coming Soon</div>
-          <div style={{fontSize:12,color:T.muted,lineHeight:1.6}}>
-            This section will link to shared files, templates, and training resources.<br/>
-            Contact your Admin to set up the resource folder.
-          </div>
-        </div>
-      </Card>
+      {mentorOrder.map(id => mentorSections[id] || null)}
     </div>
   );
 }
@@ -6731,6 +6787,7 @@ export default function App() {
               <AdminDashboard
                 allUsers={users}
                 entries={entries}
+                currentUser={currentUser}
                 onViewApprentice={(id)=>setViewingAppId(id)}
                 onViewApprenticeList={()=>{setShowAppList('apprentices');setViewingAppId(null);}}
                 onViewList={(key)=>{setShowAppList(key);setViewingAppId(null);}}
