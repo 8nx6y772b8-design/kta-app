@@ -1,4 +1,4 @@
-// KTA Workforce Management — v1.5.4
+// KTA Workforce Management — v1.5.5
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -11,6 +11,7 @@
 //   v1.5.2 — timesheets moved to stat card; dashboard no longer shows full timesheet grid
 //   v1.5.3 — leave requests stat card added; clicking scrolls to leave panel
 //   v1.5.4 — leave card shows colour-coded breakdown by status
+//   v1.5.5 — leave card opens full page; awaiting KTA listed first; consistent card height
 import { useState, useEffect, useCallback, useRef } from "react";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
@@ -840,7 +841,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.5.4
+          v1.5.5
         </div>
       </div>
     </div>
@@ -3327,26 +3328,16 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
       <button onClick={onViewLeave} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
         onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
         <Card style={{paddingBlock:18,border:`1.5px solid ${leaveStats.pending>0||leaveStats.approver_approved>0?T.warn:T.hol}44`,height:"100%"}}>
-          <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:8}}>Leave Requests</div>
-          {[
-            { label:"Awaiting Approver", count:leaveStats.pending,           color:"#b86e1a", bg:"#faebd7" },
-            { label:"Awaiting KTA",      count:leaveStats.approver_approved,  color:"#1b4f8c", bg:"#dce8f7" },
-            { label:"Approved",          count:leaveStats.kta_approved,       color:"#1a6b3a", bg:"#d4f0e0" },
-            { label:"Declined",          count:leaveStats.declined,           color:"#bf2b2b", bg:"#fde8e8" },
-          ].map(s=>(
-            <div key={s.label} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}>
-              <div style={{display:"flex",alignItems:"center",gap:5}}>
-                <span style={{width:7,height:7,borderRadius:"50%",background:s.color,display:"inline-block",flexShrink:0}}/>
-                <span style={{fontSize:11,color:T.sub}}>{s.label}</span>
-              </div>
-              <span style={{fontSize:12,fontWeight:700,color:s.count>0?s.color:T.muted,
-                background:s.count>0?s.bg:"transparent",borderRadius:99,
-                padding:s.count>0?"1px 8px":"1px 4px",minWidth:20,textAlign:"center"}}>
-                {s.count}
-              </span>
-            </div>
-          ))}
-          <div style={{fontSize:11,color:T.hol,marginTop:8,fontWeight:600}}>View & manage →</div>
+          <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Leave Requests</div>
+          <div style={{fontSize:24,fontWeight:700,color:leaveStats.pending>0||leaveStats.approver_approved>0?T.warn:T.hol,fontFamily:"'Libre Baskerville'",marginBottom:4}}>{leaveStats.total}</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
+            {leaveStats.pending>0           && <span style={{fontSize:10,fontWeight:700,color:"#b86e1a",background:"#faebd7",borderRadius:99,padding:"2px 7px"}}>{leaveStats.pending} approver</span>}
+            {leaveStats.approver_approved>0 && <span style={{fontSize:10,fontWeight:700,color:"#1b4f8c",background:"#dce8f7",borderRadius:99,padding:"2px 7px"}}>{leaveStats.approver_approved} KTA</span>}
+            {leaveStats.kta_approved>0      && <span style={{fontSize:10,fontWeight:700,color:"#1a6b3a",background:"#d4f0e0",borderRadius:99,padding:"2px 7px"}}>{leaveStats.kta_approved} approved</span>}
+            {leaveStats.declined>0          && <span style={{fontSize:10,fontWeight:700,color:"#bf2b2b",background:"#fde8e8",borderRadius:99,padding:"2px 7px"}}>{leaveStats.declined} declined</span>}
+            {leaveStats.total===0           && <span style={{fontSize:11,color:T.muted}}>no requests</span>}
+          </div>
+          <div style={{fontSize:11,color:T.hol,marginTop:6,fontWeight:600}}>View & manage →</div>
         </Card>
       </button>
     ),
@@ -4018,6 +4009,54 @@ function LeaveToggleCard({ currentUser, allUsers }) {
   );
 }
 
+
+
+// ── Leave Requests List Page (full-page admin view, opened from stat card) ────
+function LeaveRequestsListPage({ currentUser, allUsers, entries, setEntries }) {
+  const [requests, setRequests] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+
+  const load = () => {
+    loadTable("leave_requests")
+      .then(rows => {
+        const sorted = (rows||[]).sort((a,b) => {
+          // Sort order: awaiting_kta first, then pending, then approved, then declined, then by date desc
+          const rank = { approver_approved:0, pending:1, kta_approved:2, declined:3 };
+          const ra = rank[a.status]??2, rb = rank[b.status]??2;
+          if(ra !== rb) return ra - rb;
+          return b.created_at.localeCompare(a.created_at);
+        });
+        setRequests(sorted);
+      })
+      .catch(()=>setRequests([]))
+      .finally(()=>setLoading(false));
+  };
+
+  useEffect(()=>{ load(); },[]);
+  useEffect(()=>{ const t=setInterval(load,30000); return()=>clearInterval(t); },[]);
+
+  const handleUpdate = (updated) => setRequests(prev=>prev.map(r=>r.id===updated.id?updated:r));
+
+  if(loading) return <div style={{textAlign:"center",padding:40,color:T.muted,fontSize:13}}>Loading leave requests…</div>;
+  if(requests.length===0) return (
+    <Card style={{textAlign:"center",padding:"52px 24px"}}>
+      <div style={{fontSize:36,marginBottom:10}}>🏖️</div>
+      <div style={{fontWeight:600,fontSize:15}}>No leave requests yet</div>
+      <div style={{fontSize:13,color:T.sub,marginTop:6}}>Approved leave requests will appear here.</div>
+    </Card>
+  );
+
+  return (
+    <div>
+      {requests.map(r=>(
+        <LeaveRequestCard key={r.id} req={r} allUsers={allUsers} currentUser={currentUser}
+          isAdmin={true} isApprover={false} onUpdate={handleUpdate}
+          entries={entries} setEntries={setEntries}
+          onDelete={(currentUser?.adminLevel||1)===1 ? (id)=>setRequests(prev=>prev.filter(x=>x.id!==id)) : null}/>
+      ))}
+    </div>
+  );
+}
 
 // ── Leave Overview Card (Admin Dashboard — compact table in timesheets section) ──
 function LeaveOverviewCard({ allUsers }) {
@@ -8126,6 +8165,7 @@ export default function App() {
                   :showAppList==="declined"?"Submitted — Not Approved"
                   :showAppList==="contacts"?"Contacts"
                   :showAppList==="hosts"?"Host Businesses"
+                  :showAppList==="leave"?"Leave Requests"
                   :"Target Deals"}
                 </h1>
                 <p style={{fontSize:13,color:T.sub,marginTop:4}}>
@@ -8137,6 +8177,7 @@ export default function App() {
                   {showAppList==="contacts"&&"Business and other contacts — not system users"}
                   {showAppList==="hosts"&&"Companies that host apprentices for on-the-job training"}
                   {showAppList==="deals"&&"Target deals, opportunities and pipeline"}
+                  {showAppList==="leave"&&"All leave requests — awaiting KTA approval listed first"}
                 </p>
               </div>
             ) : (
@@ -8196,6 +8237,7 @@ export default function App() {
           {adminAppList && showAppList==="contacts" && <ContactsList/>}
           {adminAppList && showAppList==="hosts"    && <HostBusinessList/>}
           {adminAppList && showAppList==="deals"    && <TargetDealsList/>}
+          {adminAppList && showAppList==="leave"    && <LeaveRequestsListPage currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>}
           {module!=="xero" && <>
           {!adminViewingApprentice && !adminAppList && activeMod==="dashboard" && role==="Admin" && (
             <>
@@ -8207,12 +8249,10 @@ export default function App() {
                 onViewApprenticeList={()=>{setShowAppList('apprentices');setViewingAppId(null);}}
                 onViewList={(key)=>{setShowAppList(key);setViewingAppId(null);}}
                 onViewTimesheets={()=>setModule("timesheet")}
-                onViewLeave={()=>{ setTimeout(()=>document.getElementById("leave-panel-anchor")?.scrollIntoView({behavior:"smooth",block:"start"}),50); }}
+                onViewLeave={()=>{ setShowAppList("leave"); setViewingAppId(null); }}
               />
-              <div id="leave-panel-anchor" style={{scrollMarginTop:16}}>
-                <LeaveOverviewCard allUsers={users}/>
-                <LeaveRequestsPanel currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
-              </div>
+              <LeaveOverviewCard allUsers={users}/>
+              <LeaveRequestsPanel currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
               {currentUser.email?.toLowerCase() === CONF_OWNER_EMAIL && (
                 <ConfidentialNotesCard currentUser={currentUser} allUsers={users}/>
               )}
