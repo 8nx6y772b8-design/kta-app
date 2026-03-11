@@ -3048,39 +3048,50 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
   const totalNotApproved  = entries.filter(e=>e.approval==="declined").length;
   const totalHrsWeek      = entries.filter(e=>e.date>=ws).reduce((a,e)=>a+e.netHours,0).toFixed(1);
 
+  // Section order (top-level)
   const DEFAULT_ORDER = ["stats", "crm", "timesheets"];
   const { order, dragProps } = useDraggableOrder(currentUser?.id || "admin", DEFAULT_ORDER);
+
+  // Card order within Stats section
+  const STATS_DEFAULT = ["apprentices","hours","submitted","approved","declined"];
+  const { order: statsOrder, dragProps: statsDrag } = useDraggableOrder((currentUser?.id||"admin") + "_stats", STATS_DEFAULT);
+
+  // Card order within CRM section
+  const CRM_DEFAULT = ["contacts","hosts","deals"];
+  const { order: crmOrder, dragProps: crmDrag } = useDraggableOrder((currentUser?.id||"admin") + "_crm", CRM_DEFAULT);
+
+  const statsData = {
+    apprentices: (
+      <button onClick={onViewApprenticeList} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
+        onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+        <Card style={{paddingBlock:18,border:`1.5px solid ${T.blue}44`,height:"100%"}}>
+          <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Apprentices</div>
+          <div style={{fontSize:24,fontWeight:700,color:T.blue,fontFamily:"'Libre Baskerville'"}}>{apprentices.length}</div>
+          <div style={{fontSize:11,color:T.sub,marginTop:2}}>active workforce</div>
+          <div style={{fontSize:11,color:T.blue,marginTop:6,fontWeight:600}}>View & manage →</div>
+        </Card>
+      </button>
+    ),
+    hours:     <button onClick={()=>onViewList("hours")}     style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${T.accent}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Hours This Week</div><div style={{fontSize:24,fontWeight:700,color:T.accent,fontFamily:"'Libre Baskerville'"}}>{totalHrsWeek}h</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>all apprentices</div><div style={{fontSize:11,color:T.accent,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
+    submitted: <button onClick={()=>onViewList("submitted")} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalSubmitted>0?T.warn:T.muted}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Pending</div><div style={{fontSize:24,fontWeight:700,color:totalSubmitted>0?T.warn:T.muted,fontFamily:"'Libre Baskerville'"}}>{totalSubmitted}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>submitted, awaiting review</div><div style={{fontSize:11,color:totalSubmitted>0?T.warn:T.muted,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
+    approved:  <button onClick={()=>onViewList("approved")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${T.teal}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Approved</div><div style={{fontSize:24,fontWeight:700,color:T.teal,fontFamily:"'Libre Baskerville'"}}>{totalApproved}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>approved by approver</div><div style={{fontSize:11,color:T.teal,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
+    declined:  <button onClick={()=>onViewList("declined")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalNotApproved>0?T.red:T.muted}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Not Approved</div><div style={{fontSize:24,fontWeight:700,color:totalNotApproved>0?T.red:T.muted,fontFamily:"'Libre Baskerville'"}}>{totalNotApproved}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>declined by approver</div><div style={{fontSize:11,color:totalNotApproved>0?T.red:T.muted,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
+  };
+
+  const crmData = {
+    contacts: {label:"Contacts",        sub:"business & other contacts",    color:T.slate, icon:"◉"},
+    hosts:    {label:"Host Businesses",  sub:"companies hosting apprentices", color:T.teal,  icon:"◆"},
+    deals:    {label:"Target Deals",     sub:"opportunities & pipeline",      color:T.gold,  icon:"◈"},
+  };
 
   const sections = {
     stats: (
       <DraggableSection id="stats" dragProps={dragProps}>
         <div className="stat-grid-4">
-          <button onClick={onViewApprenticeList} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
-            onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
-            onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
-            <Card style={{paddingBlock:18,border:`1.5px solid ${T.blue}44`}}>
-              <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Apprentices</div>
-              <div style={{fontSize:24,fontWeight:700,color:T.blue,fontFamily:"'Libre Baskerville'"}}>{apprentices.length}</div>
-              <div style={{fontSize:11,color:T.sub,marginTop:2}}>active workforce</div>
-              <div style={{fontSize:11,color:T.blue,marginTop:6,fontWeight:600}}>View & manage →</div>
-            </Card>
-          </button>
-          {[
-            {label:"Hours This Week",        value:`${totalHrsWeek}h`,  sub:"all apprentices",           color:T.accent, key:"hours"},
-            {label:"Pending",                value:totalSubmitted,      sub:"submitted, awaiting review", color:totalSubmitted>0?T.warn:T.muted, key:"submitted"},
-            {label:"Submitted — Approved",   value:totalApproved,       sub:"approved by approver",       color:T.teal,   key:"approved"},
-            {label:"Submitted — Not Approved",value:totalNotApproved,   sub:"declined by approver",       color:totalNotApproved>0?T.red:T.muted, key:"declined"},
-          ].map(({label,value,sub,color,key})=>(
-            <button key={key} onClick={()=>onViewList(key)} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
-              onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
-              onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
-              <Card style={{paddingBlock:18,border:`1.5px solid ${color}44`,height:"100%"}}>
-                <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{label}</div>
-                <div style={{fontSize:24,fontWeight:700,color,fontFamily:"'Libre Baskerville'"}}>{value}</div>
-                <div style={{fontSize:11,color:T.sub,marginTop:2}}>{sub}</div>
-                <div style={{fontSize:11,color,marginTop:6,fontWeight:600}}>View list →</div>
-              </Card>
-            </button>
+          {statsOrder.map(id => (
+            <div key={id} {...statsDrag(id)} style={{borderRadius:14, cursor:"grab"}}>
+              {statsData[id]}
+            </div>
           ))}
         </div>
       </DraggableSection>
@@ -3088,22 +3099,22 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
     crm: (
       <DraggableSection id="crm" dragProps={dragProps}>
         <div className="stat-grid-3">
-          {[
-            {label:"Contacts",       sub:"business & other contacts",   color:T.slate, key:"contacts", icon:"◉"},
-            {label:"Host Businesses",sub:"companies hosting apprentices",color:T.teal,  key:"hosts",    icon:"◆"},
-            {label:"Target Deals",   sub:"opportunities & pipeline",     color:T.gold,  key:"deals",    icon:"◈"},
-          ].map(({label,sub,color,key,icon})=>(
-            <button key={key} onClick={()=>onViewList(key)} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
-              onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
-              onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
-              <Card style={{paddingBlock:18,border:`1.5px solid ${color}44`}}>
-                <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{label}</div>
-                <div style={{fontSize:28,marginBottom:4,color}}>{icon}</div>
-                <div style={{fontSize:11,color:T.sub}}>{sub}</div>
-                <div style={{fontSize:11,color,marginTop:6,fontWeight:600}}>View & manage →</div>
-              </Card>
-            </button>
-          ))}
+          {crmOrder.map(id => {
+            const {label,sub,color,icon} = crmData[id];
+            return (
+              <div key={id} {...crmDrag(id)} style={{borderRadius:14, cursor:"grab"}}>
+                <button onClick={()=>onViewList(id)} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
+                  onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+                  <Card style={{paddingBlock:18,border:`1.5px solid ${color}44`}}>
+                    <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{label}</div>
+                    <div style={{fontSize:28,marginBottom:4,color}}>{icon}</div>
+                    <div style={{fontSize:11,color:T.sub}}>{sub}</div>
+                    <div style={{fontSize:11,color,marginTop:6,fontWeight:600}}>View & manage →</div>
+                  </Card>
+                </button>
+              </div>
+            );
+          })}
         </div>
       </DraggableSection>
     ),
