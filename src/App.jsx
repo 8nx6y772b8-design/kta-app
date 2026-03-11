@@ -12,31 +12,41 @@ const sendKTAEmail = async ({ to, subject, html, attachments }) => {
   if (!res.ok) throw new Error("Email send failed: " + await res.text());
 };
 
-// Generate a meeting report PDF and return base64 string
-const generateReportPDF = async (report, apprentice, mentor) => {
-  // Dynamically load jsPDF from CDN
-  const { jsPDF } = await import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm");
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+// Generate a meeting report PDF — pure JS, no library required
+const generateReportPDF = (report, apprentice, mentor) => {
+  const W = 595, H = 842, margin = 50, contentW = 495;
+  const fD = (iso) => { if(!iso) return "TBC"; const [y,m,d]=(iso||"").split('-'); return `${d||"?"}/${m||"?"}/${y||"?"}`; };
+  const esc = (s) => String(s||"N/a").replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)");
+  const wrap = (text, maxChars) => {
+    const words = (String(text||"N/a")).split(/\s+/).filter(Boolean);
+    const out = []; let line = "";
+    for(const w of words) {
+      const candidate = line ? line + " " + w : w;
+      if(candidate.length > maxChars) { if(line) out.push(line); line = w; }
+      else line = candidate;
+    }
+    if(line) out.push(line);
+    return out.length ? out : ["N/a"];
+  };
 
-  const W = 210, margin = 18, col = margin, lineH = 6.5;
-  let y = 20;
+  const objs = [];
+  let id = 0;
+  const add = (c) => { objs.push({ id:++id, c }); return id; };
 
-  const fD = (iso) => { if(!iso) return "TBC"; const [yr,m,d]=iso.split('-'); return `${d}/${m}/${yr}`; };
-  const navy = [27, 79, 140], teal = [26, 138, 122], ink = [13, 27, 46], sub = [74, 90, 114], white = [255,255,255];
+  const S = [];
+  let y = H - 60;
 
-  // Header bar
-  doc.setFillColor(...navy);
-  doc.rect(0, 0, W, 28, "F");
-  doc.setTextColor(...white);
-  doc.setFontSize(16); doc.setFont("helvetica","bold");
-  doc.text("Apprentice Check In Report", col, 12);
-  doc.setFontSize(9); doc.setFont("helvetica","normal");
-  doc.text("Kiwi Trade Apprentices  ·  kta.org.nz  ·  timesheet@kta.org.nz", col, 21);
+  // Navy header bar
+  S.push("0.106 0.310 0.549 rg");
+  S.push(`${margin - 10} ${H - 70} ${W - 80} 50 re f`);
+  S.push("1 1 1 rg");
+  S.push(`BT /F1 14 Tf ${margin} ${H - 45} Td (${esc("Apprentice Check In Report")}) Tj ET`);
+  S.push(`BT /F2 8 Tf 1 1 1 rg ${margin} ${H - 58} Td (${esc("Kiwi Trade Apprentices  \u00b7  kta.org.nz  \u00b7  timesheet@kta.org.nz")}) Tj ET`);
 
-  y = 38;
+  y = H - 90;
 
-  // Meta table
-  const metaRows = [
+  // Meta rows
+  const meta = [
     ["Trainee Name",       apprentice.name],
     ["Trade",              apprentice.trade || "Not specified"],
     ["Host Business",      apprentice.hostBusiness || "Not specified"],
@@ -44,60 +54,60 @@ const generateReportPDF = async (report, apprentice, mentor) => {
     ["Date of Visit",      fD(report.date)],
     ["KTA Representative", mentor.name],
     ["Licence Expiry",     apprentice.licenceExpiry ? fD(apprentice.licenceExpiry) : "Not set"],
-    ["Date of Next Visit", fD(report.next_visit_date)],
+    ["Next Visit",         fD(report.next_visit_date)],
   ];
-
-  doc.setFontSize(9);
-  metaRows.forEach(([label, val], i) => {
-    const rowY = y + i * 7;
-    doc.setFillColor(i % 2 === 0 ? 240 : 248, i % 2 === 0 ? 244 : 250, i % 2 === 0 ? 249 : 252);
-    doc.rect(col, rowY - 5, W - margin*2, 7, "F");
-    doc.setTextColor(...sub); doc.setFont("helvetica","bold");
-    doc.text(label, col + 2, rowY);
-    doc.setTextColor(...ink); doc.setFont("helvetica","normal");
-    doc.text(String(val), col + 52, rowY);
+  meta.forEach(([label, val], i) => {
+    const bg = i % 2 === 0 ? "0.941 0.957 0.976" : "0.969 0.980 0.992";
+    S.push(`${bg} rg ${margin} ${y - 2} ${contentW} 14 re f`);
+    S.push(`0.290 0.353 0.443 rg BT /F1 8 Tf ${margin + 2} ${y + 4} Td (${esc(label)}) Tj ET`);
+    S.push(`0.051 0.106 0.180 rg BT /F2 8 Tf ${margin + 105} ${y + 4} Td (${esc(String(val||""))}) Tj ET`);
+    y -= 15;
   });
+  y -= 8;
 
-  y += metaRows.length * 7 + 8;
-
-  // Section helper
-  const section = (title, content) => {
-    if(y > 260) { doc.addPage(); y = 20; }
-    // Section header
-    doc.setFillColor(...teal);
-    doc.rect(col, y - 5, W - margin*2, 7, "F");
-    doc.setTextColor(...white); doc.setFontSize(9); doc.setFont("helvetica","bold");
-    doc.text(title, col + 2, y);
-    y += 5;
-    // Content
-    doc.setTextColor(...ink); doc.setFont("helvetica","normal"); doc.setFontSize(9);
-    const lines = doc.splitTextToSize(content || "N/a", W - margin*2 - 4);
-    lines.forEach(line => {
-      if(y > 270) { doc.addPage(); y = 20; }
-      doc.text(line, col + 2, y);
-      y += lineH;
-    });
-    y += 4;
+  const section = (title, body) => {
+    if(y < 120) { S.push(""); y = H - 60; } // new page not needed for typical reports
+    S.push(`0.102 0.541 0.478 rg ${margin} ${y - 2} ${contentW} 14 re f`);
+    S.push(`1 1 1 rg BT /F1 9 Tf ${margin + 2} ${y + 4} Td (${esc(title)}) Tj ET`);
+    y -= 18;
+    const wrapped = wrap(body, 90);
+    for(const line of wrapped) {
+      S.push(`0.051 0.106 0.180 rg BT /F2 8 Tf ${margin + 2} ${y + 2} Td (${esc(line)}) Tj ET`);
+      y -= 12;
+    }
+    y -= 6;
   };
 
-  section("Off Job Progress Since Last Visit",   report.off_job_progress);
-  section("On Job Progress Since Last Visit",    report.on_job_progress);
-  section("Previous Goals",                      report.previous_goals);
-  section("Goals Before Next Visit",             report.goals_this_meeting);
-  section("Comments and Feedback",               report.comments_feedback);
+  section("Off Job Progress Since Last Visit",  report.off_job_progress);
+  section("On Job Progress Since Last Visit",   report.on_job_progress);
+  section("Previous Goals",                     report.previous_goals);
+  section("Goals Before Next Visit",            report.goals_this_meeting);
+  section("Comments and Feedback",              report.comments_feedback);
 
-  // Footer on each page
-  const pageCount = doc.getNumberOfPages();
-  for(let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFillColor(...navy);
-    doc.rect(0, 287, W, 10, "F");
-    doc.setTextColor(...white); doc.setFontSize(7.5); doc.setFont("helvetica","normal");
-    doc.text(`KTA Workforce Management  ·  Generated ${new Date().toLocaleDateString("en-NZ")}`, col, 293);
-    doc.text(`Page ${i} of ${pageCount}`, W - margin - 12, 293);
-  }
+  // Footer
+  S.push(`0.106 0.310 0.549 rg 0 0 ${W} 24 re f`);
+  S.push(`1 1 1 rg BT /F2 7 Tf ${margin} 9 Td (${esc("KTA Workforce Management  ·  timesheet@kta.org.nz")}) Tj ET`);
+  const dateStr = new Date().toLocaleDateString("en-NZ");
+  S.push(`1 1 1 rg BT /F2 7 Tf ${W - margin - 55} 9 Td (${esc("Generated " + dateStr)}) Tj ET`);
 
-  return doc.output("datauristring").split(",")[1]; // base64 only
+  const stream = S.join("\n");
+  const contentId = add(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+  const f1Id      = add(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>`);
+  const f2Id      = add(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`);
+  const pageId    = add(`<< /Type /Page /Parent 5 0 R /MediaBox [0 0 ${W} ${H}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${f1Id} 0 R /F2 ${f2Id} 0 R >> >> >>`);
+  const pagesId   = add(`<< /Type /Pages /Kids [${pageId} 0 R] /Count 1 >>`);
+  const catalogId = add(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
+
+  let pdf = "%PDF-1.4\n";
+  const offsets = {};
+  for(const o of objs) { offsets[o.id] = pdf.length; pdf += `${o.id} 0 obj\n${o.c}\nendobj\n`; }
+  const xOff = pdf.length;
+  pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+  for(const o of objs) pdf += String(offsets[o.id]).padStart(10,"0") + " 00000 n \n";
+  pdf += `trailer\n<< /Size ${objs.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xOff}\n%%EOF\n`;
+
+  // Encode to base64 using browser btoa (works on ASCII PDF)
+  return btoa(unescape(encodeURIComponent(pdf)));
 };
 
 // ─── Browser push notifications ─────────────────────────────────────────────
@@ -715,7 +725,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.4.3
+          v1.4.6
         </div>
       </div>
     </div>
@@ -4129,10 +4139,10 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver) => {
     throw new Error("No valid email addresses found — check that the apprentice and approver both have email addresses set in their profiles.");
   }
 
-  // Generate PDF attachment
+  // Generate PDF attachment (pure JS — synchronous, no library)
   let pdfBase64 = null;
   try {
-    pdfBase64 = await generateReportPDF(report, apprentice, mentor);
+    pdfBase64 = generateReportPDF(report, apprentice, mentor);
   } catch(e) {
     console.warn("PDF generation failed, sending without attachment:", e);
   }
