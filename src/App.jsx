@@ -1,4 +1,4 @@
-// KTA Workforce Management — v1.5.8
+// KTA Workforce Management — v1.5.9
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -15,6 +15,7 @@
 //   v1.5.6 — conf notes PIN stored in Supabase (fixes mobile PIN reset issue)
 //   v1.5.7 — fix admin delete leave (use deleteRow); remove large leave panel from dashboard
 //   v1.5.8 — fix delete button not showing for Admin 1 on leave requests page
+//   v1.5.9 — fix delete hidden on approved/declined leave (was inside canApprove guard)
 import { useState, useEffect, useCallback, useRef } from "react";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
@@ -844,7 +845,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.5.8
+          v1.5.9
         </div>
       </div>
     </div>
@@ -3903,7 +3904,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
             </div>
           )}
         </div>
-        {!declineMode && (canApprove || canDecline) && (
+        {!declineMode && (
           <div style={{display:"flex",gap:6,flexShrink:0}}>
             {canApprove && (
               <button onClick={approve} disabled={acting}
