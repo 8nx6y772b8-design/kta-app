@@ -4297,7 +4297,7 @@ function MentorDashboard({currentUser, allUsers}) {
     ),
     confidential: (
       <DraggableSection id="confidential" dragProps={mentorDragProps}>
-        <ConfidentialNotesCard currentUser={currentUser}/>
+        <ConfidentialNotesCard currentUser={currentUser} allUsers={allUsers}/>
       </DraggableSection>
     ),
     resources: (
@@ -4344,7 +4344,7 @@ async function sha256hex(str) {
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 
-function ConfidentialNotesCard({ currentUser }) {
+function ConfidentialNotesCard({ currentUser, allUsers = [] }) {
   const STORAGE_PIN_KEY         = "kta_conf_pin_hash_v1";
   const STORAGE_LOCK_KEY        = "kta_conf_lockuntil_v1";
   const STORAGE_MUST_CHANGE_KEY = "kta_conf_must_change_v1";
@@ -4367,6 +4367,7 @@ function ConfidentialNotesCard({ currentUser }) {
   const [adding, setAdding]         = useState(false);
   const [saving, setSaving]         = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [activeTab, setActiveTab]         = useState("general"); // "general" | apprentice id
   const lockTimer  = useRef(null);
   const pinInputRef = useRef(null);
 
@@ -4409,6 +4410,8 @@ function ConfidentialNotesCard({ currentUser }) {
       .catch(()=>setNotes([]))
       .finally(()=>setLoading(false));
   },[phase, isOwner]);
+
+  const apprentices = allUsers.filter(u=>u.role==="Apprentice").sort((a,b)=>a.name.localeCompare(b.name));
 
   // ── GUARD: render nothing for anyone other than Kristeena ──────────────────
   if(!isOwner) return null;
@@ -4491,7 +4494,14 @@ function ConfidentialNotesCard({ currentUser }) {
   const addNote = async () => {
     if(!newTitle.trim() && !newBody.trim()) return;
     setSaving(true);
-    const row = { id: uid(), owner_id: currentUser.id, title: newTitle.trim()||"Untitled", body: newBody.trim(), created_at: new Date().toISOString() };
+    const row = {
+      id: uid(),
+      owner_id: currentUser.id,
+      apprentice_id: activeTab === "general" ? null : activeTab,
+      title: newTitle.trim()||"Untitled",
+      body: newBody.trim(),
+      created_at: new Date().toISOString()
+    };
     await upsertRow("confidential_notes", row).catch(console.error);
     setNotes(prev=>[row,...prev]);
     setNewTitle(""); setNewBody(""); setAdding(false);
@@ -4586,58 +4596,137 @@ function ConfidentialNotesCard({ currentUser }) {
   };
 
   // ── Unlocked view ──
-  const renderNotes = () => (
-    <div onClick={resetLockTimer}>
-      <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16}}>
-        <div style={{fontSize:12, color:"#9333ea", fontWeight:600}}>🔓 Unlocked · auto-locks after 5 min inactivity</div>
-        <div style={{display:"flex", gap:8}}>
-          <button onClick={()=>{setAdding(s=>!s); resetLockTimer();}} style={{background:"#9333ea", color:"#fff", border:"none", borderRadius:7, padding:"6px 14px", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>
-            {adding?"✕ Cancel":"+ Add Note"}
-          </button>
-          <button onClick={()=>{setPhase("locked"); setPin(""); if(lockTimer.current)clearTimeout(lockTimer.current);}} style={{background:"#f3e8ff", color:"#6b21a8", border:"1.5px solid #d8b4fe", borderRadius:7, padding:"6px 14px", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>
+  const renderNotes = () => {
+    const tabNotes = notes.filter(n =>
+      activeTab === "general" ? !n.apprentice_id : n.apprentice_id === activeTab
+    );
+    const activeApprentice = activeTab !== "general"
+      ? apprentices.find(a => a.id === activeTab) : null;
+
+    return (
+      <div onClick={resetLockTimer}>
+        {/* Top bar */}
+        <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14}}>
+          <div style={{fontSize:12, color:"#9333ea", fontWeight:600}}>🔓 Unlocked · auto-locks after 5 min</div>
+          <button onClick={()=>{setPhase("locked"); setPin(""); if(lockTimer.current)clearTimeout(lockTimer.current);}}
+            style={{background:"#f3e8ff", color:"#6b21a8", border:"1.5px solid #d8b4fe", borderRadius:7, padding:"6px 14px", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>
             🔒 Lock
           </button>
         </div>
-      </div>
 
-      {adding && (
-        <div style={{background:"#faf5ff", borderRadius:10, padding:16, marginBottom:16, border:"1.5px solid #d8b4fe"}}>
-          <input placeholder="Note title…" value={newTitle} onChange={e=>{setNewTitle(e.target.value);resetLockTimer();}}
-            style={{width:"100%", fontWeight:700, fontSize:14, border:"none", background:"transparent", outline:"none", marginBottom:8, fontFamily:"DM Sans,sans-serif", color:"#1e1b4b"}}/>
-          <textarea placeholder="Enter confidential note…" value={newBody} onChange={e=>{setNewBody(e.target.value);resetLockTimer();}}
-            rows={5} style={{width:"100%", border:"none", background:"transparent", outline:"none", fontSize:13, fontFamily:"DM Sans,sans-serif", color:"#374151", resize:"vertical", lineHeight:1.6}}/>
-          <div style={{display:"flex", justifyContent:"flex-end", gap:8, marginTop:8}}>
-            <button onClick={addNote} disabled={saving} style={{background:"#9333ea", color:"#fff", border:"none", borderRadius:7, padding:"7px 18px", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>
-              {saving?"Saving…":"Save Note"}
-            </button>
-          </div>
+        {/* Tab bar */}
+        <div style={{display:"flex", gap:6, flexWrap:"wrap", marginBottom:16, borderBottom:"1.5px solid #f3e8ff", paddingBottom:12}}>
+          {/* General tab */}
+          <button onClick={()=>{setActiveTab("general"); setAdding(false); resetLockTimer();}}
+            style={{padding:"6px 14px", borderRadius:8, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"DM Sans,sans-serif", border:"none",
+              background: activeTab==="general" ? "#9333ea" : "#f3e8ff",
+              color: activeTab==="general" ? "#fff" : "#7e22ce",
+            }}>
+            📋 General
+            {notes.filter(n=>!n.apprentice_id).length > 0 &&
+              <span style={{marginLeft:5, background: activeTab==="general"?"#ffffff33":"#e9d5ff", borderRadius:99, padding:"1px 6px", fontSize:10}}>
+                {notes.filter(n=>!n.apprentice_id).length}
+              </span>
+            }
+          </button>
+          {/* One tab per apprentice */}
+          {apprentices.map(app => {
+            const count = notes.filter(n=>n.apprentice_id===app.id).length;
+            const isActive = activeTab === app.id;
+            return (
+              <button key={app.id} onClick={()=>{setActiveTab(app.id); setAdding(false); resetLockTimer();}}
+                style={{padding:"6px 14px", borderRadius:8, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"DM Sans,sans-serif", border:"none",
+                  background: isActive ? "#9333ea" : "#f3e8ff",
+                  color: isActive ? "#fff" : "#7e22ce",
+                  display:"flex", alignItems:"center", gap:6,
+                }}>
+                <span style={{width:20, height:20, borderRadius:"50%", background: isActive?"#ffffff33":"#e9d5ff",
+                  display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:700, flexShrink:0}}>
+                  {(app.firstName||app.name||"?")[0]}
+                </span>
+                {app.firstName||app.name.split(" ")[0]}
+                {count > 0 &&
+                  <span style={{background: isActive?"#ffffff33":"#e9d5ff", borderRadius:99, padding:"1px 6px", fontSize:10}}>
+                    {count}
+                  </span>
+                }
+              </button>
+            );
+          })}
         </div>
-      )}
 
-      {loading && <div style={{textAlign:"center", padding:24, color:"#9ca3af", fontSize:13}}>Loading…</div>}
-      {!loading && notes.length===0 && !adding && (
-        <div style={{textAlign:"center", padding:24, color:"#c084fc", fontSize:13, fontStyle:"italic"}}>No confidential notes yet.</div>
-      )}
-      {notes.map(n=>(
-        <div key={n.id} style={{borderBottom:"1px solid #f3e8ff", padding:"14px 0"}}>
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
-            <div style={{fontWeight:700, fontSize:13, color:"#1e1b4b", marginBottom:4}}>{n.title}</div>
-            <div style={{display:"flex", gap:6, alignItems:"center", flexShrink:0, marginLeft:12}}>
-              <div style={{fontSize:11, color:"#9ca3af"}}>{n.created_at ? new Date(n.created_at).toLocaleDateString("en-NZ",{day:"numeric",month:"short",year:"numeric"}) : ""}</div>
-              {deleteConfirm===n.id
-                ? <>
-                    <button onClick={()=>deleteNote(n.id)} style={{background:"#fde8e8", color:"#b91c1c", border:"1.5px solid #f87171", borderRadius:6, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>Confirm delete</button>
-                    <button onClick={()=>setDeleteConfirm(null)} style={{background:"#f3e8ff", color:"#6b21a8", border:"1.5px solid #d8b4fe", borderRadius:6, padding:"3px 10px", fontSize:11, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>Cancel</button>
-                  </>
-                : <button onClick={()=>setDeleteConfirm(n.id)} style={{background:"none", border:"none", color:"#d8b4fe", cursor:"pointer", fontSize:14, padding:"0 4px"}}>✕</button>
-              }
+        {/* Tab heading */}
+        <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14}}>
+          <div>
+            {activeApprentice && (
+              <div style={{fontSize:13, fontWeight:700, color:"#581c87"}}>
+                🔒 Private notes — {activeApprentice.name}
+                <span style={{fontSize:11, color:"#9333ea", fontWeight:400, marginLeft:8}}>
+                  Hidden from all other users
+                </span>
+              </div>
+            )}
+            {!activeApprentice && (
+              <div style={{fontSize:13, fontWeight:700, color:"#581c87"}}>
+                📋 General confidential notes
+              </div>
+            )}
+          </div>
+          <button onClick={()=>{setAdding(s=>!s); resetLockTimer();}}
+            style={{background:"#9333ea", color:"#fff", border:"none", borderRadius:7, padding:"6px 14px", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>
+            {adding?"✕ Cancel":"+ Add Note"}
+          </button>
+        </div>
+
+        {/* Add note form */}
+        {adding && (
+          <div style={{background:"#faf5ff", borderRadius:10, padding:16, marginBottom:16, border:"1.5px solid #d8b4fe"}}>
+            <input placeholder="Note title…" value={newTitle} onChange={e=>{setNewTitle(e.target.value);resetLockTimer();}}
+              style={{width:"100%", fontWeight:700, fontSize:14, border:"none", background:"transparent", outline:"none", marginBottom:8, fontFamily:"DM Sans,sans-serif", color:"#1e1b4b"}}/>
+            <textarea placeholder={`Enter confidential note${activeApprentice?` about ${activeApprentice.firstName||activeApprentice.name.split(" ")[0]}`:""}…`}
+              value={newBody} onChange={e=>{setNewBody(e.target.value);resetLockTimer();}}
+              rows={5} style={{width:"100%", border:"none", background:"transparent", outline:"none", fontSize:13, fontFamily:"DM Sans,sans-serif", color:"#374151", resize:"vertical", lineHeight:1.6}}/>
+            <div style={{display:"flex", justifyContent:"flex-end", marginTop:8}}>
+              <button onClick={addNote} disabled={saving}
+                style={{background:"#9333ea", color:"#fff", border:"none", borderRadius:7, padding:"7px 18px", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>
+                {saving?"Saving…":"Save Note"}
+              </button>
             </div>
           </div>
-          <div style={{fontSize:13, color:"#374151", lineHeight:1.7, whiteSpace:"pre-wrap"}}>{n.body}</div>
-        </div>
-      ))}
-    </div>
-  );
+        )}
+
+        {loading && <div style={{textAlign:"center", padding:24, color:"#9ca3af", fontSize:13}}>Loading…</div>}
+        {!loading && tabNotes.length===0 && !adding && (
+          <div style={{textAlign:"center", padding:24, color:"#c084fc", fontSize:13, fontStyle:"italic"}}>
+            {activeApprentice
+              ? `No private notes for ${activeApprentice.firstName||activeApprentice.name.split(" ")[0]} yet.`
+              : "No general notes yet."}
+          </div>
+        )}
+
+        {tabNotes.map(n=>(
+          <div key={n.id} style={{borderBottom:"1px solid #f3e8ff", padding:"14px 0"}}>
+            <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
+              <div style={{fontWeight:700, fontSize:13, color:"#1e1b4b", marginBottom:4}}>{n.title}</div>
+              <div style={{display:"flex", gap:6, alignItems:"center", flexShrink:0, marginLeft:12}}>
+                <div style={{fontSize:11, color:"#9ca3af"}}>
+                  {n.created_at ? new Date(n.created_at).toLocaleDateString("en-NZ",{day:"numeric",month:"short",year:"numeric"}) : ""}
+                </div>
+                {deleteConfirm===n.id
+                  ? <>
+                      <button onClick={()=>deleteNote(n.id)} style={{background:"#fde8e8",color:"#b91c1c",border:"1.5px solid #f87171",borderRadius:6,padding:"3px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>Confirm delete</button>
+                      <button onClick={()=>setDeleteConfirm(null)} style={{background:"#f3e8ff",color:"#6b21a8",border:"1.5px solid #d8b4fe",borderRadius:6,padding:"3px 10px",fontSize:11,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>Cancel</button>
+                    </>
+                  : <button onClick={()=>setDeleteConfirm(n.id)} style={{background:"none",border:"none",color:"#d8b4fe",cursor:"pointer",fontSize:14,padding:"0 4px"}}>✕</button>
+                }
+              </div>
+            </div>
+            <div style={{fontSize:13, color:"#374151", lineHeight:1.7, whiteSpace:"pre-wrap"}}>{n.body}</div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div style={cardStyle}>
@@ -6880,7 +6969,7 @@ export default function App() {
                 onViewList={(key)=>{setShowAppList(key);setViewingAppId(null);}}
               />
               {currentUser.email?.toLowerCase() === CONF_OWNER_EMAIL && (
-                <ConfidentialNotesCard currentUser={currentUser}/>
+                <ConfidentialNotesCard currentUser={currentUser} allUsers={users}/>
               )}
             </>
           )}
