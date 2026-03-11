@@ -1,15 +1,93 @@
-// KTA Workforce Management — v1.4.8
+// KTA Workforce Management — v1.5.0
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
 //             inline decline reason, Admin 1 delete, KTA email → admin@kta.org.nz only
 //   v1.4.8 — fix leave status reverting on refresh (updateRow vs partial upsert)
+//   v1.4.9 — add fully-approved leave to M365 team calendar (calendar-proxy edge fn)
+//   v1.5.0 — auto-fill timesheet entries for approved leave (Mon-Fri, 8hrs/day)
+//             added Bereavement Leave + Leave Without Pay to entry types
 import { useState, useEffect, useCallback, useRef } from "react";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
 
 const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/email-proxy";
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
+const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
+
+// ── Auto-fill timesheet entries for approved leave ───────────────────────────
+// Maps leave request types to timesheet entry types
+const LEAVE_TO_ENTRY_TYPE = {
+  "Annual Leave":      "Annual Leave",
+  "Sick Leave":        "Sick Leave",
+  "Bereavement Leave": "Bereavement Leave",
+  "Leave Without Pay": "Leave Without Pay",
+  "Other":             "Other",
+};
+
+// Generate one timesheet entry per working day (Mon–Fri) in the leave range
+const autoFillLeaveEntries = async (apprenticeId, leaveType, dateFrom, dateTo, existingEntries, setEntries) => {
+  const entryType = LEAVE_TO_ENTRY_TYPE[leaveType] || "Other";
+  const start = "08:00", end = "16:30", breakMins = 30;
+  const netHours = calcNet(start, end, breakMins); // 8.0
+
+  const days = [];
+  const cur = new Date(dateFrom + "T00:00:00");
+  const last = new Date(dateTo   + "T00:00:00");
+
+  while (cur <= last) {
+    const dow = cur.getDay(); // 0=Sun, 6=Sat
+    if (dow !== 0 && dow !== 6) {
+      const dateStr = cur.toISOString().slice(0, 10);
+      // Skip if entry already exists for this date
+      const exists = existingEntries.some(e => e.userId === apprenticeId && e.date === dateStr);
+      if (!exists) days.push(dateStr);
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  if (days.length === 0) return 0;
+
+  const newEntries = days.map(date => ({
+    id:        uid(),
+    userId:    apprenticeId,
+    date,
+    type:      entryType,
+    start,
+    end,
+    breakMins,
+    netHours,
+    note:      `Auto-filled from approved ${leaveType}`,
+    approval:  "draft",
+  }));
+
+  // Save all to Supabase
+  await Promise.all(newEntries.map(e => upsertEntry(e).catch(console.error)));
+
+  // Update local state
+  if (setEntries) setEntries(prev => [...newEntries, ...prev]);
+
+  return newEntries.length;
+};
+
+// Add approved leave as an all-day event on the KTA M365 team calendar
+const addLeaveToCalendar = async (apprenticeName, leaveType, dateFrom, dateTo) => {
+  try {
+    const res = await fetch(CALENDAR_PROXY, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ apprenticeName, leaveType, dateFrom, dateTo }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({}));
+      console.error("Calendar proxy error:", err.error || res.status);
+    } else {
+      console.log("Calendar event created for", apprenticeName);
+    }
+  } catch(e) {
+    console.error("addLeaveToCalendar failed:", e);
+  }
+};
 const LEAVE_TOKEN_SECRET = "kta-leave-action-secret-v1"; // must match LEAVE_TOKEN_SECRET in Supabase secrets
 
 // HMAC-SHA256 token for one-click email approve/decline (browser SubtleCrypto)
@@ -256,7 +334,7 @@ const ROLE_META = {
   "Admin 2":  { color: "#6d5fc7", bg: "#ede9ff",symbol: "☆", desc: "User management, timesheet view — cannot edit or delete messages" },
 };
 
-const ENTRY_TYPES = ["Normal Hours","Annual Leave","Sick Leave","Public Holiday","Overtime","Block Course","Other"];
+const ENTRY_TYPES = ["Normal Hours","Annual Leave","Sick Leave","Bereavement Leave","Leave Without Pay","Public Holiday","Overtime","Block Course","Other"];
 const TYPE_META = {
   "Normal Hours":   { color: T.accent, bg: T.accentL, sym: "◈" },
   "Annual Leave":   { color: T.warn,   bg: T.warnL,   sym: "☀" },
@@ -758,7 +836,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.4.8
+          v1.5.0
         </div>
       </div>
     </div>
@@ -3694,12 +3772,13 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
 }
 
 // ── Leave Request Card (single) ───────────────────────────────────────────────
-function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isApprover, onUpdate, onDelete }) {
+function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isApprover, onUpdate, onDelete, entries=[], setEntries=null }) {
   const [req, setReq]           = useState(reqProp);
   const [acting, setActing]     = useState(false);
   const [declineMode, setDeclineMode] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
   const [reasonErr, setReasonErr]  = useState("");
+  const [fillMsg, setFillMsg]   = useState("");
 
   // Keep local req in sync if parent re-renders with new data
   useEffect(()=>{ setReq(reqProp); }, [reqProp.status, reqProp.id]);
@@ -3751,7 +3830,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
         });
       }
     } else {
-      // Admin giving final KTA approval — notify apprentice
+      // Admin giving final KTA approval — notify apprentice + add to team calendar
       if(apprentice.email) {
         await sendLeaveEmail({
           to: apprentice.email,
@@ -3766,6 +3845,11 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
           ),
         });
       }
+      // Add to KTA team calendar
+      await addLeaveToCalendar(apprentice.name, req.leave_type, req.date_from, req.date_to);
+      // Auto-fill timesheet entries for each working day
+      const filled = await autoFillLeaveEntries(apprentice.id, req.leave_type, req.date_from, req.date_to, entries, setEntries);
+      if(filled > 0) setFillMsg(`✓ ${filled} timesheet ${filled===1?"entry":"entries"} auto-filled`);
     }
     setReq(updated);
     onUpdate(updated);
@@ -3865,6 +3949,9 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
       {/* Progress stepper — always visible */}
       <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${T.border}`}}>
         <LeaveStatusStepper status={req.status}/>
+        {fillMsg && (
+          <div style={{marginTop:6,fontSize:11,color:T.teal,fontWeight:600}}>{fillMsg}</div>
+        )}
       </div>
 
       {/* Inline decline reason form */}
@@ -3937,7 +4024,7 @@ function LeaveToggleCard({ currentUser, allUsers }) {
 }
 
 // ── Leave Requests Panel (Admin / Approver / Mentor) ─────────────────────────
-function LeaveRequestsPanel({ currentUser, allUsers }) {
+function LeaveRequestsPanel({ currentUser, allUsers, entries=[], setEntries=null }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [tab, setTab]           = useState("pending");
@@ -4032,6 +4119,7 @@ function LeaveRequestsPanel({ currentUser, allUsers }) {
         : shown.map(r => (
             <LeaveRequestCard key={r.id} req={r} allUsers={allUsers} currentUser={currentUser}
               isAdmin={isAdmin} isApprover={isApprover} onUpdate={handleUpdate}
+              entries={entries} setEntries={setEntries}
               onDelete={isAdmin && (currentUser?.adminLevel||1)===1 ? (id)=>setRequests(prev=>prev.filter(r=>r.id!==id)) : null}/>
           ))
       }
@@ -6162,7 +6250,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
   const xeroBlue = "#13b5ea";
   const xeroBlueDark = "#0d7bb5";
 
-  const ENTRY_TYPE_NAMES = ["Normal Hours","Annual Leave","Sick Leave","Public Holiday","Overtime","Block Course","Other"];
+  const ENTRY_TYPE_NAMES = ["Normal Hours","Annual Leave","Sick Leave","Bereavement Leave","Leave Without Pay","Public Holiday","Overtime","Block Course","Other"];
 
   const TabBtn = ({id,label,count}) => (
     <button onClick={()=>setTab(id)} style={{
@@ -8012,7 +8100,7 @@ export default function App() {
                 onViewApprenticeList={()=>{setShowAppList('apprentices');setViewingAppId(null);}}
                 onViewList={(key)=>{setShowAppList(key);setViewingAppId(null);}}
               />
-              <LeaveRequestsPanel currentUser={currentUser} allUsers={users}/>
+              <LeaveRequestsPanel currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
               {currentUser.email?.toLowerCase() === CONF_OWNER_EMAIL && (
                 <ConfidentialNotesCard currentUser={currentUser} allUsers={users}/>
               )}
@@ -8021,7 +8109,7 @@ export default function App() {
           {activeMod==="timesheet" && (
             <>
               {role==="Approver" && (
-                <LeaveRequestsPanel currentUser={currentUser} allUsers={users}/>
+                <LeaveRequestsPanel currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
               )}
               <TimesheetModule currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
               {role==="Apprentice" && (
@@ -8059,7 +8147,7 @@ export default function App() {
           )}
           {activeMod==="mentor" && role==="Mentor" && (
             <>
-              <LeaveRequestsPanel currentUser={currentUser} allUsers={users}/>
+              <LeaveRequestsPanel currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
               <MentorDashboard currentUser={currentUser} allUsers={users}/>
             </>
           )}
