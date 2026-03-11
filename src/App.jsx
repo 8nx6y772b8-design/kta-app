@@ -1,4 +1,4 @@
-// KTA Workforce Management — v1.6.3
+// KTA Workforce Management — v1.6.4
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -849,7 +849,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.6.3
+          v1.6.4
         </div>
       </div>
     </div>
@@ -6545,7 +6545,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
                     style={{fontSize:12,padding:"5px 8px",border:`1px solid ${T.border}`,borderRadius:6,background:"#fff"}}>
                     <option value="">— Select rate —</option>
                     {xeroRates.map(r=>(
-                      <option key={r.EarningsRateID} value={r.EarningsRateID}>{r.Name}</option>
+                      <option key={r.earningsRateID||r.EarningsRateID} value={r.earningsRateID||r.EarningsRateID}>{r.name||r.Name}</option>
                     ))}
                   </select>
                 ) : (
@@ -6716,7 +6716,7 @@ serve(async (req) => {
           {/* ── Section 1: Import / Merge Xero employees ── */}
           {(()=>{
             const existingXeroIds = apprentices.map(a=>a.xeroEmployeeId).filter(Boolean);
-            const unlinked = xeroEmployees.filter(xe=>!existingXeroIds.includes(xe.EmployeeID));
+            const unlinked = xeroEmployees.filter(xe=>!existingXeroIds.includes(xe.employeeID||xe.EmployeeID));
             if(!xeroEmployees.length || !unlinked.length) return null;
 
             // For each unlinked Xero employee, check if an existing KTA user matches on email
@@ -6746,11 +6746,11 @@ serve(async (req) => {
                     <span>Xero Employee</span><span>Email</span><span>KTA Match</span><span></span>
                   </div>
                   {withMatch.map(({xe,match},i)=>(
-                    <div key={xe.EmployeeID} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 110px",
+                    <div key={xe.employeeID||xe.EmployeeID} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 110px",
                       padding:"10px 14px",gap:10,alignItems:"center",fontSize:13,
                       borderBottom:i<withMatch.length-1?`1px solid ${T.border}44`:"none",
                       background:match?`${T.tealL}55`:i%2===0?T.surface:T.bg}}>
-                      <div style={{fontWeight:600}}>{xe.FirstName} {xe.LastName}</div>
+                      <div style={{fontWeight:600}}>{xe.firstName||xe.FirstName} {xe.lastName||xe.LastName}</div>
                       <div style={{fontSize:11,color:T.sub,wordBreak:"break-all"}}>{xe.Email||<span style={{color:T.muted}}>—</span>}</div>
                       <div style={{fontSize:11}}>
                         {match
@@ -6766,7 +6766,7 @@ serve(async (req) => {
                         try {
                           if(match) {
                             // ── MERGE: link Xero ID + fill empty fields on existing user ──
-                            const updates = { xero_employee_id: xe.EmployeeID };
+                            const updates = { xero_employee_id: xe.employeeID||xe.EmployeeID };
                             if(!match.email    && xe.Email)      updates.email    = xe.Email;
                             if(!match.phone    && phone)         updates.phone    = phone;
                             if(!match.trade    && xe.JobTitle)   updates.trade    = xe.JobTitle;
@@ -6775,36 +6775,36 @@ serve(async (req) => {
                             if(!match.city     && xe.City)       updates.city     = xe.City;
                             if(!match.postcode && xe.PostCode)   updates.postcode = xe.PostCode;
                             await updateRow('users', match.id, updates);
-                            onImportUser({...match, xeroEmployeeId: xe.EmployeeID, ...Object.fromEntries(
+                            onImportUser({...match, xeroEmployeeId: xe.employeeID||xe.EmployeeID, ...Object.fromEntries(
                               Object.entries(updates).map(([k,v])=>[k.replace(/_([a-z])/g,(_,c)=>c.toUpperCase()),v])
                             )});
-                            setXeroEmployees(prev=>prev.filter(e=>e.EmployeeID!==xe.EmployeeID));
+                            setXeroEmployees(prev=>prev.filter(e=>e.EmployeeID!==xe.employeeID||xe.EmployeeID));
                             showToast(`✓ Merged Xero data into ${match.name}`);
                           } else {
                             // ── IMPORT: create new Apprentice ──
                             const newId = uid();
                             const newUser = {
-                              id: newId, name: `${xe.FirstName} ${xe.LastName}`,
-                              firstName: xe.FirstName, lastName: xe.LastName,
+                              id: newId, name: `${xe.firstName||xe.FirstName} ${xe.lastName||xe.LastName}`,
+                              firstName: xe.firstName||xe.FirstName, lastName: xe.lastName||xe.LastName,
                               email: xe.Email||"", phone,
                               trade: xe.JobTitle||"", address: xe.Address1||"",
                               suburb: xe.Suburb||"", city: xe.City||"", postcode: xe.PostCode||"",
-                              licenceExpiry:"", xeroEmployeeId: xe.EmployeeID,
+                              licenceExpiry:"", xeroEmployeeId: xe.employeeID||xe.EmployeeID,
                               role:"Apprentice", password:"changeme123", allocatedTo:[], adminLevel:1,
                             };
                             await upsertRow('users', {
                               id: newId, name: newUser.name,
-                              first_name: xe.FirstName, last_name: xe.LastName,
+                              first_name: xe.firstName||xe.FirstName, last_name: xe.lastName||xe.LastName,
                               email: newUser.email, phone, role:"Apprentice",
                               password:"changeme123", allocated_to:[],
                               trade: xe.JobTitle||null, address: xe.Address1||null,
                               suburb: xe.Suburb||null, city: xe.City||null,
                               postcode: xe.PostCode||null, licence_expiry:null,
-                              xero_employee_id: xe.EmployeeID, admin_level:1,
+                              xero_employee_id: xe.employeeID||xe.EmployeeID, admin_level:1,
                             });
                             onImportUser(newUser);
-                            setXeroEmployees(prev=>prev.filter(e=>e.EmployeeID!==xe.EmployeeID));
-                            showToast(`✓ ${xe.FirstName} ${xe.LastName} imported as Apprentice`);
+                            setXeroEmployees(prev=>prev.filter(e=>e.EmployeeID!==xe.employeeID||xe.EmployeeID));
+                            showToast(`✓ ${xe.firstName||xe.FirstName} ${xe.lastName||xe.LastName} imported as Apprentice`);
                           }
                         } catch(e) { alert((match?"Merge":"Import")+" failed: "+e.message); }
                       }} style={{fontSize:12,padding:"5px 10px",borderRadius:6,fontWeight:600,
@@ -6849,8 +6849,8 @@ serve(async (req) => {
                       borderRadius:6,width:"100%",boxSizing:"border-box",background:"#fff"}}>
                     <option value="">— Select Xero employee —</option>
                     {xeroEmployees.map(xe=>(
-                      <option key={xe.EmployeeID} value={xe.EmployeeID}>
-                        {xe.FirstName} {xe.LastName}
+                      <option key={xe.employeeID||xe.EmployeeID} value={xe.employeeID||xe.EmployeeID}>
+                        {xe.firstName||xe.FirstName} {xe.lastName||xe.LastName}
                       </option>
                     ))}
                   </select>
