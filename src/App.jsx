@@ -2,7 +2,27 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
 
-const EMAIL_PROXY = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/email-proxy";
+const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/email-proxy";
+const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
+const LEAVE_TOKEN_SECRET = "kta-leave-action-secret-v1"; // must match LEAVE_TOKEN_SECRET in Supabase secrets
+
+// HMAC-SHA256 token for one-click email approve/decline (browser SubtleCrypto)
+const signLeaveToken = async (payload) => {
+  const enc  = new TextEncoder();
+  const key  = await crypto.subtle.importKey("raw", enc.encode(LEAVE_TOKEN_SECRET),
+    { name:"HMAC", hash:"SHA-256" }, false, ["sign"]);
+  const data = enc.encode(JSON.stringify(payload));
+  const sig  = await crypto.subtle.sign("HMAC", key, data);
+  const b64  = btoa(String.fromCharCode(...new Uint8Array(sig)))
+    .replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
+  return btoa(JSON.stringify(payload)) + "." + b64;
+};
+
+const leaveActionUrl = async (leaveId, action, actorId, actorRole) => {
+  const exp     = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+  const token   = await signLeaveToken({ id: leaveId, action, actorId, actorRole, exp });
+  return `${LEAVE_ACTION_URL}?token=${token}`;
+};
 const sendKTAEmail = async ({ to, subject, html, attachments }) => {
   const res = await fetch(EMAIL_PROXY, {
     method: "POST",
@@ -3473,6 +3493,18 @@ const leaveDetailTable = (req, apprenticeName, approverName) => `
   ${req.notes ? `<tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:700">Notes</td><td style="padding:8px 12px">${req.notes}</td></tr>` : ""}
 </table>`;
 
+// Async — call with await, embed result in email HTML
+const leaveActionButtons = async (leaveId, actorId, actorRole) => {
+  const appUrl = await leaveActionUrl(leaveId, "approve", actorId, actorRole);
+  const decUrl = await leaveActionUrl(leaveId, "decline", actorId, actorRole);
+  return `
+<div style="margin:24px 0;display:flex;gap:12px;flex-wrap:wrap">
+  <a href="${appUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:8px;padding:12px 28px;font-size:14px;font-weight:700;text-decoration:none;font-family:DM Sans,Arial,sans-serif">✓ Approve Leave</a>
+  <a href="${decUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:8px;padding:12px 28px;font-size:14px;font-weight:700;text-decoration:none;font-family:DM Sans,Arial,sans-serif">✕ Decline Leave</a>
+</div>
+<p style="font-size:11px;color:#8fa0b8;margin-top:4px">These buttons record your response immediately — no login required. Links expire in 7 days.</p>`;
+};
+
 const fmtDateNZ = (iso) => {
   if(!iso) return "—";
   const [y,m,d] = iso.split("-");
@@ -3510,15 +3542,15 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
     };
     await upsertRow("leave_requests", req).catch(console.error);
 
-    // Email to approver
+    // Email to approver (with one-click approve/decline buttons)
     if(approver?.email) {
+      const buttons = await leaveActionButtons(req.id, approver.id, "approver");
       await sendLeaveEmail({
         to: approver.email,
         subject: `Leave Request — ${currentUser.name} (${form.leaveType})`,
         html: leaveEmailHtml(
           `<strong>${currentUser.name}</strong> has submitted a leave request requiring your approval.`,
-          leaveDetailTable(req, currentUser.name, approver.name) +
-          `<p style="font-size:13px;color:#4a5a72">Please log in to the KTA system to approve or decline this request.</p>`
+          leaveDetailTable(req, currentUser.name, approver.name) + buttons
         ),
       });
     }
@@ -3639,16 +3671,16 @@ function LeaveRequestCard({ req, allUsers, currentUser, isAdmin, isApprover, onU
           ),
         });
       }
-      // Forward to all Admin 1 users
+      // Forward to all Admin 1 users (with one-click approve/decline buttons)
       for(const admin of admin1s) {
         if(admin.email) {
+          const buttons = await leaveActionButtons(req.id, admin.id, "admin");
           await sendLeaveEmail({
             to: admin.email,
             subject: `Leave Request for KTA Approval — ${apprentice.name} (${req.leave_type})`,
             html: leaveEmailHtml(
-              `A leave request from <strong>${apprentice.name}</strong> has been approved by their approver and requires KTA approval.`,
-              leaveDetailTable(req, apprentice.name, approver.name) +
-              `<p style="font-size:13px;color:#4a5a72">Please log in to the KTA system to give final approval.</p>`
+              `A leave request from <strong>${apprentice.name}</strong> has been approved by their approver and requires KTA final approval.`,
+              leaveDetailTable(req, apprentice.name, approver.name) + buttons
             ),
           });
         }
