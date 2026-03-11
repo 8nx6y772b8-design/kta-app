@@ -1,4 +1,4 @@
-// KTA Workforce Management — v1.5.6
+// KTA Workforce Management — v1.5.7
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -13,6 +13,7 @@
 //   v1.5.4 — leave card shows colour-coded breakdown by status
 //   v1.5.5 — leave card opens full page; awaiting KTA listed first; consistent card height
 //   v1.5.6 — conf notes PIN stored in Supabase (fixes mobile PIN reset issue)
+//   v1.5.7 — fix admin delete leave (use deleteRow); remove large leave panel from dashboard
 import { useState, useEffect, useCallback, useRef } from "react";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
@@ -842,7 +843,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.5.6
+          v1.5.7
         </div>
       </div>
     </div>
@@ -3918,10 +3919,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
             {isAdmin1 && onDelete && !acting && (
               <button onClick={async ()=>{
                 if(!window.confirm(`Delete this leave request from ${apprentice.name}? This cannot be undone.`)) return;
-                await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/leave_requests?id=eq.${req.id}`, {
-                  method:"DELETE",
-                  headers:{ apikey:import.meta.env.VITE_SUPABASE_ANON_KEY, Authorization:`Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` }
-                }).catch(console.error);
+                await deleteRow("leave_requests", req.id).catch(console.error);
                 onDelete(req.id);
               }}
                 title="Delete leave request"
@@ -8264,8 +8262,7 @@ export default function App() {
                 onViewTimesheets={()=>setModule("timesheet")}
                 onViewLeave={()=>{ setShowAppList("leave"); setViewingAppId(null); }}
               />
-              <LeaveOverviewCard allUsers={users}/>
-              <LeaveRequestsPanel currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
+
               {currentUser.email?.toLowerCase() === CONF_OWNER_EMAIL && (
                 <ConfidentialNotesCard currentUser={currentUser} allUsers={users}/>
               )}
