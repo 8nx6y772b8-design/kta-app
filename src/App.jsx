@@ -1,4 +1,4 @@
-// KTA Workforce Management — v1.5.9
+// KTA Workforce Management — v1.6.0
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -16,6 +16,7 @@
 //   v1.5.7 — fix admin delete leave (use deleteRow); remove large leave panel from dashboard
 //   v1.5.8 — fix delete button not showing for Admin 1 on leave requests page
 //   v1.5.9 — fix delete hidden on approved/declined leave (was inside canApprove guard)
+//   v1.6.0 — Xero settings moved from localStorage to Supabase; edge fn uses refresh_token
 import { useState, useEffect, useCallback, useRef } from "react";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
@@ -845,7 +846,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.5.9
+          v1.6.0
         </div>
       </div>
     </div>
@@ -6340,7 +6341,11 @@ const calcOvertimeSplit = (entry, apprentice, allEntries) => {
 };
 
 const submitEntryToXero = async (entry, apprentice, allEntries=[]) => {
-  const xeroSettings = JSON.parse(localStorage.getItem("kta_xero_settings")||"{}");
+  let xeroSettings = {};
+  try {
+    const {data} = await sb.from("app_settings").select("value").eq("key","xero_settings").single();
+    if(data?.value) xeroSettings = JSON.parse(data.value);
+  } catch {}
   const { edgeFunctionUrl, tenantId, earningsRates = {} } = xeroSettings;
 
   if(!edgeFunctionUrl) return { ok: false, error: "Xero not configured. Set up in the Xero module." };
@@ -6384,10 +6389,17 @@ const submitEntryToXero = async (entry, apprentice, allEntries=[]) => {
 // ── Xero Module — Admin 1 only ────────────────────────────────────────────────
 function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast, onImportUser}) {
   const [tab, setTab]             = useState("setup");     // "setup"|"employees"|"pending"|"history"
-  const [settings, setSettings]   = useState(()=>{
-    try{ return JSON.parse(localStorage.getItem("kta_xero_settings")||"{}"); }catch{ return {}; }
-  });
+  const [settings, setSettings]   = useState({});
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [saved, setSaved]         = useState(false);
+
+  // Load Xero settings from Supabase on mount
+  useEffect(()=>{
+    sb.from("app_settings").select("value").eq("key","xero_settings").single()
+      .then(({data})=>{ if(data?.value) setSettings(JSON.parse(data.value)); })
+      .catch(()=>{})
+      .finally(()=>setSettingsLoaded(true));
+  },[]);
   const [empMap, setEmpMap]               = useState({}); // userId -> xeroEmployeeId (local edits)
   const [xeroEmployees, setXeroEmployees] = useState([]); // loaded from Xero
   const [xeroRates, setXeroRates]         = useState([]); // earnings rates loaded from Xero
@@ -6400,8 +6412,8 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
   const submittedXero = approvedEntries.filter(e=>e.xeroStatus==="submitted");
 
   const ss = (k,v) => setSettings(s=>({...s,[k]:v}));
-  const saveSettings = () => {
-    localStorage.setItem("kta_xero_settings", JSON.stringify(settings));
+  const saveSettings = async () => {
+    await sb.from("app_settings").upsert({key:"xero_settings", value: JSON.stringify(settings)}, {onConflict:"key"});
     setSaved(true); setTimeout(()=>setSaved(false), 2000);
   };
 
