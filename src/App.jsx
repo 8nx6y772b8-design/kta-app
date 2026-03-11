@@ -3950,6 +3950,9 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
 // ── Apprentice Detail Page (used by both Mentor and Admin) ────────────────────
 function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, isAdmin=false}) {
   const [showMeetingForm, setShowMeetingForm] = useState(false);
+  const [showPastReports, setShowPastReports] = useState(false);
+  const [showPPE, setShowPPE]                 = useState(false);
+  const [showActivity, setShowActivity]       = useState(false);
   const [meetingKey, setMeetingKey]           = useState(0);
   const [lastVisit, setLastVisit]             = useState(null);
   const [loadingVisit, setLoadingVisit]       = useState(true);
@@ -4143,74 +4146,149 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
         </Card>
       )}
 
-      {/* ── New Meeting Report ── */}
-      <Card style={{marginBottom:16}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:showMeetingForm?16:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📋</div>
-            <div>
-              <div style={{fontWeight:700,fontSize:15}}>New Meeting Report</div>
-              <div style={{fontSize:12,color:T.sub}}>Record a visit or check-in with {apprentice.name}</div>
+      {/* ── Meeting Reports + PPE + Activity — compact row for admin ── */}
+      {isAdmin ? (
+        <>
+          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:12}}>
+            {/* New Meeting Report */}
+            <button onClick={()=>{setShowMeetingForm(s=>!s); setShowPastReports(false); setShowPPE(false); setShowActivity(false);}}
+              style={{width:"100%", background:showMeetingForm?T.accentL:T.surface, border:`1.5px solid ${showMeetingForm?T.accent:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+              <div style={{display:"flex", alignItems:"center", gap:8}}>
+                <div style={{width:28,height:28,borderRadius:7,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>📋</div>
+                <div style={{minWidth:0}}>
+                  <div style={{fontWeight:700, fontSize:12, color:showMeetingForm?T.accent:T.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>New Report</div>
+                  <div style={{fontSize:10, color:T.sub, marginTop:1}}>Record a visit</div>
+                </div>
+                <div style={{marginLeft:"auto", fontSize:11, color:T.muted, flexShrink:0}}>{showMeetingForm?"▲":"▼"}</div>
+              </div>
+            </button>
+            {/* Past Reports */}
+            <button onClick={()=>{setShowPastReports(s=>!s); setShowMeetingForm(false); setShowPPE(false); setShowActivity(false);}}
+              style={{width:"100%", background:showPastReports?T.goldL:T.surface, border:`1.5px solid ${showPastReports?T.gold:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+              <div style={{display:"flex", alignItems:"center", gap:8}}>
+                <div style={{width:28,height:28,borderRadius:7,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>📁</div>
+                <div style={{minWidth:0}}>
+                  <div style={{fontWeight:700, fontSize:12, color:showPastReports?T.gold:T.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>Past Reports</div>
+                  <div style={{fontSize:10, color:T.sub, marginTop:1}}>Visit history</div>
+                </div>
+                <div style={{marginLeft:"auto", fontSize:11, color:T.muted, flexShrink:0}}>{showPastReports?"▲":"▼"}</div>
+              </div>
+            </button>
+            {/* PPE */}
+            <button onClick={()=>{setShowPPE(s=>!s); setShowMeetingForm(false); setShowPastReports(false); setShowActivity(false);}}
+              style={{width:"100%", background:showPPE?T.tealL:T.surface, border:`1.5px solid ${showPPE?T.teal:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+              <div style={{display:"flex", alignItems:"center", gap:8}}>
+                <div style={{width:28,height:28,borderRadius:7,background:T.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>🦺</div>
+                <div style={{minWidth:0}}>
+                  <div style={{fontWeight:700, fontSize:12, color:showPPE?T.teal:T.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>PPE</div>
+                  <div style={{fontSize:10, color:T.sub, marginTop:1}}>Equipment issued</div>
+                </div>
+                <div style={{marginLeft:"auto", fontSize:11, color:T.muted, flexShrink:0}}>{showPPE?"▲":"▼"}</div>
+              </div>
+            </button>
+            {/* Activity */}
+            <button onClick={()=>{setShowActivity(s=>!s); setShowMeetingForm(false); setShowPastReports(false); setShowPPE(false);}}
+              style={{width:"100%", background:showActivity?T.slateL:T.surface, border:`1.5px solid ${showActivity?T.slate:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+              <div style={{display:"flex", alignItems:"center", gap:8}}>
+                <div style={{width:28,height:28,borderRadius:7,background:T.slateL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>📬</div>
+                <div style={{minWidth:0}}>
+                  <div style={{fontWeight:700, fontSize:12, color:showActivity?T.slate:T.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>Activity</div>
+                  <div style={{fontSize:10, color:T.sub, marginTop:1}}>Emails & notes</div>
+                </div>
+                <div style={{marginLeft:"auto", fontSize:11, color:T.muted, flexShrink:0}}>{showActivity?"▲":"▼"}</div>
+              </div>
+            </button>
+          </div>
+
+          {/* Expanded panels */}
+          {showMeetingForm && (
+            <Card style={{marginBottom:16}}>
+              <MeetingReportForm
+                apprentice={apprentice}
+                mentor={viewer}
+                allUsers={allUsers}
+                onSave={()=>{ setShowMeetingForm(false); setMeetingKey(k=>k+1); }}
+                onCancel={()=>setShowMeetingForm(false)}
+              />
+            </Card>
+          )}
+          {showPastReports && (
+            <Card style={{marginBottom:16}}>
+              <PastMeetingReports key={meetingKey} apprentice={apprentice} allUsers={allUsers} canEdit={true}/>
+            </Card>
+          )}
+          {showPPE && (
+            <Card style={{marginBottom:16}}>
+              <PPEAllocation apprentice={apprentice} mentor={viewer} canEdit={true}/>
+            </Card>
+          )}
+          {showActivity && apprentice.email && (
+            <Card style={{marginBottom:16}}>
+              <EmailActivityFeed
+                personEmail={apprentice.email}
+                personName={apprentice.name}
+                personId={apprentice.id}
+                canEdit={true}
+                extraItems={reports.map(r=>({
+                  id: r.id,
+                  created_at: r.created_at||r.date+"T12:00:00",
+                  date: r.date,
+                  label: `Meeting Report — ${r.date ? (()=>{const [y,m,d]=r.date.split('-');return`${d}/${m}/${y}`;})() : ""}`,
+                  detail: r.goals_this_meeting ? `Goals: ${r.goals_this_meeting}` : r.comments_feedback||"",
+                }))}
+              />
+            </Card>
+          )}
+        </>
+      ) : null}
+
+      {/* Full cards for mentor view */}
+      {!isAdmin && (
+        <>
+          <Card style={{marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:showMeetingForm?16:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📋</div>
+                <div>
+                  <div style={{fontWeight:700,fontSize:15}}>New Meeting Report</div>
+                  <div style={{fontSize:12,color:T.sub}}>Record a visit or check-in with {apprentice.name}</div>
+                </div>
+              </div>
+              {!showMeetingForm&&<Btn onClick={()=>setShowMeetingForm(true)}>+ New Report</Btn>}
             </div>
-          </div>
-          {!showMeetingForm&&<Btn onClick={()=>setShowMeetingForm(true)}>+ New Report</Btn>}
-        </div>
-        {showMeetingForm&&(
-          <MeetingReportForm
-            apprentice={apprentice}
-            mentor={viewer}
-            allUsers={allUsers}
-            onSave={(report)=>{
-              setShowMeetingForm(false);
-              setMeetingKey(k=>k+1);
-            }}
-            onCancel={()=>setShowMeetingForm(false)}
-          />
-        )}
-      </Card>
-
-      {/* ── Past Meeting Reports ── */}
-      <Card style={{marginBottom:16}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-          <div style={{width:36,height:36,borderRadius:10,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📁</div>
-          <div>
-            <div style={{fontWeight:700,fontSize:15}}>Past Meeting Reports</div>
-            <div style={{fontSize:12,color:T.sub}}>History of all visits with {apprentice.name}</div>
-          </div>
-        </div>
-        <PastMeetingReports key={meetingKey} apprentice={apprentice} allUsers={allUsers} canEdit={true}/>
-      </Card>
-
-      {/* ── PPE Allocation ── */}
-      <Card style={{marginBottom:16}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-          <div style={{width:36,height:36,borderRadius:10,background:T.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🦺</div>
-          <div>
-            <div style={{fontWeight:700,fontSize:15}}>PPE Allocation</div>
-            <div style={{fontSize:12,color:T.sub}}>Personal protective equipment issued to {apprentice.name}</div>
-          </div>
-        </div>
-        <PPEAllocation apprentice={apprentice} mentor={viewer} canEdit={true}/>
-      </Card>
-
-      {/* ── Activity & Email Timeline ── */}
-      {apprentice.email && (
-        <Card style={{marginBottom:16}}>
-          <EmailActivityFeed
-            personEmail={apprentice.email}
-            personName={apprentice.name}
-            personId={apprentice.id}
-            canEdit={true}
-            extraItems={reports.map(r=>({
-              id: r.id,
-              created_at: r.created_at||r.date+"T12:00:00",
-              date: r.date,
-              label: `Meeting Report — ${r.date ? (()=>{const [y,m,d]=r.date.split('-');return`${d}/${m}/${y}`;})() : ""}`,
-              detail: r.goals_this_meeting ? `Goals: ${r.goals_this_meeting}` : r.comments_feedback||"",
-            }))}
-          />
-        </Card>
+            {showMeetingForm&&(
+              <MeetingReportForm
+                apprentice={apprentice}
+                mentor={viewer}
+                allUsers={allUsers}
+                onSave={()=>{ setShowMeetingForm(false); setMeetingKey(k=>k+1); }}
+                onCancel={()=>setShowMeetingForm(false)}
+              />
+            )}
+          </Card>
+          <Card style={{marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+              <div style={{width:36,height:36,borderRadius:10,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📁</div>
+              <div>
+                <div style={{fontWeight:700,fontSize:15}}>Past Meeting Reports</div>
+                <div style={{fontSize:12,color:T.sub}}>History of all visits with {apprentice.name}</div>
+              </div>
+            </div>
+            <PastMeetingReports key={meetingKey} apprentice={apprentice} allUsers={allUsers} canEdit={true}/>
+          </Card>
+          <Card style={{marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+              <div style={{width:36,height:36,borderRadius:10,background:T.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🦺</div>
+              <div>
+                <div style={{fontWeight:700,fontSize:15}}>PPE Allocation</div>
+                <div style={{fontSize:12,color:T.sub}}>Personal protective equipment issued to {apprentice.name}</div>
+              </div>
+            </div>
+            <PPEAllocation apprentice={apprentice} mentor={viewer} canEdit={true}/>
+          </Card>
+        </>
       )}
+
     </div>
   );
 }
