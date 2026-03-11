@@ -1,4 +1,4 @@
-// KTA Workforce Management — v1.5.7
+// KTA Workforce Management — v1.5.8
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -14,6 +14,7 @@
 //   v1.5.5 — leave card opens full page; awaiting KTA listed first; consistent card height
 //   v1.5.6 — conf notes PIN stored in Supabase (fixes mobile PIN reset issue)
 //   v1.5.7 — fix admin delete leave (use deleteRow); remove large leave panel from dashboard
+//   v1.5.8 — fix delete button not showing for Admin 1 on leave requests page
 import { useState, useEffect, useCallback, useRef } from "react";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
@@ -843,7 +844,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.5.7
+          v1.5.8
         </div>
       </div>
     </div>
@@ -4051,7 +4052,7 @@ function LeaveRequestsListPage({ currentUser, allUsers, entries, setEntries }) {
         <LeaveRequestCard key={r.id} req={r} allUsers={allUsers} currentUser={currentUser}
           isAdmin={true} isApprover={false} onUpdate={handleUpdate}
           entries={entries} setEntries={setEntries}
-          onDelete={(currentUser?.adminLevel||1)===1 ? (id)=>setRequests(prev=>prev.filter(x=>x.id!==id)) : null}/>
+          onDelete={(id)=>setRequests(prev=>prev.filter(x=>x.id!==id))}/>
       ))}
     </div>
   );
@@ -4265,7 +4266,7 @@ function LeaveRequestsPanel({ currentUser, allUsers, entries=[], setEntries=null
             <LeaveRequestCard key={r.id} req={r} allUsers={allUsers} currentUser={currentUser}
               isAdmin={isAdmin} isApprover={isApprover} onUpdate={handleUpdate}
               entries={entries} setEntries={setEntries}
-              onDelete={isAdmin && (currentUser?.adminLevel||1)===1 ? (id)=>setRequests(prev=>prev.filter(r=>r.id!==id)) : null}/>
+              onDelete={(id)=>setRequests(prev=>prev.filter(r=>r.id!==id))}/>
           ))
       }
     </Card>
