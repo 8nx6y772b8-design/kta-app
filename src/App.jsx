@@ -1,4 +1,4 @@
-// KTA Workforce Management — v1.5.3
+// KTA Workforce Management — v1.5.4
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -10,6 +10,7 @@
 //   v1.5.1 — leave overview card in admin dashboard timesheet section (colour-coded table)
 //   v1.5.2 — timesheets moved to stat card; dashboard no longer shows full timesheet grid
 //   v1.5.3 — leave requests stat card added; clicking scrolls to leave panel
+//   v1.5.4 — leave card shows colour-coded breakdown by status
 import { useState, useEffect, useCallback, useRef } from "react";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
@@ -839,7 +840,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.5.3
+          v1.5.4
         </div>
       </div>
     </div>
@@ -3275,14 +3276,16 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
   // Timesheet summary for stat card
   const pendingCount  = entries.filter(e=>e.approval==="submitted").length;
   const activeApps    = apprentices.filter(a=>entries.some(e=>e.userId===a.id)).length;
-  const [leaveStats, setLeaveStats] = useState({total:0, pending:0, awaiting:0});
+  const [leaveStats, setLeaveStats] = useState({total:0, pending:0, approver_approved:0, kta_approved:0, declined:0});
   useEffect(()=>{
     loadTable("leave_requests").then(rows=>{
       const r = rows||[];
       setLeaveStats({
-        total:   r.length,
-        pending: r.filter(x=>x.status==="pending"||x.status==="approver_approved").length,
-        awaiting: r.filter(x=>x.status==="approver_approved").length,
+        total:             r.length,
+        pending:           r.filter(x=>x.status==="pending").length,
+        approver_approved: r.filter(x=>x.status==="approver_approved").length,
+        kta_approved:      r.filter(x=>x.status==="kta_approved").length,
+        declined:          r.filter(x=>x.status==="declined").length,
       });
     }).catch(()=>{});
   },[]);
@@ -3323,17 +3326,27 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
     leave: (
       <button onClick={onViewLeave} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
         onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
-        <Card style={{paddingBlock:18,border:`1.5px solid ${leaveStats.pending>0?T.warn:T.hol}44`,height:"100%"}}>
-          <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Leave Requests</div>
-          <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:2}}>
-            <div style={{fontSize:24,fontWeight:700,color:leaveStats.pending>0?T.warn:T.hol,fontFamily:"'Libre Baskerville'"}}>{leaveStats.total}</div>
-            {leaveStats.pending>0&&<div style={{fontSize:11,color:T.warn,fontWeight:600}}>{leaveStats.pending} pending</div>}
-          </div>
-          <div style={{fontSize:11,color:T.sub,marginTop:2}}>total requests</div>
-          {leaveStats.pending>0
-            ? <div style={{fontSize:11,color:T.warn,marginTop:6,fontWeight:600}}>⚠ Needs attention</div>
-            : <div style={{fontSize:11,color:T.hol,marginTop:6,fontWeight:600}}>View all requests →</div>
-          }
+        <Card style={{paddingBlock:18,border:`1.5px solid ${leaveStats.pending>0||leaveStats.approver_approved>0?T.warn:T.hol}44`,height:"100%"}}>
+          <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:8}}>Leave Requests</div>
+          {[
+            { label:"Awaiting Approver", count:leaveStats.pending,           color:"#b86e1a", bg:"#faebd7" },
+            { label:"Awaiting KTA",      count:leaveStats.approver_approved,  color:"#1b4f8c", bg:"#dce8f7" },
+            { label:"Approved",          count:leaveStats.kta_approved,       color:"#1a6b3a", bg:"#d4f0e0" },
+            { label:"Declined",          count:leaveStats.declined,           color:"#bf2b2b", bg:"#fde8e8" },
+          ].map(s=>(
+            <div key={s.label} style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}>
+              <div style={{display:"flex",alignItems:"center",gap:5}}>
+                <span style={{width:7,height:7,borderRadius:"50%",background:s.color,display:"inline-block",flexShrink:0}}/>
+                <span style={{fontSize:11,color:T.sub}}>{s.label}</span>
+              </div>
+              <span style={{fontSize:12,fontWeight:700,color:s.count>0?s.color:T.muted,
+                background:s.count>0?s.bg:"transparent",borderRadius:99,
+                padding:s.count>0?"1px 8px":"1px 4px",minWidth:20,textAlign:"center"}}>
+                {s.count}
+              </span>
+            </div>
+          ))}
+          <div style={{fontSize:11,color:T.hol,marginTop:8,fontWeight:600}}>View & manage →</div>
         </Card>
       </button>
     ),
