@@ -3556,12 +3556,12 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver) => {
   const recipients = [
     { email: apprentice.email, name: apprentice.name },
     approver ? { email: approver.email, name: approver.name } : null,
-  ].filter(r=>r&&r.email);
+  ].filter(r => r && r.email && r.email.trim());
   const htmlLines = lines.replace(/\n/g, "<br>");
   for(const r of recipients) {
     try {
       await sendKTAEmail({
-        to: r.email,
+        to: r.email.trim(),
         subject: `Apprentice Check In Report — ${apprentice.name}`,
         html: `<p>Hi ${r.name},</p>
 <p>Please find below the apprentice check in report for <strong>${apprentice.name}</strong>.</p>
@@ -3569,7 +3569,10 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver) => {
 <pre style="font-family:monospace;font-size:13px;line-height:1.6">${lines}</pre>
 <p style="color:#888;font-size:12px">KTA Workforce Management · timesheet@kta.org.nz</p>`,
       });
-    } catch(e) { console.error("Meeting report email failed:", e); }
+    } catch(e) {
+      console.error(`Meeting report email failed for ${r.email}:`, e);
+      throw new Error(`Email to ${r.email} failed: ${e.message}`);
+    }
   }
 };
 
@@ -3628,8 +3631,19 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
       setEmailStatus("sending");
       await sendMeetingReportEmail(report, apprentice, mentor, approver);
       setEmailStatus("sent");
-      setTimeout(()=>onSave(report), 900);
-    } catch(e) { alert("Failed to save: " + e.message); setSaving(false); }
+      setTimeout(()=>onSave(report), 1200);
+    } catch(e) {
+      console.error("Report save/email error:", e);
+      setEmailStatus("error");
+      // Report was saved — email failed
+      if(e.message?.includes("Email")) {
+        alert(`Report saved, but email failed:\n${e.message}\n\nCheck that the email-proxy Edge Function is deployed and MS_ secrets are set in Supabase.`);
+        setTimeout(()=>onSave(report), 500);
+      } else {
+        alert("Failed to save report: " + e.message);
+      }
+      setSaving(false);
+    }
   };
 
   return (
@@ -3703,11 +3717,13 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
         <div style={{fontSize:12,color:T.accent,marginBottom:12,padding:"8px 12px",
           background:T.accentL,borderRadius:7,border:`1px solid ${T.accent}33`}}>
           📧 On save this report will be emailed to:
-          <strong> {apprentice.name}</strong>{apprentice.email?` (${apprentice.email})`:` — no email set`}
-          {approver&&<>, <strong>{approver.name}</strong>{approver.email?` (${approver.email})`:""}</>}
+          <strong> {apprentice.name}</strong>{apprentice.email?` (${apprentice.email})`:` — ⚠ no email set`}
+          {approver&&<>, <strong>{approver.name}</strong>{approver.email?` (${approver.email})`:` — ⚠ no email set`}</>}
+          {!approver&&<span style={{color:T.warn}}> — ⚠ no approver linked to this apprentice</span>}
         </div>
         {emailStatus==="sending"&&<div style={{background:T.warnL,border:`1px solid ${T.warn}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:12,color:T.warn}}>⏳ Sending emails…</div>}
         {emailStatus==="sent"&&<div style={{background:T.tealL,border:`1px solid ${T.teal}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:12,color:T.teal}}>✓ Saved and emailed!</div>}
+        {emailStatus==="error"&&<div style={{background:T.redL,border:`1px solid ${T.red}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:12,color:T.red}}>⚠ Report saved but email failed — check Edge Function deployment.</div>}
         <div style={{display:"flex",gap:8}}>
           <Btn onClick={handleSave} disabled={saving}>{saving?"Saving…":"💾 Save & Email Report"}</Btn>
           <Btn v="ghost" onClick={onCancel}>Cancel</Btn>
