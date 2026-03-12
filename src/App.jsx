@@ -6404,13 +6404,19 @@ const submitEntryToXero = async (entry, apprentice, allEntries=[]) => {
   if(!tenantId)         return { ok: false, error: "Xero Tenant ID not configured." };
   if(!apprentice.xeroEmployeeId) return { ok: false, error: `No Xero Employee ID for ${apprentice.name}` };
 
-  const normalRateId = earningsRates[entry.type];
-  if(!normalRateId) return { ok: false, error: `No Xero Earnings Rate mapped for "${entry.type}"` };
+  const mappedValue = earningsRates[entry.type]; // e.g. "rate:abc123" or "leave:def456" or bare ID
+  if(!mappedValue) return { ok: false, error: `No Xero rate/leave type mapped for "${entry.type}"` };
+
+  const isLeaveMapping = mappedValue.startsWith("leave:");
+  const mappedId = mappedValue.startsWith("rate:") || mappedValue.startsWith("leave:")
+    ? mappedValue.split(":")[1]
+    : mappedValue; // bare ID (legacy)
 
   // Calculate overtime split
   const splits = calcOvertimeSplit(entry, apprentice, allEntries);
   const lines = splits.map(s => ({
-    earningsRateId: s.isOvertime ? apprentice.overtimeRateId : normalRateId,
+    earningsRateId: s.isOvertime ? apprentice.overtimeRateId : (isLeaveMapping ? null : mappedId),
+    leaveTypeId:    (!s.isOvertime && isLeaveMapping) ? mappedId : null,
     hours: s.hours,
     isOvertime: s.isOvertime,
   }));
@@ -6455,6 +6461,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
   const [empMap, setEmpMap]               = useState({}); // userId -> xeroEmployeeId (local edits)
   const [xeroEmployees, setXeroEmployees] = useState([]); // loaded from Xero
   const [xeroRates, setXeroRates]         = useState([]); // earnings rates loaded from Xero
+  const [xeroLeaveTypes, setXeroLeaveTypes] = useState([]); // leave types loaded from Xero
   const [savingMap, setSavingMap] = useState({});
 
 
@@ -6558,12 +6565,12 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
             </div>
 
             <div style={{fontWeight:700,fontSize:14,marginBottom:12,marginTop:4,color:T.ink,borderTop:`1px solid ${T.border}`,paddingTop:16}}>
-              Earnings Rate Mapping
+              Payroll Mapping
             </div>
             <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
-              Map each KTA entry type to a Xero Earnings Rate. Click <strong>Load from Xero</strong> to pull your rates automatically.
+              Map each KTA entry type to a Xero <strong>Earnings Rate</strong> or <strong>Leave Type</strong>. Click Load to pull both from Xero.
             </div>
-            <div style={{marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
+            <div style={{marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
               <Btn sm onClick={async()=>{
                 if(!settings.edgeFunctionUrl||!settings.tenantId){
                   alert("Save your Edge Function URL and Tenant ID first."); return;
@@ -6575,33 +6582,59 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
                   });
                   const text = await res.text();
                   let data; try{ data=JSON.parse(text); }catch{ alert("Non-JSON response: "+text.slice(0,300)); return; }
-                  if(data.ok && data.earningsRates){
-                    setXeroRates(data.earningsRates);
-                    showToast(`✓ Loaded ${data.earningsRates.length} earnings rates from Xero`);
+                  if(data.ok){
+                    setXeroRates(data.earningsRates||[]);
+                    setXeroLeaveTypes(data.leaveTypes||[]);
+                    showToast(`✓ Loaded ${(data.earningsRates||[]).length} earnings rates + ${(data.leaveTypes||[]).length} leave types`);
                   } else { alert("Error: "+(data.error||JSON.stringify(data))); }
                 }catch(e){ alert("Failed: "+e.message); }
-              }}>🔄 Load Earnings Rates from Xero</Btn>
-              {xeroRates.length>0&&<span style={{fontSize:12,color:T.teal,fontWeight:600}}>✓ {xeroRates.length} rates loaded</span>}
+              }}>🔄 Load from Xero</Btn>
+              {(xeroRates.length>0||xeroLeaveTypes.length>0)&&(
+                <span style={{fontSize:12,color:T.teal,fontWeight:600}}>
+                  ✓ {xeroRates.length} earnings rates · {xeroLeaveTypes.length} leave types
+                </span>
+              )}
             </div>
-            {ENTRY_TYPE_NAMES.map(type=>(
-              <div key={type} style={{display:"grid",gridTemplateColumns:"180px 1fr",gap:10,alignItems:"center",marginBottom:8}}>
-                <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{type}</div>
-                {xeroRates.length > 0 ? (
-                  <select value={settings.earningsRates?.[type]||""}
-                    onChange={e=>ss("earningsRates",{...settings.earningsRates,[type]:e.target.value})}
-                    style={{fontSize:12,padding:"5px 8px",border:`1px solid ${T.border}`,borderRadius:6,background:"#fff"}}>
-                    <option value="">— Select rate —</option>
-                    {xeroRates.map(r=>(
-                      <option key={r.earningsRateID||r.EarningsRateID} value={r.earningsRateID||r.EarningsRateID}>{r.name||r.Name}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <input value={settings.earningsRates?.[type]||""}
-                    onChange={e=>ss("earningsRates",{...settings.earningsRates,[type]:e.target.value})}
-                    placeholder="Load from Xero above, or paste rate ID manually"/>
-                )}
-              </div>
-            ))}
+            {ENTRY_TYPE_NAMES.map(type=>{
+              const val = settings.earningsRates?.[type]||"";
+              const hasOptions = xeroRates.length>0||xeroLeaveTypes.length>0;
+              // Which group does this entry type naturally belong to?
+              const isLeaveType = ["Annual Leave","Sick Leave","Bereavement Leave","Leave Without Pay"].includes(type);
+              return (
+                <div key={type} style={{display:"grid",gridTemplateColumns:"180px 1fr 28px",gap:8,alignItems:"center",marginBottom:6}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:11,padding:"1px 6px",borderRadius:4,fontWeight:600,
+                      background:isLeaveType?T.tealL:T.accentL,
+                      color:isLeaveType?T.teal:T.accent}}>
+                      {isLeaveType?"Leave":"Pay"}
+                    </span>
+                    <span style={{fontSize:13,fontWeight:600,color:T.ink}}>{type}</span>
+                  </div>
+                  {hasOptions ? (
+                    <select value={val}
+                      onChange={e=>ss("earningsRates",{...settings.earningsRates,[type]:e.target.value})}
+                      style={{fontSize:12,padding:"5px 8px",border:`1px solid ${val?T.teal:T.border}`,borderRadius:6,background:"#fff",
+                        color:val?T.ink:T.muted}}>
+                      <option value="">— Not mapped —</option>
+                      {xeroRates.length>0&&<optgroup label="── Earnings Rates ──">
+                        {xeroRates.map(r=><option key={r.id} value={"rate:"+r.id}>{r.name}</option>)}
+                      </optgroup>}
+                      {xeroLeaveTypes.length>0&&<optgroup label="── Leave Types ──">
+                        {xeroLeaveTypes.map(l=><option key={l.id} value={"leave:"+l.id}>{l.name}</option>)}
+                      </optgroup>}
+                    </select>
+                  ) : (
+                    <input value={val}
+                      onChange={e=>ss("earningsRates",{...settings.earningsRates,[type]:e.target.value})}
+                      placeholder="Load from Xero above, or paste ID manually"/>
+                  )}
+                  {val
+                    ? <span style={{fontSize:14,color:T.teal}}>✓</span>
+                    : <span style={{fontSize:14,color:T.muted}}>—</span>
+                  }
+                </div>
+              );
+            })}
 
             <div style={{marginTop:16}}>
               {saved
