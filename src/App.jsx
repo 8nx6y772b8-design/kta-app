@@ -2173,8 +2173,8 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
       <div className="stat-grid-4">
         <StatCard label="Contacts" value={contacts.length} color={T.blue}/>
         <StatCard label="Active Deals" value={deals.filter(d=>!["Won","Lost"].includes(d.stage)).length} color={T.warn}/>
-        <StatCard label="Pipeline" value={`$${(totalOpen/1000).toFixed(1)}k`} color={T.accent}/>
-        <StatCard label="Won" value={`$${(totalWon/1000).toFixed(1)}k`} color={T.hol}/>
+        <StatCard label="Prospective Placements" value={deals.filter(d=>!["Won","Lost"].includes(d.stage)).length} color={T.accent}/>
+        <StatCard label="Placed This Year" value={deals.filter(d=>d.stage==="Won"&&d.close_date&&d.close_date.startsWith(new Date().getFullYear().toString())).length} color={T.hol}/>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:20}}>
         {["contacts","companies","pipeline","deals","import"].map(t=>(
