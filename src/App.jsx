@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.0.3
+// KTA Workforce Management — v2.0.4
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.0.3
+          v2.0.4
         </div>
       </div>
     </div>
@@ -5583,52 +5583,82 @@ function PastMeetingReports({apprentice, allUsers, canEdit=false}) {
 }
 
 // ── PPE Allocation ────────────────────────────────────────────────────────────
-const PPE_ITEMS = ["Hard Hat","High-Vis Vest","Safety Boots","Safety Glasses","Gloves","Ear Protection","Dust Mask / P2 Respirator","Harness","Knee Pads","Face Shield","First Aid Kit","Other"];
+const PPE_CATALOGUE = [
+  {item:"Hi Vis Vest",      sizes:["S","M","L","XL","2XL","3XL"]},
+  {item:"Hi Vis Polo",      sizes:["S","M","L","XL","2XL","3XL"]},
+  {item:"Jacket",           sizes:["S","M","L","XL","2XL","3XL"]},
+  {item:"Polo Shirt",       sizes:["S","M","L","XL","2XL","3XL","4XL"]},
+  {item:"Cap",              sizes:["One Size","S","M","L"]},
+  {item:"Beanie",           sizes:["One Size","S","M","L"]},
+  {item:"Hard Hat",         sizes:["One Size","Adjustable"]},
+  {item:"Riggers Hat",      sizes:["S","M","L","XL"]},
+  {item:"Ear Muffs",        sizes:["Clip-on","Over-ear"]},
+  {item:"Gloves",           sizes:["Sz 7","Sz 8","Sz 9","Sz 10"]},
+  {item:"Safety Glasses",   sizes:["Clear","Dark","Tinted"]},
+  {item:"Overalls",         sizes:["82R","84R","87R","92R","97R","102R","107R","112R"]},
+  {item:"P2 Mask",          sizes:["S","M","L","One Size"]},
+  {item:"GMAX Respirator",  sizes:["S","M","L"]},
+  {item:"Knee Pads",        sizes:["One Size","S","M","L"]},
+  {item:"Safety Boots",     sizes:["6","7","8","9","10","11","12","13"]},
+  {item:"Other",            sizes:[]},
+  {item:"Other",            sizes:[]},
+];
 
 function PPEAllocation({apprentice, mentor, canEdit=false}) {
-  const [allocations, setAllocations] = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [showForm, setShowForm]       = useState(false);
-  const [form, setForm] = useState({item:"Hard Hat", quantity:"1", issuedDate: new Date().toISOString().slice(0,10), notes:""});
-  const [saving, setSaving] = useState(false);
-  const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+  const today = new Date().toISOString().slice(0,10);
+  const blankRows = () => PPE_CATALOGUE.map(p=>({item:p.item, size:"", qtyReq:"", qtyIssued:"", notes:"", approved:""}));
+
+  const [requests, setRequests]         = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [showForm, setShowForm]         = useState(false);
+  const [rows, setRows]                 = useState(blankRows());
+  const [dateRequested, setDateReq]     = useState(today);
+  const [dateIssued, setDateIssued]     = useState("");
+  const [saving, setSaving]             = useState(false);
+  const [expandId, setExpandId]         = useState(null);
+
+  const fmtDate = iso => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
 
   useEffect(()=>{
-    loadTable('ppe_allocations')
-      .then(rows=>setAllocations(rows.filter(r=>r.apprentice_id===apprentice.id).sort((a,b)=>b.issued_date.localeCompare(a.issued_date))))
-      .catch(()=>setAllocations([]))
+    loadTable("ppe_requests")
+      .then(rows=>setRequests(rows.filter(r=>r.apprentice_id===apprentice.id).sort((a,b)=>b.date_requested.localeCompare(a.date_requested))))
+      .catch(()=>setRequests([]))
       .finally(()=>setLoading(false));
   },[apprentice.id]);
 
-  const handleAdd = async () => {
-    if(!form.item) return;
+  const sr = (idx,k,v) => setRows(prev=>prev.map((r,i)=>i===idx?{...r,[k]:v}:r));
+
+  const handleSubmit = async () => {
+    const activeRows = rows.filter(r=>r.qtyReq||r.qtyIssued||r.notes);
+    if(!activeRows.length){ alert("Please enter at least one item quantity."); return; }
     setSaving(true);
-    const row = {
+    const record = {
       id: uid(),
       apprentice_id: apprentice.id,
-      mentor_id: mentor.id,
-      item: form.item,
-      quantity: parseInt(form.quantity)||1,
-      issued_date: form.issuedDate,
-      notes: form.notes.trim(),
+      apprentice_name: apprentice.name,
+      staff_id: mentor?.id||"",
+      staff_name: mentor?.name||"",
+      date_requested: dateRequested,
+      date_issued: dateIssued||null,
+      items: JSON.stringify(activeRows),
       created_at: new Date().toISOString(),
     };
     try {
-      await upsertRow('ppe_allocations', row);
-      setAllocations(prev=>[row,...prev]);
+      await upsertRow("ppe_requests", record);
+      setRequests(prev=>[record,...prev]);
       setShowForm(false);
-      setForm({item:"Hard Hat",quantity:"1",issuedDate:new Date().toISOString().slice(0,10),notes:""});
-    } catch(e) { alert("Failed: "+e.message); }
+      setRows(blankRows());
+      setDateReq(today);
+      setDateIssued("");
+    } catch(e){ alert("Failed to save: "+e.message); }
     setSaving(false);
   };
 
   const handleDelete = async (id) => {
-    if(!window.confirm("Remove this PPE record?")) return;
-    await deleteRow('ppe_allocations', id).catch(console.error);
-    setAllocations(prev=>prev.filter(r=>r.id!==id));
+    if(!window.confirm("Delete this PPE request?")) return;
+    await deleteRow("ppe_requests", id).catch(console.error);
+    setRequests(prev=>prev.filter(r=>r.id!==id));
   };
-
-  const fmtDate = (iso) => { if(!iso) return "—"; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
 
   if(loading) return <div style={{padding:16,textAlign:"center",color:T.muted,fontSize:13}}>Loading…</div>;
 
@@ -5636,66 +5666,172 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
     <div>
       {canEdit&&(
         <div style={{marginBottom:14}}>
-          {!showForm
-            ? <Btn sm onClick={()=>setShowForm(true)}>+ Issue PPE Item</Btn>
-            : (
-              <Card style={{border:`1.5px solid ${T.accent}44`,marginBottom:0}}>
-                <div style={{fontWeight:700,fontSize:13,marginBottom:12}}>Issue PPE to {apprentice.name}</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 80px",gap:10,marginBottom:10}}>
-                  <div>
-                    <FL req>Item</FL>
-                    <select value={form.item} onChange={e=>sf("item",e.target.value)}>
-                      {PPE_ITEMS.map(i=><option key={i}>{i}</option>)}
-                    </select>
-                  </div>
-                  <div><FL>Qty</FL><input type="number" min="1" value={form.quantity} onChange={e=>sf("quantity",e.target.value)}/></div>
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-                  <div><FL>Date Issued</FL><input type="date" value={form.issuedDate} onChange={e=>sf("issuedDate",e.target.value)}/></div>
-                  <div><FL>Notes</FL><input placeholder="Size, colour, condition…" value={form.notes} onChange={e=>sf("notes",e.target.value)}/></div>
-                </div>
-                <div style={{display:"flex",gap:8}}>
-                  <Btn sm onClick={handleAdd} disabled={saving}>{saving?"Saving…":"Save"}</Btn>
-                  <Btn sm v="ghost" onClick={()=>setShowForm(false)}>Cancel</Btn>
-                </div>
-              </Card>
-            )
-          }
+          <Btn sm onClick={()=>setShowForm(s=>!s)}>{showForm?"✕ Cancel":"+ New PPE Request"}</Btn>
         </div>
       )}
 
-      {allocations.length===0&&!showForm&&(
-        <div style={{padding:"16px 0",textAlign:"center",color:T.muted,fontSize:13,fontStyle:"italic"}}>No PPE issued yet</div>
+      {showForm&&(
+        <Card style={{border:`1.5px solid ${T.teal}44`,marginBottom:16,padding:0,overflow:"hidden"}}>
+          {/* Header */}
+          <div style={{background:T.teal,padding:"12px 16px"}}>
+            <div style={{fontWeight:700,fontSize:14,color:"#fff"}}>PPE Request — {apprentice.name}</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,.8)",marginTop:2}}>All items issued new and non-returnable</div>
+          </div>
+
+          {/* Info strip */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:12,padding:"14px 16px",background:T.bg,borderBottom:`1px solid ${T.border}`}}>
+            <div>
+              <FL>Apprentice</FL>
+              <div style={{fontSize:13,fontWeight:600,color:T.ink,padding:"6px 10px",background:T.surface,borderRadius:7,border:`1px solid ${T.border}`}}>{apprentice.name}</div>
+            </div>
+            <div>
+              <FL>KTA Staff</FL>
+              <div style={{fontSize:13,fontWeight:600,color:T.ink,padding:"6px 10px",background:T.surface,borderRadius:7,border:`1px solid ${T.border}`}}>{mentor?.name||"—"}</div>
+            </div>
+            <div>
+              <FL req>Date Requested</FL>
+              <input type="date" value={dateRequested} onChange={e=>setDateReq(e.target.value)}/>
+            </div>
+            <div>
+              <FL>Date Issued</FL>
+              <input type="date" value={dateIssued} onChange={e=>setDateIssued(e.target.value)}/>
+            </div>
+          </div>
+
+          {/* Items table */}
+          <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead>
+                <tr style={{background:T.accentL}}>
+                  {["PPE Item","Size / Spec","Qty Requested","Qty Issued","Notes","Approved"].map(h=>(
+                    <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:11,color:T.accent,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {PPE_CATALOGUE.map((cat,i)=>(
+                  <tr key={i} style={{background:i%2===0?T.surface:T.bg}}>
+                    <td style={{padding:"6px 10px",fontWeight:600,color:T.ink,whiteSpace:"nowrap",borderBottom:`1px solid ${T.border}44`}}>{cat.item}</td>
+                    <td style={{padding:"4px 6px",borderBottom:`1px solid ${T.border}44`}}>
+                      {cat.sizes.length>0
+                        ? <select value={rows[i].size} onChange={e=>sr(i,"size",e.target.value)} style={{fontSize:11,padding:"3px 6px",minWidth:90}}>
+                            <option value="">—</option>
+                            {cat.sizes.map(s=><option key={s}>{s}</option>)}
+                          </select>
+                        : <input value={rows[i].size} onChange={e=>sr(i,"size",e.target.value)} placeholder="Specify…" style={{fontSize:11,padding:"3px 6px",width:90}}/>
+                      }
+                    </td>
+                    <td style={{padding:"4px 6px",borderBottom:`1px solid ${T.border}44`}}>
+                      <input type="number" min="0" value={rows[i].qtyReq} onChange={e=>sr(i,"qtyReq",e.target.value)} style={{fontSize:11,padding:"3px 6px",width:56,textAlign:"center"}}/>
+                    </td>
+                    <td style={{padding:"4px 6px",borderBottom:`1px solid ${T.border}44`}}>
+                      <input type="number" min="0" value={rows[i].qtyIssued} onChange={e=>sr(i,"qtyIssued",e.target.value)} style={{fontSize:11,padding:"3px 6px",width:56,textAlign:"center"}}/>
+                    </td>
+                    <td style={{padding:"4px 6px",borderBottom:`1px solid ${T.border}44`}}>
+                      <input value={rows[i].notes} onChange={e=>sr(i,"notes",e.target.value)} placeholder="Notes…" style={{fontSize:11,padding:"3px 6px",width:"100%",minWidth:120}}/>
+                    </td>
+                    <td style={{padding:"4px 6px",borderBottom:`1px solid ${T.border}44`}}>
+                      <select value={rows[i].approved} onChange={e=>sr(i,"approved",e.target.value)} style={{fontSize:11,padding:"3px 6px"}}>
+                        <option value="">—</option>
+                        <option value="Yes">Yes</option>
+                        <option value="No">No</option>
+                        <option value="Pending">Pending</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Acknowledgement */}
+          <div style={{margin:"12px 16px",padding:"10px 14px",background:T.warnL,borderRadius:8,border:`1px solid ${T.warn}44`,fontSize:12,color:T.sub,fontStyle:"italic"}}>
+            I request the PPE items listed above. I understand that all items are provided new and are mine to keep. I agree to use them appropriately and in accordance with health and safety requirements.
+          </div>
+
+          {/* Signatures */}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,padding:"0 16px 16px"}}>
+            {[{label:"Apprentice Signature", name:apprentice.name},{label:"KTA Staff Signature", name:mentor?.name||""}].map(({label,name})=>(
+              <div key={label} style={{border:`1px solid ${T.border}`,borderRadius:8,padding:"10px 14px",background:T.surface}}>
+                <div style={{fontSize:11,fontWeight:600,color:T.muted,marginBottom:6}}>{label}</div>
+                <div style={{fontSize:13,fontWeight:600,color:T.ink,marginBottom:12}}>{name}</div>
+                <div style={{borderBottom:`2px solid ${T.border}`,marginBottom:4,height:28}}/>
+                <div style={{fontSize:10,color:T.muted}}>Signature</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{padding:"0 16px 16px",display:"flex",gap:8}}>
+            <Btn onClick={handleSubmit} disabled={saving}>{saving?"Saving…":"Save Request"}</Btn>
+            <Btn v="ghost" onClick={()=>{setShowForm(false);setRows(blankRows());}}>Cancel</Btn>
+          </div>
+        </Card>
       )}
 
-      {allocations.length>0&&(
+      {/* Past requests */}
+      {requests.length===0&&!showForm&&(
+        <div style={{padding:"24px 0",textAlign:"center",color:T.muted,fontSize:13,fontStyle:"italic"}}>No PPE requests yet</div>
+      )}
+      {requests.length>0&&(
         <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 50px 110px 1fr 36px",
-            padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
-            fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
-            <span>Item</span><span style={{textAlign:"center"}}>Qty</span><span>Date Issued</span><span>Notes</span><span/>
+          <div style={{padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px"}}>
+            Past Requests
           </div>
-          {allocations.map((r,i)=>(
-            <div key={r.id} style={{display:"grid",gridTemplateColumns:"1fr 50px 110px 1fr 36px",
-              padding:"9px 14px",gap:8,alignItems:"center",fontSize:13,
-              borderBottom:i<allocations.length-1?`1px solid ${T.border}44`:"none",
-              background:i%2===0?T.surface:T.bg}}>
-              <div style={{fontWeight:600}}>{r.item}</div>
-              <div style={{textAlign:"center",color:T.accent,fontWeight:700}}>{r.quantity}</div>
-              <div style={{color:T.sub}}>{fmtDate(r.issued_date)}</div>
-              <div style={{color:r.notes?T.ink:T.muted,fontStyle:r.notes?"normal":"italic",fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.notes||"—"}</div>
-              <div>
-                {canEdit&&(
-                  <button onClick={()=>handleDelete(r.id)} style={{
-                    width:28,height:28,borderRadius:6,background:"none",color:T.muted,
-                    border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",
-                    alignItems:"center",justifyContent:"center",fontSize:13}}
+          {requests.map((r,i)=>{
+            const items = (() => { try { return JSON.parse(r.items); } catch { return []; } })();
+            const isOpen = expandId===r.id;
+            return (
+              <div key={r.id} style={{borderBottom:i<requests.length-1?`1px solid ${T.border}44`:"none"}}>
+                <div onClick={()=>setExpandId(isOpen?null:r.id)}
+                  style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",cursor:"pointer",
+                    background:isOpen?T.tealL:i%2===0?T.surface:T.bg,transition:"background .15s"}}
+                  onMouseEnter={e=>!isOpen&&(e.currentTarget.style.background=T.bg)}
+                  onMouseLeave={e=>!isOpen&&(e.currentTarget.style.background=i%2===0?T.surface:T.bg)}>
+                  <div style={{flex:1}}>
+                    <span style={{fontWeight:600,fontSize:13,color:T.ink}}>Requested {fmtDate(r.date_requested)}</span>
+                    {r.date_issued&&<span style={{marginLeft:10,fontSize:12,color:T.teal}}>Issued {fmtDate(r.date_issued)}</span>}
+                    <span style={{marginLeft:10,fontSize:12,color:T.muted}}>{items.length} item{items.length!==1?"s":""}</span>
+                  </div>
+                  <div style={{fontSize:12,color:T.muted}}>{r.staff_name||"—"}</div>
+                  {canEdit&&<button onClick={e=>{e.stopPropagation();handleDelete(r.id);}} style={{width:26,height:26,borderRadius:5,background:"none",border:`1px solid ${T.border}`,color:T.muted,cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center"}}
                     onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;}}
-                    onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color=T.muted;}}>✕</button>
+                    onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color=T.muted;}}>✕</button>}
+                  <span style={{fontSize:11,color:T.muted}}>{isOpen?"▲":"▼"}</span>
+                </div>
+                {isOpen&&(
+                  <div style={{padding:"0 14px 12px",background:T.tealL}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                      <thead>
+                        <tr>{["Item","Size","Qty Req","Qty Issued","Notes","Approved"].map(h=>(
+                          <th key={h} style={{padding:"6px 8px",textAlign:"left",fontWeight:600,color:T.sub,borderBottom:`1px solid ${T.border}`,fontSize:11}}>{h}</th>
+                        ))}</tr>
+                      </thead>
+                      <tbody>
+                        {items.map((it,j)=>(
+                          <tr key={j} style={{background:j%2===0?"rgba(255,255,255,.6)":"transparent"}}>
+                            <td style={{padding:"5px 8px",fontWeight:600}}>{it.item}</td>
+                            <td style={{padding:"5px 8px",color:T.sub}}>{it.size||"—"}</td>
+                            <td style={{padding:"5px 8px",textAlign:"center"}}>{it.qtyReq||"—"}</td>
+                            <td style={{padding:"5px 8px",textAlign:"center",color:T.teal,fontWeight:600}}>{it.qtyIssued||"—"}</td>
+                            <td style={{padding:"5px 8px",color:T.muted,fontStyle:"italic"}}>{it.notes||""}</td>
+                            <td style={{padding:"5px 8px"}}>{it.approved
+                              ? <span style={{padding:"2px 8px",borderRadius:99,fontSize:11,fontWeight:700,
+                                  background:it.approved==="Yes"?T.tealL:it.approved==="No"?T.redL:T.goldL,
+                                  color:it.approved==="Yes"?T.teal:it.approved==="No"?T.red:T.gold}}>{it.approved}</span>
+                              : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div style={{marginTop:10,fontSize:11,color:T.sub}}>
+                      Apprentice: <strong>{r.apprentice_name}</strong> · Staff: <strong>{r.staff_name||"—"}</strong>
+                    </div>
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
