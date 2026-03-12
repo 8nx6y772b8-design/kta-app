@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.0.6
+// KTA Workforce Management — v2.0.7
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.0.6
+          v2.0.7
         </div>
       </div>
     </div>
@@ -2099,7 +2099,8 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
   const [companies,setCompanies]=useState([]);
   const [deals,setDeals]=useState([]);
   const [crmLoading,setCrmLoading]=useState(true);
-  const [tab,setTab]=useState("contacts");
+  const [tab,setTab]=useState(()=>{try{return localStorage.getItem("wos_crm_tab")||"contacts";}catch{return "contacts";}});
+  const goTab=(t)=>{setTab(t);try{localStorage.setItem("wos_crm_tab",t);}catch{}};
   const [hsToken,setHsToken]=useState("");
   const [hsPreview,setHsPreview]=useState(null);   // {total, contacts:[]}
   const [hsLoading,setHsLoading]=useState(false);
@@ -2244,7 +2245,7 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
       </div>
       <div style={{display:"flex",gap:8,marginBottom:20}}>
         {["contacts","companies","pipeline","deals","import"].map(t=>(
-          <button key={t} onClick={()=>setTab(t)} style={{
+          <button key={t} onClick={()=>goTab(t)} style={{
             padding:"7px 16px",borderRadius:8,fontSize:13,fontWeight:600,
             background:tab===t?T.accent:T.surface,color:tab===t?"#fff":T.sub,
             border:`1.5px solid ${tab===t?T.accentD:T.border}`,
@@ -2531,7 +2532,7 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
                           <div style={{fontSize:10,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8}}>👥 Contacts ({linkedContacts.length})</div>
                           <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                             {linkedContacts.map(c=>(
-                              <div key={c.id} onClick={()=>{setTab("contacts");setExpandedContact(c.id);}}
+                              <div key={c.id} onClick={()=>{goTab("contacts");setExpandedContact(c.id);}}
                                 style={{background:T.surface,border:`1.5px solid ${T.accent}33`,borderRadius:8,
                                   padding:"5px 10px",cursor:"pointer",fontSize:12,color:T.ink,fontWeight:600}}
                                 onMouseEnter={e=>e.currentTarget.style.background=T.blueL}
@@ -6565,9 +6566,26 @@ function MentorApprenticeDetail({apprentice, mentor, allUsers, onBack}) {
 
 // ── Mentor Dashboard (home screen) ───────────────────────────────────────────
 function MentorDashboard({currentUser, allUsers}) {
-  const [selectedApprentice, setSelectedApprentice] = useState(null);
+  const [selectedApprentice, setSelectedApprentice] = useState(()=>{
+    try{
+      const id=localStorage.getItem("wos_mentor_app");
+      return null; // will be resolved after allUsers loads — see useEffect below
+    }catch{return null;}
+  });
   const [apprenticeSummaries, setApprenticeSummaries] = useState({}); // id -> {lastVisit, reportCount}
   const [loadingMeta, setLoadingMeta] = useState(true);
+
+  // Restore selected apprentice from localStorage once allUsers is loaded
+  useEffect(()=>{
+    if(!selectedApprentice && allUsers.length>0){
+      try{
+        const id=localStorage.getItem("wos_mentor_app");
+        if(id){ const u=allUsers.find(x=>x.id===id); if(u) setSelectedApprentice(u); }
+      }catch{}
+    }
+  },[allUsers]);
+
+  const selectMentorApp=(u)=>{ setSelectedApprentice(u); try{if(u) localStorage.setItem("wos_mentor_app",u.id); else localStorage.removeItem("wos_mentor_app");}catch{}; };
 
   // Mentor's allocated apprentices — check both allocatedTo (legacy) and mentorUserId (new)
   const myApprentices = allUsers.filter(u=>
@@ -6604,7 +6622,7 @@ function MentorDashboard({currentUser, allUsers}) {
         entries={[]}
         isAdmin={false}
         canEditExpiry={true}
-        onBack={()=>setSelectedApprentice(null)}
+        onBack={()=>selectMentorApp(null)}
       />
     );
   }
@@ -6633,7 +6651,7 @@ function MentorDashboard({currentUser, allUsers}) {
             const licDays = daysUntil(app.licenceExpiry);
             const licWarn = licDays!==null && licDays<=30;
             return (
-              <div key={app.id} onClick={()=>setSelectedApprentice(app)}
+              <div key={app.id} onClick={()=>selectMentorApp(app)}
                 className="ri"
                 style={{display:"flex",alignItems:"center",gap:14,padding:"12px 4px",
                   borderBottom:i<myApprentices.length-1?`1px solid ${T.border}44`:"none",
@@ -8970,8 +8988,8 @@ export default function App() {
   const [entries,setEntries]     = useState([]);
   const [sessionId,setSessionId] = useState(()=>{ try{return localStorage.getItem("wos_session_sb")||null;}catch{return null;} });
   const [module,setModule]       = useState(()=>{try{return localStorage.getItem("wos_module")||"dashboard";}catch{return "dashboard";}});
-  const [viewingAppId,setViewingAppId] = useState(null);
-  const [showAppList,setShowAppList] = useState(false);
+  const [viewingAppId,setViewingAppId] = useState(()=>{ try{return localStorage.getItem("wos_viewing_app")||null;}catch{return null;} });
+  const [showAppList,setShowAppList] = useState(()=>{ try{return localStorage.getItem("wos_show_list")||false;}catch{return false;} });
   const [loggingOut,setLoggingOut] = useState(false);
   const [loading,setLoading]     = useState(true);
   const [dbError,setDbError]     = useState(null);
@@ -9093,6 +9111,8 @@ export default function App() {
   // ── Persist session to localStorage (just the id, not data) ────────────
   useEffect(()=>{ try{localStorage.setItem("wos_session_sb",sessionId||"");}catch{} },[sessionId]);
   useEffect(()=>{ if(module) { try{localStorage.setItem("wos_module",module);}catch{} } },[module]);
+  useEffect(()=>{ try{if(viewingAppId) localStorage.setItem("wos_viewing_app",viewingAppId); else localStorage.removeItem("wos_viewing_app");}catch{} },[viewingAppId]);
+  useEffect(()=>{ try{if(showAppList) localStorage.setItem("wos_show_list",showAppList); else localStorage.removeItem("wos_show_list");}catch{} },[showAppList]);
 
   // ── Supabase-aware state updaters ────────────────────────────────────────
   const stableJson = (obj) => JSON.stringify(obj, Object.keys(obj).sort());
@@ -9174,11 +9194,11 @@ export default function App() {
     }
     // On restore, module is already set from localStorage — don't overwrite
     setSessionId(userId);
-    setViewingAppId(null);
+    if(!isRestore){ setViewingAppId(null); setShowAppList(false); try{localStorage.removeItem('wos_viewing_app');localStorage.removeItem('wos_show_list');}catch{} }
   };
   const handleLogout = () => {
     setLoggingOut(true);
-    setTimeout(()=>{ setSessionId(null); setLoggingOut(false); setViewingAppId(null); setShowAppList(false); try{localStorage.removeItem('wos_session_sb');}catch{} },400);
+    setTimeout(()=>{ setSessionId(null); setLoggingOut(false); setViewingAppId(null); setShowAppList(false); try{localStorage.removeItem('wos_session_sb');localStorage.removeItem('wos_viewing_app');localStorage.removeItem('wos_show_list');localStorage.removeItem('wos_crm_tab');localStorage.removeItem('wos_mentor_app');}catch{} },400);
   };
 
   if(loading) return (
