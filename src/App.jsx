@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.2.1
+// KTA Workforce Management — v2.2.3
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.2.1
+          v2.2.3
         </div>
       </div>
     </div>
@@ -4088,6 +4088,10 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
   const totalApproved     = entries.filter(e=>e.approval==="approved").length;
   const totalNotApproved  = entries.filter(e=>e.approval==="declined").length;
   const totalHrsWeek      = entries.filter(e=>e.date>=ws).reduce((a,e)=>a+e.netHours,0).toFixed(1);
+  const weekTypeHrs = ENTRY_TYPES.map(t=>({
+    type: t,
+    hrs:  entries.filter(e=>e.date>=ws && e.type===t).reduce((a,e)=>a+e.netHours,0)
+  })).filter(t=>t.hrs>0);
 
   // Section order (top-level)
   const DEFAULT_ORDER = ["stats", "crm"];
@@ -4130,7 +4134,41 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
         </Card>
       </button>
     ),
-    hours:     <button onClick={()=>onViewList("hours")}     style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${T.accent}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Hours This Week</div><div style={{fontSize:24,fontWeight:700,color:T.accent,fontFamily:"'Libre Baskerville'"}}>{totalHrsWeek}h</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>all apprentices</div><div style={{fontSize:11,color:T.accent,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
+    hours: (
+      <button onClick={()=>onViewList("hours")} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
+        onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
+        <Card style={{paddingBlock:14,border:`1.5px solid ${T.accent}44`,height:"100%"}}>
+          <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:6}}>Hours This Week</div>
+          <div style={{display:"flex",alignItems:"baseline",gap:4,marginBottom:8}}>
+            <span style={{fontSize:20,fontWeight:700,color:T.accent,fontFamily:"'Libre Baskerville'"}}>{totalHrsWeek}</span>
+            <span style={{fontSize:13,color:T.sub,fontWeight:600}}>h total</span>
+          </div>
+          {weekTypeHrs.length>0 ? (
+            <div style={{display:"flex",flexDirection:"column",gap:3,marginBottom:8}}>
+              {weekTypeHrs.slice(0,5).map(({type,hrs})=>{
+                const meta = TYPE_META[type]||{color:T.muted,bg:T.bg};
+                const pct  = Math.round((hrs/parseFloat(totalHrsWeek||"1"))*100);
+                return (
+                  <div key={type}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T.sub,marginBottom:1}}>
+                      <span style={{fontWeight:600,color:meta.color}}>{type}</span>
+                      <span style={{fontWeight:700}}>{hrs.toFixed(1)}h</span>
+                    </div>
+                    <div style={{height:4,borderRadius:99,background:T.bg,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${pct}%`,borderRadius:99,background:meta.color,opacity:.75,transition:"width .3s"}}/>
+                    </div>
+                  </div>
+                );
+              })}
+              {weekTypeHrs.length>5&&<div style={{fontSize:10,color:T.muted,marginTop:2}}>+{weekTypeHrs.length-5} more types</div>}
+            </div>
+          ) : (
+            <div style={{fontSize:11,color:T.muted,marginBottom:8}}>all apprentices</div>
+          )}
+          <div style={{fontSize:11,color:T.accent,fontWeight:600}}>View list →</div>
+        </Card>
+      </button>
+    ),
     submitted: <button onClick={()=>onViewList("submitted")} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalSubmitted>0?T.warn:T.muted}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Pending</div><div style={{fontSize:24,fontWeight:700,color:totalSubmitted>0?T.warn:T.muted,fontFamily:"'Libre Baskerville'"}}>{totalSubmitted}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>submitted, awaiting review</div><div style={{fontSize:11,color:totalSubmitted>0?T.warn:T.muted,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
     approved:  <button onClick={()=>onViewList("approved")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${T.teal}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Approved</div><div style={{fontSize:24,fontWeight:700,color:T.teal,fontFamily:"'Libre Baskerville'"}}>{totalApproved}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>approved by approver</div><div style={{fontSize:11,color:T.teal,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
     declined:  <button onClick={()=>onViewList("declined")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalNotApproved>0?T.red:T.muted}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Not Approved</div><div style={{fontSize:24,fontWeight:700,color:totalNotApproved>0?T.red:T.muted,fontFamily:"'Libre Baskerville'"}}>{totalNotApproved}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>declined by approver</div><div style={{fontSize:11,color:totalNotApproved>0?T.red:T.muted,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
@@ -6935,6 +6973,15 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     <div style={{fontWeight:700,fontSize:15}}>Leave Requests</div>
                     <div style={{fontSize:12,color:T.sub}}>All leave for {apprentice.name}</div>
                   </div>
+                  <button onClick={()=>{
+                    setAdvLeaveLoading(true);
+                    loadTable("leave_requests").then(rows=>{
+                      setAdvLeave(rows.filter(r=>r.apprentice_id===apprentice.id)
+                        .sort((a,b)=>b.created_at.localeCompare(a.created_at)));
+                    }).catch(()=>{}).finally(()=>setAdvLeaveLoading(false));
+                  }} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 10px",
+                    fontSize:11,color:T.muted,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}
+                    title="Refresh leave data">↻ Refresh</button>
                 </div>
                 {advLeaveLoading ? (
                   <div style={{padding:"16px 0",textAlign:"center",color:T.muted,fontSize:13}}>Loading…</div>
@@ -7284,11 +7331,17 @@ function ConfidentialNotesCard({ currentUser, allUsers = [] }) {
   },[]);
 
   useEffect(()=>{
-    setAdvLeaveLoading(true);
-    loadTable("leave_requests").then(rows=>{
-      setAdvLeave(rows.filter(r=>r.apprentice_id===apprentice.id)
-        .sort((a,b)=>b.created_at.localeCompare(a.created_at)));
-    }).catch(()=>{}).finally(()=>setAdvLeaveLoading(false));
+    const fetchLeave = (showLoading=false) => {
+      if(showLoading) setAdvLeaveLoading(true);
+      loadTable("leave_requests").then(rows=>{
+        setAdvLeave(rows.filter(r=>r.apprentice_id===apprentice.id)
+          .sort((a,b)=>b.created_at.localeCompare(a.created_at)));
+      }).catch(()=>{}).finally(()=>setAdvLeaveLoading(false));
+    };
+    fetchLeave(true);
+    // Poll every 30s — picks up status changes made via email approve/decline links
+    const interval = setInterval(()=>fetchLeave(false), 30000);
+    return ()=>clearInterval(interval);
   },[apprentice.id]);
 
   useEffect(()=>{ if(phase==="unlocked") resetLockTimer(); return ()=>{ if(lockTimer.current) clearTimeout(lockTimer.current); }; },[phase,resetLockTimer]);
