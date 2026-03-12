@@ -2263,18 +2263,18 @@ function CRMModule({currentUser,allUsers}) {
         </div>
       </div>}
       {tab==="import"&&(()=>{
-        const HS_PROPS = [
-          "firstname","lastname","email","phone","mobilephone",
-          "company","industry",
-          "address","city","zip","state","country",
-          "hs_lead_status","createdate",
-          "site_safe_expiry","sitesafe_expiry","first_aid_expiry","firstaid_expiry",
-        ].join(",");
+        const PROXY_URL = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/hubspot-proxy";
 
-        const hsFetch = async (url) => {
-          const r = await fetch(url,{headers:{"Authorization":`Bearer ${hsToken.trim()}`}});
-          if(!r.ok){const t=await r.text(); throw new Error(`HubSpot ${r.status}: ${t.slice(0,200)}`);}
-          return r.json();
+        const hsFetch = async (action, extra={}) => {
+          const r = await fetch(PROXY_URL, {
+            method: "POST",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({action, token: hsToken.trim(), ...extra}),
+          });
+          if(!r.ok){const t=await r.text(); throw new Error(`Proxy ${r.status}: ${t.slice(0,200)}`);}
+          const d = await r.json();
+          if(d.ok===false) throw new Error(d.error||"Proxy error");
+          return d;
         };
 
         const fetchPreview = async () => {
@@ -2283,8 +2283,7 @@ function CRMModule({currentUser,allUsers}) {
           try {
             let all=[]; let after=null; let pages=0;
             while(pages<200){
-              const url = `https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=${HS_PROPS}${after?`&after=${after}`:""}`;
-              const d = await hsFetch(url);
+              const d = await hsFetch("getContacts", after?{after}:{});
               const mapped = (d.results||[]).map(c=>{
                 const p = c.properties;
                 const name = [p.firstname,p.lastname].filter(Boolean).join(" ")||p.company||"";
@@ -2366,30 +2365,10 @@ function CRMModule({currentUser,allUsers}) {
             try {
               const types = ["notes","emails","calls","meetings","tasks"];
               for(const atype of types){
-                const nd = await hsFetch(
-                  `https://api.hubapi.com/crm/v3/objects/${atype}?limit=50&associations=contacts&properties=hs_note_body,hs_email_subject,hs_email_text,hs_call_body,hs_meeting_body,hs_task_body,hs_timestamp,createdate`
-                ).catch(()=>null);
-                // Only works via associations endpoint — fetch per contact
-                const ad = await hsFetch(
-                  `https://api.hubapi.com/crm/v3/objects/contacts/${c.hubspotId}/associations/${atype}`
-                ).catch(()=>null);
+                const ad = await hsFetch("getAssociations",{contactId:c.hubspotId,associationType:atype}).catch(()=>null);
                 if(!ad?.results?.length) continue;
-                const ids = ad.results.slice(0,20).map(x=>x.id).join(",");
-                const aProps = {
-                  notes:"hs_note_body,hs_timestamp",
-                  emails:"hs_email_subject,hs_email_text,hs_timestamp",
-                  calls:"hs_call_body,hs_timestamp",
-                  meetings:"hs_meeting_body,hs_timestamp",
-                  tasks:"hs_task_body,hs_timestamp",
-                }[atype];
-                const detail = await hsFetch(
-                  `https://api.hubapi.com/crm/v3/objects/${atype}/batch/read`,
-                ).catch(()=>null);
-                // Simpler: fetch each by ID
                 for(const assoc of ad.results.slice(0,20)){
-                  const item = await hsFetch(
-                    `https://api.hubapi.com/crm/v3/objects/${atype}/${assoc.id}?properties=${aProps}`
-                  ).catch(()=>null);
+                  const item = await hsFetch("getActivity",{contactId:c.hubspotId,associationType:atype,activityId:assoc.id}).catch(()=>null);
                   if(!item) continue;
                   const p = item.properties||{};
                   const body = p.hs_note_body||p.hs_email_text||p.hs_call_body||p.hs_meeting_body||p.hs_task_body||"";
