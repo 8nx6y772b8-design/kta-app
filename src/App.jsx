@@ -1575,6 +1575,8 @@ function UserManagement({users, setUsers, currentUser}) {
   const canDeleteUser = (u) => canEditUser(u);
   const canCreateUsers = true; // both admin levels can create users
 
+  const [umTab, setUmTab] = useState("employees"); // "employees"|"host"|"office"
+
   const blank={name:"",role:"Apprentice",email:"",phone:"",password:"",allocatedTo:[],
     address:"",suburb:"",city:"",postcode:"",approverUserId:null,viewerUserId:null,secondaryRole:null,adminLevel:1};
   const [form,setForm]=useState(blank);
@@ -1855,71 +1857,125 @@ function UserManagement({users, setUsers, currentUser}) {
         </Card>
       )}
 
+      {/* ── Group tabs ── */}
+      {(()=>{
+        const groups = {
+          employees: { label:"👷 Employees",      roles:["Apprentice"],                  desc:"Apprentices enrolled with KTA" },
+          host:      { label:"🏢 Host Management", roles:["Approver","Viewer"],           desc:"Approvers and Viewers at host businesses" },
+          office:    { label:"🏛 KTA Office Staff", roles:["Admin","Mentor"],             desc:"KTA administrators, office staff and mentors" },
+        };
+        return (
+          <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+            {Object.entries(groups).map(([key,g])=>{
+              const count = users.filter(u=>g.roles.includes(u.role)).length;
+              const active = umTab===key;
+              return (
+                <button key={key} onClick={()=>setUmTab(key)} style={{
+                  padding:"7px 16px",borderRadius:99,fontSize:13,fontWeight:600,
+                  border:`1.5px solid ${active?T.accent:T.border}`,
+                  background:active?T.accentL:T.surface,
+                  color:active?T.accent:T.sub,
+                  cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                  display:"flex",alignItems:"center",gap:6,transition:"all .15s"}}>
+                  {g.label}
+                  <span style={{fontSize:11,fontWeight:700,padding:"1px 7px",borderRadius:99,
+                    background:active?T.accent:T.border+"88",color:active?"#fff":T.muted}}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
+
       <Card style={{padding:0,overflow:"hidden"}}>
-        <div style={{display:"grid",gridTemplateColumns:"44px 1fr 130px 170px 1fr 72px",
-          padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-          fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
-          <span/><span>Name</span><span>Role</span><span>Email</span><span>Allocated To</span><span/>
-        </div>
-        {users.map((u,i)=>{
-          const isEditing = editId===u.id && showForm;
+        {(()=>{
+          const groupRoles = {
+            employees: ["Apprentice"],
+            host:      ["Approver","Viewer"],
+            office:    ["Admin","Mentor"],
+          }[umTab] || [];
+          const groupUsers = users.filter(u=>groupRoles.includes(u.role));
+          const groupDesc = {
+            employees: "Apprentices enrolled with KTA",
+            host:      "Approvers and Viewers at host businesses",
+            office:    "KTA administrators, office staff and mentors",
+          }[umTab];
           return (
-          <div key={u.id} className="ri" style={{
-            display:"grid",gridTemplateColumns:"44px 1fr 130px 170px 1fr 72px",
-            padding:"12px 16px",borderBottom:i<users.length-1?`1px solid ${T.border}44`:"none",
-            background:isEditing?T.blueL:i%2===0?T.surface:T.bg,
-            alignItems:"center",gap:8,animationDelay:`${i*.03}s`,
-            cursor:canEditUser(u)?"pointer":"default"}}
-            onClick={()=>canEditUser(u)&&startEdit(u)}
-            onMouseEnter={e=>{if(!isEditing&&canEditUser(u))e.currentTarget.style.background=T.blueL+"99";}}
-            onMouseLeave={e=>{e.currentTarget.style.background=isEditing?T.blueL:i%2===0?T.surface:T.bg;}}>
-            <Avatar name={u.name} role={u.role}/>
             <div>
-              <div style={{fontWeight:700,fontSize:13}}>{u.name}</div>
-              {u.phone&&<div style={{fontSize:11,color:T.muted}}>{u.phone}</div>}
-              <div style={{fontSize:11,color:canEditUser(u)?T.blue:T.muted,marginTop:1}}>
-                {isEditing?"editing…":canEditUser(u)?"click to edit":"view only"}
+              <div style={{padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
+                fontSize:11,color:T.muted,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{display:"grid",gridTemplateColumns:"44px 1fr 130px 170px 1fr 72px",gap:8,flex:1,
+                  fontWeight:600,textTransform:"uppercase",letterSpacing:".6px"}}>
+                  <span/><span>Name</span><span>Role</span><span>Email</span><span>Allocated To</span><span/>
+                </div>
               </div>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
-              <RolePill role={u.role} adminLevel={u.adminLevel||null} size="sm"/>
-              {u.role==="Admin"&&u.secondaryRole&&(
-                <><span style={{fontSize:10,color:T.muted}}>+</span><RolePill role={u.secondaryRole} size="sm"/></>
-              )}
-            </div>
-            <div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email||"—"}</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
-              {(u.allocatedTo||[]).length===0&&<span style={{fontSize:11,color:T.muted,fontStyle:"italic"}}>—</span>}
-              {(u.allocatedTo||[]).map(aid=>{
-                const a=users.find(x=>x.id===aid);
-                return a?<span key={aid} style={{fontSize:12,color:T.sub,display:"flex",alignItems:"center",gap:4}}>
-                  <RolePill role={a.role} size="sm"/>{a.name}
-                </span>:null;
+              {groupUsers.length===0 ? (
+                <div style={{padding:32,textAlign:"center",color:T.muted,fontSize:13,fontStyle:"italic"}}>
+                  No users in this group yet.
+                </div>
+              ) : groupUsers.map((u,i)=>{
+                const isEditing = editId===u.id && showForm;
+                return (
+                  <div key={u.id} className="ri" style={{
+                    display:"grid",gridTemplateColumns:"44px 1fr 130px 170px 1fr 72px",
+                    padding:"12px 16px",
+                    borderBottom:i<groupUsers.length-1?`1px solid ${T.border}44`:"none",
+                    background:isEditing?T.blueL:i%2===0?T.surface:T.bg,
+                    alignItems:"center",gap:8,animationDelay:`${i*.03}s`,
+                    cursor:canEditUser(u)?"pointer":"default"}}
+                    onClick={()=>canEditUser(u)&&startEdit(u)}
+                    onMouseEnter={e=>{if(!isEditing&&canEditUser(u))e.currentTarget.style.background=T.blueL+"99";}}
+                    onMouseLeave={e=>{e.currentTarget.style.background=isEditing?T.blueL:i%2===0?T.surface:T.bg;}}>
+                    <Avatar name={u.name} role={u.role}/>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:13}}>{u.name}</div>
+                      {u.phone&&<div style={{fontSize:11,color:T.muted}}>{u.phone}</div>}
+                      <div style={{fontSize:11,color:canEditUser(u)?T.blue:T.muted,marginTop:1}}>
+                        {isEditing?"editing…":canEditUser(u)?"click to edit":"view only"}
+                      </div>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
+                      <RolePill role={u.role} adminLevel={u.adminLevel||null} size="sm"/>
+                      {u.role==="Admin"&&u.secondaryRole&&(
+                        <><span style={{fontSize:10,color:T.muted}}>+</span><RolePill role={u.secondaryRole} size="sm"/></>
+                      )}
+                    </div>
+                    <div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email||"—"}</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
+                      {(u.allocatedTo||[]).length===0&&<span style={{fontSize:11,color:T.muted,fontStyle:"italic"}}>—</span>}
+                      {(u.allocatedTo||[]).map(aid=>{
+                        const a=users.find(x=>x.id===aid);
+                        return a?<span key={aid} style={{fontSize:12,color:T.sub,display:"flex",alignItems:"center",gap:4}}>
+                          <RolePill role={a.role} size="sm"/>{a.name}
+                        </span>:null;
+                      })}
+                    </div>
+                    <div style={{display:"flex",gap:5,justifyContent:"flex-end"}} onClick={e=>e.stopPropagation()}>
+                      {canEditUser(u)&&(
+                        <button onClick={()=>startEdit(u)} style={{width:26,height:26,borderRadius:6,fontSize:12,
+                          background:isEditing?T.blueL:"transparent",color:isEditing?T.blue:T.muted,
+                          border:`1px solid ${isEditing?T.blue+"66":T.border}`,
+                          display:"flex",alignItems:"center",justifyContent:"center"}}
+                          onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
+                          onMouseLeave={e=>{e.currentTarget.style.background=isEditing?T.blueL:"transparent";e.currentTarget.style.color=isEditing?T.blue:T.muted;}}>✎</button>
+                      )}
+                      {canDeleteUser(u)&&(
+                        <button onClick={()=>deleteUser(u.id)} style={{width:26,height:26,borderRadius:6,fontSize:12,
+                          background:"transparent",color:T.muted,border:`1px solid ${T.border}`,
+                          display:"flex",alignItems:"center",justifyContent:"center"}}
+                          onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
+                          onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
+                      )}
+                      {!canEditUser(u)&&(
+                        <span style={{fontSize:11,color:T.muted,fontStyle:"italic",padding:"0 4px"}}>🔒</span>
+                      )}
+                    </div>
+                  </div>
+                );
               })}
             </div>
-            <div style={{display:"flex",gap:5,justifyContent:"flex-end"}} onClick={e=>e.stopPropagation()}>
-              {canEditUser(u)&&(
-                <button onClick={()=>startEdit(u)} style={{width:26,height:26,borderRadius:6,fontSize:12,
-                  background:isEditing?T.blueL:"transparent",color:isEditing?T.blue:T.muted,
-                  border:`1px solid ${isEditing?T.blue+"66":T.border}`,
-                  display:"flex",alignItems:"center",justifyContent:"center"}}
-                  onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
-                  onMouseLeave={e=>{e.currentTarget.style.background=isEditing?T.blueL:"transparent";e.currentTarget.style.color=isEditing?T.blue:T.muted;}}>✎</button>
-              )}
-              {canDeleteUser(u)&&(
-                <button onClick={()=>deleteUser(u.id)} style={{width:26,height:26,borderRadius:6,fontSize:12,
-                  background:"transparent",color:T.muted,border:`1px solid ${T.border}`,
-                  display:"flex",alignItems:"center",justifyContent:"center"}}
-                  onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
-                  onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
-              )}
-              {!canEditUser(u)&&(
-                <span style={{fontSize:11,color:T.muted,fontStyle:"italic",padding:"0 4px"}}>🔒</span>
-              )}
-            </div>
-          </div>
           );
-        })}
+        })()}
       </Card>
     </div>
   );
