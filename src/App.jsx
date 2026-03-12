@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.1.4
+// KTA Workforce Management — v2.1.5
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.1.4
+          v2.1.5
         </div>
       </div>
     </div>
@@ -2571,7 +2571,21 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
 
         {showCoForm&&canEdit&&(
           <Card style={{marginBottom:16,border:`1.5px solid ${T.accent}44`}}>
-            <div style={{fontWeight:700,fontSize:14,marginBottom:14,color:T.accent}}>{editCoId?"✎ Edit Company":"+ New Company"}</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+              <div style={{fontWeight:700,fontSize:14,color:T.accent}}>{editCoId?"✎ Edit Company":"+ New Company"}</div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:12,fontWeight:600,color:T.sub}}>🏢 Host Business</span>
+                <div onClick={()=>scf("isHostBusiness",!coForm.isHostBusiness)}
+                  style={{position:"relative",width:52,height:28,borderRadius:14,cursor:"pointer",
+                    background:coForm.isHostBusiness?T.teal:T.border,transition:"background .2s",flexShrink:0}}>
+                  <div style={{position:"absolute",top:3,left:coForm.isHostBusiness?26:3,width:22,height:22,
+                    borderRadius:"50%",background:"#fff",boxShadow:"0 1px 4px rgba(0,0,0,.25)",transition:"left .2s"}}/>
+                </div>
+                <span style={{fontSize:12,fontWeight:700,color:coForm.isHostBusiness?T.teal:T.muted,minWidth:24}}>
+                  {coForm.isHostBusiness?"Yes":"No"}
+                </span>
+              </div>
+            </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
               <div><FL req>Company Name</FL><input placeholder="Sparks Electrical Ltd" value={coForm.name} onChange={e=>scf("name",e.target.value)}/></div>
               <div><FL>Industry</FL><input placeholder="e.g. Electrical" value={coForm.industry} onChange={e=>scf("industry",e.target.value)}/></div>
@@ -2583,14 +2597,6 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
               <div><FL>Country</FL><input placeholder="New Zealand" value={coForm.country} onChange={e=>scf("country",e.target.value)}/></div>
             </div>
             <div style={{marginBottom:10}}><FL>Notes</FL><textarea rows={2} placeholder="Any notes about this company…" value={coForm.notes} onChange={e=>scf("notes",e.target.value)} style={{width:"100%",resize:"vertical"}}/></div>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,padding:"10px 14px",background:T.accentL,borderRadius:8,border:`1px solid ${T.accent}33`}}>
-              <input type="checkbox" id="coIsHost" checked={!!coForm.isHostBusiness} onChange={e=>scf("isHostBusiness",e.target.checked)}
-                style={{width:16,height:16,cursor:"pointer",accentColor:T.accent}}/>
-              <label htmlFor="coIsHost" style={{cursor:"pointer",fontSize:13,fontWeight:600,color:T.accent,userSelect:"none"}}>
-                🏢 Host Business
-              </label>
-              <span style={{fontSize:12,color:T.sub,marginLeft:4}}>Tick this if the company hosts KTA apprentices — it will appear in the Host Business dropdown when creating or editing an apprentice.</span>
-            </div>
             <div style={{display:"flex",gap:8}}>
               <Btn onClick={saveCo} disabled={coSaving}>{coSaving?"Saving…":editCoId?"Update Company":"Save Company"}</Btn>
               <Btn v="ghost" onClick={()=>{setShowCoForm(false);setEditCoId(null);setCoForm(coBlank);}}>Cancel</Btn>
