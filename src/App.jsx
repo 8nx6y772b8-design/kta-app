@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.2.3
+// KTA Workforce Management — v2.2.4
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -39,10 +39,79 @@ const LEAVE_TO_ENTRY_TYPE = {
 };
 
 // Generate one timesheet entry per working day (Mon–Fri) in the leave range
+// ── NZ Public Holidays calculator ─────────────────────────────────────────
+// Returns a Set of YYYY-MM-DD strings for all NZ national public holidays in a given year.
+// Rules per Holidays Act 2003. Regional holidays (Anniversary Days) are NOT included.
+const getNZHolidays = (year) => {
+  const h = new Set();
+  // Helper: add a date, mondayising if it falls on weekend
+  const add = (y, m, d) => {
+    const dt = new Date(y, m - 1, d);
+    const dow = dt.getDay();
+    if(dow === 0) dt.setDate(d + 1);      // Sun → Mon
+    else if(dow === 6) dt.setDate(d + 2); // Sat → Mon
+    h.add(dt.toISOString().slice(0, 10));
+  };
+  // Waitangi Day & Anzac Day: if on Sat/Sun move to following Monday (since 2015)
+  const addWaitanziAnzac = (y, m, d) => {
+    const dt = new Date(y, m - 1, d);
+    const dow = dt.getDay();
+    if(dow === 0) dt.setDate(d + 1);
+    else if(dow === 6) dt.setDate(d + 2);
+    h.add(dt.toISOString().slice(0, 10));
+  };
+  // Fixed-date holidays
+  add(year, 1, 1);   // New Year's Day
+  add(year, 1, 2);   // Day after New Year's
+  addWaitanziAnzac(year, 2, 6);  // Waitangi Day
+  addWaitanziAnzac(year, 4, 25); // Anzac Day
+  add(year, 12, 25); // Christmas Day
+  add(year, 12, 26); // Boxing Day
+  // Easter (Good Friday + Easter Monday) — Butcher's algorithm
+  const a=year%19, b=Math.floor(year/100), c=year%100;
+  const d2=Math.floor(b/4), e=b%4, f=Math.floor((b+8)/25);
+  const g=Math.floor((b-f+1)/3), hh=(19*a+b-d2-g+15)%30;
+  const i=Math.floor(c/4), k=c%4, l=(32+2*e+2*i-hh-k)%7;
+  const m2=Math.floor((a+11*hh+22*l)/451);
+  const month=Math.floor((hh+l-7*m2+114)/31);
+  const day=((hh+l-7*m2+114)%31)+1;
+  const easter = new Date(year, month-1, day); // Easter Sunday
+  const gf = new Date(easter); gf.setDate(gf.getDate()-2);
+  const em = new Date(easter); em.setDate(em.getDate()+1);
+  h.add(gf.toISOString().slice(0,10)); // Good Friday
+  h.add(em.toISOString().slice(0,10)); // Easter Monday
+  // Queen's/King's Birthday — 1st Monday of June
+  const kb = new Date(year, 5, 1);
+  kb.setDate(1 + (8 - kb.getDay()) % 7);
+  h.add(kb.toISOString().slice(0,10));
+  // Matariki — legislated dates (2022–2034)
+  const matariki = {
+    2022:"2022-06-24",2023:"2023-07-14",2024:"2024-06-28",
+    2025:"2025-06-20",2026:"2026-07-10",2027:"2027-06-25",
+    2028:"2028-07-14",2029:"2029-07-06",2030:"2030-06-21",
+    2031:"2031-07-11",2032:"2032-07-02",2033:"2033-06-24",2034:"2034-07-12",
+  };
+  if(matariki[year]) h.add(matariki[year]);
+  // Labour Day — 4th Monday of October
+  const ld = new Date(year, 9, 1);
+  const firstMon = (8 - ld.getDay()) % 7;
+  ld.setDate(1 + firstMon + 21);
+  h.add(ld.toISOString().slice(0,10));
+  return h;
+};
+
 const autoFillLeaveEntries = async (apprenticeId, leaveType, dateFrom, dateTo, existingEntries, setEntries) => {
   const entryType = LEAVE_TO_ENTRY_TYPE[leaveType] || "Other";
   const start = "08:00", end = "16:30", breakMins = 30;
   const netHours = calcNet(start, end, breakMins); // 8.0
+
+  // Build NZ holiday sets for all years spanned
+  const yearFrom = parseInt(dateFrom.slice(0,4));
+  const yearTo   = parseInt(dateTo.slice(0,4));
+  const nzHolidays = new Set();
+  for(let y = yearFrom; y <= yearTo; y++) {
+    for(const d of getNZHolidays(y)) nzHolidays.add(d);
+  }
 
   const days = [];
   const cur = new Date(dateFrom + "T00:00:00");
@@ -50,8 +119,10 @@ const autoFillLeaveEntries = async (apprenticeId, leaveType, dateFrom, dateTo, e
 
   while (cur <= last) {
     const dow = cur.getDay(); // 0=Sun, 6=Sat
-    if (dow !== 0 && dow !== 6) {
-      const dateStr = cur.toISOString().slice(0, 10);
+    const dateStr = cur.toISOString().slice(0, 10);
+    const isWeekend = dow === 0 || dow === 6;
+    const isHoliday = nzHolidays.has(dateStr);
+    if (!isWeekend && !isHoliday) {
       // Skip if entry already exists for this date
       const exists = existingEntries.some(e => e.userId === apprenticeId && e.date === dateStr);
       if (!exists) days.push(dateStr);
@@ -915,7 +986,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.2.3
+          v2.2.4
         </div>
       </div>
     </div>
@@ -2840,23 +2911,158 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
           setHsImporting(false);
         };
 
+        // ── Sync Companies Only ──────────────────────────────────────────────
+        const syncCompaniesOnly = async () => {
+          if(!hsToken.trim()){setHsMsg("Please enter your HubSpot token."); return;}
+          if(!window.confirm("This will DELETE all existing CRM companies (and unlink contacts from them), then re-import companies fresh from HubSpot. Contacts will be kept. Continue?")) return;
+          setHsImporting(true);
+          const syncMsg = (msg) => { setHsMsg(msg); if(onSyncTick) onSyncTick(); };
+          try {
+            syncMsg("🗑 Clearing existing companies…");
+            const existingCos = await loadTable("crm_companies").catch(()=>[]);
+            for(const co of existingCos) await deleteRow("crm_companies", co.id).catch(()=>{});
+            setCompanies([]);
+            // Unlink contacts from companies
+            const existingContacts = await loadTable("crm_contacts").catch(()=>[]);
+            for(const c of existingContacts.filter(c=>c.company_id)) {
+              await upsertRow("crm_contacts",{...c, company_id:null}).catch(()=>{});
+            }
+
+            syncMsg("🏢 Fetching companies from HubSpot…");
+            const hsCompanies = await fetchAllPages("getCompanies");
+            syncMsg(`🏢 Importing ${hsCompanies.length} companies…`);
+            const hsCoIdToLocalId = {};
+            let coDone=0;
+            for(let i=0;i<hsCompanies.length;i++){
+              const co=hsCompanies[i]; const p=co.properties;
+              if(!p?.name) continue;
+              const id=crypto.randomUUID(); hsCoIdToLocalId[co.id]=id;
+              const row={id,name:p.name,industry:p.industry||"",phone:p.phone||"",
+                website:p.website||"",address:p.address||"",city:p.city||"",
+                postcode:p.zip||"",country:(p.country&&p.country!=="New Zealand")?p.country:"",
+                hubspot_id:co.id,status:"Active",notes:""};
+              await upsertRow("crm_companies",row).catch(()=>{});
+              setCompanies(prev=>[...prev,{id,name:p.name,industry:p.industry||"",phone:p.phone||"",
+                website:p.website||"",address:p.address||"",city:p.city||"",country:p.country||"",
+                hubspotId:co.id,notes:"",status:"Active"}]);
+              coDone++;
+              if(i%20===0) syncMsg(`🏢 Importing companies… ${i+1}/${hsCompanies.length}`);
+            }
+            // Re-link existing contacts to new company records via HubSpot ID
+            syncMsg("🔗 Re-linking contacts to companies…");
+            let linked=0;
+            const freshContacts = await loadTable("crm_contacts").catch(()=>[]);
+            for(let i=0;i<hsCompanies.length;i++){
+              const co=hsCompanies[i]; const localCoId=hsCoIdToLocalId[co.id]; if(!localCoId) continue;
+              try {
+                const d=await hsFetch("getCompanyContacts",{companyId:co.id});
+                for(const assoc of (d.results||[])){
+                  const localContact=freshContacts.find(c=>c.hubspot_id===assoc.id);
+                  if(!localContact) continue;
+                  await upsertRow("crm_contacts",{...localContact,company_id:localCoId}).catch(()=>{});
+                  setContacts(prev=>prev.map(c=>c.id===localContact.id?{...c,companyId:localCoId}:c));
+                  linked++;
+                }
+              } catch{}
+              if(i%20===0) syncMsg(`🔗 Linking… ${i+1}/${hsCompanies.length}`);
+            }
+            syncMsg(`✓ Companies sync complete — ${coDone} companies · ${linked} contact links restored`);
+          } catch(e){ syncMsg("Error: "+e.message); }
+          setHsImporting(false);
+        };
+
+        // ── Sync Contacts Only ───────────────────────────────────────────────
+        const syncContactsOnly = async () => {
+          if(!hsToken.trim()){setHsMsg("Please enter your HubSpot token."); return;}
+          if(!window.confirm("This will DELETE all existing CRM contacts, then re-import contacts fresh from HubSpot. Companies will be kept and re-linked. Continue?")) return;
+          setHsImporting(true);
+          const syncMsg = (msg) => { setHsMsg(msg); if(onSyncTick) onSyncTick(); };
+          try {
+            syncMsg("🗑 Clearing existing contacts…");
+            const existingContacts = await loadTable("crm_contacts").catch(()=>[]);
+            for(const c of existingContacts) await deleteRow("crm_contacts", c.id).catch(()=>{});
+            setContacts([]);
+            syncMsg("👥 Fetching contacts from HubSpot…");
+            const hsContacts = await fetchAllPages("searchContacts");
+            syncMsg(`👥 Importing ${hsContacts.length} contacts…`);
+            const hsContactIdToLocalId = {};
+            let ctDone=0;
+            for(let i=0;i<hsContacts.length;i++){
+              const c=hsContacts[i]; const p=c.properties;
+              const name=[p.firstname,p.lastname].filter(Boolean).join(" ")||p.company||"";
+              if(!name) continue;
+              const id=crypto.randomUUID(); hsContactIdToLocalId[c.id]=id;
+              const row={id,name,email:p.email||"",phone:p.mobilephone||p.phone||"",
+                company:p.company||"",trade:p.industry||"",
+                address:p.address||"",city:p.city||"",
+                postcode:p.zip||"",country:(p.country&&p.country!=="New Zealand")?p.country:"",
+                site_safe_expiry:p.site_safe_expiry||p.sitesafe_expiry||null,
+                first_aid_expiry:p.first_aid_expiry||p.firstaid_expiry||null,
+                status:"Active",notes:"",hubspot_id:c.id};
+              await upsertRow("crm_contacts",row).catch(()=>{});
+              setContacts(prev=>[...prev,{id,name,email:row.email,phone:row.phone,
+                company:row.company,companyId:"",status:"Active",notes:"",hubspot_id:c.id}]);
+              ctDone++;
+              if(i%50===0) syncMsg(`👥 Importing contacts… ${i+1}/${hsContacts.length}`);
+            }
+            syncMsg("🔗 Re-linking contacts to companies…");
+            const existingCos = await loadTable("crm_companies").catch(()=>[]);
+            let linked=0;
+            for(const co of existingCos){
+              if(!co.hubspot_id) continue;
+              try {
+                const d=await hsFetch("getCompanyContacts",{companyId:co.hubspot_id});
+                for(const assoc of (d.results||[])){
+                  const localContactId=hsContactIdToLocalId[assoc.id];
+                  if(!localContactId) continue;
+                  await upsertRow("crm_contacts",{id:localContactId,company_id:co.id}).catch(()=>{});
+                  setContacts(prev=>prev.map(c=>c.id===localContactId?{...c,companyId:co.id}:c));
+                  linked++;
+                }
+              } catch{}
+            }
+            syncMsg(`✓ Contacts sync complete — ${ctDone} contacts · ${linked} company links restored`);
+          } catch(e){ syncMsg("Error: "+e.message); }
+          setHsImporting(false);
+        };
+
         return (
           <div>
-            <Card style={{marginBottom:16}}>
-              <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>🔄 Full HubSpot Sync</div>
-              <div style={{fontSize:12,color:T.sub,marginBottom:14,lineHeight:1.6}}>
-                Deletes all existing contacts and companies, then re-imports everything fresh from HubSpot —
-                including <strong>company records</strong>, <strong>contact details</strong>, and <strong>contact→company links</strong>.
-              </div>
-              <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                <input type="password" placeholder="pat-ap1-xxxxxxxx…"
-                  value={hsToken} onChange={e=>setHsToken(e.target.value)}
-                  style={{flex:1,minWidth:220,fontFamily:"monospace",fontSize:12}}/>
-                <Btn sm onClick={fullSync} disabled={hsImporting} style={{background:T.accent,color:"#fff",fontWeight:700}}>
-                  {hsImporting?"⏳ Syncing…":"🚀 Full Sync"}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12,marginBottom:12}}>
+              <Card style={{border:`1.5px solid ${T.accent}33`}}>
+                <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>🚀 Full Sync</div>
+                <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+                  Deletes all companies <em>and</em> contacts then re-imports everything fresh including links.
+                </div>
+                <Btn sm onClick={fullSync} disabled={hsImporting} style={{background:T.accent,color:"#fff",fontWeight:700,width:"100%"}}>
+                  {hsImporting?"⏳ Syncing…":"🔄 Full Sync — Companies + Contacts"}
                 </Btn>
-              </div>
-              {hsMsg&&<div style={{marginTop:12,fontSize:12,fontWeight:600,lineHeight:1.7,
+              </Card>
+              <Card style={{border:`1.5px solid ${T.teal}33`}}>
+                <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>🏢 Sync Companies Only</div>
+                <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+                  Re-imports companies from HubSpot. Contacts are kept and re-linked to new company records.
+                </div>
+                <Btn sm onClick={syncCompaniesOnly} disabled={hsImporting} style={{background:T.teal,color:"#fff",fontWeight:700,width:"100%"}}>
+                  {hsImporting?"⏳ Syncing…":"🏢 Sync Companies Only"}
+                </Btn>
+              </Card>
+              <Card style={{border:`1.5px solid ${T.blue}33`}}>
+                <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>👥 Sync Contacts Only</div>
+                <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+                  Re-imports contacts from HubSpot. Companies are kept and contacts re-linked automatically.
+                </div>
+                <Btn sm onClick={syncContactsOnly} disabled={hsImporting} style={{background:T.blue,color:"#fff",fontWeight:700,width:"100%"}}>
+                  {hsImporting?"⏳ Syncing…":"👥 Sync Contacts Only"}
+                </Btn>
+              </Card>
+            </div>
+            <Card style={{marginBottom:12}}>
+              <div style={{fontSize:12,color:T.sub,marginBottom:8}}>HubSpot API Token (required for all sync options)</div>
+              <input type="password" placeholder="pat-ap1-xxxxxxxx…"
+                value={hsToken} onChange={e=>setHsToken(e.target.value)}
+                style={{width:"100%",fontFamily:"monospace",fontSize:12}}/>
+              {hsMsg&&<div style={{marginTop:10,fontSize:12,fontWeight:600,lineHeight:1.7,
                 color:hsMsg.startsWith("✓")?T.teal:hsMsg.startsWith("Error")?T.red:T.sub}}>{hsMsg}</div>}
             </Card>
 
