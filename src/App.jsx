@@ -2267,7 +2267,8 @@ function CRMModule({currentUser,allUsers}) {
           "firstname","lastname","email","phone","mobilephone",
           "company","industry",
           "address","city","zip","state","country",
-          "hs_lead_status","createdate"
+          "hs_lead_status","createdate",
+          "site_safe_expiry","sitesafe_expiry","first_aid_expiry","firstaid_expiry",
         ].join(",");
 
         const hsFetch = async (url) => {
@@ -2301,6 +2302,8 @@ function CRMModule({currentUser,allUsers}) {
                   country: (p.country&&p.country!=="New Zealand")?p.country:"",
                   company: p.company||"",
                   addressDisplay: addrParts.join(", "),
+                  siteSafeExpiry: p.site_safe_expiry||p.sitesafe_expiry||"",
+                  firstAidExpiry: p.first_aid_expiry||p.firstaid_expiry||"",
                 };
               }).filter(Boolean);
               all=[...all,...mapped];
@@ -2321,17 +2324,38 @@ function CRMModule({currentUser,allUsers}) {
           if(!hsPreview||hsSelected.size===0) return;
           setHsImporting(true);
           const toImport = hsPreview.contacts.filter((_,i)=>hsSelected.has(i));
-          let done=0, skipped=0, notesDone=0;
+          let done=0, updated=0, notesDone=0;
           for(const c of toImport){
-            const exists = contacts.find(x=>x.email&&c.email&&x.email===c.email);
+            const existsCrm = contacts.find(x=>x.email&&c.email&&x.email.toLowerCase()===c.email.toLowerCase());
+            // Check if this person also exists as an apprentice in users table (Xero is source of truth for their data)
+            // We never overwrite fields already set from Xero — only fill in blanks from HubSpot
             let contactId;
-            if(exists){ skipped++; contactId=exists.id; }
-            else {
+            if(existsCrm){
+              contactId = existsCrm.id;
+              // Merge: fill any blank fields from HubSpot, but never overwrite non-empty existing values
+              const mergeRow = {};
+              if(!existsCrm.phone    && c.phone)    mergeRow.phone    = c.phone;
+              if(!existsCrm.company  && c.company)  mergeRow.company  = c.company;
+              if(!existsCrm.trade    && c.trade)     mergeRow.trade    = c.trade;
+              if(!existsCrm.address  && c.address)  mergeRow.address  = c.address;
+              if(!existsCrm.city     && c.city)      mergeRow.city     = c.city;
+              if(!existsCrm.postcode && c.postcode)  mergeRow.postcode = c.postcode;
+              if(!existsCrm.site_safe_expiry && c.siteSafeExpiry) mergeRow.site_safe_expiry = c.siteSafeExpiry;
+              if(!existsCrm.first_aid_expiry && c.firstAidExpiry) mergeRow.first_aid_expiry = c.firstAidExpiry;
+              if(!existsCrm.hubspot_id) mergeRow.hubspot_id = c.hubspotId;
+              if(Object.keys(mergeRow).length>0){
+                await upsertRow("crm_contacts",{id:contactId,...mergeRow}).catch(()=>{});
+                setContacts(prev=>prev.map(x=>x.id===contactId?{...x,...mergeRow}:x));
+                updated++;
+              }
+            } else {
               contactId = crypto.randomUUID();
               const row = {
                 id:contactId, name:c.name, email:c.email, phone:c.phone,
                 company:c.company, trade:c.trade,
                 address:c.address, city:c.city, postcode:c.postcode, country:c.country,
+                site_safe_expiry: c.siteSafeExpiry||null,
+                first_aid_expiry: c.firstAidExpiry||null,
                 status:"Active", notes:"", hubspot_id:c.hubspotId,
               };
               await upsertRow("crm_contacts",row).catch(()=>{});
@@ -2383,7 +2407,7 @@ function CRMModule({currentUser,allUsers}) {
             } catch{}
             setHsMsg(`Importing… ${done+skipped} / ${toImport.length}`);
           }
-          setHsMsg(`✓ Imported ${done} contacts · ${skipped} skipped · ${notesDone} activity notes`);
+          setHsMsg(`✓ Imported ${done} new · ${updated} updated (blanks filled) · ${notesDone} activity notes`);
           setHsImporting(false);
         };
 
@@ -2713,7 +2737,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
   const viewers     = allUsers.filter(u => u.role === "Viewer"   || u.role === "Admin");
   const mentors     = allUsers.filter(u => u.role === "Mentor"   || u.role === "Admin");
 
-  const blank = {firstName:"", lastName:"", email:"", phone:"", trade:"", licenceExpiry:"", hostBusiness:"", role:"Apprentice", allocatedTo:[], password:"", overtimeType:null, overtimeThreshold:"", overtimeRateId:""};
+  const blank = {firstName:"", lastName:"", email:"", phone:"", trade:"", licenceExpiry:"", siteSafeExpiry:"", firstAidExpiry:"", hostBusiness:"", role:"Apprentice", allocatedTo:[], password:"", overtimeType:null, overtimeThreshold:"", overtimeRateId:""};
   const [form, setForm]         = useState(blank);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId]     = useState(null);
@@ -2791,7 +2815,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
       firstName: u.firstName || parts[0] || "",
       lastName:  u.lastName  || parts.slice(1).join(" ") || "",
       email: u.email||"", phone: u.phone||"",
-      trade: u.trade||"", licenceExpiry: u.licenceExpiry||"", hostBusiness: u.hostBusiness||"",
+      trade: u.trade||"", licenceExpiry: u.licenceExpiry||"", siteSafeExpiry: u.siteSafeExpiry||"", firstAidExpiry: u.firstAidExpiry||"", hostBusiness: u.hostBusiness||"",
       role:"Apprentice", allocatedTo:[], password:u.password,
       overtimeType: u.overtimeType||null, overtimeThreshold: u.overtimeThreshold||"", overtimeRateId: u.overtimeRateId||"",
     });
@@ -2849,6 +2873,8 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
               </select>
             </div>
             <div><FL>Licence Expiry</FL><input type="date" value={form.licenceExpiry} onChange={e=>sf("licenceExpiry",e.target.value)}/></div>
+            <div><FL>Site Safe Expiry</FL><input type="date" value={form.siteSafeExpiry||""} onChange={e=>sf("siteSafeExpiry",e.target.value)}/></div>
+            <div><FL>First Aid Expiry</FL><input type="date" value={form.firstAidExpiry||""} onChange={e=>sf("firstAidExpiry",e.target.value)}/></div>
             <div><FL>Host Business</FL><input placeholder="e.g. Sparks Electrical Ltd" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/></div>
             {/* ── Overtime Settings ── */}
             <div style={{gridColumn:"1/-1"}}>
@@ -2984,15 +3010,26 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
                   : <span style={{fontSize:12,color:T.muted}}>—</span>}
                 </div>
 
-                {/* Licence expiry */}
-                <div>
-                  {u.licenceExpiry
-                    ? <div style={{fontSize:12,fontWeight:600,color:lc}}>
-                        {new Date(u.licenceExpiry+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"})}
-                        {licColour(u.licenceExpiry)===T.red&&<div style={{fontSize:10,color:T.red}}>EXPIRED</div>}
-                        {licColour(u.licenceExpiry)===T.warn&&<div style={{fontSize:10,color:T.warn}}>Expiring soon</div>}
+                {/* Licence / Site Safe / First Aid expiry */}
+                <div style={{display:"flex",flexDirection:"column",gap:3}}>
+                  {[
+                    {label:"Lic",  val:u.licenceExpiry},
+                    {label:"SS",   val:u.siteSafeExpiry},
+                    {label:"FA",   val:u.firstAidExpiry},
+                  ].map(({label,val})=>{
+                    if(!val) return null;
+                    const c = licColour(val);
+                    return (
+                      <div key={label} style={{display:"flex",alignItems:"center",gap:4}}>
+                        <span style={{fontSize:10,fontWeight:700,color:T.muted,width:22,flexShrink:0}}>{label}</span>
+                        <span style={{fontSize:11,fontWeight:600,color:c}}>
+                          {new Date(val+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"})}
+                          {c===T.red&&<span style={{marginLeft:3}}>⚠</span>}
+                        </span>
                       </div>
-                    : <span style={{fontSize:12,color:T.muted}}>—</span>}
+                    );
+                  })}
+                  {!u.licenceExpiry&&!u.siteSafeExpiry&&!u.firstAidExpiry&&<span style={{fontSize:12,color:T.muted}}>—</span>}
                 </div>
 
                 {/* Allocation summary — click to expand */}
@@ -5467,6 +5504,8 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
               bg:licDays===null?T.bg:licDays<=7?T.redL:licDays<=30?T.warnL:T.tealL,
               valColor:licColor},
             {label:"Last Mentor Visit",value:loadingVisit?"…":lastVisit?fmtDate(lastVisit):"No visits yet",icon:"📅",bg:T.tealL,valColor:T.teal},
+            (()=>{const d=daysUntil(apprentice.siteSafeExpiry); const c=d===null?T.muted:d<0?T.red:d<=30?T.warn:T.teal; return {label:"Site Safe Expiry",value:apprentice.siteSafeExpiry?(d!==null?`${fmtDate(apprentice.siteSafeExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:`${fmtDate(apprentice.siteSafeExpiry)}`):"Not set",icon:"🦺",bg:d===null?T.bg:d<0?T.redL:d<=30?T.warnL:T.tealL,valColor:c};})(),
+            (()=>{const d=daysUntil(apprentice.firstAidExpiry);  const c=d===null?T.muted:d<0?T.red:d<=30?T.warn:T.teal; return {label:"First Aid Expiry", value:apprentice.firstAidExpiry?(d!==null?`${fmtDate(apprentice.firstAidExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:`${fmtDate(apprentice.firstAidExpiry)}`):"Not set",icon:"🩹",bg:d===null?T.bg:d<0?T.redL:d<=30?T.warnL:T.tealL,valColor:c};})(),
           ].map(({label,value,icon,bg,valColor})=>(
             <div key={label} style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`}}>
               <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>{icon} {label}</div>
@@ -7141,7 +7180,7 @@ serve(async (req) => {
                               postcode: xe.PostCode||"",
                               dateOfBirth: xeDob, gender: xe.Gender||"",
                               startDate: xe.StartDate ? xe.StartDate.slice(0,10) : "",
-                              licenceExpiry:"", xeroEmployeeId: xeXid,
+                              licenceExpiry:"", siteSafeExpiry:"", firstAidExpiry:"", xeroEmployeeId: xeXid,
                               role:"Apprentice", password:"changeme123", allocatedTo:[], adminLevel:1,
                             };
                             await upsertRow('users', {
@@ -7157,7 +7196,7 @@ serve(async (req) => {
                               date_of_birth: xeDob||null,
                               gender: xe.Gender||null,
                               start_date: xe.StartDate ? xe.StartDate.slice(0,10) : null,
-                              licence_expiry: null,
+                              licence_expiry: null, site_safe_expiry: null, first_aid_expiry: null,
                               xero_employee_id: xeXid, admin_level:1,
                             });
                             onImportUser(newUser);
