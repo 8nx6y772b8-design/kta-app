@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.0.8
+// KTA Workforce Management — v2.1.0
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.0.8
+          v2.1.0
         </div>
       </div>
     </div>
@@ -1902,9 +1902,7 @@ function UserManagement({users, setUsers, currentUser}) {
                         {hostCos.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
                         <option value="__custom__">Other (type below)…</option>
                       </select>
-                      {(!isListed||(form.hostBusiness&&!hostCos.some(c=>c.name===form.hostBusiness)))&&(
-                        <input style={{marginTop:6}} placeholder="Type host business name…" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>
-                      )}
+                      {!isListed&&<input style={{marginTop:6}} placeholder="Type host business name…" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>}
                     </div>
                   ):(
                     <input placeholder="e.g. Sparks Electrical Ltd" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>
@@ -3141,6 +3139,8 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
   const [formViewerId,   setFormViewerId]   = useState("");
   const [formMentorId,   setFormMentorId]   = useState("");
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+  const [hostCos, setHostCos] = useState([]);
+  useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCos(rows.filter(r=>r.is_host_business).map(r=>({id:r.id,name:r.name})).sort((a,b)=>a.name.localeCompare(b.name)))).catch(()=>{}); },[]);
 
   const getAllocated = (role, appId) =>
     allUsers.filter(u => (u.role===role || u.role==="Admin") && (u.allocatedTo||[]).includes(appId));
@@ -3275,7 +3275,19 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
             <div><FL>Licence Expiry</FL><input type="date" value={form.licenceExpiry} onChange={e=>sf("licenceExpiry",e.target.value)}/></div>
             <div><FL>Site Safe Expiry</FL><input type="date" value={form.siteSafeExpiry||""} onChange={e=>sf("siteSafeExpiry",e.target.value)}/></div>
             <div><FL>First Aid Expiry</FL><input type="date" value={form.firstAidExpiry||""} onChange={e=>sf("firstAidExpiry",e.target.value)}/></div>
-            <div><FL>Host Business</FL><input placeholder="e.g. Sparks Electrical Ltd" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/></div>
+            <div><FL>Host Business</FL>
+              {hostCos.length>0?(()=>{
+                const listed=hostCos.some(c=>c.name===(form.hostBusiness||""));
+                return(<div>
+                  <select value={listed?(form.hostBusiness||""):"__custom__"} onChange={e=>{if(e.target.value!=="__custom__")sf("hostBusiness",e.target.value);}}>
+                    <option value="">— Select host business —</option>
+                    {hostCos.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                    <option value="__custom__">Other (type below)…</option>
+                  </select>
+                  {!listed&&<input style={{marginTop:6}} placeholder="Type host business name…" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>}
+                </div>);
+              })():<input placeholder="e.g. Sparks Electrical Ltd" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>}
+            </div>
             {/* ── Overtime Settings ── */}
             <div style={{gridColumn:"1/-1"}}>
               <div style={{fontWeight:700,fontSize:12,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>
@@ -4477,8 +4489,6 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
   // Keep local req in sync if parent re-renders with new data
   useEffect(()=>{ setReq(reqProp); }, [reqProp.status, reqProp.id]);
 
-  const isAdmin1 = isAdmin && (currentUser?.adminLevel||1) === 1;
-
   const apprentice = allUsers.find(u=>u.id===req.apprentice_id) || { name:"Unknown" };
   const approver   = allUsers.find(u=>u.id===req.approver_id)   || { name:"No approver" };
   const meta       = LEAVE_STATUS_META[req.status] || LEAVE_STATUS_META.pending;
@@ -4603,10 +4613,11 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
     setDeclineMode(false);
   };
 
+  const isAdmin1   = isAdmin && (currentUser?.adminLevel||1) === 1;
   const canApprove = (isApprover && req.status==="pending") ||
-                     (isAdmin   && req.status==="approver_approved");
+                     (isAdmin1  && req.status==="approver_approved");
   const canDecline = (isApprover && req.status==="pending") ||
-                     (isAdmin   && (req.status==="pending" || req.status==="approver_approved"));
+                     (isAdmin1  && (req.status==="pending" || req.status==="approver_approved"));
 
   const borderCol = req.status==="declined" ? T.red :
                     req.status==="kta_approved" ? T.accent :
@@ -4781,7 +4792,7 @@ function LeaveRequestsListPage({ currentUser, allUsers, entries, setEntries }) {
     <div>
       {requests.map(r=>(
         <LeaveRequestCard key={r.id} req={r} allUsers={allUsers} currentUser={currentUser}
-          isAdmin={true} isApprover={false} onUpdate={handleUpdate}
+          isAdmin={currentUser.role==="Admin"} isApprover={false} onUpdate={handleUpdate}
           entries={entries} setEntries={setEntries}
           onDelete={(id)=>setRequests(prev=>prev.filter(x=>x.id!==id))}/>
       ))}
