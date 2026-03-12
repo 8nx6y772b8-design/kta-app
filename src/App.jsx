@@ -101,6 +101,72 @@ const addLeaveToCalendar = async (apprenticeName, leaveType, dateFrom, dateTo) =
     console.error("addLeaveToCalendar failed:", e);
   }
 };
+// Generate an iCal (.ics) calendar invite as a base64 attachment
+const makeIcalAttachment = (apprenticeName, leaveType, dateFrom, dateTo, attendeeEmail, attendeeName) => {
+  // Build UID
+  const uid = `kta-leave-${dateFrom}-${apprenticeName.replace(/\s+/g,"-").toLowerCase()}@kta.org.nz`;
+  // End date for all-day events in iCal is exclusive (day after last day)
+  const endDt = new Date(dateTo + "T00:00:00");
+  endDt.setDate(endDt.getDate() + 1);
+  const endStr = endDt.toISOString().slice(0,10).replace(/-/g,"");
+  const startStr = dateFrom.replace(/-/g,"");
+  const now = new Date().toISOString().replace(/[-:]/g,"").slice(0,15) + "Z";
+
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//KTA Workforce//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:REQUEST",
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `DTSTAMP:${now}`,
+    `DTSTART;VALUE=DATE:${startStr}`,
+    `DTEND;VALUE=DATE:${endStr}`,
+    `SUMMARY:${apprenticeName} — ${leaveType}`,
+    `DESCRIPTION:Leave approved by KTA for ${apprenticeName}.\nType: ${leaveType}\nFrom: ${dateFrom}\nTo: ${dateTo}`,
+    "STATUS:CONFIRMED",
+    "TRANSP:TRANSPARENT",
+    `ATTENDEE;CN=${attendeeName};ROLE=REQ-PARTICIPANT:mailto:${attendeeEmail}`,
+    "ORGANIZER;CN=KTA Workforce:mailto:timesheet@kta.org.nz",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+
+  // Base64 encode
+  const b64 = btoa(unescape(encodeURIComponent(ics)));
+  return {
+    filename: `kta-leave-${dateFrom}.ics`,
+    content: b64,
+    encoding: "base64",
+    contentType: "text/calendar; method=REQUEST",
+  };
+};
+
+// Send iCal invite email to a single recipient
+const sendCalendarInvite = async (toEmail, toName, apprenticeName, leaveType, dateFrom, dateTo) => {
+  const attach = makeIcalAttachment(apprenticeName, leaveType, dateFrom, dateTo, toEmail, toName);
+  const fmtNZ = iso => { const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
+  await sendKTAEmail({
+    to: toEmail,
+    subject: `Calendar: ${apprenticeName} — ${leaveType} (${fmtNZ(dateFrom)}–${fmtNZ(dateTo)})`,
+    html: leaveEmailHtml(
+      `<strong>Leave Calendar Reminder</strong>`,
+      `<p style="font-size:13px;color:#0d1b2e">A calendar invite has been attached for the approved leave period below. Please add it to your calendar.</p>
+       <table style="width:100%;border-collapse:collapse;font-size:13px;margin:12px 0">
+         <tr><td style="padding:7px 12px;background:#f0f4f9;font-weight:700;width:40%">Apprentice</td><td style="padding:7px 12px">${apprenticeName}</td></tr>
+         <tr><td style="padding:7px 12px;background:#f0f4f9;font-weight:700">Leave Type</td><td style="padding:7px 12px">${leaveType}</td></tr>
+         <tr><td style="padding:7px 12px;background:#f0f4f9;font-weight:700">From</td><td style="padding:7px 12px">${fmtNZ(dateFrom)}</td></tr>
+         <tr><td style="padding:7px 12px;background:#f0f4f9;font-weight:700">To</td><td style="padding:7px 12px">${fmtNZ(dateTo)}</td></tr>
+       </table>
+       <div style="background:#dce8f7;border-radius:8px;padding:12px 16px;font-size:12px;color:#1b4f8c;font-weight:600">
+         ★ Fully approved by KTA — please open the attached .ics file to add to your calendar.
+       </div>`
+    ),
+    attachments: [attach],
+  }).catch(e => console.error("Calendar invite failed for", toEmail, e));
+};
+
 const LEAVE_TOKEN_SECRET = "kta-leave-action-secret-v1"; // must match LEAVE_TOKEN_SECRET in Supabase secrets
 
 // HMAC-SHA256 token for one-click email approve/decline (browser SubtleCrypto)
@@ -4262,6 +4328,18 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
       }
       // Add to KTA team calendar
       await addLeaveToCalendar(apprentice.name, req.leave_type, req.date_from, req.date_to);
+      // Send iCal invites to apprentice, approver and admin
+      const invitePromises = [];
+      if(apprentice.email) invitePromises.push(
+        sendCalendarInvite(apprentice.email, apprentice.name, apprentice.name, req.leave_type, req.date_from, req.date_to)
+      );
+      if(approver.email && approver.id !== "No approver") invitePromises.push(
+        sendCalendarInvite(approver.email, approver.name, apprentice.name, req.leave_type, req.date_from, req.date_to)
+      );
+      invitePromises.push(
+        sendCalendarInvite("admin@kta.org.nz", "KTA Admin", apprentice.name, req.leave_type, req.date_from, req.date_to)
+      );
+      await Promise.all(invitePromises);
       // Auto-fill timesheet entries for each working day
       const filled = await autoFillLeaveEntries(apprentice.id, req.leave_type, req.date_from, req.date_to, entries, setEntries);
       if(filled > 0) setFillMsg(`✓ ${filled} timesheet ${filled===1?"entry":"entries"} auto-filled`);
@@ -4292,6 +4370,20 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
         ),
       });
     }
+    // Notify admin@kta.org.nz when anyone declines
+    await sendLeaveEmail({
+      to: "admin@kta.org.nz",
+      subject: `Leave Request Declined — ${apprentice.name} (${req.leave_type})`,
+      html: leaveEmailHtml(
+        `A leave request from <strong>${apprentice.name}</strong> has been <strong>declined</strong> by <strong>${currentUser.name}</strong>.`,
+        leaveDetailTable(req, apprentice.name, approver.name) +
+        `<div style="background:#fde8e8;border-radius:8px;padding:12px 16px;margin:14px 0;border-left:4px solid #bf2b2b">
+          <div style="font-weight:700;font-size:12px;color:#bf2b2b;margin-bottom:4px">Reason for Decline</div>
+          <div style="font-size:12px;color:#0d1b2e">${declineReason.trim()}</div>
+        </div>
+        <p style="font-size:12px;color:#4a5a72">The apprentice has been notified.</p>`
+      ),
+    }).catch(()=>{});
     setReq(updated);
     onUpdate(updated);
     setActing(false);
@@ -4605,6 +4697,7 @@ function LeaveRequestsPanel({ currentUser, allUsers, entries=[], setEntries=null
   const isAdmin    = role === "Admin";
   const isApprover = role === "Approver";
   const isMentor   = role === "Mentor";
+  const isViewer   = role === "Viewer";
 
   const load = () => {
     setLoading(true);
@@ -4615,6 +4708,15 @@ function LeaveRequestsPanel({ currentUser, allUsers, entries=[], setEntries=null
           const myIds = allUsers
             .filter(u => u.role==="Apprentice" && (
               u.approverUserId === currentUser.id ||
+              (u.allocatedTo||[]).includes(currentUser.id)
+            ))
+            .map(u=>u.id);
+          visible = visible.filter(r => myIds.includes(r.apprentice_id));
+        }
+        if(isViewer) {
+          const myIds = allUsers
+            .filter(u => u.role==="Apprentice" && (
+              u.viewerUserId === currentUser.id ||
               (u.allocatedTo||[]).includes(currentUser.id)
             ))
             .map(u=>u.id);
@@ -4668,7 +4770,7 @@ function LeaveRequestsPanel({ currentUser, allUsers, entries=[], setEntries=null
         <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🏖️</div>
         <div style={{flex:1}}>
           <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:16}}>Leave Requests</div>
-          <div style={{fontSize:12,color:T.sub,marginTop:2}}>Review and approve apprentice leave applications</div>
+          <div style={{fontSize:12,color:T.sub,marginTop:2}}>{isViewer?"View apprentice leave applications":"Review and approve apprentice leave applications"}</div>
         </div>
         <button onClick={load} title="Refresh" style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:T.muted,padding:4}}>↻</button>
       </div>
@@ -9030,7 +9132,7 @@ export default function App() {
                     <h1 style={{fontFamily:"'Libre Baskerville'",fontSize:24,fontWeight:700,letterSpacing:"-.4px"}}>
                       {viewingApp.name}
                     </h1>
-                    <p style={{fontSize:13,color:T.sub,marginTop:2}}>Apprentice Timesheet — Admin view</p>
+
                   </div>
                 </div>
               </div>
@@ -9149,7 +9251,7 @@ export default function App() {
           )}
           {activeMod==="timesheet" && (
             <>
-              {role==="Approver" && (
+              {(role==="Approver"||role==="Viewer") && (
                 <LeaveRequestsPanel currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
               )}
               <TimesheetModule currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
