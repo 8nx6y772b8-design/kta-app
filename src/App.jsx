@@ -2409,6 +2409,14 @@ function CRMModule({currentUser,allUsers}) {
               </div>
               {hsMsg&&<div style={{marginTop:10,fontSize:12,fontWeight:600,
                 color:hsMsg.startsWith("✓")?T.teal:hsMsg.startsWith("Error")?T.red:T.sub}}>{hsMsg}</div>}
+              <button onClick={async()=>{
+                const r=await fetch(PROXY_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"debug",token:hsToken.trim()})});
+                const d=await r.json();
+                console.log("HubSpot debug sample:",JSON.stringify(d.sample,null,2));
+                alert("Check browser console (F12) for raw HubSpot date fields");
+              }} style={{marginTop:8,fontSize:11,color:T.muted,background:"none",border:"none",cursor:"pointer",textDecoration:"underline",fontFamily:"DM Sans,sans-serif"}}>
+                debug: check date format in console
+              </button>
             </Card>
 
             {hsPreview&&(
