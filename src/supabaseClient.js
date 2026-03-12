@@ -34,6 +34,10 @@ export const rowToUser = (r) => ({
   overtimeRateId:    r.overtime_rate_id   || null,
   mentorUserId:      r.mentor_user_id     || null,
   hostBusiness:      r.host_business      || "",
+  dateOfBirth:       r.date_of_birth      || null,
+  gender:            r.gender             || "",
+  startDate:         r.start_date         || null,
+  addressLine2:      r.address_line2      || "",
 });
 
 export const rowToEntry = (r) => ({
@@ -78,6 +82,10 @@ export const userToRow = (u) => ({
   overtime_rate_id:   u.overtimeRateId    || null,
   mentor_user_id:     u.mentorUserId      || null,
   host_business:      u.hostBusiness      || null,
+  date_of_birth:      u.dateOfBirth       || null,
+  gender:             u.gender            || null,
+  start_date:         u.startDate         || null,
+  address_line2:      u.addressLine2      || null,
 });
 
 export const entryToRow = (e) => ({

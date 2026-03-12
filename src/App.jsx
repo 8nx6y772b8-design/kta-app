@@ -5208,6 +5208,10 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
             {label:"Last Mentor Visit",value:loadingVisit?"…":lastVisit?fmtDate(lastVisit):"No visits yet",icon:"📅",bg:T.tealL,valColor:T.teal},
             {label:"Email",            value:apprentice.email||"Not set",   icon:"✉",  bg:T.bg,       valColor:T.sub},
             {label:"Phone",            value:apprentice.phone||"Not set",   icon:"📞", bg:T.bg,       valColor:T.sub},
+            {label:"Host Business",    value:apprentice.hostBusiness||"Not set", icon:"🏢", bg:T.bg,  valColor:T.sub},
+            {label:"Start Date",       value:apprentice.startDate?fmtDate(apprentice.startDate):"Not set", icon:"📅", bg:T.bg, valColor:T.sub},
+            {label:"Date of Birth",    value:apprentice.dateOfBirth?fmtDate(apprentice.dateOfBirth):"Not set", icon:"🎂", bg:T.bg, valColor:T.sub},
+            {label:"Gender",           value:apprentice.gender||"Not set",  icon:"👤", bg:T.bg,       valColor:T.sub},
           ].map(({label,value,icon,bg,valColor})=>(
             <div key={label} style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`}}>
               <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>{icon} {label}</div>
@@ -5215,6 +5219,17 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
             </div>
           ))}
         </div>
+        {(apprentice.address||apprentice.city||apprentice.suburb||apprentice.postcode) && (
+          <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border}`,display:"flex",alignItems:"flex-start",gap:8}}>
+            <span style={{fontSize:14}}>📍</span>
+            <div>
+              <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3}}>Address</div>
+              <div style={{fontSize:13,color:T.ink,lineHeight:1.6}}>
+                {[apprentice.address, apprentice.addressLine2, apprentice.suburb, apprentice.city, apprentice.postcode].filter(Boolean).join(", ")}
+              </div>
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* ── Goals cards (side by side if both exist) ── */}
