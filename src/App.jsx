@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.1.9
+// KTA Workforce Management — v2.2.0
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.1.9
+          v2.2.0
         </div>
       </div>
     </div>
@@ -3210,7 +3210,8 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
       if(!shouldHave && has) return {...u, allocatedTo:(u.allocatedTo||[]).filter(x=>x!==appId)};
       return u;
     }));
-    setForm(blank); setPwField(""); setFormApproverId(""); setFormViewerId(""); setFormMentorId(""); setShowForm(false);
+    setForm(blank); setPwField(""); setFormApproverId(""); setFormViewerId(""); setFormMentorId("");
+    setShowForm(false); setEditId(null); setExpandId(null);
   };
 
   const startEdit = (u) => {
@@ -3230,8 +3231,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
     setFormApproverId(curApprover);
     setFormViewerId(curViewer);
     setFormMentorId(curMentor);
-    setPwField(""); setEditId(u.id); setShowForm(true);
-    setExpandId(null);
+    setPwField(""); setEditId(u.id); setExpandId(u.id); setShowForm(false);
   };
 
   const deleteUser = (id) => {
