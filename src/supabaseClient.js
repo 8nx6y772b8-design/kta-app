@@ -40,6 +40,8 @@ export const rowToUser = (r) => ({
   gender:            r.gender             || "",
   startDate:         r.start_date         || null,
   addressLine2:      r.address_line2      || "",
+  licenceNumber:     r.licence_number     || "",
+  siteSafeNumber:    r.site_safe_number   || "",
 });
 
 export const rowToEntry = (r) => ({
@@ -90,6 +92,8 @@ export const userToRow = (u) => ({
   gender:             u.gender            || null,
   start_date:         u.startDate         || null,
   address_line2:      u.addressLine2      || null,
+  licence_number:     u.licenceNumber     || null,
+  site_safe_number:   u.siteSafeNumber    || null,
 });
 
 export const entryToRow = (e) => ({

@@ -1,4 +1,4 @@
-// KTA Workforce Management — v1.9.5
+// KTA Workforce Management — v1.9.6
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -849,7 +849,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.9.5
+          v1.9.6
         </div>
       </div>
     </div>
@@ -5559,9 +5559,11 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
     email:"", phone:"", startDate:"", dateOfBirth:"",
     gender:"", hostBusiness:"", address:"", addressLine2:"", suburb:"", city:"", postcode:"",
   });
-  const [editingExpiry, setEditingExpiry]     = useState(null); // "licence"|"siteSafe"|"firstAid"
+  const [editingExpiry, setEditingExpiry]     = useState(null); // "licence"|"siteSafe"|"firstAid"|"licenceNum"|"siteSafeNum"
   const [expiryVal, setExpiryVal]             = useState("");
   const [savingExpiry, setSavingExpiry]       = useState(false);
+  const [licNumVal, setLicNumVal]             = useState("");
+  const [siteSafeNumVal, setSiteSafeNumVal]   = useState("");
 
   // Draggable section order — default: actions bar first
   const ADV_SECTION_DEFAULT = ["actions","personal","goals","timesheet"];
@@ -5572,8 +5574,8 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
 
   const saveExpiry = async (field, val) => {
     setSavingExpiry(true);
-    const dbField = field==="licence"?"licence_expiry":field==="siteSafe"?"site_safe_expiry":"first_aid_expiry";
-    const stateField = field==="licence"?"licenceExpiry":field==="siteSafe"?"siteSafeExpiry":"firstAidExpiry";
+    const dbField = field==="licence"?"licence_expiry":field==="siteSafe"?"site_safe_expiry":field==="firstAid"?"first_aid_expiry":field==="licenceNum"?"licence_number":"site_safe_number";
+    const stateField = field==="licence"?"licenceExpiry":field==="siteSafe"?"siteSafeExpiry":field==="firstAid"?"firstAidExpiry":field==="licenceNum"?"licenceNumber":"siteSafeNumber";
     await upsertUser({...apprentice, [stateField]: val||null}).catch(console.error);
     setApprentice(prev=>({...prev,[stateField]:val||null}));
     setEditingExpiry(null);
@@ -5653,7 +5655,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             const bg=d===null?T.bg:d<=7?T.redL:d<=30?T.warnL:T.tealL;
             const val=apprentice.licenceExpiry?(d!==null?`${fmtDate(apprentice.licenceExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:fmtDate(apprentice.licenceExpiry)):"Not set";
             return (
-              <div style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${editingExpiry==="licence"?T.accent:T.border}`,position:"relative"}}>
+              <div style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${editingExpiry==="licence"||editingExpiry==="licenceNum"?T.accent:T.border}`,position:"relative"}}>
                 <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>📄 Licence Expiry</span>
                   {canEditExpiry&&editingExpiry!=="licence"&&<button onClick={()=>{setEditingExpiry("licence");setExpiryVal(apprentice.licenceExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
@@ -5665,6 +5667,21 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
                   </div>
                 ):<div style={{fontSize:13,fontWeight:700,color:c}}>{val}</div>}
+                {/* Licence Number */}
+                <div style={{marginTop:8,paddingTop:8,borderTop:`1px solid ${T.border}44`}}>
+                  <div style={{fontSize:10,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <span>Licence #</span>
+                    {canEditExpiry&&editingExpiry!=="licenceNum"&&<button onClick={()=>{setEditingExpiry("licenceNum");setLicNumVal(apprentice.licenceNumber||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
+                  </div>
+                  {editingExpiry==="licenceNum"?(
+                    <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                      <input value={licNumVal} onChange={e=>setLicNumVal(e.target.value)} placeholder="e.g. LBP123456"
+                        style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",flex:1}}/>
+                      <button onClick={()=>saveExpiry("licenceNum",licNumVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
+                      <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                    </div>
+                  ):<div style={{fontSize:12,fontWeight:600,color:apprentice.licenceNumber?T.ink:T.muted,fontStyle:apprentice.licenceNumber?"normal":"italic"}}>{apprentice.licenceNumber||"Not set"}</div>}
+                </div>
               </div>
             );
           })()}
@@ -5679,7 +5696,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             const bg=d===null?T.bg:d<0?T.redL:d<=30?T.warnL:T.tealL;
             const val=apprentice.siteSafeExpiry?(d!==null?`${fmtDate(apprentice.siteSafeExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:fmtDate(apprentice.siteSafeExpiry)):"Not set";
             return (
-              <div style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${editingExpiry==="siteSafe"?T.teal:T.border}`,position:"relative"}}>
+              <div style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${editingExpiry==="siteSafe"||editingExpiry==="siteSafeNum"?T.teal:T.border}`,position:"relative"}}>
                 <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>🦺 Site Safe Expiry</span>
                   {canEditExpiry&&editingExpiry!=="siteSafe"&&<button onClick={()=>{setEditingExpiry("siteSafe");setExpiryVal(apprentice.siteSafeExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
@@ -5691,6 +5708,21 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
                   </div>
                 ):<div style={{fontSize:13,fontWeight:700,color:c}}>{val}</div>}
+                {/* Site Safe Number */}
+                <div style={{marginTop:8,paddingTop:8,borderTop:`1px solid ${T.border}44`}}>
+                  <div style={{fontSize:10,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <span>Site Safe #</span>
+                    {canEditExpiry&&editingExpiry!=="siteSafeNum"&&<button onClick={()=>{setEditingExpiry("siteSafeNum");setSiteSafeNumVal(apprentice.siteSafeNumber||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:T.teal,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
+                  </div>
+                  {editingExpiry==="siteSafeNum"?(
+                    <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                      <input value={siteSafeNumVal} onChange={e=>setSiteSafeNumVal(e.target.value)} placeholder="e.g. SS789012"
+                        style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",flex:1}}/>
+                      <button onClick={()=>saveExpiry("siteSafeNum",siteSafeNumVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.teal,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
+                      <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                    </div>
+                  ):<div style={{fontSize:12,fontWeight:600,color:apprentice.siteSafeNumber?T.ink:T.muted,fontStyle:apprentice.siteSafeNumber?"normal":"italic"}}>{apprentice.siteSafeNumber||"Not set"}</div>}
+                </div>
               </div>
             );
           })()}
@@ -7427,13 +7459,17 @@ serve(async (req) => {
                           if(match) {
                             // ── MERGE: link Xero ID + fill empty fields on existing user ──
                             const updates = { xero_employee_id: xe.employeeID||xe.EmployeeID };
-                            if(!match.email    && xe.Email)      updates.email    = xe.Email;
-                            if(!match.phone    && phone)         updates.phone    = phone;
-                            if(!match.trade    && xe.JobTitle)   updates.trade    = xe.JobTitle;
-                            if(!match.address  && xe.Address1)   updates.address  = xe.Address1;
-                            if(!match.suburb   && xe.Suburb)     updates.suburb   = xe.Suburb;
-                            if(!match.city     && xe.City)       updates.city     = xe.City;
-                            if(!match.postcode && xe.PostCode)   updates.postcode = xe.PostCode;
+                            if(!match.email    && xe.Email)                              updates.email    = xe.Email;
+                            if(!match.phone    && phone)                                 updates.phone    = phone;
+                            if(!match.trade    && xe.JobTitle)                           updates.trade    = xe.JobTitle;
+                            if(!match.address  && (xe.AddressLine1||xe.Address1))        updates.address  = xe.AddressLine1||xe.Address1;
+                            if(!match.addressLine2 && xe.AddressLine2)                   updates.address_line2 = xe.AddressLine2;
+                            if(!match.suburb   && xe.Suburb)                             updates.suburb   = xe.Suburb;
+                            if(!match.city     && xe.City)                               updates.city     = xe.City;
+                            if(!match.postcode && xe.PostCode)                           updates.postcode = xe.PostCode;
+                            if(!match.dateOfBirth && xe.DateOfBirth)                     updates.date_of_birth = xe.DateOfBirth.slice(0,10);
+                            if(!match.gender   && xe.Gender)                             updates.gender   = xe.Gender;
+                            if(!match.startDate && xe.StartDate)                         updates.start_date = xe.StartDate.slice(0,10);
                             await updateRow('users', match.id, updates);
                             onImportUser({...match, xeroEmployeeId: xe.employeeID||xe.EmployeeID, ...Object.fromEntries(
                               Object.entries(updates).map(([k,v])=>[k.replace(/_([a-z])/g,(_,c)=>c.toUpperCase()),v])
@@ -7493,6 +7529,109 @@ serve(async (req) => {
                       </button>
                     </div>
                   ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Section 2b: Sync data for already-linked apprentices ── */}
+          {(()=>{
+            const linked = apprentices.filter(a=>a.xeroEmployeeId && xeroEmployees.length>0);
+            if(!linked.length || !xeroEmployees.length) return null;
+
+            // For each linked apprentice find their Xero record and compute missing fields
+            const syncItems = linked.map(a => {
+              const xe = xeroEmployees.find(e=>(e.EmployeeID||e.employeeID)===a.xeroEmployeeId);
+              if(!xe) return null;
+              const phone = (xe.PhoneNumber && !xe.PhoneNumber.includes('@')) ? xe.PhoneNumber : "";
+              const missing = [];
+              if(!a.email    && xe.Email)                                    missing.push({label:"Email",      field:"email",         dbField:"email",         value:xe.Email});
+              if(!a.phone    && phone)                                        missing.push({label:"Phone",      field:"phone",         dbField:"phone",         value:phone});
+              if(!a.trade    && xe.JobTitle)                                  missing.push({label:"Trade",      field:"trade",         dbField:"trade",         value:xe.JobTitle});
+              if(!a.address  && (xe.AddressLine1||xe.Address1))              missing.push({label:"Address",    field:"address",       dbField:"address",       value:xe.AddressLine1||xe.Address1});
+              if(!a.addressLine2 && xe.AddressLine2)                          missing.push({label:"Addr Line 2",field:"addressLine2",  dbField:"address_line2", value:xe.AddressLine2});
+              if(!a.suburb   && xe.Suburb)                                    missing.push({label:"Suburb",     field:"suburb",        dbField:"suburb",        value:xe.Suburb});
+              if(!a.city     && xe.City)                                      missing.push({label:"City",       field:"city",          dbField:"city",          value:xe.City});
+              if(!a.postcode && xe.PostCode)                                  missing.push({label:"Postcode",   field:"postcode",      dbField:"postcode",      value:xe.PostCode});
+              if(!a.dateOfBirth && xe.DateOfBirth)                            missing.push({label:"Date of Birth",field:"dateOfBirth",dbField:"date_of_birth", value:xe.DateOfBirth.slice(0,10)});
+              if(!a.gender   && xe.Gender)                                    missing.push({label:"Gender",     field:"gender",        dbField:"gender",        value:xe.Gender});
+              if(!a.startDate && xe.StartDate)                                missing.push({label:"Start Date", field:"startDate",     dbField:"start_date",    value:xe.StartDate.slice(0,10)});
+              return missing.length ? {a, xe, missing} : null;
+            }).filter(Boolean);
+
+            if(!syncItems.length) return (
+              <div style={{marginBottom:24,padding:"10px 14px",background:T.tealL,borderRadius:8,
+                fontSize:12,color:T.teal,fontWeight:600}}>
+                ✓ All linked apprentices are up to date with Xero data.
+              </div>
+            );
+
+            return (
+              <div style={{marginBottom:24}}>
+                <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>🔄 Xero Data Available to Fill</div>
+                <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+                  These linked apprentices have <strong>blank fields</strong> that Xero can fill in.
+                  Existing KTA data is never overwritten — only blank fields are filled.
+                </div>
+                <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
+                  <div style={{display:"grid",gridTemplateColumns:"160px 1fr 120px",
+                    padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
+                    fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:10}}>
+                    <span>Apprentice</span><span>Missing Fields Xero Can Fill</span><span></span>
+                  </div>
+                  {syncItems.map(({a,xe,missing},i)=>(
+                    <div key={a.id} style={{display:"grid",gridTemplateColumns:"160px 1fr 120px",
+                      padding:"10px 14px",gap:10,alignItems:"center",
+                      borderBottom:i<syncItems.length-1?`1px solid ${T.border}44`:"none",
+                      background:i%2===0?T.surface:T.bg}}>
+                      <div style={{fontWeight:700,fontSize:13}}>{a.name}</div>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                        {missing.map(m=>(
+                          <span key={m.field} style={{fontSize:11,background:T.accentL,color:T.accent,
+                            borderRadius:5,padding:"2px 7px",fontWeight:600}}>
+                            {m.label}: {m.value}
+                          </span>
+                        ))}
+                      </div>
+                      <button onClick={async()=>{
+                        if(!window.confirm(`Fill ${missing.length} missing field${missing.length>1?"s":""} for ${a.name} from Xero?`)) return;
+                        const updates = {};
+                        missing.forEach(m=>{ updates[m.dbField]=m.value; });
+                        try {
+                          await updateRow('users', a.id, updates);
+                          // Update local state
+                          const stateUpdates = {};
+                          missing.forEach(m=>{ stateUpdates[m.field]=m.value; });
+                          onImportUser({...a, ...stateUpdates});
+                          showToast(`✓ Filled ${missing.length} fields for ${a.name}`);
+                        } catch(e){ alert("Sync failed: "+e.message); }
+                      }} style={{fontSize:12,padding:"6px 12px",borderRadius:7,fontWeight:600,
+                        background:T.teal,color:"#fff",border:`1px solid ${T.teal}`,
+                        cursor:"pointer",fontFamily:"DM Sans,sans-serif",whiteSpace:"nowrap"}}>
+                        ✓ Fill {missing.length} field{missing.length>1?"s":""}
+                      </button>
+                    </div>
+                  ))}
+                  {syncItems.length>1&&(
+                    <div style={{padding:"10px 14px",background:T.bg,borderTop:`1px solid ${T.border}`,display:"flex",justifyContent:"flex-end"}}>
+                      <button onClick={async()=>{
+                        if(!window.confirm(`Fill missing fields for ALL ${syncItems.length} apprentices from Xero?`)) return;
+                        for(const {a,missing} of syncItems){
+                          const updates = {};
+                          missing.forEach(m=>{ updates[m.dbField]=m.value; });
+                          await updateRow('users', a.id, updates).catch(()=>{});
+                          const stateUpdates = {};
+                          missing.forEach(m=>{ stateUpdates[m.field]=m.value; });
+                          onImportUser({...a, ...stateUpdates});
+                        }
+                        showToast(`✓ Synced Xero data for ${syncItems.length} apprentices`);
+                      }} style={{fontSize:12,padding:"6px 14px",borderRadius:7,fontWeight:700,
+                        background:T.accent,color:"#fff",border:"none",
+                        cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                        ⬇ Fill All Missing Fields
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );
