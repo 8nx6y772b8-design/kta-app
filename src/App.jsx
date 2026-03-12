@@ -2018,6 +2018,9 @@ function CRMModule({currentUser,allUsers}) {
   const role=currentUser.role;
   const fullAccess=role==="Admin"||role==="Mentor";
   const canEdit=role==="Admin"||role==="Mentor"; // Both Admins (all levels) and Mentors can create/edit contacts & deals
+  const canDelete=role==="Admin"&&(currentUser.adminLevel||1)===1; // Admin L1 only
+  // Check if a CRM contact is also an apprentice in the users table (protected from deletion)
+  const isApprenticeContact = (c) => allUsers && allUsers.some(u=>u.role==="Apprentice"&&u.email&&c.email&&u.email.toLowerCase()===c.email.toLowerCase());
 
   const sc=(k,v)=>setCForm(f=>({...f,[k]:v}));
   const sd=(k,v)=>setDForm(f=>({...f,[k]:v}));
@@ -2226,9 +2229,26 @@ function CRMModule({currentUser,allUsers}) {
                 <button onClick={()=>startEditC(c)} style={{width:26,height:26,borderRadius:6,fontSize:12,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
                   onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
                   onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
-                <button onClick={()=>setContacts(prev=>prev.filter(x=>x.id!==c.id))} style={{width:26,height:26,borderRadius:6,fontSize:12,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
-                  onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
-                  onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
+                {canDelete&&(()=>{
+                  const isApp = isApprenticeContact(c);
+                  return (
+                    <button
+                      onClick={()=>{
+                        if(isApp){ alert("This contact is linked to an apprentice and cannot be deleted."); return; }
+                        if(!window.confirm(`Delete ${c.name}? This cannot be undone.`)) return;
+                        setContacts(prev=>prev.filter(x=>x.id!==c.id));
+                        deleteRow("crm_contacts",c.id).catch(console.error);
+                      }}
+                      title={isApp?"Protected — linked to an apprentice":"Delete contact"}
+                      style={{width:26,height:26,borderRadius:6,fontSize:12,
+                        background:"transparent",color:isApp?T.border:T.muted,
+                        border:`1px solid ${isApp?T.border:T.border}`,
+                        display:"flex",alignItems:"center",justifyContent:"center",
+                        cursor:isApp?"not-allowed":"pointer",opacity:isApp?.4:1}}
+                      onMouseEnter={e=>{if(!isApp){e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}}
+                      onMouseLeave={e=>{if(!isApp){e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}}>✕</button>
+                  );
+                })()}
               </div>}
             </div>
           ))}
