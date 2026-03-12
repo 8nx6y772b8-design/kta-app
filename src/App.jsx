@@ -2299,13 +2299,11 @@ function CRMModule({currentUser,allUsers}) {
 
         const fetchPreview = async () => {
           if(!hsToken.trim()){setHsMsg("Please enter your HubSpot token."); return;}
-          setHsLoading(true); setHsMsg("Fetching contacts with activity in last 6 months…"); setHsPreview(null); setHsSelected(new Set());
-          // 6 months ago as ms timestamp for HubSpot filter
-          const sixMonthsAgo = Date.now() - (6*30*24*60*60*1000);
+          setHsLoading(true); setHsMsg("Fetching contacts…"); setHsPreview(null); setHsSelected(new Set());
           try {
             let all=[]; let after=null; let pages=0;
             while(pages<200){
-              const d = await hsFetch("getContacts", {after, filterDate: sixMonthsAgo});
+              const d = await hsFetch("getContacts", after?{after}:{});
               const mapped = (d.results||[]).map(c=>{
                 const p = c.properties;
                 const name = [p.firstname,p.lastname].filter(Boolean).join(" ")||p.company||"";
@@ -2396,7 +2394,7 @@ function CRMModule({currentUser,allUsers}) {
             <Card style={{marginBottom:16}}>
               <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>🔗 Import from HubSpot</div>
               <div style={{fontSize:12,color:T.sub,marginBottom:14,lineHeight:1.6}}>
-                Pulls contacts with <strong>activity in the last 6 months</strong> — name, email, phone, trade, address, company.
+                Pulls all contacts — name, email, phone, trade, address, company.
                 Get your token from <strong>HubSpot → Settings → Integrations → Private Apps</strong>.
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
