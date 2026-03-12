@@ -1,4 +1,4 @@
-// KTA Workforce Management — v1.9.0
+// KTA Workforce Management — v1.9.5
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -849,7 +849,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.9.0
+          v1.9.5
         </div>
       </div>
     </div>
@@ -5790,27 +5790,55 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
         if(sectionId==="personal") return (
           <DraggableSection key="personal" id="personal" dragProps={sectionDrag}>
             {/* ── Personal Details card ── */}
-            <Card style={{marginBottom:16,cursor:"pointer"}} onClick={()=>setShowPersonal(s=>!s)}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:8}}>
-            <span>👤</span> Personal Details
-          </div>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-            style={{transition:"transform .2s",transform:showPersonal?"rotate(180deg)":"rotate(0deg)"}}>
-            <polyline points="6 9 12 15 18 9"/>
-          </svg>
-        </div>
-        {showPersonal && (
-          <div onClick={e=>e.stopPropagation()} style={{marginTop:14}}>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:0}}>
-              {[
-                {label:"Email",        value:apprentice.email,        icon:"✉"},
-                {label:"Phone",        value:apprentice.phone,        icon:"📞"},
-                {label:"Start Date",   value:apprentice.startDate   ? fmtDate(apprentice.startDate)   : null, icon:"📅"},
-                {label:"Date of Birth",value:apprentice.dateOfBirth ? fmtDate(apprentice.dateOfBirth) : null, icon:"🎂"},
-                {label:"Gender",       value:apprentice.gender,       icon:"⚧"},
-                {label:"Host Business",value:apprentice.hostBusiness, icon:"🏢"},
-              ].map(({label,value,icon})=>(
+            {(()=>{
+              const [pdEdit, setPdEdit] = useState(false);
+              const [pdForm, setPdForm] = useState({
+                email: apprentice.email||"",
+                phone: apprentice.phone||"",
+                startDate: apprentice.startDate||"",
+                dateOfBirth: apprentice.dateOfBirth||"",
+                gender: apprentice.gender||"",
+                hostBusiness: apprentice.hostBusiness||"",
+                address: apprentice.address||"",
+                addressLine2: apprentice.addressLine2||"",
+                suburb: apprentice.suburb||"",
+                city: apprentice.city||"",
+                postcode: apprentice.postcode||"",
+              });
+              const [pdSaving, setPdSaving] = useState(false);
+
+              const savePd = async () => {
+                setPdSaving(true);
+                const updated = {...apprentice, ...pdForm,
+                  startDate: pdForm.startDate||null,
+                  dateOfBirth: pdForm.dateOfBirth||null,
+                };
+                await upsertUser(updated).catch(console.error);
+                setApprentice(updated);
+                setPdEdit(false);
+                setPdSaving(false);
+              };
+
+              const inp = (field, label, type="text", opts=null) => (
+                <div key={field} style={{display:"flex",flexDirection:"column",gap:4}}>
+                  <label style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px"}}>{label}</label>
+                  {opts ? (
+                    <select value={pdForm[field]} onChange={e=>setPdForm(p=>({...p,[field]:e.target.value}))}
+                      style={{fontSize:13,padding:"7px 10px",borderRadius:7,border:`1.5px solid ${T.border}`,
+                        background:T.surface,color:T.ink,fontFamily:"DM Sans,sans-serif"}}>
+                      <option value="">Not set</option>
+                      {opts.map(o=><option key={o} value={o}>{o}</option>)}
+                    </select>
+                  ) : (
+                    <input type={type} value={pdForm[field]}
+                      onChange={e=>setPdForm(p=>({...p,[field]:e.target.value}))}
+                      style={{fontSize:13,padding:"7px 10px",borderRadius:7,border:`1.5px solid ${T.border}`,
+                        background:T.surface,color:T.ink,fontFamily:"DM Sans,sans-serif"}}/>
+                  )}
+                </div>
+              );
+
+              const readRow = (label, value, icon) => (
                 <div key={label} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",
                   borderBottom:`1px solid ${T.border}`}}>
                   <span style={{fontSize:15,marginTop:1,width:20,textAlign:"center",flexShrink:0}}>{icon}</span>
@@ -5819,22 +5847,102 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     <div style={{fontSize:13,color:value?T.ink:T.muted,fontStyle:value?"normal":"italic"}}>{value||"Not set"}</div>
                   </div>
                 </div>
-              ))}
-            </div>
-            {(apprentice.address||apprentice.city||apprentice.suburb||apprentice.postcode) && (
-              <div style={{display:"flex",alignItems:"flex-start",gap:10,paddingTop:9}}>
-                <span style={{fontSize:15,marginTop:1,width:20,textAlign:"center",flexShrink:0}}>📍</span>
-                <div>
-                  <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>Address</div>
-                  <div style={{fontSize:13,color:T.ink,lineHeight:1.6}}>
-                    {[apprentice.address, apprentice.addressLine2, apprentice.suburb, apprentice.city, apprentice.postcode].filter(Boolean).join(", ")}
+              );
+
+              const addrDisplay = [apprentice.address,apprentice.addressLine2,apprentice.suburb,apprentice.city,apprentice.postcode].filter(Boolean).join(", ");
+
+              return (
+                <Card style={{marginBottom:16,cursor:pdEdit?"default":"pointer"}}
+                  onClick={()=>{ if(!pdEdit) setShowPersonal(s=>!s); }}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:8}}>
+                      <span>👤</span> Personal Details
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}} onClick={e=>e.stopPropagation()}>
+                      {showPersonal&&canEdit&&!pdEdit&&(
+                        <button onClick={()=>{
+                          setPdForm({
+                            email:apprentice.email||"",phone:apprentice.phone||"",
+                            startDate:apprentice.startDate||"",dateOfBirth:apprentice.dateOfBirth||"",
+                            gender:apprentice.gender||"",hostBusiness:apprentice.hostBusiness||"",
+                            address:apprentice.address||"",addressLine2:apprentice.addressLine2||"",
+                            suburb:apprentice.suburb||"",city:apprentice.city||"",postcode:apprentice.postcode||"",
+                          });
+                          setPdEdit(true);
+                        }} style={{fontSize:12,color:T.accent,background:T.accentL,border:"none",
+                          borderRadius:6,padding:"4px 12px",cursor:"pointer",fontWeight:600,fontFamily:"DM Sans,sans-serif"}}>
+                          ✏ Edit
+                        </button>
+                      )}
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                        style={{transition:"transform .2s",transform:showPersonal?"rotate(180deg)":"rotate(0deg)",cursor:"pointer"}}
+                        onClick={e=>{e.stopPropagation();setShowPersonal(s=>!s);}}>
+                        <polyline points="6 9 12 15 18 9"/>
+                      </svg>
+                    </div>
                   </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </Card>
+
+                  {showPersonal&&(
+                    <div onClick={e=>e.stopPropagation()} style={{marginTop:14}}>
+                      {pdEdit ? (
+                        <>
+                          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12,marginBottom:12}}>
+                            {inp("email","Email","email")}
+                            {inp("phone","Phone","tel")}
+                            {inp("startDate","Start Date","date")}
+                            {inp("dateOfBirth","Date of Birth","date")}
+                            {inp("gender","Gender","text",["Male","Female","Non-binary","Prefer not to say"])}
+                            {inp("hostBusiness","Host Business")}
+                          </div>
+                          <div style={{borderTop:`1px solid ${T.border}`,paddingTop:12,marginBottom:12}}>
+                            <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:10}}>📍 Address</div>
+                            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12}}>
+                              {inp("address","Street Address")}
+                              {inp("addressLine2","Address Line 2")}
+                              {inp("suburb","Suburb")}
+                              {inp("city","City")}
+                              {inp("postcode","Postcode")}
+                            </div>
+                          </div>
+                          <div style={{display:"flex",gap:8}}>
+                            <button onClick={savePd} disabled={pdSaving}
+                              style={{background:T.accent,color:"#fff",border:"none",borderRadius:8,
+                                padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                              {pdSaving?"Saving…":"💾 Save"}
+                            </button>
+                            <button onClick={()=>setPdEdit(false)} disabled={pdSaving}
+                              style={{background:T.bg,color:T.sub,border:`1.5px solid ${T.border}`,borderRadius:8,
+                                padding:"8px 16px",fontSize:13,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                              Cancel
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:0}}>
+                            {readRow("Email", apprentice.email, "✉")}
+                            {readRow("Phone", apprentice.phone, "📞")}
+                            {readRow("Start Date", apprentice.startDate?fmtDate(apprentice.startDate):null, "📅")}
+                            {readRow("Date of Birth", apprentice.dateOfBirth?fmtDate(apprentice.dateOfBirth):null, "🎂")}
+                            {readRow("Gender", apprentice.gender, "⚧")}
+                            {readRow("Host Business", apprentice.hostBusiness, "🏢")}
+                          </div>
+                          <div style={{display:"flex",alignItems:"flex-start",gap:10,paddingTop:9}}>
+                            <span style={{fontSize:15,marginTop:1,width:20,textAlign:"center",flexShrink:0}}>📍</span>
+                            <div>
+                              <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>Address</div>
+                              <div style={{fontSize:13,color:addrDisplay?T.ink:T.muted,fontStyle:addrDisplay?"normal":"italic",lineHeight:1.6}}>
+                                {addrDisplay||"Not set"}
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              );
+            })()}
           </DraggableSection>
         );
         if(sectionId==="goals") return (
