@@ -1986,6 +1986,7 @@ function UserManagement({users, setUsers, currentUser}) {
 // ─────────────────────────────────────────────────────────────────────────────
 function CRMModule({currentUser,allUsers}) {
   const [contacts,setContacts]=useState([]);
+  const [companies,setCompanies]=useState([]);
   const [deals,setDeals]=useState([]);
   const [crmLoading,setCrmLoading]=useState(true);
   const [tab,setTab]=useState("contacts");
@@ -2007,9 +2008,10 @@ function CRMModule({currentUser,allUsers}) {
   useEffect(()=>{
     (async()=>{
       try{
-        const [c,d]=await Promise.all([loadTable('crm_contacts'),loadTable('crm_deals')]);
-        setContacts(c.map(x=>({id:x.id,name:x.name,company:x.company||"",email:x.email||"",phone:x.phone||"",status:x.status||"Active",notes:x.notes||""})));
+        const [c,d,co]=await Promise.all([loadTable('crm_contacts'),loadTable('crm_deals'),loadTable('crm_companies').catch(()=>[])]);
+        setContacts(c.map(x=>({id:x.id,name:x.name,company:x.company||"",companyId:x.company_id||"",email:x.email||"",phone:x.phone||"",status:x.status||"Active",notes:x.notes||""})));
         setDeals(d.map(x=>({id:x.id,title:x.title,contact:x.contact||"",value:x.value||"",stage:x.stage||"Lead",closeDate:x.close_date||"",notes:x.notes||""})));
+        setCompanies(co.map(x=>({id:x.id,name:x.name,industry:x.industry||"",phone:x.phone||"",website:x.website||"",address:x.address||"",city:x.city||"",country:x.country||"",hubspotId:x.hubspot_id||"",notes:x.notes||"",status:x.status||"Active"})));
       }catch(e){console.error('CRM load',e);}
       finally{setCrmLoading(false);}
     })();
@@ -2107,7 +2109,7 @@ function CRMModule({currentUser,allUsers}) {
         <StatCard label="Won" value={`$${(totalWon/1000).toFixed(1)}k`} color={T.hol}/>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:20}}>
-        {["contacts","pipeline","deals","import"].map(t=>(
+        {["contacts","companies","pipeline","deals","import"].map(t=>(
           <button key={t} onClick={()=>setTab(t)} style={{
             padding:"7px 16px",borderRadius:8,fontSize:13,fontWeight:600,
             background:tab===t?T.accent:T.surface,color:tab===t?"#fff":T.sub,
@@ -2254,6 +2256,63 @@ function CRMModule({currentUser,allUsers}) {
           ))}
         </Card>
       </>)}
+      {tab==="companies"&&(<>
+        <div style={{marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+          <div style={{fontSize:13,color:T.sub}}>{companies.length} companies</div>
+        </div>
+        {companies.length===0&&(
+          <Card><div style={{textAlign:"center",color:T.muted,padding:24,fontSize:13}}>
+            No companies yet. Import from HubSpot using the <strong>Import</strong> tab.
+          </div></Card>
+        )}
+        {companies.length>0&&(
+          <Card style={{padding:0,overflow:"hidden"}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 120px 150px 150px 60px",
+              padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
+              fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
+              <span>Company</span><span>Industry</span><span>Phone</span><span>City</span><span/>
+            </div>
+            {companies.map((co,i)=>{
+              const linkedContacts = contacts.filter(c=>c.companyId===co.id);
+              return (
+                <div key={co.id} style={{borderBottom:i<companies.length-1?`1px solid ${T.border}44`:"none"}}>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 120px 150px 150px 60px",
+                    padding:"11px 16px",gap:8,alignItems:"center",background:i%2===0?T.surface:T.bg}}>
+                    <div>
+                      <div style={{fontWeight:700,fontSize:13,color:T.ink}}>{co.name}</div>
+                      {linkedContacts.length>0&&(
+                        <div style={{fontSize:11,color:T.muted,marginTop:2}}>
+                          {linkedContacts.slice(0,3).map(c=>c.name).join(", ")}
+                          {linkedContacts.length>3&&` +${linkedContacts.length-3} more`}
+                        </div>
+                      )}
+                      {co.website&&<a href={co.website.startsWith("http")?co.website:"https://"+co.website}
+                        target="_blank" rel="noreferrer"
+                        style={{fontSize:11,color:T.accent,textDecoration:"none"}}>{co.website}</a>}
+                    </div>
+                    <div style={{fontSize:12,color:T.sub}}>{co.industry||"—"}</div>
+                    <div style={{fontSize:12,color:T.sub}}>{co.phone||"—"}</div>
+                    <div style={{fontSize:12,color:T.sub}}>{co.city||"—"}</div>
+                    <div style={{display:"flex",gap:5}}>
+                      {canDelete&&(
+                        <button onClick={()=>{
+                          if(!window.confirm(`Delete ${co.name}?`)) return;
+                          setCompanies(prev=>prev.filter(x=>x.id!==co.id));
+                          deleteRow("crm_companies",co.id).catch(console.error);
+                        }} style={{width:26,height:26,borderRadius:6,fontSize:12,background:"transparent",
+                          color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}
+                          onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
+                          onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </Card>
+        )}
+      </>)}
+
       {tab==="pipeline"&&<div style={{overflowX:"auto"}}>
         <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:10,minWidth:900}}>
           {pipeline.map(({stage,color,items,value})=>(
@@ -2295,6 +2354,78 @@ function CRMModule({currentUser,allUsers}) {
           const d = await r.json();
           if(d.ok===false) throw new Error(d.error||"Proxy error");
           return d;
+        };
+
+        const importCompanies = async () => {
+          if(!hsToken.trim()){setHsMsg("Please enter your HubSpot token."); return;}
+          setHsImporting(true); setHsMsg("Fetching companies…");
+          try {
+            let allCo=[]; let after=null; let pages=0;
+            while(pages<200){
+              const r = await fetch(PROXY_URL,{method:"POST",headers:{"Content-Type":"application/json"},
+                body:JSON.stringify({action:"getCompanies",token:hsToken.trim(),after})});
+              const d = await r.json();
+              if(d.ok===false) throw new Error(d.error||"Proxy error");
+              const mapped = (d.results||[]).map((co:any)=>{
+                const p = co.properties;
+                if(!p.name) return null;
+                return { hubspotId: co.id, name:p.name, industry:p.industry||"",
+                  phone:p.phone||"", website:p.website||"",
+                  address:p.address||"", city:p.city||"", state:p.state||"",
+                  postcode:p.zip||"", country:(p.country&&p.country!=="New Zealand")?p.country:"",
+                };
+              }).filter(Boolean);
+              allCo=[...allCo,...mapped];
+              after = d.paging?.next?.after;
+              pages++;
+              if(!after) break;
+              if(pages%5===0) setHsMsg(`Fetching companies… ${allCo.length} so far`);
+            }
+            setHsMsg(`Importing ${allCo.length} companies…`);
+
+            // Import companies
+            let coDone=0, coSkip=0;
+            const hsIdToLocalId: Record<string,string> = {};
+            for(const co of allCo){
+              const exists = companies.find(x=>x.hubspotId===co.hubspotId||x.name.toLowerCase()===co.name.toLowerCase());
+              if(exists){ coSkip++; hsIdToLocalId[co.hubspotId]=exists.id; continue; }
+              const id = crypto.randomUUID();
+              hsIdToLocalId[co.hubspotId] = id;
+              const row = {id, name:co.name, industry:co.industry, phone:co.phone,
+                website:co.website, address:co.address, city:co.city,
+                postcode:co.postcode, country:co.country, hubspot_id:co.hubspotId,
+                status:"Active", notes:""};
+              await upsertRow("crm_companies",row).catch(()=>{});
+              setCompanies(prev=>[...prev,{id,name:co.name,industry:co.industry,phone:co.phone,
+                website:co.website,address:co.address,city:co.city,country:co.country,
+                hubspotId:co.hubspotId,notes:"",status:"Active"}]);
+              coDone++;
+            }
+
+            // Now link contacts to companies via HubSpot associations
+            setHsMsg(`Linking contacts to companies…`);
+            let linked=0;
+            for(const co of allCo){
+              const localCoId = hsIdToLocalId[co.hubspotId];
+              if(!localCoId) continue;
+              try {
+                const r = await fetch(PROXY_URL,{method:"POST",headers:{"Content-Type":"application/json"},
+                  body:JSON.stringify({action:"getCompanyContacts",token:hsToken.trim(),companyId:co.hubspotId})});
+                const d = await r.json();
+                for(const assoc of (d.results||[])){
+                  // Find contact in our local contacts by hubspot_id
+                  const localContact = contacts.find(c=>c.hubspot_id===assoc.id||c.hubspotId===assoc.id);
+                  if(!localContact) continue;
+                  await upsertRow("crm_contacts",{id:localContact.id,company_id:localCoId}).catch(()=>{});
+                  setContacts(prev=>prev.map(c=>c.id===localContact.id?{...c,companyId:localCoId}:c));
+                  linked++;
+                }
+              } catch{}
+            }
+
+            setHsMsg(`✓ ${coDone} companies imported · ${coSkip} already existed · ${linked} contacts linked`);
+          } catch(e){ setHsMsg("Error: "+e.message); }
+          setHsImporting(false);
         };
 
         const fetchPreview = async () => {
@@ -2394,15 +2525,18 @@ function CRMModule({currentUser,allUsers}) {
             <Card style={{marginBottom:16}}>
               <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>🔗 Import from HubSpot</div>
               <div style={{fontSize:12,color:T.sub,marginBottom:14,lineHeight:1.6}}>
-                Pulls all contacts — name, email, phone, trade, address, company.
+                Import contacts and companies from HubSpot — including contact→company links.
                 Get your token from <strong>HubSpot → Settings → Integrations → Private Apps</strong>.
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
                 <input type="password" placeholder="pat-ap1-xxxxxxxx…"
                   value={hsToken} onChange={e=>setHsToken(e.target.value)}
                   style={{flex:1,minWidth:220,fontFamily:"monospace",fontSize:12}}/>
-                <Btn sm onClick={fetchPreview} disabled={hsLoading}>
+                <Btn sm onClick={fetchPreview} disabled={hsLoading||hsImporting}>
                   {hsLoading?"⏳ Fetching…":"🔄 Fetch Contacts"}
+                </Btn>
+                <Btn sm onClick={importCompanies} disabled={hsLoading||hsImporting}>
+                  {hsImporting?"⏳ Importing…":"🏢 Import Companies"}
                 </Btn>
               </div>
               {hsMsg&&<div style={{marginTop:10,fontSize:12,fontWeight:600,
