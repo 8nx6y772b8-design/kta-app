@@ -21,7 +21,7 @@
 //   v1.6.2 — Xero OAuth connect button; refresh token stored in Supabase app_settings
 //   v1.6.1 — Xero import checks for email match; merges into existing user instead of duplicating
 import { useState, useEffect, useCallback, useRef } from "react";
-import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
+import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, deleteAllRows, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (timesheet@kta.org.nz)
 
 const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/email-proxy";
@@ -2588,12 +2588,10 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
                 <button onClick={async()=>{
                   if(!window.confirm("DELETE ALL contacts and companies? This cannot be undone.")) return;
                   if(!window.confirm("Are you absolutely sure? All CRM data will be lost.")) return;
-                  setHsMsg("🗑 Deleting all contacts and companies…");
+                  setHsMsg("🗑 Deleting…");
                   try {
-                    const allC = await loadTable("crm_contacts").catch(()=>[]);
-                    for(const c of allC) await deleteRow("crm_contacts",c.id).catch(()=>{});
-                    const allCo = await loadTable("crm_companies").catch(()=>[]);
-                    for(const co of allCo) await deleteRow("crm_companies",co.id).catch(()=>{});
+                    await deleteAllRows("crm_contacts");
+                    await deleteAllRows("crm_companies");
                     setContacts([]); setCompanies([]);
                     setHsMsg("✓ All contacts and companies deleted.");
                   } catch(e){ setHsMsg("Error: "+e.message); }

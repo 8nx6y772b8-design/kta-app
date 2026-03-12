@@ -19,7 +19,9 @@ export const rowToUser = (r) => ({
   password:      r.password,
   allocatedTo:   r.allocated_to || [],
   trade:         r.trade        || "",
-  licenceExpiry: r.licence_expiry || "",
+  licenceExpiry:    r.licence_expiry    || "",
+  siteSafeExpiry:   r.site_safe_expiry  || "",
+  firstAidExpiry:   r.first_aid_expiry  || "",
   address:       r.address      || "",
   suburb:        r.suburb       || "",
   city:          r.city         || "",
@@ -67,7 +69,9 @@ export const userToRow = (u) => ({
   password:       u.password,
   allocated_to:   u.allocatedTo || [],
   trade:          u.trade        || null,
-  licence_expiry: u.licenceExpiry || null,
+  licence_expiry:    u.licenceExpiry    || null,
+  site_safe_expiry:  u.siteSafeExpiry   || null,
+  first_aid_expiry:  u.firstAidExpiry   || null,
   address:        u.address      || null,
   suburb:         u.suburb       || null,
   city:           u.city         || null,
@@ -159,6 +163,12 @@ export const updateRow = async (table, id, changes) => {
 
 export const deleteRow = async (table, id) => {
   const { error } = await sb.from(table).delete().eq('id', id);
+  if (error) throw error;
+};
+
+export const deleteAllRows = async (table) => {
+  // Delete all rows — uses neq on a always-true condition to match everything
+  const { error } = await sb.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
   if (error) throw error;
 };
 
