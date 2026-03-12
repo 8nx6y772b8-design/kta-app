@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.0.2
+// KTA Workforce Management — v2.0.3
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.0.2
+          v2.0.3
         </div>
       </div>
     </div>
@@ -1644,7 +1644,8 @@ function UserManagement({users, setUsers, currentUser}) {
   const [umTab, setUmTab] = useState("employees"); // "employees"|"host"|"office"
 
   const blank={name:"",role:"Apprentice",email:"",phone:"",password:"",allocatedTo:[],
-    address:"",suburb:"",city:"",postcode:"",approverUserId:null,viewerUserId:null,secondaryRole:null,adminLevel:1};
+    address:"",suburb:"",city:"",postcode:"",approverUserId:null,viewerUserId:null,secondaryRole:null,adminLevel:1,
+    hostBusiness:"",overtimeType:null,overtimeThreshold:"",overtimeRateId:""};
   const [form,setForm]=useState(blank);
   const [showForm,setShowForm]=useState(false);
   const [editId,setEditId]=useState(null);
@@ -1705,7 +1706,9 @@ function UserManagement({users, setUsers, currentUser}) {
       allocatedTo:u.allocatedTo||[],address:u.address||"",suburb:u.suburb||"",
       city:u.city||"",postcode:u.postcode||"",
       approverUserId:u.approverUserId||null,viewerUserId:u.viewerUserId||null,
-      secondaryRole:u.secondaryRole||null,adminLevel:u.adminLevel||1});
+      secondaryRole:u.secondaryRole||null,adminLevel:u.adminLevel||1,
+      hostBusiness:u.hostBusiness||"",overtimeType:u.overtimeType||null,
+      overtimeThreshold:u.overtimeThreshold||"",overtimeRateId:u.overtimeRateId||""});
     setPwField(""); setEditId(u.id); setShowForm(true);
     if(u.role==="Apprentice") {
       // Prefer the value stored directly on the apprentice record (new approach)
@@ -1881,9 +1884,49 @@ function UserManagement({users, setUsers, currentUser}) {
             </div>
           )}
 
-          {/* Apprentice: pick which Approver and Viewer are assigned to them */}
+          {/* Apprentice: Host Business, Overtime + Approver/Viewer/Mentor */}
           {form.role==="Apprentice"&&(
-            <div className="fg2" style={{display:"grid",gap:16,marginBottom:16}}>
+            <div style={{marginBottom:16}}>
+              {/* Host Business */}
+              <div style={{marginBottom:12}}>
+                <FL>Host Business</FL>
+                <input placeholder="e.g. Sparks Electrical Ltd" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>
+              </div>
+              {/* Overtime Settings */}
+              <div style={{borderTop:`1px solid ${T.border}`,paddingTop:12,marginBottom:12}}>
+                <div style={{fontWeight:700,fontSize:12,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8}}>
+                  Overtime Settings
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+                  <div>
+                    <FL>Overtime Type</FL>
+                    <select value={form.overtimeType||""} onChange={e=>sf("overtimeType",e.target.value||null)}>
+                      <option value="">— No overtime —</option>
+                      <option value="daily">Daily threshold</option>
+                      <option value="weekly">Weekly threshold</option>
+                    </select>
+                  </div>
+                  {form.overtimeType&&<div>
+                    <FL>Threshold Hours</FL>
+                    <input type="number" min="1" max="24" step="0.5"
+                      placeholder={form.overtimeType==="daily"?"e.g. 8":"e.g. 40"}
+                      value={form.overtimeThreshold||""} onChange={e=>sf("overtimeThreshold",parseFloat(e.target.value)||"")}/></div>}
+                  {form.overtimeType&&<div>
+                    <FL>Xero Overtime Rate ID</FL>
+                    <input placeholder="Xero earnings rate UUID" value={form.overtimeRateId||""} onChange={e=>sf("overtimeRateId",e.target.value)}/>
+                    <div style={{fontSize:10,color:T.muted,marginTop:2}}>Find in Xero → Payroll → Pay Items</div>
+                  </div>}
+                </div>
+                {form.overtimeType&&(
+                  <div style={{marginTop:8,padding:"8px 12px",background:T.accentL,borderRadius:7,fontSize:12,color:T.accent}}>
+                    {form.overtimeType==="daily"
+                      ? `Any hours beyond ${form.overtimeThreshold||"?"}h in a single day will submit to Xero as overtime`
+                      : `Any hours beyond ${form.overtimeThreshold||"?"}h in a week will submit to Xero as overtime`}
+                  </div>
+                )}
+              </div>
+              {/* Approver / Viewer / Mentor */}
+              <div className="fg2" style={{display:"grid",gap:16}}>
               <div>
                 <FL>Approver <span style={{fontWeight:400,color:T.muted}}>(approves timesheets)</span></FL>
                 <select value={appApprover} onChange={e=>setAppApprover(e.target.value)}>
@@ -1913,6 +1956,7 @@ function UserManagement({users, setUsers, currentUser}) {
                   ))}
                 </select>
               </div>
+            </div>
             </div>
           )}
 
@@ -5442,6 +5486,14 @@ function PastMeetingReports({apprentice, allUsers, canEdit=false}) {
   const [loading, setLoading]   = useState(true);
   const [expandId, setExpandId] = useState(null);
 
+  const saveHostBiz = async () => {
+    setSavingHostBiz(true);
+    await upsertUser({...apprentice, hostBusiness: hostBizVal}).catch(console.error);
+    setApprentice(prev=>({...prev, hostBusiness: hostBizVal}));
+    setEditingHostBiz(false);
+    setSavingHostBiz(false);
+  };
+
   useEffect(()=>{
     loadTable('meeting_reports')
       .then(rows=>setReports(rows.filter(r=>r.apprentice_id===apprentice.id).sort((a,b)=>b.date.localeCompare(a.date))))
@@ -5673,6 +5725,9 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   const [savingExpiry, setSavingExpiry]       = useState(false);
   const [licNumVal, setLicNumVal]             = useState("");
   const [siteSafeNumVal, setSiteSafeNumVal]   = useState("");
+  const [editingHostBiz, setEditingHostBiz]   = useState(false);
+  const [hostBizVal, setHostBizVal]           = useState("");
+  const [savingHostBiz, setSavingHostBiz]     = useState(false);
 
   // Draggable section order — default: actions bar first
   const ADV_SECTION_DEFAULT = ["actions","personal","goals","timesheet"];
@@ -5860,10 +5915,28 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               </div>
             );
           })()}
-          {/* Host Business — static */}
+          {/* Host Business — editable for Admin/Mentor */}
           <div style={{background:T.slateL,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`}}>
-            <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>🏢 Host Business</div>
-            <div style={{fontSize:13,fontWeight:700,color:T.slate}}>{apprentice.hostBusiness||"Not set"}</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+              <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px"}}>🏢 Host Business</div>
+              {canEditExpiry&&!editingHostBiz&&(
+                <button onClick={()=>{setEditingHostBiz(true);setHostBizVal(apprentice.hostBusiness||"");}}
+                  style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.slate,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>
+              )}
+            </div>
+            {editingHostBiz?(
+              <div style={{display:"flex",gap:5,alignItems:"center",marginTop:4}}>
+                <input value={hostBizVal} onChange={e=>setHostBizVal(e.target.value)}
+                  placeholder="e.g. Sparks Electrical Ltd"
+                  style={{fontSize:12,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",flex:1}}/>
+                <button onClick={saveHostBiz} disabled={savingHostBiz}
+                  style={{fontSize:11,padding:"4px 8px",borderRadius:5,background:T.slate,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingHostBiz?"…":"Save"}</button>
+                <button onClick={()=>setEditingHostBiz(false)}
+                  style={{fontSize:11,padding:"4px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+              </div>
+            ):(
+              <div style={{fontSize:13,fontWeight:700,color:T.slate}}>{apprentice.hostBusiness||"Not set"}</div>
+            )}
           </div>
         </div>
       </Card>
