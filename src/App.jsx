@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.0.5
+// KTA Workforce Management — v2.0.6
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.0.5
+          v2.0.6
         </div>
       </div>
     </div>
@@ -2110,6 +2110,28 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
   const [showDF,setShowDF]=useState(false);
   const [expandedContact,setExpandedContact]=useState(null);
   const [expandedCompany,setExpandedCompany]=useState(null);
+  const [showCoForm,setShowCoForm]=useState(false);
+  const [editCoId,setEditCoId]=useState(null);
+  const [coForm,setCoForm]=useState({name:"",industry:"",phone:"",website:"",address:"",city:"",postcode:"",country:"New Zealand",notes:"",status:"Active"});
+  const [coSaving,setCoSaving]=useState(false);
+  const scf=(k,v)=>setCoForm(f=>({...f,[k]:v}));
+  const coBlank={name:"",industry:"",phone:"",website:"",address:"",city:"",postcode:"",country:"New Zealand",notes:"",status:"Active"};
+
+  const saveCo=async()=>{
+    if(!coForm.name.trim()){alert("Company name is required.");return;}
+    setCoSaving(true);
+    const id=editCoId||uid();
+    const row={id,name:coForm.name.trim(),industry:coForm.industry,phone:coForm.phone,website:coForm.website,
+      address:coForm.address,city:coForm.city,postcode:coForm.postcode,country:coForm.country,
+      notes:coForm.notes,status:coForm.status,hubspot_id:""};
+    await upsertRow("crm_companies",row).catch(console.error);
+    const mapped={id,name:coForm.name.trim(),industry:coForm.industry,phone:coForm.phone,website:coForm.website,
+      address:coForm.address,city:coForm.city,postcode:coForm.postcode,country:coForm.country,
+      notes:coForm.notes,status:coForm.status,hubspotId:""};
+    if(editCoId) setCompanies(prev=>prev.map(c=>c.id===editCoId?mapped:c));
+    else setCompanies(prev=>[mapped,...prev]);
+    setShowCoForm(false);setEditCoId(null);setCoForm(coBlank);setCoSaving(false);
+  };
   const [cForm,setCForm]=useState({name:"",company:"",email:"",phone:"",status:"Active",notes:""});
   const [dForm,setDForm]=useState({title:"",contact:"",value:"",stage:"Lead",closeDate:"",notes:""});
   const [editCId,setEditCId]=useState(null);
@@ -2409,10 +2431,33 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
       {tab==="companies"&&(<>
         <div style={{marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
           <div style={{fontSize:13,color:T.sub}}>{companies.length} companies</div>
+          {canEdit&&<Btn sm onClick={()=>{setShowCoForm(s=>!s);setEditCoId(null);setCoForm(coBlank);}}>{showCoForm?"✕ Cancel":"+ Add Company"}</Btn>}
         </div>
-        {companies.length===0&&(
+
+        {showCoForm&&canEdit&&(
+          <Card style={{marginBottom:16,border:`1.5px solid ${T.accent}44`}}>
+            <div style={{fontWeight:700,fontSize:14,marginBottom:14,color:T.accent}}>{editCoId?"✎ Edit Company":"+ New Company"}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+              <div><FL req>Company Name</FL><input placeholder="Sparks Electrical Ltd" value={coForm.name} onChange={e=>scf("name",e.target.value)}/></div>
+              <div><FL>Industry</FL><input placeholder="e.g. Electrical" value={coForm.industry} onChange={e=>scf("industry",e.target.value)}/></div>
+              <div><FL>Phone</FL><input placeholder="+64 9 xxx xxxx" value={coForm.phone} onChange={e=>scf("phone",e.target.value)}/></div>
+              <div><FL>Website</FL><input placeholder="sparkselectrical.co.nz" value={coForm.website} onChange={e=>scf("website",e.target.value)}/></div>
+              <div><FL>Address</FL><input placeholder="123 Main Street" value={coForm.address} onChange={e=>scf("address",e.target.value)}/></div>
+              <div><FL>City</FL><input placeholder="Auckland" value={coForm.city} onChange={e=>scf("city",e.target.value)}/></div>
+              <div><FL>Postcode</FL><input placeholder="1010" value={coForm.postcode} onChange={e=>scf("postcode",e.target.value)}/></div>
+              <div><FL>Country</FL><input placeholder="New Zealand" value={coForm.country} onChange={e=>scf("country",e.target.value)}/></div>
+            </div>
+            <div style={{marginBottom:10}}><FL>Notes</FL><textarea rows={2} placeholder="Any notes about this company…" value={coForm.notes} onChange={e=>scf("notes",e.target.value)} style={{width:"100%",resize:"vertical"}}/></div>
+            <div style={{display:"flex",gap:8}}>
+              <Btn onClick={saveCo} disabled={coSaving}>{coSaving?"Saving…":editCoId?"Update Company":"Save Company"}</Btn>
+              <Btn v="ghost" onClick={()=>{setShowCoForm(false);setEditCoId(null);setCoForm(coBlank);}}>Cancel</Btn>
+            </div>
+          </Card>
+        )}
+
+        {companies.length===0&&!showCoForm&&(
           <Card><div style={{textAlign:"center",color:T.muted,padding:24,fontSize:13}}>
-            No companies yet. Import from HubSpot using the <strong>Import</strong> tab.
+            No companies yet. Use <strong>+ Add Company</strong> above or import from HubSpot using the <strong>Import</strong> tab.
           </div></Card>
         )}
         {companies.length>0&&(
@@ -2444,6 +2489,12 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
                     <div style={{fontSize:12,color:T.sub}}>{co.phone||"—"}</div>
                     <div style={{fontSize:12,color:T.sub}}>{co.city||"—"}</div>
                     <div style={{display:"flex",gap:5}} onClick={e=>e.stopPropagation()}>
+                      {canEdit&&(
+                        <button onClick={()=>{setCoForm({name:co.name,industry:co.industry||"",phone:co.phone||"",website:co.website||"",address:co.address||"",city:co.city||"",postcode:co.postcode||"",country:co.country||"New Zealand",notes:co.notes||"",status:co.status||"Active"});setEditCoId(co.id);setShowCoForm(true);setExpandedCompany(null);window.scrollTo({top:0,behavior:"smooth"});}}
+                          style={{width:26,height:26,borderRadius:6,fontSize:12,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}
+                          onMouseEnter={e=>{e.currentTarget.style.background=T.accentL;e.currentTarget.style.color=T.accent;}}
+                          onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
+                      )}
                       {canDelete&&(
                         <button onClick={()=>{
                           if(!window.confirm(`Delete ${co.name}?`)) return;
