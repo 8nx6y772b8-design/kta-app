@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.1.2
+// KTA Workforce Management — v2.1.3
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.1.2
+          v2.1.3
         </div>
       </div>
     </div>
@@ -5942,10 +5942,20 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                       }
                     </td>
                     <td style={{padding:"4px 6px",borderBottom:`1px solid ${T.border}44`}}>
-                      <input type="number" min="0" value={rows[i].qtyReq} onChange={e=>sr(i,"qtyReq",e.target.value)} style={{fontSize:11,padding:"3px 6px",width:56,textAlign:"center"}}/>
+                      <input type="number" min="0" value={rows[i].qtyReq} onChange={e=>{
+                        const req=e.target.value;
+                        const issued=rows[i].qtyIssued;
+                        const autoApproved=issued&&req?(parseFloat(issued)===parseFloat(req)?"Yes":"Pending"):""; 
+                        setRows(prev=>prev.map((r,idx)=>idx===i?{...r,qtyReq:req,...(issued?{approved:autoApproved}:{})}:r));
+                      }} style={{fontSize:11,padding:"3px 6px",width:56,textAlign:"center"}}/>
                     </td>
                     <td style={{padding:"4px 6px",borderBottom:`1px solid ${T.border}44`}}>
-                      <input type="number" min="0" value={rows[i].qtyIssued} onChange={e=>sr(i,"qtyIssued",e.target.value)} style={{fontSize:11,padding:"3px 6px",width:56,textAlign:"center"}}/>
+                      <input type="number" min="0" value={rows[i].qtyIssued} onChange={e=>{
+                        const issued=e.target.value;
+                        const req=rows[i].qtyReq;
+                        const autoApproved=issued&&req?(parseFloat(issued)===parseFloat(req)?"Yes":"Pending"):""; 
+                        setRows(prev=>prev.map((r,idx)=>idx===i?{...r,qtyIssued:issued,approved:autoApproved}:r));
+                      }} style={{fontSize:11,padding:"3px 6px",width:56,textAlign:"center"}}/>
                     </td>
                     <td style={{padding:"4px 6px",borderBottom:`1px solid ${T.border}44`}}>
                       <input value={rows[i].notes} onChange={e=>sr(i,"notes",e.target.value)} placeholder="Notes…" style={{fontSize:11,padding:"3px 6px",width:"100%",minWidth:120}}/>
