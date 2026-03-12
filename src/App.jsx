@@ -5519,7 +5519,8 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
 }
 
 // ── Apprentice Detail Page (used by both Mentor and Admin) ────────────────────
-function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, isAdmin=false}) {
+function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entries, onBack, isAdmin=false, canEditExpiry=false}) {
+  const [apprentice, setApprentice]           = useState(apprenticeProp);
   const [showMeetingForm, setShowMeetingForm] = useState(false);
   const [showPastReports, setShowPastReports] = useState(false);
   const [showPPE, setShowPPE]                 = useState(false);
@@ -5529,6 +5530,26 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
   const [loadingVisit, setLoadingVisit]       = useState(true);
   const [reports, setReports]                 = useState([]);
   const [showPersonal, setShowPersonal]       = useState(false);
+  const [editingExpiry, setEditingExpiry]     = useState(null); // "licence"|"siteSafe"|"firstAid"
+  const [expiryVal, setExpiryVal]             = useState("");
+  const [savingExpiry, setSavingExpiry]       = useState(false);
+
+  // Draggable section order — default: actions bar first
+  const ADV_SECTION_DEFAULT = ["actions","personal","goals","timesheet"];
+  const { order: sectionOrder, dragProps: sectionDrag } = useDraggableOrder(
+    (viewer?.id||"admin") + "_appdetail_" + apprenticeProp.id,
+    ADV_SECTION_DEFAULT
+  );
+
+  const saveExpiry = async (field, val) => {
+    setSavingExpiry(true);
+    const dbField = field==="licence"?"licence_expiry":field==="siteSafe"?"site_safe_expiry":"first_aid_expiry";
+    const stateField = field==="licence"?"licenceExpiry":field==="siteSafe"?"siteSafeExpiry":"firstAidExpiry";
+    await upsertUser({...apprentice, [stateField]: val||null}).catch(console.error);
+    setApprentice(prev=>({...prev,[stateField]:val||null}));
+    setEditingExpiry(null);
+    setSavingExpiry(false);
+  };
 
   useEffect(()=>{
     loadTable('meeting_reports')
@@ -5592,29 +5613,159 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10}}>
-          {[
-            {label:"Trade",            value:apprentice.trade||"Not set",   icon:"🔧", bg:T.accentL,  valColor:T.accent},
-            {label:"Licence Expiry",
-              value:apprentice.licenceExpiry
-                ?(licDays!==null?`${fmtDate(apprentice.licenceExpiry)} (${licDays<0?"Expired":licDays===0?"Today":`${licDays}d`})`:fmtDate(apprentice.licenceExpiry))
-                :"Not set",
-              icon:"📄",
-              bg:licDays===null?T.bg:licDays<=7?T.redL:licDays<=30?T.warnL:T.tealL,
-              valColor:licColor},
-            {label:"Last Mentor Visit",value:loadingVisit?"…":lastVisit?fmtDate(lastVisit):"No visits yet",icon:"📅",bg:T.tealL,valColor:T.teal},
-            (()=>{const d=daysUntil(apprentice.siteSafeExpiry); const c=d===null?T.muted:d<0?T.red:d<=30?T.warn:T.teal; return {label:"Site Safe Expiry",value:apprentice.siteSafeExpiry?(d!==null?`${fmtDate(apprentice.siteSafeExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:`${fmtDate(apprentice.siteSafeExpiry)}`):"Not set",icon:"🦺",bg:d===null?T.bg:d<0?T.redL:d<=30?T.warnL:T.tealL,valColor:c};})(),
-            (()=>{const d=daysUntil(apprentice.firstAidExpiry);  const c=d===null?T.muted:d<0?T.red:d<=30?T.warn:T.teal; return {label:"First Aid Expiry", value:apprentice.firstAidExpiry?(d!==null?`${fmtDate(apprentice.firstAidExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:`${fmtDate(apprentice.firstAidExpiry)}`):"Not set",icon:"🩹",bg:d===null?T.bg:d<0?T.redL:d<=30?T.warnL:T.tealL,valColor:c};})(),
-          ].map(({label,value,icon,bg,valColor})=>(
-            <div key={label} style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`}}>
-              <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>{icon} {label}</div>
-              <div style={{fontSize:13,fontWeight:700,color:valColor,wordBreak:"break-all",lineHeight:1.4}}>{value}</div>
-            </div>
-          ))}
+          {/* Trade — static */}
+          <div style={{background:T.accentL,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`}}>
+            <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>🔧 Trade</div>
+            <div style={{fontSize:13,fontWeight:700,color:T.accent}}>{apprentice.trade||"Not set"}</div>
+          </div>
+          {/* Licence Expiry — editable */}
+          {(()=>{
+            const d=licDays; const c=licColor;
+            const bg=d===null?T.bg:d<=7?T.redL:d<=30?T.warnL:T.tealL;
+            const val=apprentice.licenceExpiry?(d!==null?`${fmtDate(apprentice.licenceExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:fmtDate(apprentice.licenceExpiry)):"Not set";
+            return (
+              <div style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${editingExpiry==="licence"?T.accent:T.border}`,position:"relative"}}>
+                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span>📄 Licence Expiry</span>
+                  {canEditExpiry&&editingExpiry!=="licence"&&<button onClick={()=>{setEditingExpiry("licence");setExpiryVal(apprentice.licenceExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
+                </div>
+                {editingExpiry==="licence"?(
+                  <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
+                    <input type="date" value={expiryVal} onChange={e=>setExpiryVal(e.target.value)} style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif"}}/>
+                    <button onClick={()=>saveExpiry("licence",expiryVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
+                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                  </div>
+                ):<div style={{fontSize:13,fontWeight:700,color:c}}>{val}</div>}
+              </div>
+            );
+          })()}
+          {/* Last Mentor Visit — static */}
+          <div style={{background:T.tealL,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`}}>
+            <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>📅 Last Mentor Visit</div>
+            <div style={{fontSize:13,fontWeight:700,color:T.teal}}>{loadingVisit?"…":lastVisit?fmtDate(lastVisit):"No visits yet"}</div>
+          </div>
+          {/* Site Safe Expiry — editable */}
+          {(()=>{
+            const d=daysUntil(apprentice.siteSafeExpiry); const c=d===null?T.muted:d<0?T.red:d<=30?T.warn:T.teal;
+            const bg=d===null?T.bg:d<0?T.redL:d<=30?T.warnL:T.tealL;
+            const val=apprentice.siteSafeExpiry?(d!==null?`${fmtDate(apprentice.siteSafeExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:fmtDate(apprentice.siteSafeExpiry)):"Not set";
+            return (
+              <div style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${editingExpiry==="siteSafe"?T.teal:T.border}`,position:"relative"}}>
+                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span>🦺 Site Safe Expiry</span>
+                  {canEditExpiry&&editingExpiry!=="siteSafe"&&<button onClick={()=>{setEditingExpiry("siteSafe");setExpiryVal(apprentice.siteSafeExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
+                </div>
+                {editingExpiry==="siteSafe"?(
+                  <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
+                    <input type="date" value={expiryVal} onChange={e=>setExpiryVal(e.target.value)} style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif"}}/>
+                    <button onClick={()=>saveExpiry("siteSafe",expiryVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
+                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                  </div>
+                ):<div style={{fontSize:13,fontWeight:700,color:c}}>{val}</div>}
+              </div>
+            );
+          })()}
+          {/* First Aid Expiry — editable */}
+          {(()=>{
+            const d=daysUntil(apprentice.firstAidExpiry); const c=d===null?T.muted:d<0?T.red:d<=30?T.warn:T.teal;
+            const bg=d===null?T.bg:d<0?T.redL:d<=30?T.warnL:T.tealL;
+            const val=apprentice.firstAidExpiry?(d!==null?`${fmtDate(apprentice.firstAidExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:fmtDate(apprentice.firstAidExpiry)):"Not set";
+            return (
+              <div style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${editingExpiry==="firstAid"?T.teal:T.border}`,position:"relative"}}>
+                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span>🩹 First Aid Expiry</span>
+                  {canEditExpiry&&editingExpiry!=="firstAid"&&<button onClick={()=>{setEditingExpiry("firstAid");setExpiryVal(apprentice.firstAidExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
+                </div>
+                {editingExpiry==="firstAid"?(
+                  <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
+                    <input type="date" value={expiryVal} onChange={e=>setExpiryVal(e.target.value)} style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif"}}/>
+                    <button onClick={()=>saveExpiry("firstAid",expiryVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
+                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                  </div>
+                ):<div style={{fontSize:13,fontWeight:700,color:c}}>{val}</div>}
+              </div>
+            );
+          })()}
         </div>
       </Card>
 
-      {/* ── Personal Details card ── */}
-      <Card style={{marginBottom:16,cursor:"pointer"}} onClick={()=>setShowPersonal(s=>!s)}>
+      {/* ── Draggable sections — admin view ── */}
+      {sectionOrder.map(sectionId => {
+        if(sectionId==="actions") return (
+          <DraggableSection key="actions" id="actions" dragProps={sectionDrag}>
+            {isAdmin ? (
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:12}}>
+                <button onClick={()=>{setShowMeetingForm(s=>!s); setShowPastReports(false); setShowPPE(false); setShowActivity(false);}}
+                  style={{width:"100%", background:showMeetingForm?T.accentL:T.surface, border:`1.5px solid ${showMeetingForm?T.accent:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+                  <div style={{display:"flex", alignItems:"center", gap:8}}>
+                    <div style={{width:28,height:28,borderRadius:7,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>📋</div>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontWeight:700, fontSize:12, color:showMeetingForm?T.accent:T.ink}}>New Report</div>
+                      <div style={{fontSize:10, color:T.sub, marginTop:1}}>Record a visit</div>
+                    </div>
+                    <div style={{marginLeft:"auto", fontSize:11, color:T.muted}}>↗</div>
+                  </div>
+                </button>
+                <button onClick={()=>{setShowPastReports(s=>!s); setShowMeetingForm(false); setShowPPE(false); setShowActivity(false);}}
+                  style={{width:"100%", background:showPastReports?T.goldL:T.surface, border:`1.5px solid ${showPastReports?T.gold:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+                  <div style={{display:"flex", alignItems:"center", gap:8}}>
+                    <div style={{width:28,height:28,borderRadius:7,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>📁</div>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontWeight:700, fontSize:12, color:showPastReports?T.gold:T.ink}}>Past Reports</div>
+                      <div style={{fontSize:10, color:T.sub, marginTop:1}}>Visit history</div>
+                    </div>
+                    <div style={{marginLeft:"auto", fontSize:11, color:T.muted}}>{showPastReports?"▲":"▼"}</div>
+                  </div>
+                </button>
+                <button onClick={()=>{setShowPPE(s=>!s); setShowMeetingForm(false); setShowPastReports(false); setShowActivity(false);}}
+                  style={{width:"100%", background:showPPE?T.tealL:T.surface, border:`1.5px solid ${showPPE?T.teal:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+                  <div style={{display:"flex", alignItems:"center", gap:8}}>
+                    <div style={{width:28,height:28,borderRadius:7,background:T.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>🦺</div>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontWeight:700, fontSize:12, color:showPPE?T.teal:T.ink}}>PPE</div>
+                      <div style={{fontSize:10, color:T.sub, marginTop:1}}>Equipment issued</div>
+                    </div>
+                    <div style={{marginLeft:"auto", fontSize:11, color:T.muted}}>{showPPE?"▲":"▼"}</div>
+                  </div>
+                </button>
+                <button onClick={()=>{setShowActivity(s=>!s); setShowMeetingForm(false); setShowPastReports(false); setShowPPE(false);}}
+                  style={{width:"100%", background:showActivity?T.slateL:T.surface, border:`1.5px solid ${showActivity?T.slate:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+                  <div style={{display:"flex", alignItems:"center", gap:8}}>
+                    <div style={{width:28,height:28,borderRadius:7,background:T.slateL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>📬</div>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontWeight:700, fontSize:12, color:showActivity?T.slate:T.ink}}>Activity</div>
+                      <div style={{fontSize:10, color:T.sub, marginTop:1}}>Emails & notes</div>
+                    </div>
+                    <div style={{marginLeft:"auto", fontSize:11, color:T.muted}}>{showActivity?"▲":"▼"}</div>
+                  </div>
+                </button>
+              </div>
+            ) : null}
+            {/* Expanded panels */}
+            {showMeetingForm && isAdmin && (
+              <ReportFullscreenModal apprentice={apprentice} mentor={viewer} allUsers={allUsers} meetingKey={meetingKey}
+                onSave={()=>{ setShowMeetingForm(false); setMeetingKey(k=>k+1); }} onClose={()=>setShowMeetingForm(false)}/>
+            )}
+            {showPastReports && isAdmin && (
+              <Card style={{marginBottom:16}}><PastMeetingReports key={meetingKey} apprentice={apprentice} allUsers={allUsers} canEdit={true}/></Card>
+            )}
+            {showPPE && isAdmin && (
+              <Card style={{marginBottom:16}}><PPEAllocation apprentice={apprentice} mentor={viewer} canEdit={true}/></Card>
+            )}
+            {showActivity && isAdmin && apprentice.email && (
+              <Card style={{marginBottom:16}}>
+                <EmailActivityFeed personEmail={apprentice.email} personName={apprentice.name} personId={apprentice.id} canEdit={true}
+                  extraItems={reports.map(r=>({id:r.id,created_at:r.created_at||r.date+"T12:00:00",date:r.date,
+                    label:`Meeting Report — ${r.date?(()=>{const[y,m,d]=r.date.split('-');return`${d}/${m}/${y}`;})():""}`,
+                    detail:r.goals_this_meeting?`Goals: ${r.goals_this_meeting}`:r.comments_feedback||""}))}/>
+              </Card>
+            )}
+          </DraggableSection>
+        );
+        if(sectionId==="personal") return (
+          <DraggableSection key="personal" id="personal" dragProps={sectionDrag}>
+            {/* ── Personal Details card ── */}
+            <Card style={{marginBottom:16,cursor:"pointer"}} onClick={()=>setShowPersonal(s=>!s)}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:8}}>
             <span>👤</span> Personal Details
@@ -5659,8 +5810,11 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
           </div>
         )}
       </Card>
-
-      {/* ── Goals cards (side by side if both exist) ── */}
+          </DraggableSection>
+        );
+        if(sectionId==="goals") return (
+          <DraggableSection key="goals" id="goals" dragProps={sectionDrag}>
+            {/* ── Goals cards ── */}
       <div style={{display:"grid",gridTemplateColumns:prevReport?"1fr 1fr":"1fr",gap:12,marginBottom:16}}>
         {/* Goals from last meeting */}
         <Card style={{border:`1.5px solid ${T.accent}33`}}>
@@ -5705,11 +5859,13 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
             )}
           </Card>
         )}
-      </div>
-
-      {/* ── Timesheet Summary (Admin only) ── */}
-      {isAdmin && (
-        <Card style={{marginBottom:16}}>
+          </div>
+          </DraggableSection>
+        );
+        if(sectionId==="timesheet") return (
+          <DraggableSection key="timesheet" id="timesheet" dragProps={sectionDrag}>
+            {isAdmin && (
+              <Card style={{marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
             <div style={{width:36,height:36,borderRadius:10,background:T.blueL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>⏱</div>
             <div>
@@ -5761,104 +5917,13 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
               {appEntries.length>20&&<div style={{padding:"8px 14px",fontSize:12,color:T.muted,textAlign:"center"}}>Showing 20 of {appEntries.length} entries</div>}
             </div>
           )}
-          {appEntries.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:T.muted,fontSize:13,fontStyle:"italic"}}>No timesheet entries yet</div>}
-        </Card>
-      )}
-
-      {/* ── Meeting Reports + PPE + Activity — compact row for admin ── */}
-      {isAdmin ? (
-        <>
-          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:12}}>
-            {/* New Meeting Report */}
-            <button onClick={()=>{setShowMeetingForm(s=>!s); setShowPastReports(false); setShowPPE(false); setShowActivity(false);}}
-              style={{width:"100%", background:showMeetingForm?T.accentL:T.surface, border:`1.5px solid ${showMeetingForm?T.accent:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
-              <div style={{display:"flex", alignItems:"center", gap:8}}>
-                <div style={{width:28,height:28,borderRadius:7,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>📋</div>
-                <div style={{minWidth:0}}>
-                  <div style={{fontWeight:700, fontSize:12, color:showMeetingForm?T.accent:T.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>New Report</div>
-                  <div style={{fontSize:10, color:T.sub, marginTop:1}}>Record a visit</div>
-                </div>
-                <div style={{marginLeft:"auto", fontSize:11, color:T.muted, flexShrink:0}}>↗</div>
-              </div>
-            </button>
-            {/* Past Reports */}
-            <button onClick={()=>{setShowPastReports(s=>!s); setShowMeetingForm(false); setShowPPE(false); setShowActivity(false);}}
-              style={{width:"100%", background:showPastReports?T.goldL:T.surface, border:`1.5px solid ${showPastReports?T.gold:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
-              <div style={{display:"flex", alignItems:"center", gap:8}}>
-                <div style={{width:28,height:28,borderRadius:7,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>📁</div>
-                <div style={{minWidth:0}}>
-                  <div style={{fontWeight:700, fontSize:12, color:showPastReports?T.gold:T.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>Past Reports</div>
-                  <div style={{fontSize:10, color:T.sub, marginTop:1}}>Visit history</div>
-                </div>
-                <div style={{marginLeft:"auto", fontSize:11, color:T.muted, flexShrink:0}}>{showPastReports?"▲":"▼"}</div>
-              </div>
-            </button>
-            {/* PPE */}
-            <button onClick={()=>{setShowPPE(s=>!s); setShowMeetingForm(false); setShowPastReports(false); setShowActivity(false);}}
-              style={{width:"100%", background:showPPE?T.tealL:T.surface, border:`1.5px solid ${showPPE?T.teal:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
-              <div style={{display:"flex", alignItems:"center", gap:8}}>
-                <div style={{width:28,height:28,borderRadius:7,background:T.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>🦺</div>
-                <div style={{minWidth:0}}>
-                  <div style={{fontWeight:700, fontSize:12, color:showPPE?T.teal:T.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>PPE</div>
-                  <div style={{fontSize:10, color:T.sub, marginTop:1}}>Equipment issued</div>
-                </div>
-                <div style={{marginLeft:"auto", fontSize:11, color:T.muted, flexShrink:0}}>{showPPE?"▲":"▼"}</div>
-              </div>
-            </button>
-            {/* Activity */}
-            <button onClick={()=>{setShowActivity(s=>!s); setShowMeetingForm(false); setShowPastReports(false); setShowPPE(false);}}
-              style={{width:"100%", background:showActivity?T.slateL:T.surface, border:`1.5px solid ${showActivity?T.slate:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
-              <div style={{display:"flex", alignItems:"center", gap:8}}>
-                <div style={{width:28,height:28,borderRadius:7,background:T.slateL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>📬</div>
-                <div style={{minWidth:0}}>
-                  <div style={{fontWeight:700, fontSize:12, color:showActivity?T.slate:T.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>Activity</div>
-                  <div style={{fontSize:10, color:T.sub, marginTop:1}}>Emails & notes</div>
-                </div>
-                <div style={{marginLeft:"auto", fontSize:11, color:T.muted, flexShrink:0}}>{showActivity?"▲":"▼"}</div>
-              </div>
-            </button>
-          </div>
-
-          {/* Expanded panels */}
-          {showMeetingForm && (
-            <ReportFullscreenModal
-              apprentice={apprentice}
-              mentor={viewer}
-              allUsers={allUsers}
-              meetingKey={meetingKey}
-              onSave={()=>{ setShowMeetingForm(false); setMeetingKey(k=>k+1); }}
-              onClose={()=>setShowMeetingForm(false)}
-            />
-          )}
-          {showPastReports && (
-            <Card style={{marginBottom:16}}>
-              <PastMeetingReports key={meetingKey} apprentice={apprentice} allUsers={allUsers} canEdit={true}/>
+              {appEntries.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:T.muted,fontSize:13,fontStyle:"italic"}}>No timesheet entries yet</div>}
             </Card>
           )}
-          {showPPE && (
-            <Card style={{marginBottom:16}}>
-              <PPEAllocation apprentice={apprentice} mentor={viewer} canEdit={true}/>
-            </Card>
-          )}
-          {showActivity && apprentice.email && (
-            <Card style={{marginBottom:16}}>
-              <EmailActivityFeed
-                personEmail={apprentice.email}
-                personName={apprentice.name}
-                personId={apprentice.id}
-                canEdit={true}
-                extraItems={reports.map(r=>({
-                  id: r.id,
-                  created_at: r.created_at||r.date+"T12:00:00",
-                  date: r.date,
-                  label: `Meeting Report — ${r.date ? (()=>{const [y,m,d]=r.date.split('-');return`${d}/${m}/${y}`;})() : ""}`,
-                  detail: r.goals_this_meeting ? `Goals: ${r.goals_this_meeting}` : r.comments_feedback||"",
-                }))}
-              />
-            </Card>
-          )}
-        </>
-      ) : null}
+          </DraggableSection>
+        );
+        return null;
+      })}
 
       {/* Full cards for mentor view */}
       {!isAdmin && (
@@ -5914,7 +5979,7 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
 
 // Legacy wrapper for Mentor
 function MentorApprenticeDetail({apprentice, mentor, allUsers, onBack}) {
-  return <ApprenticeDetailView apprentice={apprentice} viewer={mentor} allUsers={allUsers} onBack={onBack} isAdmin={false} entries={[]}/>;
+  return <ApprenticeDetailView apprentice={apprentice} viewer={mentor} allUsers={allUsers} onBack={onBack} isAdmin={false} canEditExpiry={true} entries={[]}/>;
 }
 
 // ── Mentor Dashboard (home screen) ───────────────────────────────────────────
@@ -5957,6 +6022,7 @@ function MentorDashboard({currentUser, allUsers}) {
         allUsers={allUsers}
         entries={[]}
         isAdmin={false}
+        canEditExpiry={true}
         onBack={()=>setSelectedApprentice(null)}
       />
     );
@@ -8766,6 +8832,7 @@ export default function App() {
               allUsers={users}
               entries={entries}
               isAdmin={true}
+              canEditExpiry={true}
               onBack={()=>setViewingAppId(null)}
             />
           )}
