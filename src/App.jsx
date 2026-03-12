@@ -1984,7 +1984,7 @@ function UserManagement({users, setUsers, currentUser}) {
 // ─────────────────────────────────────────────────────────────────────────────
 // CRM MODULE
 // ─────────────────────────────────────────────────────────────────────────────
-function CRMModule({currentUser,allUsers}) {
+function CRMModule({currentUser,allUsers,onSyncTick}) {
   const [contacts,setContacts]=useState([]);
   const [companies,setCompanies]=useState([]);
   const [deals,setDeals]=useState([]);
@@ -2452,9 +2452,14 @@ function CRMModule({currentUser,allUsers}) {
           if(!hsToken.trim()){setHsMsg("Please enter your HubSpot token."); return;}
           if(!window.confirm("This will DELETE all existing CRM contacts and companies, then re-import everything fresh from HubSpot. Continue?")) return;
           setHsImporting(true);
+          const syncMsg = (msg) => {
+            setHsMsg(msg);
+            window.__ktaSync = { running:true, msg };
+            if(onSyncTick) onSyncTick();
+          };
           try {
             // 1 — Delete all existing contacts + companies from Supabase
-            setHsMsg("🗑 Clearing existing contacts and companies…");
+            syncMsg("🗑 Clearing existing contacts and companies…");
             const existingContacts = await loadTable("crm_contacts").catch(()=>[]);
             for(const c of existingContacts){
               await deleteRow("crm_contacts", c.id).catch(()=>{});
@@ -2466,9 +2471,9 @@ function CRMModule({currentUser,allUsers}) {
             setContacts([]); setCompanies([]);
 
             // 2 — Fetch all companies from HubSpot
-            setHsMsg("🏢 Fetching companies from HubSpot…");
+            syncMsg("🏢 Fetching companies from HubSpot…");
             const hsCompanies = await fetchAllPages("getCompanies");
-            setHsMsg(`🏢 Importing ${hsCompanies.length} companies…`);
+            syncMsg(`🏢 Importing ${hsCompanies.length} companies…`);
 
             const hsCoIdToLocalId = {};
             let coDone=0;
@@ -2489,13 +2494,13 @@ function CRMModule({currentUser,allUsers}) {
                 website:p.website||"",address:p.address||"",city:p.city||"",country:p.country||"",
                 hubspotId:co.id,notes:"",status:"Active"}]);
               coDone++;
-              if(i%20===0) setHsMsg(`🏢 Importing companies… ${i+1}/${hsCompanies.length}`);
+              if(i%20===0) syncMsg(`🏢 Importing companies… ${i+1}/${hsCompanies.length}`);
             }
 
             // 3 — Fetch all contacts from HubSpot
-            setHsMsg("👤 Fetching contacts from HubSpot…");
+            syncMsg("👤 Fetching contacts from HubSpot…");
             const hsContacts = await fetchAllPages("searchContacts");
-            setHsMsg(`👤 Importing ${hsContacts.length} contacts…`);
+            syncMsg(`👤 Importing ${hsContacts.length} contacts…`);
 
             // Build hubspot contact id → local id map for linking
             const hsContactIdToLocalId = {};
@@ -2520,11 +2525,11 @@ function CRMModule({currentUser,allUsers}) {
               setContacts(prev=>[...prev,{id,name,email:row.email,phone:row.phone,
                 company:row.company,companyId:"",status:"Active",notes:"",hubspot_id:c.id}]);
               ctDone++;
-              if(i%50===0) setHsMsg(`👤 Importing contacts… ${i+1}/${hsContacts.length}`);
+              if(i%50===0) syncMsg(`👤 Importing contacts… ${i+1}/${hsContacts.length}`);
             }
 
             // 4 — Link contacts to companies via HubSpot associations
-            setHsMsg(`🔗 Linking contacts to companies…`);
+            syncMsg(`🔗 Linking contacts to companies…`);
             let linked=0;
             for(let i=0;i<hsCompanies.length;i++){
               const co = hsCompanies[i];
@@ -2540,11 +2545,17 @@ function CRMModule({currentUser,allUsers}) {
                   linked++;
                 }
               } catch{}
-              if(i%20===0) setHsMsg(`🔗 Linking… ${i+1}/${hsCompanies.length} companies`);
+              if(i%20===0) syncMsg(`🔗 Linking… ${i+1}/${hsCompanies.length} companies`);
             }
 
-            setHsMsg(`✓ Sync complete — ${coDone} companies · ${ctDone} contacts · ${linked} links`);
-          } catch(e){ setHsMsg("Error: "+e.message); }
+            syncMsg(`✓ Sync complete — ${coDone} companies · ${ctDone} contacts · ${linked} links`);
+            window.__ktaSync = { running:false, msg:"" };
+            if(onSyncTick) onSyncTick();
+          } catch(e){
+            syncMsg("Error: "+e.message);
+            window.__ktaSync = { running:false, msg:"" };
+            if(onSyncTick) onSyncTick();
+          }
           setHsImporting(false);
         };
 
@@ -8204,7 +8215,7 @@ export default function App() {
   const [users,setUsers]         = useState([]);
   const [entries,setEntries]     = useState([]);
   const [sessionId,setSessionId] = useState(()=>{ try{return localStorage.getItem("wos_session_sb")||null;}catch{return null;} });
-  const [module,setModule]       = useState("dashboard");
+  const [module,setModule]       = useState(()=>{try{return localStorage.getItem("wos_module")||"dashboard";}catch{return "dashboard";}});
   const [viewingAppId,setViewingAppId] = useState(null);
   const [showAppList,setShowAppList] = useState(false);
   const [loggingOut,setLoggingOut] = useState(false);
@@ -8392,10 +8403,17 @@ export default function App() {
   const isAdmin1 = role==="Admin" && (currentUser?.adminLevel||1) === 1;
   const isAdmin2 = role==="Admin" && (currentUser?.adminLevel||1) === 2;
 
+  // Persist module navigation
+  const navigateTo = (mod) => { setModule(mod); try{localStorage.setItem("wos_module",mod);}catch{} };
+
+  // Global sync state on window so sync survives CRMModule unmount
+  if(!window.__ktaSync) window.__ktaSync = { running:false, msg:"" };
+  const [syncTick,setSyncTick] = useState(0);
+
   const handleLogin  = (userId) => {
     const u = users.find(x=>x.id===userId);
-    // Admin lands on dashboard, others on timesheet
-    setModule(u?.role==="Admin"?"dashboard":u?.role==="Mentor"?"mentor":"timesheet");
+    const defaultMod = u?.role==="Admin"?"dashboard":u?.role==="Mentor"?"mentor":"timesheet";
+    navigateTo(defaultMod);
     setSessionId(userId);
     setViewingAppId(null);
   };
@@ -8538,7 +8556,7 @@ export default function App() {
                 const navLabels={dashboard:"Dashboard",mentor:"Apprentices",timesheet:"Timesheet",crm:"CRM",users:"Users",emails:"Emails"};
                 return (
                   <button key={n.id}
-                    onClick={()=>{setModule(n.id);setViewingAppId(null);setShowAppList(false);}}
+                    onClick={()=>{navigateTo(n.id);setViewingAppId(null);setShowAppList(false);}}
                     style={{
                       padding:"8px 18px",borderRadius:9,fontSize:13,fontWeight:700,
                       letterSpacing:"-.1px",
@@ -8586,6 +8604,13 @@ export default function App() {
                 await pushNotif([senderId],"reply",`↩ Reply from ${currentUser.name}`,text,currentUser.id,{replyToId:origNotif.id});
               }}
             />
+            {window.__ktaSync?.running&&(
+                <div style={{fontSize:11,color:"#13b5ea",background:"#13b5ea18",border:"1px solid #13b5ea44",
+                  borderRadius:6,padding:"4px 10px",maxWidth:240,overflow:"hidden",textOverflow:"ellipsis",
+                  whiteSpace:"nowrap",alignSelf:"center"}}>
+                  ⏳ {window.__ktaSync.msg||"Syncing…"}
+                </div>
+              )}
             {["Admin","Mentor"].includes(role)&&(
               <button onClick={()=>{setShowBroadcast(s=>!s);setShowNotifs(false);}}
                 title="Broadcast message"
@@ -8596,7 +8621,7 @@ export default function App() {
                 onMouseLeave={e=>{e.currentTarget.style.background="#ffffff18";}}>📢</button>
             )}
             {isAdmin1&&(
-              <button onClick={()=>setModule("xero")}
+              <button onClick={()=>navigateTo("xero")}
                 title="Xero Integration"
                 style={{background: module==="xero"?"#13b5ea22":"#ffffff18",
                   border: module==="xero"?"1.5px solid #13b5ea88":"1.5px solid #ffffff28",
@@ -8633,7 +8658,7 @@ export default function App() {
             return (
               <button key={n.id}
                 className={`bottom-nav-btn${activeMod===n.id?" active":""}`}
-                onClick={()=>{setModule(n.id);setViewingAppId(null);setShowAppList(false);}}>
+                onClick={()=>{navigateTo(n.id);setViewingAppId(null);setShowAppList(false);}}>
                 <span className="bottom-nav-icon">{icons[n.id]||"◈"}</span>
                 <span className="bottom-nav-label">{labels[n.id]||n.id}</span>
               </button>
@@ -8841,7 +8866,7 @@ export default function App() {
             </>
           )}
           {activeMod==="crm" && (
-            <CRMModule currentUser={currentUser} allUsers={users}/>
+            <CRMModule currentUser={currentUser} allUsers={users} onSyncTick={()=>setSyncTick(t=>t+1)}/>
           )}
           {activeMod==="users" && role==="Admin" && (
             <UserManagement users={users} setUsers={updateUsers} currentUser={currentUser}/>
