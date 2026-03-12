@@ -2299,11 +2299,13 @@ function CRMModule({currentUser,allUsers}) {
 
         const fetchPreview = async () => {
           if(!hsToken.trim()){setHsMsg("Please enter your HubSpot token."); return;}
-          setHsLoading(true); setHsMsg("Fetching contacts…"); setHsPreview(null); setHsSelected(new Set());
+          setHsLoading(true); setHsMsg("Fetching contacts with activity in last 6 months…"); setHsPreview(null); setHsSelected(new Set());
+          // 6 months ago as ms timestamp for HubSpot filter
+          const sixMonthsAgo = Date.now() - (6*30*24*60*60*1000);
           try {
             let all=[]; let after=null; let pages=0;
             while(pages<200){
-              const d = await hsFetch("getContacts", after?{after}:{});
+              const d = await hsFetch("getContacts", {after, filterDate: sixMonthsAgo});
               const mapped = (d.results||[]).map(c=>{
                 const p = c.properties;
                 const name = [p.firstname,p.lastname].filter(Boolean).join(" ")||p.company||"";
@@ -2343,22 +2345,23 @@ function CRMModule({currentUser,allUsers}) {
           if(!hsPreview||hsSelected.size===0) return;
           setHsImporting(true);
           const toImport = hsPreview.contacts.filter((_,i)=>hsSelected.has(i));
-          let done=0, updated=0, notesDone=0;
-          for(const c of toImport){
+          let done=0, updated=0;
+          // Insert/update contacts in batches of 50 with a progress update each batch
+          const BATCH = 50;
+          for(let i=0; i<toImport.length; i++){
+            const c = toImport[i];
             const existsCrm = contacts.find(x=>x.email&&c.email&&x.email.toLowerCase()===c.email.toLowerCase());
-            // Check if this person also exists as an apprentice in users table (Xero is source of truth for their data)
-            // We never overwrite fields already set from Xero — only fill in blanks from HubSpot
             let contactId;
             if(existsCrm){
               contactId = existsCrm.id;
-              // Merge: fill any blank fields from HubSpot, but never overwrite non-empty existing values
+              // Merge: fill blank fields only — never overwrite (Xero has priority)
               const mergeRow = {};
-              if(!existsCrm.phone    && c.phone)    mergeRow.phone    = c.phone;
-              if(!existsCrm.company  && c.company)  mergeRow.company  = c.company;
-              if(!existsCrm.trade    && c.trade)     mergeRow.trade    = c.trade;
-              if(!existsCrm.address  && c.address)  mergeRow.address  = c.address;
-              if(!existsCrm.city     && c.city)      mergeRow.city     = c.city;
-              if(!existsCrm.postcode && c.postcode)  mergeRow.postcode = c.postcode;
+              if(!existsCrm.phone    && c.phone)         mergeRow.phone    = c.phone;
+              if(!existsCrm.company  && c.company)       mergeRow.company  = c.company;
+              if(!existsCrm.trade    && c.trade)         mergeRow.trade    = c.trade;
+              if(!existsCrm.address  && c.address)       mergeRow.address  = c.address;
+              if(!existsCrm.city     && c.city)          mergeRow.city     = c.city;
+              if(!existsCrm.postcode && c.postcode)      mergeRow.postcode = c.postcode;
               if(!existsCrm.site_safe_expiry && c.siteSafeExpiry) mergeRow.site_safe_expiry = c.siteSafeExpiry;
               if(!existsCrm.first_aid_expiry && c.firstAidExpiry) mergeRow.first_aid_expiry = c.firstAidExpiry;
               if(!existsCrm.hubspot_id) mergeRow.hubspot_id = c.hubspotId;
@@ -2381,32 +2384,10 @@ function CRMModule({currentUser,allUsers}) {
               setContacts(prev=>[row,...prev]);
               done++;
             }
-            // Fetch and import notes/emails/calls for this contact
-            try {
-              const types = ["notes","emails","calls","meetings","tasks"];
-              for(const atype of types){
-                const ad = await hsFetch("getAssociations",{contactId:c.hubspotId,associationType:atype}).catch(()=>null);
-                if(!ad?.results?.length) continue;
-                for(const assoc of ad.results.slice(0,20)){
-                  const item = await hsFetch("getActivity",{contactId:c.hubspotId,associationType:atype,activityId:assoc.id}).catch(()=>null);
-                  if(!item) continue;
-                  const p = item.properties||{};
-                  const body = p.hs_note_body||p.hs_email_text||p.hs_call_body||p.hs_meeting_body||p.hs_task_body||"";
-                  const subject = p.hs_email_subject||"";
-                  const actDate = p.hs_timestamp||p.createdate||null;
-                  if(!body&&!subject) continue;
-                  await upsertRow("crm_contact_notes",{
-                    id:crypto.randomUUID(), contact_id:contactId,
-                    type:atype.replace(/s$/,""), subject, body,
-                    activity_date:actDate?new Date(Number(actDate)||actDate).toISOString():null,
-                  }).catch(()=>{});
-                  notesDone++;
-                }
-              }
-            } catch{}
-            setHsMsg(`Importing… ${done+skipped} / ${toImport.length}`);
+            // Update progress every 50 contacts
+            if(i%BATCH===0) setHsMsg(`Importing… ${i+1} / ${toImport.length}`);
           }
-          setHsMsg(`✓ Imported ${done} new · ${updated} updated (blanks filled) · ${notesDone} activity notes`);
+          setHsMsg(`✓ Done — ${done} new contacts imported · ${updated} existing updated`);
           setHsImporting(false);
         };
 
@@ -2415,7 +2396,7 @@ function CRMModule({currentUser,allUsers}) {
             <Card style={{marginBottom:16}}>
               <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>🔗 Import from HubSpot</div>
               <div style={{fontSize:12,color:T.sub,marginBottom:14,lineHeight:1.6}}>
-                Pulls <strong>name, email, phone, trade, address, company</strong> plus all associated notes, emails and calls.
+                Pulls contacts with <strong>activity in the last 6 months</strong> — name, email, phone, trade, address, company.
                 Get your token from <strong>HubSpot → Settings → Integrations → Private Apps</strong>.
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
