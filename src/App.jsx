@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.1.1
+// KTA Workforce Management — v2.1.2
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.1.1
+          v2.1.2
         </div>
       </div>
     </div>
@@ -6749,6 +6749,9 @@ function MentorDashboard({currentUser, allUsers}) {
   const fmtDate = (iso) => { if(!iso) return null; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
   const daysUntil = (iso) => { if(!iso) return null; const today=new Date(); today.setHours(0,0,0,0); const exp=new Date(iso+"T00:00:00"); return Math.round((exp-today)/86400000); };
 
+  const MENTOR_DEFAULT_ORDER = ["apprentices", ...(currentUser.email?.toLowerCase()===CONF_OWNER_EMAIL ? ["confidential"] : []), "resources"];
+  const { order: mentorOrder, dragProps: mentorDragProps } = useDraggableOrder(currentUser.id + "_mentor", MENTOR_DEFAULT_ORDER);
+
   if(selectedApprentice) {
     return (
       <ApprenticeDetailView
@@ -6762,9 +6765,6 @@ function MentorDashboard({currentUser, allUsers}) {
       />
     );
   }
-
-  const MENTOR_DEFAULT_ORDER = ["apprentices", ...(currentUser.email?.toLowerCase()===CONF_OWNER_EMAIL ? ["confidential"] : []), "resources"];
-  const { order: mentorOrder, dragProps: mentorDragProps } = useDraggableOrder(currentUser.id + "_mentor", MENTOR_DEFAULT_ORDER);
 
   const mentorSections = {
     apprentices: (
