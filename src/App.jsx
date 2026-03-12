@@ -6704,8 +6704,11 @@ serve(async (req) => {
                 let data; try{ data=JSON.parse(text); }catch{ alert("Non-JSON response: "+text.slice(0,300)); return; }
                 if(data.ok && data.employees){
                   setXeroEmployees(data.employees);
-                  const dbg = data.debug ? `\nDebug: total=${data.debug.total} active=${data.debug.active}\nSample inactive keys: ${JSON.stringify(data.debug.inactiveSample?.[0]?.allKeys)}\nSample inactive: ${JSON.stringify(data.debug.inactiveSample?.[0])}` : "";
-                  alert(`✓ Loaded ${data.employees.length} employees from Xero${dbg}`);
+                  if(data.debug?.rawSample) {
+                    alert("RAW EMPLOYEE FIELDS:\n" + JSON.stringify(data.debug.rawSample[0], null, 2).slice(0, 800));
+                  } else {
+                    showToast(`✓ Loaded ${data.employees.length} employees from Xero`);
+                  }
                 } else { alert("Error: " + (data.error||JSON.stringify(data))); }
               }catch(e){ alert("Failed: "+e.message); }
             }}>🔄 Load Employees from Xero</Btn>
