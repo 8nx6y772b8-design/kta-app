@@ -5714,6 +5714,11 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
     u.id===apprentice.approverUserId ||
     (u.role==="Approver"&&(u.allocatedTo||[]).includes(apprentice.id))
   );
+  // Mentor for this apprentice
+  const mentor = allUsers.find(u=>
+    u.id===apprentice.mentorUserId ||
+    (u.role==="Mentor"&&(u.allocatedTo||[]).includes(apprentice.id))
+  );
 
   const ratingColor = (r) => r==="Excellent"?T.teal:r==="Good"?T.accent:r==="Satisfactory"?T.gold:r==="Needs Improvement"?T.warn:r==="Concerning"?T.red:T.muted;
 
@@ -5742,48 +5747,47 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>
               <RolePill role="Apprentice" size="sm"/>
               {approver&&<Pill label={`Approver: ${approver.name}`} size="sm" color={T.warn} bg={T.warnL}/>}
+              {mentor&&<Pill label={`Mentor: ${mentor.name}`} size="sm" color={T.teal} bg={T.tealL}/>}
             </div>
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10}}>
-          {/* Trade — static */}
-          <div style={{background:T.accentL,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`}}>
-            <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>🔧 Trade</div>
-            <div style={{fontSize:13,fontWeight:700,color:T.accent}}>{apprentice.trade||"Not set"}</div>
-          </div>
-          {/* Licence Expiry — editable */}
+          {/* Trade + Licence combined card */}
           {(()=>{
             const d=licDays; const c=licColor;
-            const bg=d===null?T.bg:d<=7?T.redL:d<=30?T.warnL:T.tealL;
-            const val=apprentice.licenceExpiry?(d!==null?`${fmtDate(apprentice.licenceExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:fmtDate(apprentice.licenceExpiry)):"Not set";
+            const licBg=d===null?T.accentL:d<=7?T.redL:d<=30?T.warnL:T.tealL;
+            const licVal=apprentice.licenceExpiry?(d!==null?`${fmtDate(apprentice.licenceExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:fmtDate(apprentice.licenceExpiry)):"Not set";
+            const borderCol=editingExpiry==="licence"||editingExpiry==="licenceNum"?T.accent:T.border;
             return (
-              <div style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${editingExpiry==="licence"||editingExpiry==="licenceNum"?T.accent:T.border}`,position:"relative"}}>
-                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{background:licBg,borderRadius:10,padding:"10px 14px",border:`1px solid ${borderCol}`}}>
+                {/* Trade row */}
+                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:2}}>🔧 Trade</div>
+                <div style={{fontSize:13,fontWeight:700,color:T.accent,marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${T.border}44`}}>{apprentice.trade||"Not set"}</div>
+                {/* Licence expiry row */}
+                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>📄 Licence Expiry</span>
                   {canEditExpiry&&editingExpiry!=="licence"&&<button onClick={()=>{setEditingExpiry("licence");setExpiryVal(apprentice.licenceExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
                 </div>
                 {editingExpiry==="licence"?(
-                  <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
+                  <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
                     <input type="date" value={expiryVal} onChange={e=>setExpiryVal(e.target.value)} style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif"}}/>
                     <button onClick={()=>saveExpiry("licence",expiryVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
                     <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
                   </div>
-                ):<div style={{fontSize:13,fontWeight:700,color:c}}>{val}</div>}
-                {/* Licence Number */}
-                <div style={{marginTop:8,paddingTop:8,borderTop:`1px solid ${T.border}44`}}>
-                  <div style={{fontSize:10,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <span>Licence #</span>
-                    {canEditExpiry&&editingExpiry!=="licenceNum"&&<button onClick={()=>{setEditingExpiry("licenceNum");setLicNumVal(apprentice.licenceNumber||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
-                  </div>
-                  {editingExpiry==="licenceNum"?(
-                    <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                      <input value={licNumVal} onChange={e=>setLicNumVal(e.target.value)} placeholder="e.g. LBP123456"
-                        style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",flex:1}}/>
-                      <button onClick={()=>saveExpiry("licenceNum",licNumVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
-                      <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
-                    </div>
-                  ):<div style={{fontSize:12,fontWeight:600,color:apprentice.licenceNumber?T.ink:T.muted,fontStyle:apprentice.licenceNumber?"normal":"italic"}}>{apprentice.licenceNumber||"Not set"}</div>}
+                ):<div style={{fontSize:13,fontWeight:700,color:c,marginBottom:8}}>{licVal}</div>}
+                {/* Licence number row */}
+                <div style={{fontSize:10,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span>Licence #</span>
+                  {canEditExpiry&&editingExpiry!=="licenceNum"&&<button onClick={()=>{setEditingExpiry("licenceNum");setLicNumVal(apprentice.licenceNumber||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
                 </div>
+                {editingExpiry==="licenceNum"?(
+                  <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                    <input value={licNumVal} onChange={e=>setLicNumVal(e.target.value)} placeholder="e.g. LBP123456"
+                      style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",flex:1}}/>
+                    <button onClick={()=>saveExpiry("licenceNum",licNumVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
+                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                  </div>
+                ):<div style={{fontSize:12,fontWeight:600,color:apprentice.licenceNumber?T.ink:T.muted,fontStyle:apprentice.licenceNumber?"normal":"italic"}}>{apprentice.licenceNumber||"Not set"}</div>}
               </div>
             );
           })()}
@@ -5849,6 +5853,11 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               </div>
             );
           })()}
+          {/* Host Business — static */}
+          <div style={{background:T.slateL,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`}}>
+            <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>🏢 Host Business</div>
+            <div style={{fontSize:13,fontWeight:700,color:T.slate}}>{apprentice.hostBusiness||"Not set"}</div>
+          </div>
         </div>
       </Card>
 
