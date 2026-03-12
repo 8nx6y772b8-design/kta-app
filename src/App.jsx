@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.1.6
+// KTA Workforce Management — v2.1.7
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.1.6
+          v2.1.7
         </div>
       </div>
     </div>
@@ -5826,82 +5826,102 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
       // Build email HTML
       const fmtD = iso => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
 
-      // Need to Order = Pending items where qty requested > qty issued
-      const toOrderRows  = activeRows.filter(it=>it.approved==="Pending"&&parseFloat(it.qtyReq||0)>0);
-      // PPE Assigned = any item where qty issued > 0
-      const assignedRows = activeRows.filter(it=>parseFloat(it.qtyIssued||0)>0);
+      // Split rows into two sections
+      const toOrderRows  = activeRows.filter(it => it.approved==="Pending" && parseFloat(it.qtyReq||0) > 0);
+      const assignedRows = activeRows.filter(it => parseFloat(it.qtyIssued||0) > 0);
 
-      const orderTableRows = toOrderRows.map(it=>{
+      const orderTableRows = toOrderRows.map(it => {
         const need = parseFloat(it.qtyReq||0) - parseFloat(it.qtyIssued||0);
-        return `<tr style="border-bottom:1px solid #eee">
-          <td style="padding:7px 10px;font-weight:600">${it.item}</td>
-          <td style="padding:7px 10px;color:#4a5a72">${it.size||"—"}</td>
-          <td style="padding:7px 10px;text-align:center;font-weight:700;color:#b86e1a">${need}</td>
-          <td style="padding:7px 10px;color:#888;font-style:italic">${it.notes||""}</td>
+        return `<tr>
+          <td style="padding:9px 12px;font-weight:600;color:#0d1b2e;border-bottom:1px solid #edf2f7">${it.item}</td>
+          <td style="padding:9px 12px;color:#4a5a72;border-bottom:1px solid #edf2f7">${it.size||"—"}</td>
+          <td style="padding:9px 12px;text-align:center;font-weight:700;font-size:15px;color:#b86e1a;border-bottom:1px solid #edf2f7">${need}</td>
+          <td style="padding:9px 12px;color:#888;font-style:italic;border-bottom:1px solid #edf2f7">${it.notes||""}</td>
         </tr>`;
       }).join("");
 
-      const assignedTableRows = assignedRows.map(it=>`<tr style="border-bottom:1px solid #eee">
-          <td style="padding:7px 10px;font-weight:600">${it.item}</td>
-          <td style="padding:7px 10px;color:#4a5a72">${it.size||"—"}</td>
-          <td style="padding:7px 10px;text-align:center;font-weight:700;color:#1a8a7a">${it.qtyIssued}</td>
-          <td style="padding:7px 10px;color:#888;font-style:italic">${it.notes||""}</td>
+      const assignedTableRows = assignedRows.map(it => `<tr>
+          <td style="padding:9px 12px;font-weight:600;color:#0d1b2e;border-bottom:1px solid #edf2f7">${it.item}</td>
+          <td style="padding:9px 12px;color:#4a5a72;border-bottom:1px solid #edf2f7">${it.size||"—"}</td>
+          <td style="padding:9px 12px;text-align:center;font-weight:700;font-size:15px;color:#1a8a7a;border-bottom:1px solid #edf2f7">${it.qtyIssued}</td>
+          <td style="padding:9px 12px;border-bottom:1px solid #edf2f7"><span style="display:inline-block;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:700;background:#d4f0ec;color:#1a8a7a">Yes</span></td>
+          <td style="padding:9px 12px;color:#888;font-style:italic;border-bottom:1px solid #edf2f7">${it.notes||""}</td>
         </tr>`).join("");
 
-      const emailHtml = `
-        <div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto">
-          <div style="background:#1b4f8c;padding:18px 24px;border-radius:8px 8px 0 0">
-            <h2 style="color:#fff;margin:0;font-size:18px">PPE Request — ${apprentice.name}</h2>
-            <p style="color:rgba(255,255,255,.8);margin:4px 0 0;font-size:13px">All items issued new and non-returnable</p>
-          </div>
-          <div style="background:#f0f4f9;padding:14px 24px;display:flex;gap:32px;flex-wrap:wrap;border-bottom:1px solid #d0daea">
-            <div><span style="font-size:11px;color:#8fa0b8;text-transform:uppercase;font-weight:600">Apprentice</span><br><strong>${apprentice.name}</strong></div>
-            <div><span style="font-size:11px;color:#8fa0b8;text-transform:uppercase;font-weight:600">Host Business</span><br>${apprentice.hostBusiness||"—"}</div>
-            <div><span style="font-size:11px;color:#8fa0b8;text-transform:uppercase;font-weight:600">Trade</span><br>${apprentice.trade||"—"}</div>
-            <div><span style="font-size:11px;color:#8fa0b8;text-transform:uppercase;font-weight:600">Date Requested</span><br>${fmtD(dateRequested)}</div>
-            ${dateIssued?`<div><span style="font-size:11px;color:#8fa0b8;text-transform:uppercase;font-weight:600">Date Issued</span><br>${fmtD(dateIssued)}</div>`:""}
-            <div><span style="font-size:11px;color:#8fa0b8;text-transform:uppercase;font-weight:600">KTA Staff</span><br>${mentor?.name||"—"}</div>
-          </div>
-
-          ${toOrderRows.length>0?`
-          <div style="padding:16px 24px 0">
-            <h3 style="margin:0 0 10px;font-size:15px;color:#b86e1a">📦 Need to Order</h3>
-            <p style="margin:0 0 10px;font-size:12px;color:#888">Items below were requested but not fully issued — quantity shown is the shortfall (qty requested − qty issued).</p>
-          </div>
-          <table style="width:100%;border-collapse:collapse;font-size:13px">
-            <thead>
-              <tr style="background:#faebd7">
-                <th style="padding:7px 10px;text-align:left;color:#b86e1a;font-size:11px">PPE ITEM</th>
-                <th style="padding:7px 10px;text-align:left;color:#b86e1a;font-size:11px">SIZE</th>
-                <th style="padding:7px 10px;text-align:center;color:#b86e1a;font-size:11px">QTY TO ORDER</th>
-                <th style="padding:7px 10px;text-align:left;color:#b86e1a;font-size:11px">NOTES</th>
-              </tr>
-            </thead>
-            <tbody>${orderTableRows}</tbody>
-          </table>`:""}
-
-          ${assignedRows.length>0?`
-          <div style="padding:16px 24px 0;margin-top:${toOrderRows.length>0?"14px":"0"}">
-            <h3 style="margin:0 0 10px;font-size:15px;color:#1a8a7a">✅ PPE Assigned</h3>
-            <p style="margin:0 0 10px;font-size:12px;color:#888">Items below have been physically issued to ${apprentice.name}.</p>
-          </div>
-          <table style="width:100%;border-collapse:collapse;font-size:13px">
-            <thead>
-              <tr style="background:#d4f0ec">
-                <th style="padding:7px 10px;text-align:left;color:#1a8a7a;font-size:11px">PPE ITEM</th>
-                <th style="padding:7px 10px;text-align:left;color:#1a8a7a;font-size:11px">SIZE</th>
-                <th style="padding:7px 10px;text-align:center;color:#1a8a7a;font-size:11px">QTY ISSUED</th>
-                <th style="padding:7px 10px;text-align:left;color:#1a8a7a;font-size:11px">NOTES</th>
-              </tr>
-            </thead>
-            <tbody>${assignedTableRows}</tbody>
-          </table>`:""}
-
-          <div style="padding:14px 24px;background:#fdf3d4;font-size:12px;color:#4a5a72;font-style:italic;border-top:1px solid #d0daea;margin-top:14px">
-            I request the PPE items listed above. I understand that all items are provided new and are mine to keep. I agree to use them appropriately and in accordance with health and safety requirements.
-          </div>
-          <p style="padding:12px 24px;font-size:11px;color:#8fa0b8;margin:0">KTA Workforce Management · timesheet@kta.org.nz</p>
-        </div>`;
+      const emailHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:20px;background:#f0f4f9;font-family:Arial,Helvetica,sans-serif">
+<div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+  <div style="background:#1b4f8c;padding:20px 28px">
+    <div style="font-size:11px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">KTA Workforce Management</div>
+    <div style="font-size:20px;font-weight:700;color:#fff">PPE Request — ${apprentice.name}</div>
+    <div style="font-size:12px;color:rgba(255,255,255,.7);margin-top:4px">All items issued new and non-returnable</div>
+  </div>
+  <table style="width:100%;border-collapse:collapse;background:#f8fafc;border-bottom:2px solid #dce8f7">
+    <tr>
+      <td style="padding:12px 16px;border-right:1px solid #dce8f7;width:25%">
+        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:600;margin-bottom:3px">Apprentice</div>
+        <div style="font-size:13px;font-weight:700;color:#0d1b2e">${apprentice.name}</div>
+      </td>
+      <td style="padding:12px 16px;border-right:1px solid #dce8f7;width:25%">
+        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:600;margin-bottom:3px">Host Business</div>
+        <div style="font-size:13px;font-weight:700;color:#0d1b2e">${apprentice.hostBusiness||"—"}</div>
+      </td>
+      <td style="padding:12px 16px;border-right:1px solid #dce8f7;width:25%">
+        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:600;margin-bottom:3px">Trade</div>
+        <div style="font-size:13px;font-weight:700;color:#0d1b2e">${apprentice.trade||"—"}</div>
+      </td>
+      <td style="padding:12px 16px;width:25%">
+        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:600;margin-bottom:3px">KTA Staff</div>
+        <div style="font-size:13px;font-weight:700;color:#0d1b2e">${mentor?.name||"—"}</div>
+      </td>
+    </tr>
+    <tr style="border-top:1px solid #dce8f7">
+      <td style="padding:10px 16px;border-right:1px solid #dce8f7">
+        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:600;margin-bottom:3px">Date Requested</div>
+        <div style="font-size:13px;color:#0d1b2e">${fmtD(dateRequested)}</div>
+      </td>
+      <td colspan="3" style="padding:10px 16px">
+        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:600;margin-bottom:3px">Date Issued</div>
+        <div style="font-size:13px;color:#0d1b2e">${dateIssued?fmtD(dateIssued):"Not yet issued"}</div>
+      </td>
+    </tr>
+  </table>
+  ${toOrderRows.length > 0 ? `
+  <div style="padding:20px 28px 10px">
+    <div style="font-size:16px;font-weight:700;color:#b86e1a;margin-bottom:2px">📦 Need to Order</div>
+    <div style="font-size:11px;color:#888">Qty to order = Qty requested − Qty issued</div>
+  </div>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr style="background:#faebd7">
+      <th style="padding:9px 12px;text-align:left;font-size:10px;color:#b86e1a;text-transform:uppercase;letter-spacing:.7px">PPE Item</th>
+      <th style="padding:9px 12px;text-align:left;font-size:10px;color:#b86e1a;text-transform:uppercase;letter-spacing:.7px">Size / Spec</th>
+      <th style="padding:9px 12px;text-align:center;font-size:10px;color:#b86e1a;text-transform:uppercase;letter-spacing:.7px">Qty to Order</th>
+      <th style="padding:9px 12px;text-align:left;font-size:10px;color:#b86e1a;text-transform:uppercase;letter-spacing:.7px">Notes</th>
+    </tr></thead>
+    <tbody>${orderTableRows}</tbody>
+  </table>` : ""}
+  ${assignedRows.length > 0 ? `
+  <div style="padding:20px 28px 10px;margin-top:${toOrderRows.length > 0 ? "16px" : "0"}">
+    <div style="font-size:16px;font-weight:700;color:#1a8a7a;margin-bottom:2px">✅ PPE Assigned</div>
+    <div style="font-size:11px;color:#888">Items physically issued to ${apprentice.name} at time of request</div>
+  </div>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr style="background:#d4f0ec">
+      <th style="padding:9px 12px;text-align:left;font-size:10px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">PPE Item</th>
+      <th style="padding:9px 12px;text-align:left;font-size:10px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Size / Spec</th>
+      <th style="padding:9px 12px;text-align:center;font-size:10px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Qty Issued</th>
+      <th style="padding:9px 12px;text-align:left;font-size:10px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Approved</th>
+      <th style="padding:9px 12px;text-align:left;font-size:10px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Notes</th>
+    </tr></thead>
+    <tbody>${assignedTableRows}</tbody>
+  </table>` : ""}
+  <div style="margin:20px 28px;padding:14px 16px;background:#fdf3d4;border-radius:8px;border-left:3px solid #a07820">
+    <div style="font-size:12px;color:#4a5a72;font-style:italic;line-height:1.6">I request the PPE items listed above. I understand that all items are provided new and are mine to keep. I agree to use them appropriately and in accordance with health and safety requirements.</div>
+  </div>
+  <div style="padding:14px 28px;background:#f8fafc;border-top:1px solid #dce8f7">
+    <div style="font-size:11px;color:#8fa0b8">KTA Workforce Management &nbsp;·&nbsp; timesheet@kta.org.nz</div>
+  </div>
+</div></body></html>`;
 
       await sendKTAEmail({
         to: "admin@kta.org.nz",
