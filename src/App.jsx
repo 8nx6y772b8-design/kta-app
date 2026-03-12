@@ -5133,6 +5133,7 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
   const [lastVisit, setLastVisit]             = useState(null);
   const [loadingVisit, setLoadingVisit]       = useState(true);
   const [reports, setReports]                 = useState([]);
+  const [showPersonal, setShowPersonal]       = useState(false);
 
   useEffect(()=>{
     loadTable('meeting_reports')
@@ -5216,38 +5217,48 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
       </Card>
 
       {/* ── Personal Details card ── */}
-      <Card style={{marginBottom:16}}>
-        <div style={{fontWeight:700,fontSize:14,marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
-          <span>👤</span> Personal Details
+      <Card style={{marginBottom:16,cursor:"pointer"}} onClick={()=>setShowPersonal(s=>!s)}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:8}}>
+            <span>👤</span> Personal Details
+          </div>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            style={{transition:"transform .2s",transform:showPersonal?"rotate(180deg)":"rotate(0deg)"}}>
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:0}}>
-          {[
-            {label:"Email",        value:apprentice.email,        icon:"✉"},
-            {label:"Phone",        value:apprentice.phone,        icon:"📞"},
-            {label:"Start Date",   value:apprentice.startDate   ? fmtDate(apprentice.startDate)   : null, icon:"📅"},
-            {label:"Date of Birth",value:apprentice.dateOfBirth ? fmtDate(apprentice.dateOfBirth) : null, icon:"🎂"},
-            {label:"Gender",       value:apprentice.gender,       icon:"⚧"},
-            {label:"Host Business",value:apprentice.hostBusiness, icon:"🏢"},
-          ].map(({label,value,icon})=>(
-            <div key={label} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",
-              borderBottom:`1px solid ${T.border}`}}>
-              <span style={{fontSize:15,marginTop:1,width:20,textAlign:"center",flexShrink:0}}>{icon}</span>
-              <div style={{flex:1}}>
-                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
-                <div style={{fontSize:13,color:value?T.ink:T.muted,fontStyle:value?"normal":"italic"}}>{value||"Not set"}</div>
-              </div>
+        {showPersonal && (
+          <div onClick={e=>e.stopPropagation()} style={{marginTop:14}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:0}}>
+              {[
+                {label:"Email",        value:apprentice.email,        icon:"✉"},
+                {label:"Phone",        value:apprentice.phone,        icon:"📞"},
+                {label:"Start Date",   value:apprentice.startDate   ? fmtDate(apprentice.startDate)   : null, icon:"📅"},
+                {label:"Date of Birth",value:apprentice.dateOfBirth ? fmtDate(apprentice.dateOfBirth) : null, icon:"🎂"},
+                {label:"Gender",       value:apprentice.gender,       icon:"⚧"},
+                {label:"Host Business",value:apprentice.hostBusiness, icon:"🏢"},
+              ].map(({label,value,icon})=>(
+                <div key={label} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",
+                  borderBottom:`1px solid ${T.border}`}}>
+                  <span style={{fontSize:15,marginTop:1,width:20,textAlign:"center",flexShrink:0}}>{icon}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
+                    <div style={{fontSize:13,color:value?T.ink:T.muted,fontStyle:value?"normal":"italic"}}>{value||"Not set"}</div>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        {(apprentice.address||apprentice.city||apprentice.suburb||apprentice.postcode) && (
-          <div style={{display:"flex",alignItems:"flex-start",gap:10,paddingTop:9}}>
-            <span style={{fontSize:15,marginTop:1,width:20,textAlign:"center",flexShrink:0}}>📍</span>
-            <div>
-              <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>Address</div>
-              <div style={{fontSize:13,color:T.ink,lineHeight:1.6}}>
-                {[apprentice.address, apprentice.addressLine2, apprentice.suburb, apprentice.city, apprentice.postcode].filter(Boolean).join(", ")}
+            {(apprentice.address||apprentice.city||apprentice.suburb||apprentice.postcode) && (
+              <div style={{display:"flex",alignItems:"flex-start",gap:10,paddingTop:9}}>
+                <span style={{fontSize:15,marginTop:1,width:20,textAlign:"center",flexShrink:0}}>📍</span>
+                <div>
+                  <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>Address</div>
+                  <div style={{fontSize:13,color:T.ink,lineHeight:1.6}}>
+                    {[apprentice.address, apprentice.addressLine2, apprentice.suburb, apprentice.city, apprentice.postcode].filter(Boolean).join(", ")}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </Card>
