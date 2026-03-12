@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.2.0
+// KTA Workforce Management — v2.2.1
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.2.0
+          v2.2.1
         </div>
       </div>
     </div>
@@ -6353,6 +6353,8 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   const [loadingVisit, setLoadingVisit]       = useState(true);
   const [reports, setReports]                 = useState([]);
   const [showPersonal, setShowPersonal]       = useState(false);
+  const [advLeave, setAdvLeave]               = useState([]);
+  const [advLeaveLoading, setAdvLeaveLoading] = useState(true);
   const [pdEdit, setPdEdit]                   = useState(false);
   const [pdSaving, setPdSaving]               = useState(false);
   const [pdForm, setPdForm]                   = useState({
@@ -6379,7 +6381,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   };
 
   // Draggable section order — default: actions bar first
-  const ADV_SECTION_DEFAULT = ["actions","personal","goals","timesheet"];
+  const ADV_SECTION_DEFAULT = ["actions","personal","goals","leave","timesheet"];
   const { order: sectionOrder, dragProps: sectionDrag } = useDraggableOrder(
     (viewer?.id||"admin") + "_appdetail_" + apprenticeProp.id,
     ADV_SECTION_DEFAULT
@@ -6923,6 +6925,64 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
           )}
           </DraggableSection>
         );
+        if(sectionId==="leave") return (
+          <DraggableSection key="leave" id="leave" dragProps={sectionDrag}>
+            {isAdmin && (
+              <Card style={{marginBottom:16}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+                  <div style={{width:36,height:36,borderRadius:10,background:T.holL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🏖</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,fontSize:15}}>Leave Requests</div>
+                    <div style={{fontSize:12,color:T.sub}}>All leave for {apprentice.name}</div>
+                  </div>
+                </div>
+                {advLeaveLoading ? (
+                  <div style={{padding:"16px 0",textAlign:"center",color:T.muted,fontSize:13}}>Loading…</div>
+                ) : advLeave.length === 0 ? (
+                  <div style={{padding:"16px 0",textAlign:"center",color:T.muted,fontSize:13,fontStyle:"italic"}}>No leave requests yet</div>
+                ) : (
+                  <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
+                    {advLeave.map((r,i)=>{
+                      const statusMeta = {
+                        pending:           {label:"Pending Approver",    bg:T.goldL,  color:T.gold,  icon:"⏳"},
+                        approver_approved: {label:"Awaiting KTA",        bg:T.blueL,  color:T.blue,  icon:"✓"},
+                        kta_approved:      {label:"Fully Approved",       bg:T.tealL,  color:T.teal,  icon:"✅"},
+                        declined:          {label:"Declined",             bg:T.redL,   color:T.red,   icon:"✕"},
+                      }[r.status] || {label:r.status, bg:T.bg, color:T.muted, icon:"•"};
+                      const fmtD = iso => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
+                      return (
+                        <div key={r.id} style={{display:"grid",gridTemplateColumns:"1fr 140px 120px 160px",
+                          gap:8,padding:"11px 14px",alignItems:"center",
+                          borderBottom:i<advLeave.length-1?`1px solid ${T.border}44`:"none",
+                          background:i%2===0?T.surface:T.bg}}>
+                          <div>
+                            <div style={{fontWeight:600,fontSize:13,color:T.ink}}>{r.leave_type}</div>
+                            {r.notes&&<div style={{fontSize:11,color:T.muted,marginTop:2,fontStyle:"italic"}}>{r.notes}</div>}
+                          </div>
+                          <div style={{fontSize:12,color:T.sub}}>
+                            {fmtD(r.date_from)}{r.date_to&&r.date_to!==r.date_from?` – ${fmtD(r.date_to)}`:""}</div>
+                          <div style={{fontSize:11,color:T.muted}}>{fmtD(r.created_at?.slice(0,10))}</div>
+                          <div>
+                            <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 10px",
+                              borderRadius:99,fontSize:11,fontWeight:700,
+                              background:statusMeta.bg,color:statusMeta.color}}>
+                              {statusMeta.icon} {statusMeta.label}
+                            </span>
+                            {r.status==="declined"&&r.decline_reason&&(
+                              <div style={{fontSize:11,color:T.red,marginTop:3,fontStyle:"italic"}}>
+                                Reason: {r.decline_reason}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+            )}
+          </DraggableSection>
+        );
         return null;
       })}
 
@@ -7222,6 +7282,14 @@ function ConfidentialNotesCard({ currentUser, allUsers = [] }) {
     if(lockTimer.current) clearTimeout(lockTimer.current);
     lockTimer.current = setTimeout(()=>{ setPhase("locked"); setPin(""); }, AUTO_LOCK_MS);
   },[]);
+
+  useEffect(()=>{
+    setAdvLeaveLoading(true);
+    loadTable("leave_requests").then(rows=>{
+      setAdvLeave(rows.filter(r=>r.apprentice_id===apprentice.id)
+        .sort((a,b)=>b.created_at.localeCompare(a.created_at)));
+    }).catch(()=>{}).finally(()=>setAdvLeaveLoading(false));
+  },[apprentice.id]);
 
   useEffect(()=>{ if(phase==="unlocked") resetLockTimer(); return ()=>{ if(lockTimer.current) clearTimeout(lockTimer.current); }; },[phase,resetLockTimer]);
 
