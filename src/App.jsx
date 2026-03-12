@@ -6785,17 +6785,23 @@ serve(async (req) => {
                           } else {
                             // ── IMPORT: create new Apprentice ──
                             const newId = uid();
-                            const xeEmail = xe.Email||xe.email||"";
-                            const xePhone = (xe.PhoneNumber||xe.phoneNumber||"").includes('@') ? "" : (xe.PhoneNumber||xe.phoneNumber||"");
-                            const xeFirst = xe.FirstName||xe.firstName||"";
-                            const xeLast  = xe.LastName||xe.lastName||"";
-                            const xeXid   = xe.EmployeeID||xe.employeeID;
+                            const xeEmail = xe.Email||"";
+                            const xePhone = (xe.PhoneNumber||"").includes('@') ? "" : (xe.PhoneNumber||"");
+                            const xeFirst = xe.FirstName||"";
+                            const xeLast  = xe.LastName||"";
+                            const xeXid   = xe.EmployeeID;
+                            const xeDob   = xe.DateOfBirth ? xe.DateOfBirth.slice(0,10) : "";
                             const newUser = {
                               id: newId, name: `${xeFirst} ${xeLast}`.trim(),
                               firstName: xeFirst, lastName: xeLast,
                               email: xeEmail, phone: xePhone,
-                              trade: xe.JobTitle||xe.jobTitle||"", hostBusiness: "",
-                              address: "", suburb: "", city: "", postcode: "",
+                              trade: xe.JobTitle||"", hostBusiness: "",
+                              address: xe.AddressLine1||"",
+                              addressLine2: xe.AddressLine2||"",
+                              suburb: xe.Suburb||"", city: xe.City||"",
+                              postcode: xe.PostCode||"",
+                              dateOfBirth: xeDob, gender: xe.Gender||"",
+                              startDate: xe.StartDate ? xe.StartDate.slice(0,10) : "",
                               licenceExpiry:"", xeroEmployeeId: xeXid,
                               role:"Apprentice", password:"changeme123", allocatedTo:[], adminLevel:1,
                             };
@@ -6804,13 +6810,19 @@ serve(async (req) => {
                               first_name: xeFirst, last_name: xeLast,
                               email: xeEmail || null, phone: xePhone || null, role:"Apprentice",
                               password:"changeme123", allocated_to:[],
-                              trade: newUser.trade || null, host_business: null,
-                              address: null, suburb: null, city: null,
-                              postcode: null, licence_expiry: null,
+                              trade: xe.JobTitle||null, host_business: null,
+                              address: xe.AddressLine1||null,
+                              address_line2: xe.AddressLine2||null,
+                              suburb: xe.Suburb||null, city: xe.City||null,
+                              postcode: xe.PostCode||null,
+                              date_of_birth: xeDob||null,
+                              gender: xe.Gender||null,
+                              start_date: xe.StartDate ? xe.StartDate.slice(0,10) : null,
+                              licence_expiry: null,
                               xero_employee_id: xeXid, admin_level:1,
                             });
                             onImportUser(newUser);
-                            setXeroEmployees(prev=>prev.filter(e=>(e.EmployeeID||e.employeeID)!==xeXid));
+                            setXeroEmployees(prev=>prev.filter(e=>e.EmployeeID!==xeXid));
                             showToast(`✓ ${xeFirst} ${xeLast} imported as Apprentice`);
                           }
                         } catch(e) { alert((match?"Merge":"Import")+" failed: "+e.message); }
