@@ -2434,250 +2434,139 @@ function CRMModule({currentUser,allUsers}) {
           return d;
         };
 
-        const importCompanies = async () => {
+        // ── helpers ─────────────────────────────────────────────────────────────
+        const fetchAllPages = async (action) => {
+          let all=[]; let after=null; let pages=0;
+          while(pages<300){
+            const d = await hsFetch(action, after?{after}:{});
+            all=[...all,...(d.results||[])];
+            after = d.paging?.next?.after;
+            pages++;
+            if(!after) break;
+          }
+          return all;
+        };
+
+        // ── Full HubSpot Sync ────────────────────────────────────────────────
+        const fullSync = async () => {
           if(!hsToken.trim()){setHsMsg("Please enter your HubSpot token."); return;}
-          setHsImporting(true); setHsMsg("Fetching companies…");
+          if(!window.confirm("This will DELETE all existing CRM contacts and companies, then re-import everything fresh from HubSpot. Continue?")) return;
+          setHsImporting(true);
           try {
-            let allCo=[]; let after=null; let pages=0;
-            while(pages<200){
-              const r = await fetch(PROXY_URL,{method:"POST",headers:{"Content-Type":"application/json"},
-                body:JSON.stringify({action:"getCompanies",token:hsToken.trim(),after})});
-              const d = await r.json();
-              if(d.ok===false) throw new Error(d.error||"Proxy error");
-              const mapped = (d.results||[]).map((co)=>{
-                const p = co.properties;
-                if(!p.name) return null;
-                return { hubspotId: co.id, name:p.name, industry:p.industry||"",
-                  phone:p.phone||"", website:p.website||"",
-                  address:p.address||"", city:p.city||"", state:p.state||"",
-                  postcode:p.zip||"", country:(p.country&&p.country!=="New Zealand")?p.country:"",
-                };
-              }).filter(Boolean);
-              allCo=[...allCo,...mapped];
-              after = d.paging?.next?.after;
-              pages++;
-              if(!after) break;
-              if(pages%5===0) setHsMsg(`Fetching companies… ${allCo.length} so far`);
+            // 1 — Delete all existing contacts + companies from Supabase
+            setHsMsg("🗑 Clearing existing contacts and companies…");
+            const existingContacts = await loadTable("crm_contacts").catch(()=>[]);
+            for(const c of existingContacts){
+              await deleteRow("crm_contacts", c.id).catch(()=>{});
             }
-            setHsMsg(`Importing ${allCo.length} companies…`);
+            const existingCos = await loadTable("crm_companies").catch(()=>[]);
+            for(const co of existingCos){
+              await deleteRow("crm_companies", co.id).catch(()=>{});
+            }
+            setContacts([]); setCompanies([]);
 
-            // Import companies
-            let coDone=0, coSkip=0;
-            const hsIdToLocalId = {};
-            for(const co of allCo){
-              const exists = companies.find(x=>x.hubspotId===co.hubspotId||x.name.toLowerCase()===co.name.toLowerCase());
-              if(exists){ coSkip++; hsIdToLocalId[co.hubspotId]=exists.id; continue; }
+            // 2 — Fetch all companies from HubSpot
+            setHsMsg("🏢 Fetching companies from HubSpot…");
+            const hsCompanies = await fetchAllPages("getCompanies");
+            setHsMsg(`🏢 Importing ${hsCompanies.length} companies…`);
+
+            const hsCoIdToLocalId = {};
+            let coDone=0;
+            for(let i=0;i<hsCompanies.length;i++){
+              const co = hsCompanies[i];
+              const p = co.properties;
+              if(!p?.name) continue;
               const id = crypto.randomUUID();
-              hsIdToLocalId[co.hubspotId] = id;
-              const row = {id, name:co.name, industry:co.industry, phone:co.phone,
-                website:co.website, address:co.address, city:co.city,
-                postcode:co.postcode, country:co.country, hubspot_id:co.hubspotId,
-                status:"Active", notes:""};
-              await upsertRow("crm_companies",row).catch(()=>{});
-              setCompanies(prev=>[...prev,{id,name:co.name,industry:co.industry,phone:co.phone,
-                website:co.website,address:co.address,city:co.city,country:co.country,
-                hubspotId:co.hubspotId,notes:"",status:"Active"}]);
+              hsCoIdToLocalId[co.id] = id;
+              const row = {
+                id, name:p.name, industry:p.industry||"", phone:p.phone||"",
+                website:p.website||"", address:p.address||"", city:p.city||"",
+                postcode:p.zip||"", country:(p.country&&p.country!=="New Zealand")?p.country:"",
+                hubspot_id:co.id, status:"Active", notes:"",
+              };
+              await upsertRow("crm_companies", row).catch(()=>{});
+              setCompanies(prev=>[...prev,{id,name:p.name,industry:p.industry||"",phone:p.phone||"",
+                website:p.website||"",address:p.address||"",city:p.city||"",country:p.country||"",
+                hubspotId:co.id,notes:"",status:"Active"}]);
               coDone++;
+              if(i%20===0) setHsMsg(`🏢 Importing companies… ${i+1}/${hsCompanies.length}`);
             }
 
-            // Now link contacts to companies via HubSpot associations
-            setHsMsg(`Linking contacts to companies…`);
+            // 3 — Fetch all contacts from HubSpot
+            setHsMsg("👤 Fetching contacts from HubSpot…");
+            const hsContacts = await fetchAllPages("searchContacts");
+            setHsMsg(`👤 Importing ${hsContacts.length} contacts…`);
+
+            // Build hubspot contact id → local id map for linking
+            const hsContactIdToLocalId = {};
+            let ctDone=0;
+            for(let i=0;i<hsContacts.length;i++){
+              const c = hsContacts[i];
+              const p = c.properties;
+              const name = [p.firstname,p.lastname].filter(Boolean).join(" ")||p.company||"";
+              if(!name) continue;
+              const id = crypto.randomUUID();
+              hsContactIdToLocalId[c.id] = id;
+              const row = {
+                id, name, email:p.email||"", phone:p.mobilephone||p.phone||"",
+                company:p.company||"", trade:p.industry||"",
+                address:p.address||"", city:p.city||"",
+                postcode:p.zip||"", country:(p.country&&p.country!=="New Zealand")?p.country:"",
+                site_safe_expiry:p.site_safe_expiry||p.sitesafe_expiry||null,
+                first_aid_expiry:p.first_aid_expiry||p.firstaid_expiry||null,
+                status:"Active", notes:"", hubspot_id:c.id,
+              };
+              await upsertRow("crm_contacts", row).catch(()=>{});
+              setContacts(prev=>[...prev,{id,name,email:row.email,phone:row.phone,
+                company:row.company,companyId:"",status:"Active",notes:"",hubspot_id:c.id}]);
+              ctDone++;
+              if(i%50===0) setHsMsg(`👤 Importing contacts… ${i+1}/${hsContacts.length}`);
+            }
+
+            // 4 — Link contacts to companies via HubSpot associations
+            setHsMsg(`🔗 Linking contacts to companies…`);
             let linked=0;
-            for(const co of allCo){
-              const localCoId = hsIdToLocalId[co.hubspotId];
+            for(let i=0;i<hsCompanies.length;i++){
+              const co = hsCompanies[i];
+              const localCoId = hsCoIdToLocalId[co.id];
               if(!localCoId) continue;
               try {
-                const r = await fetch(PROXY_URL,{method:"POST",headers:{"Content-Type":"application/json"},
-                  body:JSON.stringify({action:"getCompanyContacts",token:hsToken.trim(),companyId:co.hubspotId})});
-                const d = await r.json();
+                const d = await hsFetch("getCompanyContacts",{companyId:co.id});
                 for(const assoc of (d.results||[])){
-                  // Find contact in our local contacts by hubspot_id
-                  const localContact = contacts.find(c=>c.hubspot_id===assoc.id||c.hubspotId===assoc.id);
-                  if(!localContact) continue;
-                  await upsertRow("crm_contacts",{id:localContact.id,company_id:localCoId}).catch(()=>{});
-                  setContacts(prev=>prev.map(c=>c.id===localContact.id?{...c,companyId:localCoId}:c));
+                  const localContactId = hsContactIdToLocalId[assoc.id];
+                  if(!localContactId) continue;
+                  await upsertRow("crm_contacts",{id:localContactId,company_id:localCoId}).catch(()=>{});
+                  setContacts(prev=>prev.map(c=>c.id===localContactId?{...c,companyId:localCoId}:c));
                   linked++;
                 }
               } catch{}
+              if(i%20===0) setHsMsg(`🔗 Linking… ${i+1}/${hsCompanies.length} companies`);
             }
 
-            setHsMsg(`✓ ${coDone} companies imported · ${coSkip} already existed · ${linked} contacts linked`);
+            setHsMsg(`✓ Sync complete — ${coDone} companies · ${ctDone} contacts · ${linked} links`);
           } catch(e){ setHsMsg("Error: "+e.message); }
-          setHsImporting(false);
-        };
-
-        const fetchPreview = async () => {
-          if(!hsToken.trim()){setHsMsg("Please enter your HubSpot token."); return;}
-          setHsLoading(true); setHsMsg("Fetching contacts…"); setHsPreview(null); setHsSelected(new Set());
-          try {
-            let all=[]; let after=null; let pages=0;
-            while(pages<200){
-              const d = await hsFetch("getContacts", after?{after}:{});
-              const mapped = (d.results||[]).map(c=>{
-                const p = c.properties;
-                const name = [p.firstname,p.lastname].filter(Boolean).join(" ")||p.company||"";
-                if(!name) return null;
-                const addrParts = [p.address,p.city,p.state,p.zip,p.country].filter(Boolean);
-                return {
-                  hubspotId: c.id,
-                  name,
-                  email:   p.email||"",
-                  phone:   p.mobilephone||p.phone||"",
-                  trade:   p.industry||"",
-                  address: p.address||"",
-                  city:    p.city||"",
-                  postcode:p.zip||"",
-                  country: (p.country&&p.country!=="New Zealand")?p.country:"",
-                  company: p.company||"",
-                  addressDisplay: addrParts.join(", "),
-                  siteSafeExpiry: p.site_safe_expiry||p.sitesafe_expiry||"",
-                  firstAidExpiry: p.first_aid_expiry||p.firstaid_expiry||"",
-                };
-              }).filter(Boolean);
-              all=[...all,...mapped];
-              after = d.paging?.next?.after;
-              pages++;
-              if(!after) break;
-              if(pages%10===0) setHsMsg(`Fetching… ${all.length} contacts so far`);
-            }
-            all.sort((a,b)=>a.name.localeCompare(b.name));
-            setHsPreview({contacts:all});
-            setHsSelected(new Set(all.map((_,i)=>i)));
-            setHsMsg(`✓ Found ${all.length} contacts`);
-          } catch(e){ setHsMsg("Error: "+e.message); }
-          setHsLoading(false);
-        };
-
-        const runImport = async () => {
-          if(!hsPreview||hsSelected.size===0) return;
-          setHsImporting(true);
-          const toImport = hsPreview.contacts.filter((_,i)=>hsSelected.has(i));
-          let done=0, updated=0;
-          // Insert/update contacts in batches of 50 with a progress update each batch
-          const BATCH = 50;
-          for(let i=0; i<toImport.length; i++){
-            const c = toImport[i];
-            const existsCrm = contacts.find(x=>x.email&&c.email&&x.email.toLowerCase()===c.email.toLowerCase());
-            let contactId;
-            if(existsCrm){
-              contactId = existsCrm.id;
-              // Merge: fill blank fields only — never overwrite (Xero has priority)
-              const mergeRow = {};
-              if(!existsCrm.phone    && c.phone)         mergeRow.phone    = c.phone;
-              if(!existsCrm.company  && c.company)       mergeRow.company  = c.company;
-              if(!existsCrm.trade    && c.trade)         mergeRow.trade    = c.trade;
-              if(!existsCrm.address  && c.address)       mergeRow.address  = c.address;
-              if(!existsCrm.city     && c.city)          mergeRow.city     = c.city;
-              if(!existsCrm.postcode && c.postcode)      mergeRow.postcode = c.postcode;
-              if(!existsCrm.site_safe_expiry && c.siteSafeExpiry) mergeRow.site_safe_expiry = c.siteSafeExpiry;
-              if(!existsCrm.first_aid_expiry && c.firstAidExpiry) mergeRow.first_aid_expiry = c.firstAidExpiry;
-              if(!existsCrm.hubspot_id) mergeRow.hubspot_id = c.hubspotId;
-              if(Object.keys(mergeRow).length>0){
-                await upsertRow("crm_contacts",{id:contactId,...mergeRow}).catch(()=>{});
-                setContacts(prev=>prev.map(x=>x.id===contactId?{...x,...mergeRow}:x));
-                updated++;
-              }
-            } else {
-              contactId = crypto.randomUUID();
-              const row = {
-                id:contactId, name:c.name, email:c.email, phone:c.phone,
-                company:c.company, trade:c.trade,
-                address:c.address, city:c.city, postcode:c.postcode, country:c.country,
-                site_safe_expiry: c.siteSafeExpiry||null,
-                first_aid_expiry: c.firstAidExpiry||null,
-                status:"Active", notes:"", hubspot_id:c.hubspotId,
-              };
-              await upsertRow("crm_contacts",row).catch(()=>{});
-              setContacts(prev=>[row,...prev]);
-              done++;
-            }
-            // Update progress every 50 contacts
-            if(i%BATCH===0) setHsMsg(`Importing… ${i+1} / ${toImport.length}`);
-          }
-          setHsMsg(`✓ Done — ${done} new contacts imported · ${updated} existing updated`);
           setHsImporting(false);
         };
 
         return (
           <div>
             <Card style={{marginBottom:16}}>
-              <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>🔗 Import from HubSpot</div>
+              <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>🔄 Full HubSpot Sync</div>
               <div style={{fontSize:12,color:T.sub,marginBottom:14,lineHeight:1.6}}>
-                Import contacts and companies from HubSpot — including contact→company links.
-                Get your token from <strong>HubSpot → Settings → Integrations → Private Apps</strong>.
+                Deletes all existing contacts and companies, then re-imports everything fresh from HubSpot —
+                including <strong>company records</strong>, <strong>contact details</strong>, and <strong>contact→company links</strong>.
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
                 <input type="password" placeholder="pat-ap1-xxxxxxxx…"
                   value={hsToken} onChange={e=>setHsToken(e.target.value)}
                   style={{flex:1,minWidth:220,fontFamily:"monospace",fontSize:12}}/>
-                <Btn sm onClick={fetchPreview} disabled={hsLoading||hsImporting}>
-                  {hsLoading?"⏳ Fetching…":"🔄 Fetch Contacts"}
-                </Btn>
-                <Btn sm onClick={importCompanies} disabled={hsLoading||hsImporting}>
-                  {hsImporting?"⏳ Importing…":"🏢 Import Companies"}
+                <Btn sm onClick={fullSync} disabled={hsImporting} style={{background:T.accent,color:"#fff",fontWeight:700}}>
+                  {hsImporting?"⏳ Syncing…":"🚀 Full Sync"}
                 </Btn>
               </div>
-              {hsMsg&&<div style={{marginTop:10,fontSize:12,fontWeight:600,
+              {hsMsg&&<div style={{marginTop:12,fontSize:12,fontWeight:600,lineHeight:1.7,
                 color:hsMsg.startsWith("✓")?T.teal:hsMsg.startsWith("Error")?T.red:T.sub}}>{hsMsg}</div>}
-              <button onClick={async()=>{
-                const r=await fetch(PROXY_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"debug",token:hsToken.trim()})});
-                const d=await r.json();
-                console.log("HubSpot debug sample:",JSON.stringify(d.sample,null,2));
-                alert("Check browser console (F12) for raw HubSpot date fields");
-              }} style={{marginTop:8,fontSize:11,color:T.muted,background:"none",border:"none",cursor:"pointer",textDecoration:"underline",fontFamily:"DM Sans,sans-serif"}}>
-                debug: check date format in console
-              </button>
             </Card>
-
-            {hsPreview&&(
-              <Card style={{padding:0,overflow:"hidden"}}>
-                <div style={{padding:"12px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-                  display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-                  <div style={{fontWeight:700,fontSize:13}}>
-                    {hsPreview.contacts.length} contacts found
-                    <span style={{fontWeight:400,fontSize:12,color:T.muted,marginLeft:8}}>{hsSelected.size} selected</span>
-                  </div>
-                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                    <button onClick={()=>setHsSelected(new Set(hsPreview.contacts.map((_,i)=>i)))}
-                      style={{fontSize:12,color:T.accent,background:"none",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:600}}>Select all</button>
-                    <button onClick={()=>setHsSelected(new Set())}
-                      style={{fontSize:12,color:T.muted,background:"none",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>Deselect all</button>
-                    <Btn sm onClick={runImport} disabled={hsImporting||hsSelected.size===0}>
-                      {hsImporting?"⏳ Importing…":`⬇ Import ${hsSelected.size}`}
-                    </Btn>
-                  </div>
-                </div>
-                <div style={{maxHeight:440,overflowY:"auto"}}>
-                  <div style={{display:"grid",gridTemplateColumns:"32px 1fr 150px 120px 120px 130px",
-                    padding:"8px 16px",background:T.bg,borderBottom:`1px solid ${T.border}44`,
-                    fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8,position:"sticky",top:0}}>
-                    <span/><span>Name</span><span>Email</span><span>Phone</span><span>Trade</span><span>Address</span>
-                  </div>
-                  {hsPreview.contacts.map((c,i)=>{
-                    const checked = hsSelected.has(i);
-                    const dupe = contacts.find(x=>x.email&&c.email&&x.email===c.email);
-                    return (
-                      <div key={i} onClick={()=>setHsSelected(prev=>{const s=new Set(prev);checked?s.delete(i):s.add(i);return s;})}
-                        style={{display:"grid",gridTemplateColumns:"32px 1fr 150px 120px 120px 130px",
-                          padding:"9px 16px",gap:8,alignItems:"center",cursor:"pointer",
-                          borderBottom:i<hsPreview.contacts.length-1?`1px solid ${T.border}22`:"none",
-                          background:checked?(dupe?T.warnL:T.surface):`${T.bg}88`,opacity:dupe?.65:1}}>
-                        <input type="checkbox" checked={checked} readOnly style={{width:14,height:14,accentColor:T.accent}}/>
-                        <div>
-                          <div style={{fontWeight:600,fontSize:13}}>{c.name}</div>
-                          {c.company&&<div style={{fontSize:11,color:T.muted}}>{c.company}</div>}
-                          {dupe&&<div style={{fontSize:10,color:T.warn,fontWeight:600}}>already in CRM</div>}
-                        </div>
-                        <div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.email||"—"}</div>
-                        <div style={{fontSize:12,color:T.sub,whiteSpace:"nowrap"}}>{c.phone||"—"}</div>
-                        <div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.trade||"—"}</div>
-                        <div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.addressDisplay||"—"}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-            )}
           </div>
         );
       })()}
