@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.1.5
+// KTA Workforce Management — v2.1.6
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.1.5
+          v2.1.6
         </div>
       </div>
     </div>
@@ -2144,13 +2144,18 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
     const row={id,name:coForm.name.trim(),industry:coForm.industry,phone:coForm.phone,website:coForm.website,
       address:coForm.address,city:coForm.city,postcode:coForm.postcode,country:coForm.country,
       notes:coForm.notes,status:coForm.status,hubspot_id:"",is_host_business:coForm.isHostBusiness?true:false};
-    await upsertRow("crm_companies",row).catch(console.error);
-    const mapped={id,name:coForm.name.trim(),industry:coForm.industry,phone:coForm.phone,website:coForm.website,
-      address:coForm.address,city:coForm.city,postcode:coForm.postcode,country:coForm.country,
-      notes:coForm.notes,status:coForm.status,hubspotId:"",isHostBusiness:coForm.isHostBusiness?true:false};
-    if(editCoId) setCompanies(prev=>prev.map(c=>c.id===editCoId?mapped:c));
-    else setCompanies(prev=>[mapped,...prev]);
-    setShowCoForm(false);setEditCoId(null);setCoForm(coBlank);setCoSaving(false);
+    try {
+      await upsertRow("crm_companies",row);
+      const mapped={id,name:coForm.name.trim(),industry:coForm.industry,phone:coForm.phone,website:coForm.website,
+        address:coForm.address,city:coForm.city,postcode:coForm.postcode,country:coForm.country,
+        notes:coForm.notes,status:coForm.status,hubspotId:"",isHostBusiness:coForm.isHostBusiness?true:false};
+      if(editCoId) setCompanies(prev=>prev.map(c=>c.id===editCoId?mapped:c));
+      else setCompanies(prev=>[mapped,...prev]);
+      setShowCoForm(false);setEditCoId(null);setCoForm(coBlank);
+    } catch(e) {
+      alert("Failed to save company: "+e.message);
+    }
+    setCoSaving(false);
   };
   const [cForm,setCForm]=useState({name:"",company:"",email:"",phone:"",status:"Active",notes:""});
   const [dForm,setDForm]=useState({title:"",contact:"",value:"",stage:"Lead",closeDate:"",notes:""});
