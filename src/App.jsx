@@ -8770,6 +8770,7 @@ export default function App() {
 
   // ── Persist session to localStorage (just the id, not data) ────────────
   useEffect(()=>{ try{localStorage.setItem("wos_session_sb",sessionId||"");}catch{} },[sessionId]);
+  useEffect(()=>{ if(module) { try{localStorage.setItem("wos_module",module);}catch{} } },[module]);
 
   // ── Supabase-aware state updaters ────────────────────────────────────────
   const stableJson = (obj) => JSON.stringify(obj, Object.keys(obj).sort());
@@ -8962,8 +8963,10 @@ export default function App() {
   ].filter(n=>n.roles.includes(role));
 
   const validMods=navItems.map(n=>n.id);
-  // Only fall back to first valid mod once role is known — prevents refresh resetting to dashboard
-  const activeMod=validMods.includes(module)?module:(role?validMods[0]:module);
+  // "xero" is a special admin-only module not in navItems but valid for Admin L1
+  const allValidMods = isAdmin1 ? [...validMods, "xero"] : validMods;
+  // Use saved module if valid, otherwise fall back — but only for rendering (don't reset state)
+  const activeMod = allValidMods.includes(module) ? module : (role ? validMods[0] : module);
 
   // When admin drills into an apprentice — use the full ApprenticeDetailView
   const viewingApp = viewingAppId ? users.find(u=>u.id===viewingAppId) : null;
