@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.0.4
+// KTA Workforce Management — v2.0.5
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.0.4
+          v2.0.5
         </div>
       </div>
     </div>
@@ -5646,6 +5646,61 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
     try {
       await upsertRow("ppe_requests", record);
       setRequests(prev=>[record,...prev]);
+
+      // Build email HTML
+      const fmtD = iso => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
+      const itemRows = activeRows.map(it=>`
+        <tr style="border-bottom:1px solid #eee">
+          <td style="padding:6px 10px;font-weight:600">${it.item}</td>
+          <td style="padding:6px 10px;color:#4a5a72">${it.size||"—"}</td>
+          <td style="padding:6px 10px;text-align:center">${it.qtyReq||"—"}</td>
+          <td style="padding:6px 10px;text-align:center;color:#1a8a7a;font-weight:700">${it.qtyIssued||"—"}</td>
+          <td style="padding:6px 10px;color:#888;font-style:italic">${it.notes||""}</td>
+          <td style="padding:6px 10px">${it.approved
+            ? `<span style="padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;background:${it.approved==="Yes"?"#d4f0ec":it.approved==="No"?"#fde8e8":"#fdf3d4"};color:${it.approved==="Yes"?"#1a8a7a":it.approved==="No"?"#bf2b2b":"#a07820"}">${it.approved}</span>`
+            : "—"
+          }</td>
+        </tr>`).join("");
+
+      const emailHtml = `
+        <div style="font-family:Arial,sans-serif;max-width:680px;margin:0 auto">
+          <div style="background:#1b4f8c;padding:18px 24px;border-radius:8px 8px 0 0">
+            <h2 style="color:#fff;margin:0;font-size:18px">PPE Request — ${apprentice.name}</h2>
+            <p style="color:rgba(255,255,255,.8);margin:4px 0 0;font-size:13px">All items issued new and non-returnable</p>
+          </div>
+          <div style="background:#f0f4f9;padding:14px 24px;display:flex;gap:32px;border-bottom:1px solid #d0daea">
+            <div><span style="font-size:11px;color:#8fa0b8;text-transform:uppercase;font-weight:600">Apprentice</span><br><strong>${apprentice.name}</strong></div>
+            <div><span style="font-size:11px;color:#8fa0b8;text-transform:uppercase;font-weight:600">Host Business</span><br>${apprentice.hostBusiness||"—"}</div>
+            <div><span style="font-size:11px;color:#8fa0b8;text-transform:uppercase;font-weight:600">Trade</span><br>${apprentice.trade||"—"}</div>
+            <div><span style="font-size:11px;color:#8fa0b8;text-transform:uppercase;font-weight:600">Date Requested</span><br>${fmtD(dateRequested)}</div>
+            ${dateIssued?`<div><span style="font-size:11px;color:#8fa0b8;text-transform:uppercase;font-weight:600">Date Issued</span><br>${fmtD(dateIssued)}</div>`:""}
+            <div><span style="font-size:11px;color:#8fa0b8;text-transform:uppercase;font-weight:600">KTA Staff</span><br>${mentor?.name||"—"}</div>
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead>
+              <tr style="background:#dce8f7">
+                <th style="padding:8px 10px;text-align:left;color:#1b4f8c;font-size:11px">PPE ITEM</th>
+                <th style="padding:8px 10px;text-align:left;color:#1b4f8c;font-size:11px">SIZE</th>
+                <th style="padding:8px 10px;text-align:center;color:#1b4f8c;font-size:11px">QTY REQ.</th>
+                <th style="padding:8px 10px;text-align:center;color:#1b4f8c;font-size:11px">QTY ISSUED</th>
+                <th style="padding:8px 10px;text-align:left;color:#1b4f8c;font-size:11px">NOTES</th>
+                <th style="padding:8px 10px;text-align:left;color:#1b4f8c;font-size:11px">APPROVED</th>
+              </tr>
+            </thead>
+            <tbody>${itemRows}</tbody>
+          </table>
+          <div style="padding:14px 24px;background:#fdf3d4;font-size:12px;color:#4a5a72;font-style:italic;border-top:1px solid #d0daea">
+            I request the PPE items listed above. I understand that all items are provided new and are mine to keep. I agree to use them appropriately and in accordance with health and safety requirements.
+          </div>
+          <p style="padding:12px 24px;font-size:11px;color:#8fa0b8;margin:0">KTA Workforce Management · timesheet@kta.org.nz</p>
+        </div>`;
+
+      await sendKTAEmail({
+        to: "admin@kta.org.nz",
+        subject: `PPE Request — ${apprentice.name} (${fmtD(dateRequested)})`,
+        html: emailHtml,
+      }).catch(err=>console.warn("Email failed:", err));
+
       setShowForm(false);
       setRows(blankRows());
       setDateReq(today);
