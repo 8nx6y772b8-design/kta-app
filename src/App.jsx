@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.2.4
+// KTA Workforce Management — v2.2.5
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -986,7 +986,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.2.4
+          v2.2.5
         </div>
       </div>
     </div>
@@ -4646,11 +4646,8 @@ const LeaveStatusStepper = ({ status }) => {
 };
 
 const sendLeaveEmail = async ({ to, toName, subject, html }) => {
-  try {
-    await sendKTAEmail({ to, subject, html });
-  } catch(e) {
-    console.error(`Leave email to ${to} failed:`, e);
-  }
+  // Throws on failure — callers should catch individually
+  await sendKTAEmail({ to, subject, html });
 };
 
 const leaveEmailHtml = (title, body) => `
@@ -4849,6 +4846,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
 
   const approve = async () => {
     setActing(true);
+    setFillMsg("");
     const newStatus = isApprover ? "approver_approved" : "kta_approved";
     const updated   = { ...req, status: newStatus };
     await updateRow("leave_requests", req.id, { status: newStatus }).catch(console.error);
@@ -4871,18 +4869,23 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
       }
       // 2. Email KTA admin(s) with approve/decline buttons
       for(const adminEmail of ktaAdminEmails) {
-        // Find admin user id for token (use placeholder if just the static email)
-        const adminUser = allUsers.find(u => u.email === adminEmail && u.role==="Admin");
-        const actorId   = adminUser?.id || "kta-admin";
-        const buttons   = await leaveActionButtons(req.id, actorId, "admin");
-        await sendLeaveEmail({
-          to: adminEmail,
-          subject: `Leave Request for KTA Approval — ${apprentice.name} (${req.leave_type})`,
-          html: leaveEmailHtml(
-            `A leave request from <strong>${apprentice.name}</strong> has been approved by their approver (<strong>${currentUser.name}</strong>) and requires KTA final approval.`,
-            leaveDetailTable(req, apprentice.name, approver.name) + buttons
-          ),
-        });
+        try {
+          const adminUser = allUsers.find(u => u.email === adminEmail && u.role==="Admin")
+                         || allUsers.find(u => u.role==="Admin" && (u.adminLevel===1||!u.adminLevel));
+          const actorId   = adminUser?.id || currentUser.id; // always a real UUID
+          const buttons   = await leaveActionButtons(req.id, actorId, "admin");
+          await sendLeaveEmail({
+            to: adminEmail,
+            subject: `Leave Request for KTA Approval — ${apprentice.name} (${req.leave_type})`,
+            html: leaveEmailHtml(
+              `A leave request from <strong>${apprentice.name}</strong> has been approved by their approver (<strong>${currentUser.name}</strong>) and requires KTA final approval.`,
+              leaveDetailTable(req, apprentice.name, approver.name) + buttons
+            ),
+          });
+        } catch(e) {
+          console.error("KTA admin email failed:", e);
+          setFillMsg(`⚠ Approved but KTA email failed: ${e.message}`);
+        }
       }
     } else {
       // Admin giving final KTA approval — notify apprentice + add to team calendar
@@ -4965,8 +4968,9 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
   };
 
   const isAdmin1   = isAdmin && (currentUser?.adminLevel||1) === 1;
+  // Admin can approve/decline from any non-final status (pending OR approver_approved)
   const canApprove = (isApprover && req.status==="pending") ||
-                     (isAdmin1  && req.status==="approver_approved");
+                     (isAdmin1  && (req.status==="pending" || req.status==="approver_approved"));
   const canDecline = (isApprover && req.status==="pending") ||
                      (isAdmin1  && (req.status==="pending" || req.status==="approver_approved"));
 
