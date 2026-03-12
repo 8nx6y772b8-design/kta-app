@@ -3049,10 +3049,10 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
         <Card style={{marginBottom:20, border:`1.5px solid ${T.blue}44`}}>
           <div style={{fontWeight:700, fontSize:14, marginBottom:16, color:T.blue}}>{editId?"✎ Edit Apprentice":"+ New Apprentice"}</div>
           <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
-            <div><FL req>First Name</FL><input placeholder="Jamie" value={form.firstName} onChange={e=>sf("firstName",e.target.value)}/></div>
-            <div><FL req>Last Name</FL><input placeholder="Smith" value={form.lastName} onChange={e=>sf("lastName",e.target.value)}/></div>
-            <div><FL req>Email</FL><input type="email" placeholder="jamie@work.com" value={form.email} onChange={e=>sf("email",e.target.value)}/></div>
-            <div><FL>Phone</FL><input placeholder="+61 4xx xxx xxx" value={form.phone} onChange={e=>sf("phone",e.target.value)}/></div>
+            <div><FL req>First Name</FL><input autoComplete="off" placeholder="Jamie" value={form.firstName} onChange={e=>sf("firstName",e.target.value)}/></div>
+            <div><FL req>Last Name</FL><input autoComplete="off" placeholder="Smith" value={form.lastName} onChange={e=>sf("lastName",e.target.value)}/></div>
+            <div><FL req>Email</FL><input autoComplete="off" type="email" placeholder="jamie@work.com" value={form.email} onChange={e=>sf("email",e.target.value)}/></div>
+            <div><FL>Phone</FL><input autoComplete="off" placeholder="+64 2x xxx xxxx" value={form.phone} onChange={e=>sf("phone",e.target.value)}/></div>
             <div><FL>Trade</FL>
               <select value={form.trade} onChange={e=>sf("trade",e.target.value)}>
                 <option value="">Select trade…</option>
@@ -3127,7 +3127,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
             <div>
               <FL>{editId?"New Password (blank = keep)":"Password"}</FL>
               <div style={{position:"relative"}}>
-                <input type={showPw?"text":"password"} placeholder={editId?"Leave blank to keep":"Set password"}
+                <input type={showPw?"text":"password"} autoComplete="new-password" placeholder={editId?"Leave blank to keep":"Set password"}
                   value={pwField} onChange={e=>setPwField(e.target.value)} style={{paddingRight:60}}/>
                 <button onClick={()=>setShowPw(s=>!s)} type="button" style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:12,fontFamily:"DM Sans,sans-serif"}}>{showPw?"Hide":"Show"}</button>
               </div>
