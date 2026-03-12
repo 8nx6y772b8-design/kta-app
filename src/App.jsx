@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.1.0
+// KTA Workforce Management — v2.1.1
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.1.0
+          v2.1.1
         </div>
       </div>
     </div>
@@ -5659,14 +5659,6 @@ function PastMeetingReports({apprentice, allUsers, canEdit=false}) {
   const [loading, setLoading]   = useState(true);
   const [expandId, setExpandId] = useState(null);
 
-  const saveHostBiz = async () => {
-    setSavingHostBiz(true);
-    await upsertUser({...apprentice, hostBusiness: hostBizVal}).catch(console.error);
-    setApprentice(prev=>({...prev, hostBusiness: hostBizVal}));
-    setEditingHostBiz(false);
-    setSavingHostBiz(false);
-  };
-
   useEffect(()=>{
     loadTable('meeting_reports')
       .then(rows=>setReports(rows.filter(r=>r.apprentice_id===apprentice.id).sort((a,b)=>b.date.localeCompare(a.date))))
@@ -6092,6 +6084,16 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   const [editingHostBiz, setEditingHostBiz]   = useState(false);
   const [hostBizVal, setHostBizVal]           = useState("");
   const [savingHostBiz, setSavingHostBiz]     = useState(false);
+  const [hostCosAdv, setHostCosAdv]           = useState([]);
+  useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCosAdv(rows.filter(r=>r.is_host_business).map(r=>({id:r.id,name:r.name})).sort((a,b)=>a.name.localeCompare(b.name)))).catch(()=>{}); },[]);
+
+  const saveHostBiz = async () => {
+    setSavingHostBiz(true);
+    await upsertUser({...apprentice, hostBusiness: hostBizVal}).catch(console.error);
+    setApprentice(prev=>({...prev, hostBusiness: hostBizVal}));
+    setEditingHostBiz(false);
+    setSavingHostBiz(false);
+  };
 
   // Draggable section order — default: actions bar first
   const ADV_SECTION_DEFAULT = ["actions","personal","goals","timesheet"];
@@ -6289,10 +6291,23 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               )}
             </div>
             {editingHostBiz?(
-              <div style={{display:"flex",gap:5,alignItems:"center",marginTop:4}}>
-                <input value={hostBizVal} onChange={e=>setHostBizVal(e.target.value)}
+              <div style={{display:"flex",gap:5,alignItems:"center",marginTop:4,flexWrap:"wrap"}}>
+                {hostCosAdv.length>0?(()=>{
+                  const listed=hostCosAdv.some(c=>c.name===hostBizVal);
+                  return(<div style={{flex:1,display:"flex",flexDirection:"column",gap:4}}>
+                    <select value={listed?hostBizVal:"__custom__"} onChange={e=>{if(e.target.value!=="__custom__")setHostBizVal(e.target.value);}}
+                      style={{fontSize:12,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",width:"100%"}}>
+                      <option value="">— Select host business —</option>
+                      {hostCosAdv.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                      <option value="__custom__">Other (type below)…</option>
+                    </select>
+                    {!listed&&<input value={hostBizVal} onChange={e=>setHostBizVal(e.target.value)}
+                      placeholder="Type host business name…"
+                      style={{fontSize:12,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",width:"100%"}}/>}
+                  </div>);
+                })():<input value={hostBizVal} onChange={e=>setHostBizVal(e.target.value)}
                   placeholder="e.g. Sparks Electrical Ltd"
-                  style={{fontSize:12,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",flex:1}}/>
+                  style={{fontSize:12,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",flex:1}}/>}
                 <button onClick={saveHostBiz} disabled={savingHostBiz}
                   style={{fontSize:11,padding:"4px 8px",borderRadius:5,background:T.slate,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingHostBiz?"…":"Save"}</button>
                 <button onClick={()=>setEditingHostBiz(false)}
