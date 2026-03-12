@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.1.8
+// KTA Workforce Management — v2.1.9
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.1.8
+          v2.1.9
         </div>
       </div>
     </div>
@@ -1711,7 +1711,7 @@ function UserManagement({users, setUsers, currentUser}) {
       secondaryRole:u.secondaryRole||null,adminLevel:u.adminLevel||1,
       hostBusiness:u.hostBusiness||"",overtimeType:u.overtimeType||null,
       overtimeThreshold:u.overtimeThreshold||"",overtimeRateId:u.overtimeRateId||""});
-    setPwField(""); setEditId(u.id); setShowForm(true);
+    setPwField(""); setEditId(u.id); setExpandId(u.id); setShowForm(false);
     if(u.role==="Apprentice") {
       // Prefer the value stored directly on the apprentice record (new approach)
       // Fall back to searching allocatedTo on approver/viewer users (legacy + always works without DB migration)
@@ -3261,8 +3261,8 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
         </Btn>
       </div>
 
-      {/* Add / Edit form */}
-      {showForm && (
+      {/* Add form — top of page for new apprentices only */}
+      {showForm && !editId && (
         <Card style={{marginBottom:20, border:`1.5px solid ${T.blue}44`}}>
           <div style={{fontWeight:700, fontSize:14, marginBottom:16, color:T.blue}}>{editId?"✎ Edit Apprentice":"+ New Apprentice"}</div>
           {/* Hidden honeypot inputs — absorb Chrome autofill before it hits real fields */}
@@ -3474,19 +3474,113 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
 
                 {/* Actions */}
                 <div style={{display:"flex", gap:5, justifyContent:"flex-end"}}>
-                  <button onClick={()=>startEdit(u)} style={{width:26,height:26,borderRadius:6,fontSize:12,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
+                  <button onClick={()=>{if(editId===u.id){setEditId(null);setExpandId(null);}else{startEdit(u);}}} style={{width:26,height:26,borderRadius:6,fontSize:12,background:editId===u.id?T.blueL:"transparent",color:editId===u.id?T.blue:T.muted,border:`1px solid ${editId===u.id?T.blue+"66":T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
                     onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
-                    onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
+                    onMouseLeave={e=>{e.currentTarget.style.background=editId===u.id?T.blueL:"transparent";e.currentTarget.style.color=editId===u.id?T.blue:T.muted;}}>✎</button>
                   <button onClick={()=>deleteUser(u.id)} style={{width:26,height:26,borderRadius:6,fontSize:12,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
                     onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
                     onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
                 </div>
               </div>
 
-              {/* Expanded allocation panel */}
+              {/* Expanded: inline edit form OR allocation panel */}
               {isExpanded && (
-                <div style={{padding:"16px 20px 20px 20px", background:T.blueL,
-                  borderBottom:i<apprentices.length-1?`1px solid ${T.border}44`:"none"}}>
+                <div style={{background:editId===u.id?T.bg:T.blueL,
+                  borderBottom:i<apprentices.length-1?`1px solid ${T.border}44`:"none",
+                  borderTop:`1.5px solid ${editId===u.id?T.blue+"44":T.border+"44"}`}}>
+                {editId===u.id ? (
+                  /* ── INLINE EDIT FORM ── */
+                  <div style={{padding:"16px 20px 20px"}}>
+                    <div style={{fontWeight:700,fontSize:14,color:T.blue,marginBottom:14}}>✎ Editing — {u.name}</div>
+                    <div style={{display:"none"}} aria-hidden="true">
+                      <input type="text" name="username" tabIndex={-1}/>
+                      <input type="email" name="email" tabIndex={-1}/>
+                      <input type="tel" name="phone" tabIndex={-1}/>
+                      <input type="password" name="password" tabIndex={-1}/>
+                    </div>
+                    <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
+                      <div><FL req>First Name</FL><input autoComplete="nope" name="kta-firstname2" placeholder="Jamie" value={form.firstName} onChange={e=>sf("firstName",e.target.value)}/></div>
+                      <div><FL req>Last Name</FL><input autoComplete="nope" name="kta-lastname2" placeholder="Smith" value={form.lastName} onChange={e=>sf("lastName",e.target.value)}/></div>
+                      <div><FL req>Email</FL><input autoComplete="nope" name="kta-email2" type="text" placeholder="jamie@work.com" value={form.email} onChange={e=>sf("email",e.target.value)}/></div>
+                      <div><FL>Phone</FL><input autoComplete="nope" name="kta-phone2" type="text" placeholder="+64 2x xxx xxxx" value={form.phone} onChange={e=>sf("phone",e.target.value)}/></div>
+                      <div><FL>Trade</FL>
+                        <select value={form.trade} onChange={e=>sf("trade",e.target.value)}>
+                          <option value="">Select trade…</option>
+                          {TRADES.map(t=><option key={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div><FL>Licence Expiry</FL><input type="date" value={form.licenceExpiry} onChange={e=>sf("licenceExpiry",e.target.value)}/></div>
+                      <div><FL>Site Safe Expiry</FL><input type="date" value={form.siteSafeExpiry||""} onChange={e=>sf("siteSafeExpiry",e.target.value)}/></div>
+                      <div><FL>First Aid Expiry</FL><input type="date" value={form.firstAidExpiry||""} onChange={e=>sf("firstAidExpiry",e.target.value)}/></div>
+                      <div><FL>Host Business</FL>
+                        {hostCos.length>0?(()=>{
+                          const listed=hostCos.some(c=>c.name===(form.hostBusiness||""));
+                          return(<div>
+                            <select value={listed?(form.hostBusiness||""):"__custom__"} onChange={e=>{if(e.target.value!=="__custom__")sf("hostBusiness",e.target.value);}}>
+                              <option value="">— Select host business —</option>
+                              {hostCos.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                              <option value="__custom__">Other (type below)…</option>
+                            </select>
+                            {!listed&&<input style={{marginTop:6}} placeholder="Type host business name…" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>}
+                          </div>);
+                        })():<input placeholder="e.g. Sparks Electrical Ltd" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>}
+                      </div>
+                      <div style={{gridColumn:"1/-1"}}>
+                        <div style={{fontWeight:700,fontSize:12,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>Overtime Settings</div>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+                          <div><FL>Overtime Type</FL>
+                            <select value={form.overtimeType||""} onChange={e=>sf("overtimeType",e.target.value||null)}>
+                              <option value="">— No overtime —</option>
+                              <option value="daily">Daily threshold</option>
+                              <option value="weekly">Weekly threshold</option>
+                            </select>
+                          </div>
+                          {form.overtimeType&&<div><FL>Threshold Hours</FL>
+                            <input type="number" min="1" max="24" step="0.5" placeholder={form.overtimeType==="daily"?"e.g. 8":"e.g. 40"} value={form.overtimeThreshold} onChange={e=>sf("overtimeThreshold",parseFloat(e.target.value)||"")}/>
+                          </div>}
+                          {form.overtimeType&&<div><FL>Xero Overtime Rate ID</FL>
+                            <input placeholder="Xero earnings rate UUID" value={form.overtimeRateId||""} onChange={e=>sf("overtimeRateId",e.target.value)}/>
+                          </div>}
+                        </div>
+                      </div>
+                      <div>
+                        <FL>Approver</FL>
+                        <select value={formApproverId} onChange={e=>setFormApproverId(e.target.value)}>
+                          <option value="">— None —</option>
+                          {approvers.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <FL>Viewer</FL>
+                        <select value={formViewerId} onChange={e=>setFormViewerId(e.target.value)}>
+                          <option value="">— None —</option>
+                          {viewers.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <FL>Mentor</FL>
+                        <select value={formMentorId} onChange={e=>setFormMentorId(e.target.value)}>
+                          <option value="">— None —</option>
+                          {mentors.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+                        </select>
+                      </div>
+                      <div><FL>New Password <span style={{fontWeight:400,color:T.muted}}>(blank = keep)</span></FL>
+                        <div style={{position:"relative"}}>
+                          <input type={showPw?"text":"password"} autoComplete="new-password" placeholder="Leave blank to keep" value={pwField} onChange={e=>setPwField(e.target.value)} style={{paddingRight:60}}/>
+                          <button onClick={()=>setShowPw(s=>!s)} type="button" style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:12}}>
+                            {showPw?"Hide":"Show"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <Btn onClick={submit}>Update Apprentice</Btn>
+                      <Btn v="ghost" onClick={()=>{setEditId(null);setExpandId(null);setFormApproverId("");setFormViewerId("");setFormMentorId("");}}>Cancel</Btn>
+                    </div>
+                  </div>
+                ) : (
+                /* ── ALLOCATION PANEL ── */
+                <div style={{padding:"16px 20px 20px 20px"}}>
                   <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:20}}>
 
                     {/* Approvers column */}
@@ -3558,6 +3652,8 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
                     </div>
 
                   </div>
+                </div>
+                )}
                 </div>
               )}
             </div>
