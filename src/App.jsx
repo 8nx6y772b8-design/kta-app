@@ -5206,12 +5206,6 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
               bg:licDays===null?T.bg:licDays<=7?T.redL:licDays<=30?T.warnL:T.tealL,
               valColor:licColor},
             {label:"Last Mentor Visit",value:loadingVisit?"…":lastVisit?fmtDate(lastVisit):"No visits yet",icon:"📅",bg:T.tealL,valColor:T.teal},
-            {label:"Email",            value:apprentice.email||"Not set",   icon:"✉",  bg:T.bg,       valColor:T.sub},
-            {label:"Phone",            value:apprentice.phone||"Not set",   icon:"📞", bg:T.bg,       valColor:T.sub},
-            {label:"Host Business",    value:apprentice.hostBusiness||"Not set", icon:"🏢", bg:T.bg,  valColor:T.sub},
-            {label:"Start Date",       value:apprentice.startDate?fmtDate(apprentice.startDate):"Not set", icon:"📅", bg:T.bg, valColor:T.sub},
-            {label:"Date of Birth",    value:apprentice.dateOfBirth?fmtDate(apprentice.dateOfBirth):"Not set", icon:"🎂", bg:T.bg, valColor:T.sub},
-            {label:"Gender",           value:apprentice.gender||"Not set",  icon:"👤", bg:T.bg,       valColor:T.sub},
           ].map(({label,value,icon,bg,valColor})=>(
             <div key={label} style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`}}>
               <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>{icon} {label}</div>
@@ -5219,11 +5213,37 @@ function ApprenticeDetailView({apprentice, viewer, allUsers, entries, onBack, is
             </div>
           ))}
         </div>
+      </Card>
+
+      {/* ── Personal Details card ── */}
+      <Card style={{marginBottom:16}}>
+        <div style={{fontWeight:700,fontSize:14,marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
+          <span>👤</span> Personal Details
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:0}}>
+          {[
+            {label:"Email",        value:apprentice.email,        icon:"✉"},
+            {label:"Phone",        value:apprentice.phone,        icon:"📞"},
+            {label:"Start Date",   value:apprentice.startDate   ? fmtDate(apprentice.startDate)   : null, icon:"📅"},
+            {label:"Date of Birth",value:apprentice.dateOfBirth ? fmtDate(apprentice.dateOfBirth) : null, icon:"🎂"},
+            {label:"Gender",       value:apprentice.gender,       icon:"⚧"},
+            {label:"Host Business",value:apprentice.hostBusiness, icon:"🏢"},
+          ].map(({label,value,icon})=>(
+            <div key={label} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",
+              borderBottom:`1px solid ${T.border}`}}>
+              <span style={{fontSize:15,marginTop:1,width:20,textAlign:"center",flexShrink:0}}>{icon}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
+                <div style={{fontSize:13,color:value?T.ink:T.muted,fontStyle:value?"normal":"italic"}}>{value||"Not set"}</div>
+              </div>
+            </div>
+          ))}
+        </div>
         {(apprentice.address||apprentice.city||apprentice.suburb||apprentice.postcode) && (
-          <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border}`,display:"flex",alignItems:"flex-start",gap:8}}>
-            <span style={{fontSize:14}}>📍</span>
+          <div style={{display:"flex",alignItems:"flex-start",gap:10,paddingTop:9}}>
+            <span style={{fontSize:15,marginTop:1,width:20,textAlign:"center",flexShrink:0}}>📍</span>
             <div>
-              <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3}}>Address</div>
+              <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>Address</div>
               <div style={{fontSize:13,color:T.ink,lineHeight:1.6}}>
                 {[apprentice.address, apprentice.addressLine2, apprentice.suburb, apprentice.city, apprentice.postcode].filter(Boolean).join(", ")}
               </div>
