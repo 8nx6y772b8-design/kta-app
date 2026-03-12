@@ -3048,11 +3048,18 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
       {showForm && (
         <Card style={{marginBottom:20, border:`1.5px solid ${T.blue}44`}}>
           <div style={{fontWeight:700, fontSize:14, marginBottom:16, color:T.blue}}>{editId?"✎ Edit Apprentice":"+ New Apprentice"}</div>
+          {/* Hidden honeypot inputs — absorb Chrome autofill before it hits real fields */}
+          <div style={{display:"none"}} aria-hidden="true">
+            <input type="text" name="username" tabIndex={-1}/>
+            <input type="email" name="email" tabIndex={-1}/>
+            <input type="tel" name="phone" tabIndex={-1}/>
+            <input type="password" name="password" tabIndex={-1}/>
+          </div>
           <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
-            <div><FL req>First Name</FL><input autoComplete="off" placeholder="Jamie" value={form.firstName} onChange={e=>sf("firstName",e.target.value)}/></div>
-            <div><FL req>Last Name</FL><input autoComplete="off" placeholder="Smith" value={form.lastName} onChange={e=>sf("lastName",e.target.value)}/></div>
-            <div><FL req>Email</FL><input autoComplete="off" type="email" placeholder="jamie@work.com" value={form.email} onChange={e=>sf("email",e.target.value)}/></div>
-            <div><FL>Phone</FL><input autoComplete="off" placeholder="+64 2x xxx xxxx" value={form.phone} onChange={e=>sf("phone",e.target.value)}/></div>
+            <div><FL req>First Name</FL><input autoComplete="nope" name="kta-firstname" placeholder="Jamie" value={form.firstName} onChange={e=>sf("firstName",e.target.value)}/></div>
+            <div><FL req>Last Name</FL><input autoComplete="nope" name="kta-lastname" placeholder="Smith" value={form.lastName} onChange={e=>sf("lastName",e.target.value)}/></div>
+            <div><FL req>Email</FL><input autoComplete="nope" name="kta-email" type="text" placeholder="jamie@work.com" value={form.email} onChange={e=>sf("email",e.target.value)}/></div>
+            <div><FL>Phone</FL><input autoComplete="nope" name="kta-phone" type="text" placeholder="+64 2x xxx xxxx" value={form.phone} onChange={e=>sf("phone",e.target.value)}/></div>
             <div><FL>Trade</FL>
               <select value={form.trade} onChange={e=>sf("trade",e.target.value)}>
                 <option value="">Select trade…</option>
