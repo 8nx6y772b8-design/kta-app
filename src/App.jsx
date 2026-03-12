@@ -5843,7 +5843,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                       <span>👤</span> Personal Details
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:8}} onClick={e=>e.stopPropagation()}>
-                      {showPersonal&&canEdit&&!pdEdit&&(
+                      {showPersonal&&isAdmin&&!pdEdit&&(
                         <button onClick={()=>{
                           setPdForm({
                             email:apprentice.email||"",phone:apprentice.phone||"",
