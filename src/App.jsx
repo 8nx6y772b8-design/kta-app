@@ -1,4 +1,4 @@
-// KTA Workforce Management — v1.6.5
+// KTA Workforce Management — v1.6.6
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -849,7 +849,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v1.6.5
+          v1.6.6
         </div>
       </div>
     </div>
@@ -6704,11 +6704,7 @@ serve(async (req) => {
                 let data; try{ data=JSON.parse(text); }catch{ alert("Non-JSON response: "+text.slice(0,300)); return; }
                 if(data.ok && data.employees){
                   setXeroEmployees(data.employees);
-                  if(data.debug?.rawSample) {
-                    alert("RAW EMPLOYEE FIELDS:\n" + JSON.stringify(data.debug.rawSample[0], null, 2).slice(0, 800));
-                  } else {
-                    showToast(`✓ Loaded ${data.employees.length} employees from Xero`);
-                  }
+                  showToast(`✓ Loaded ${data.employees.length} employees from Xero`);
                 } else { alert("Error: " + (data.error||JSON.stringify(data))); }
               }catch(e){ alert("Failed: "+e.message); }
             }}>🔄 Load Employees from Xero</Btn>
@@ -6789,28 +6785,33 @@ serve(async (req) => {
                           } else {
                             // ── IMPORT: create new Apprentice ──
                             const newId = uid();
+                            const xeEmail = xe.Email||xe.email||"";
+                            const xePhone = (xe.PhoneNumber||xe.phoneNumber||"").includes('@') ? "" : (xe.PhoneNumber||xe.phoneNumber||"");
+                            const xeFirst = xe.FirstName||xe.firstName||"";
+                            const xeLast  = xe.LastName||xe.lastName||"";
+                            const xeXid   = xe.EmployeeID||xe.employeeID;
                             const newUser = {
-                              id: newId, name: `${xe.firstName||xe.FirstName} ${xe.lastName||xe.LastName}`,
-                              firstName: xe.firstName||xe.FirstName, lastName: xe.lastName||xe.LastName,
-                              email: xe.Email||"", phone,
-                              trade: xe.JobTitle||"", address: xe.Address1||"",
-                              suburb: xe.Suburb||"", city: xe.City||"", postcode: xe.PostCode||"",
-                              licenceExpiry:"", xeroEmployeeId: xe.employeeID||xe.EmployeeID,
+                              id: newId, name: `${xeFirst} ${xeLast}`.trim(),
+                              firstName: xeFirst, lastName: xeLast,
+                              email: xeEmail, phone: xePhone,
+                              trade: xe.JobTitle||xe.jobTitle||"", hostBusiness: "",
+                              address: "", suburb: "", city: "", postcode: "",
+                              licenceExpiry:"", xeroEmployeeId: xeXid,
                               role:"Apprentice", password:"changeme123", allocatedTo:[], adminLevel:1,
                             };
                             await upsertRow('users', {
                               id: newId, name: newUser.name,
-                              first_name: xe.firstName||xe.FirstName, last_name: xe.lastName||xe.LastName,
-                              email: newUser.email, phone, role:"Apprentice",
+                              first_name: xeFirst, last_name: xeLast,
+                              email: xeEmail || null, phone: xePhone || null, role:"Apprentice",
                               password:"changeme123", allocated_to:[],
-                              trade: xe.JobTitle||null, address: xe.Address1||null,
-                              suburb: xe.Suburb||null, city: xe.City||null,
-                              postcode: xe.PostCode||null, licence_expiry:null,
-                              xero_employee_id: xe.employeeID||xe.EmployeeID, admin_level:1,
+                              trade: newUser.trade || null, host_business: null,
+                              address: null, suburb: null, city: null,
+                              postcode: null, licence_expiry: null,
+                              xero_employee_id: xeXid, admin_level:1,
                             });
                             onImportUser(newUser);
-                            setXeroEmployees(prev=>prev.filter(e=>e.EmployeeID!==xe.employeeID||xe.EmployeeID));
-                            showToast(`✓ ${xe.firstName||xe.FirstName} ${xe.lastName||xe.LastName} imported as Apprentice`);
+                            setXeroEmployees(prev=>prev.filter(e=>(e.EmployeeID||e.employeeID)!==xeXid));
+                            showToast(`✓ ${xeFirst} ${xeLast} imported as Apprentice`);
                           }
                         } catch(e) { alert((match?"Merge":"Import")+" failed: "+e.message); }
                       }} style={{fontSize:12,padding:"5px 10px",borderRadius:6,fontWeight:600,
