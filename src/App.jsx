@@ -5555,6 +5555,12 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   const [loadingVisit, setLoadingVisit]       = useState(true);
   const [reports, setReports]                 = useState([]);
   const [showPersonal, setShowPersonal]       = useState(false);
+  const [pdEdit, setPdEdit]                   = useState(false);
+  const [pdSaving, setPdSaving]               = useState(false);
+  const [pdForm, setPdForm]                   = useState({
+    email:"", phone:"", startDate:"", dateOfBirth:"",
+    gender:"", hostBusiness:"", address:"", addressLine2:"", suburb:"", city:"", postcode:"",
+  });
   const [editingExpiry, setEditingExpiry]     = useState(null); // "licence"|"siteSafe"|"firstAid"
   const [expiryVal, setExpiryVal]             = useState("");
   const [savingExpiry, setSavingExpiry]       = useState(false);
@@ -5791,22 +5797,6 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
           <DraggableSection key="personal" id="personal" dragProps={sectionDrag}>
             {/* ── Personal Details card ── */}
             {(()=>{
-              const [pdEdit, setPdEdit] = useState(false);
-              const [pdForm, setPdForm] = useState({
-                email: apprentice.email||"",
-                phone: apprentice.phone||"",
-                startDate: apprentice.startDate||"",
-                dateOfBirth: apprentice.dateOfBirth||"",
-                gender: apprentice.gender||"",
-                hostBusiness: apprentice.hostBusiness||"",
-                address: apprentice.address||"",
-                addressLine2: apprentice.addressLine2||"",
-                suburb: apprentice.suburb||"",
-                city: apprentice.city||"",
-                postcode: apprentice.postcode||"",
-              });
-              const [pdSaving, setPdSaving] = useState(false);
-
               const savePd = async () => {
                 setPdSaving(true);
                 const updated = {...apprentice, ...pdForm,
