@@ -1989,6 +1989,12 @@ function CRMModule({currentUser,allUsers}) {
   const [deals,setDeals]=useState([]);
   const [crmLoading,setCrmLoading]=useState(true);
   const [tab,setTab]=useState("contacts");
+  const [hsToken,setHsToken]=useState("");
+  const [hsPreview,setHsPreview]=useState(null);   // {total, contacts:[]}
+  const [hsLoading,setHsLoading]=useState(false);
+  const [hsImporting,setHsImporting]=useState(false);
+  const [hsMsg,setHsMsg]=useState("");
+  const [hsSelected,setHsSelected]=useState(new Set());
   const [showCF,setShowCF]=useState(false);
   const [showDF,setShowDF]=useState(false);
   const [cForm,setCForm]=useState({name:"",company:"",email:"",phone:"",status:"Active",notes:""});
@@ -2098,7 +2104,7 @@ function CRMModule({currentUser,allUsers}) {
         <StatCard label="Won" value={`$${(totalWon/1000).toFixed(1)}k`} color={T.hol}/>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:20}}>
-        {["contacts","pipeline","deals"].map(t=>(
+        {["contacts","pipeline","deals","import"].map(t=>(
           <button key={t} onClick={()=>setTab(t)} style={{
             padding:"7px 16px",borderRadius:8,fontSize:13,fontWeight:600,
             background:tab===t?T.accent:T.surface,color:tab===t?"#fff":T.sub,
@@ -2256,6 +2262,204 @@ function CRMModule({currentUser,allUsers}) {
           ))}
         </div>
       </div>}
+      {tab==="import"&&(()=>{
+        const HS_PROPS = [
+          "firstname","lastname","email","phone","mobilephone",
+          "company","industry",
+          "address","city","zip","state","country",
+          "hs_lead_status","createdate"
+        ].join(",");
+
+        const hsFetch = async (url) => {
+          const r = await fetch(url,{headers:{"Authorization":`Bearer ${hsToken.trim()}`}});
+          if(!r.ok){const t=await r.text(); throw new Error(`HubSpot ${r.status}: ${t.slice(0,200)}`);}
+          return r.json();
+        };
+
+        const fetchPreview = async () => {
+          if(!hsToken.trim()){setHsMsg("Please enter your HubSpot token."); return;}
+          setHsLoading(true); setHsMsg("Fetching contacts…"); setHsPreview(null); setHsSelected(new Set());
+          try {
+            let all=[]; let after=null; let pages=0;
+            while(pages<200){
+              const url = `https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=${HS_PROPS}${after?`&after=${after}`:""}`;
+              const d = await hsFetch(url);
+              const mapped = (d.results||[]).map(c=>{
+                const p = c.properties;
+                const name = [p.firstname,p.lastname].filter(Boolean).join(" ")||p.company||"";
+                if(!name) return null;
+                const addrParts = [p.address,p.city,p.state,p.zip,p.country].filter(Boolean);
+                return {
+                  hubspotId: c.id,
+                  name,
+                  email:   p.email||"",
+                  phone:   p.mobilephone||p.phone||"",
+                  trade:   p.industry||"",
+                  address: p.address||"",
+                  city:    p.city||"",
+                  postcode:p.zip||"",
+                  country: (p.country&&p.country!=="New Zealand")?p.country:"",
+                  company: p.company||"",
+                  addressDisplay: addrParts.join(", "),
+                };
+              }).filter(Boolean);
+              all=[...all,...mapped];
+              after = d.paging?.next?.after;
+              pages++;
+              if(!after) break;
+              if(pages%10===0) setHsMsg(`Fetching… ${all.length} contacts so far`);
+            }
+            all.sort((a,b)=>a.name.localeCompare(b.name));
+            setHsPreview({contacts:all});
+            setHsSelected(new Set(all.map((_,i)=>i)));
+            setHsMsg(`✓ Found ${all.length} contacts`);
+          } catch(e){ setHsMsg("Error: "+e.message); }
+          setHsLoading(false);
+        };
+
+        const runImport = async () => {
+          if(!hsPreview||hsSelected.size===0) return;
+          setHsImporting(true);
+          const toImport = hsPreview.contacts.filter((_,i)=>hsSelected.has(i));
+          let done=0, skipped=0, notesDone=0;
+          for(const c of toImport){
+            const exists = contacts.find(x=>x.email&&c.email&&x.email===c.email);
+            let contactId;
+            if(exists){ skipped++; contactId=exists.id; }
+            else {
+              contactId = crypto.randomUUID();
+              const row = {
+                id:contactId, name:c.name, email:c.email, phone:c.phone,
+                company:c.company, trade:c.trade,
+                address:c.address, city:c.city, postcode:c.postcode, country:c.country,
+                status:"Active", notes:"", hubspot_id:c.hubspotId,
+              };
+              await upsertRow("crm_contacts",row).catch(()=>{});
+              setContacts(prev=>[row,...prev]);
+              done++;
+            }
+            // Fetch and import notes/emails/calls for this contact
+            try {
+              const types = ["notes","emails","calls","meetings","tasks"];
+              for(const atype of types){
+                const nd = await hsFetch(
+                  `https://api.hubapi.com/crm/v3/objects/${atype}?limit=50&associations=contacts&properties=hs_note_body,hs_email_subject,hs_email_text,hs_call_body,hs_meeting_body,hs_task_body,hs_timestamp,createdate`
+                ).catch(()=>null);
+                // Only works via associations endpoint — fetch per contact
+                const ad = await hsFetch(
+                  `https://api.hubapi.com/crm/v3/objects/contacts/${c.hubspotId}/associations/${atype}`
+                ).catch(()=>null);
+                if(!ad?.results?.length) continue;
+                const ids = ad.results.slice(0,20).map(x=>x.id).join(",");
+                const aProps = {
+                  notes:"hs_note_body,hs_timestamp",
+                  emails:"hs_email_subject,hs_email_text,hs_timestamp",
+                  calls:"hs_call_body,hs_timestamp",
+                  meetings:"hs_meeting_body,hs_timestamp",
+                  tasks:"hs_task_body,hs_timestamp",
+                }[atype];
+                const detail = await hsFetch(
+                  `https://api.hubapi.com/crm/v3/objects/${atype}/batch/read`,
+                ).catch(()=>null);
+                // Simpler: fetch each by ID
+                for(const assoc of ad.results.slice(0,20)){
+                  const item = await hsFetch(
+                    `https://api.hubapi.com/crm/v3/objects/${atype}/${assoc.id}?properties=${aProps}`
+                  ).catch(()=>null);
+                  if(!item) continue;
+                  const p = item.properties||{};
+                  const body = p.hs_note_body||p.hs_email_text||p.hs_call_body||p.hs_meeting_body||p.hs_task_body||"";
+                  const subject = p.hs_email_subject||"";
+                  const actDate = p.hs_timestamp||p.createdate||null;
+                  if(!body&&!subject) continue;
+                  await upsertRow("crm_contact_notes",{
+                    id:crypto.randomUUID(), contact_id:contactId,
+                    type:atype.replace(/s$/,""), subject, body,
+                    activity_date:actDate?new Date(Number(actDate)||actDate).toISOString():null,
+                  }).catch(()=>{});
+                  notesDone++;
+                }
+              }
+            } catch{}
+            setHsMsg(`Importing… ${done+skipped} / ${toImport.length}`);
+          }
+          setHsMsg(`✓ Imported ${done} contacts · ${skipped} skipped · ${notesDone} activity notes`);
+          setHsImporting(false);
+        };
+
+        return (
+          <div>
+            <Card style={{marginBottom:16}}>
+              <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>🔗 Import from HubSpot</div>
+              <div style={{fontSize:12,color:T.sub,marginBottom:14,lineHeight:1.6}}>
+                Pulls <strong>name, email, phone, trade, address, company</strong> plus all associated notes, emails and calls.
+                Get your token from <strong>HubSpot → Settings → Integrations → Private Apps</strong>.
+              </div>
+              <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                <input type="password" placeholder="pat-ap1-xxxxxxxx…"
+                  value={hsToken} onChange={e=>setHsToken(e.target.value)}
+                  style={{flex:1,minWidth:220,fontFamily:"monospace",fontSize:12}}/>
+                <Btn sm onClick={fetchPreview} disabled={hsLoading}>
+                  {hsLoading?"⏳ Fetching…":"🔄 Fetch Contacts"}
+                </Btn>
+              </div>
+              {hsMsg&&<div style={{marginTop:10,fontSize:12,fontWeight:600,
+                color:hsMsg.startsWith("✓")?T.teal:hsMsg.startsWith("Error")?T.red:T.sub}}>{hsMsg}</div>}
+            </Card>
+
+            {hsPreview&&(
+              <Card style={{padding:0,overflow:"hidden"}}>
+                <div style={{padding:"12px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
+                  display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+                  <div style={{fontWeight:700,fontSize:13}}>
+                    {hsPreview.contacts.length} contacts found
+                    <span style={{fontWeight:400,fontSize:12,color:T.muted,marginLeft:8}}>{hsSelected.size} selected</span>
+                  </div>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                    <button onClick={()=>setHsSelected(new Set(hsPreview.contacts.map((_,i)=>i)))}
+                      style={{fontSize:12,color:T.accent,background:"none",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:600}}>Select all</button>
+                    <button onClick={()=>setHsSelected(new Set())}
+                      style={{fontSize:12,color:T.muted,background:"none",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>Deselect all</button>
+                    <Btn sm onClick={runImport} disabled={hsImporting||hsSelected.size===0}>
+                      {hsImporting?"⏳ Importing…":`⬇ Import ${hsSelected.size}`}
+                    </Btn>
+                  </div>
+                </div>
+                <div style={{maxHeight:440,overflowY:"auto"}}>
+                  <div style={{display:"grid",gridTemplateColumns:"32px 1fr 150px 120px 120px 130px",
+                    padding:"8px 16px",background:T.bg,borderBottom:`1px solid ${T.border}44`,
+                    fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8,position:"sticky",top:0}}>
+                    <span/><span>Name</span><span>Email</span><span>Phone</span><span>Trade</span><span>Address</span>
+                  </div>
+                  {hsPreview.contacts.map((c,i)=>{
+                    const checked = hsSelected.has(i);
+                    const dupe = contacts.find(x=>x.email&&c.email&&x.email===c.email);
+                    return (
+                      <div key={i} onClick={()=>setHsSelected(prev=>{const s=new Set(prev);checked?s.delete(i):s.add(i);return s;})}
+                        style={{display:"grid",gridTemplateColumns:"32px 1fr 150px 120px 120px 130px",
+                          padding:"9px 16px",gap:8,alignItems:"center",cursor:"pointer",
+                          borderBottom:i<hsPreview.contacts.length-1?`1px solid ${T.border}22`:"none",
+                          background:checked?(dupe?T.warnL:T.surface):`${T.bg}88`,opacity:dupe?.65:1}}>
+                        <input type="checkbox" checked={checked} readOnly style={{width:14,height:14,accentColor:T.accent}}/>
+                        <div>
+                          <div style={{fontWeight:600,fontSize:13}}>{c.name}</div>
+                          {c.company&&<div style={{fontSize:11,color:T.muted}}>{c.company}</div>}
+                          {dupe&&<div style={{fontSize:10,color:T.warn,fontWeight:600}}>already in CRM</div>}
+                        </div>
+                        <div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.email||"—"}</div>
+                        <div style={{fontSize:12,color:T.sub,whiteSpace:"nowrap"}}>{c.phone||"—"}</div>
+                        <div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.trade||"—"}</div>
+                        <div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.addressDisplay||"—"}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
+          </div>
+        );
+      })()}
+
       {tab==="deals"&&(<>
         {canEdit&&<div style={{marginBottom:14}}>
           <Btn sm onClick={()=>setShowDF(s=>!s)}>{showDF?"✕ Cancel":"+ Add Deal"}</Btn>
