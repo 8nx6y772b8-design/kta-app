@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.1.7
+// KTA Workforce Management — v2.1.8
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -915,7 +915,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.1.7
+          v2.1.8
         </div>
       </div>
     </div>
@@ -5792,6 +5792,39 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
   const [dateIssued, setDateIssued]     = useState("");
   const [saving, setSaving]             = useState(false);
   const [expandId, setExpandId]         = useState(null);
+  const [editReqId, setEditReqId]       = useState(null);
+  const [editRows, setEditRows]         = useState([]);
+  const [editDateIssued, setEditDateIssued] = useState("");
+  const [savingEdit, setSavingEdit]     = useState(false);
+
+  const startEditReq = (r) => {
+    const items = (() => { try { return JSON.parse(r.items); } catch { return []; } })();
+    setEditRows(items.map(it=>({...it})));
+    setEditDateIssued(r.date_issued||"");
+    setEditReqId(r.id);
+    setExpandId(r.id);
+  };
+
+  const saveEditReq = async (r) => {
+    setSavingEdit(true);
+    try {
+      const updated = {...r, items: JSON.stringify(editRows), date_issued: editDateIssued||null,
+        completed: editRows.filter(it=>parseFloat(it.qtyReq||0)>0).every(it=>it.approved==="Yes") ? true : r.completed};
+      await upsertRow("ppe_requests", {id:r.id, items:JSON.stringify(editRows), date_issued:editDateIssued||null, completed:updated.completed});
+      setRequests(prev=>prev.map(x=>x.id===r.id?{...x,...updated}:x));
+      setEditReqId(null);
+    } catch(e) { alert("Save failed: "+e.message); }
+    setSavingEdit(false);
+  };
+
+  const markComplete = async (r) => {
+    const items = (() => { try { return JSON.parse(r.items); } catch { return []; } })();
+    const fullyIssued = items.map(it=>({...it, qtyIssued:it.qtyReq, approved:"Yes"}));
+    try {
+      await upsertRow("ppe_requests", {id:r.id, items:JSON.stringify(fullyIssued), completed:true});
+      setRequests(prev=>prev.map(x=>x.id===r.id?{...x,items:JSON.stringify(fullyIssued),completed:true}:x));
+    } catch(e) { alert("Failed: "+e.message); }
+  };
 
   const fmtDate = iso => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
 
@@ -6075,51 +6108,132 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
             const isOpen = expandId===r.id;
             return (
               <div key={r.id} style={{borderBottom:i<requests.length-1?`1px solid ${T.border}44`:"none"}}>
-                <div onClick={()=>setExpandId(isOpen?null:r.id)}
-                  style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",cursor:"pointer",
-                    background:isOpen?T.tealL:i%2===0?T.surface:T.bg,transition:"background .15s"}}
-                  onMouseEnter={e=>!isOpen&&(e.currentTarget.style.background=T.bg)}
-                  onMouseLeave={e=>!isOpen&&(e.currentTarget.style.background=i%2===0?T.surface:T.bg)}>
-                  <div style={{flex:1}}>
+                {/* Row header */}
+                <div onClick={()=>{if(editReqId===r.id)return;setExpandId(isOpen?null:r.id);}}
+                  style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",
+                    background:r.completed?T.tealL:isOpen?T.accentL:i%2===0?T.surface:T.bg,transition:"background .15s"}}>
+                  <div style={{flex:1,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                     <span style={{fontWeight:600,fontSize:13,color:T.ink}}>Requested {fmtDate(r.date_requested)}</span>
-                    {r.date_issued&&<span style={{marginLeft:10,fontSize:12,color:T.teal}}>Issued {fmtDate(r.date_issued)}</span>}
-                    <span style={{marginLeft:10,fontSize:12,color:T.muted}}>{items.length} item{items.length!==1?"s":""}</span>
+                    {r.date_issued&&<span style={{fontSize:12,color:T.teal}}>· Issued {fmtDate(r.date_issued)}</span>}
+                    <span style={{fontSize:12,color:T.muted}}>· {items.filter(it=>parseFloat(it.qtyReq||0)>0).length} item{items.filter(it=>parseFloat(it.qtyReq||0)>0).length!==1?"s":""}</span>
+                    {r.completed
+                      ? <span style={{padding:"2px 10px",borderRadius:99,fontSize:11,fontWeight:700,background:T.tealL,color:T.teal,border:`1px solid ${T.teal}44`}}>✓ Completed</span>
+                      : items.some(it=>it.approved==="Pending"&&parseFloat(it.qtyReq||0)>0)
+                        ? <span style={{padding:"2px 10px",borderRadius:99,fontSize:11,fontWeight:700,background:T.goldL,color:T.gold,border:`1px solid ${T.gold}44`}}>⏳ Pending Items</span>
+                        : null}
                   </div>
-                  <div style={{fontSize:12,color:T.muted}}>{r.staff_name||"—"}</div>
-                  {canEdit&&<button onClick={e=>{e.stopPropagation();handleDelete(r.id);}} style={{width:26,height:26,borderRadius:5,background:"none",border:`1px solid ${T.border}`,color:T.muted,cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center"}}
+                  <div style={{fontSize:12,color:T.muted,whiteSpace:"nowrap"}}>{r.staff_name||"—"}</div>
+                  {canEdit&&!r.completed&&<button onClick={e=>{e.stopPropagation();startEditReq(r);}}
+                    style={{padding:"3px 9px",borderRadius:5,background:"none",border:`1px solid ${T.accent}44`,color:T.accent,cursor:"pointer",fontSize:11,fontWeight:600}}
+                    onMouseEnter={e=>{e.currentTarget.style.background=T.accentL;}}
+                    onMouseLeave={e=>{e.currentTarget.style.background="none";}}>✎ Edit</button>}
+                  {canEdit&&<button onClick={e=>{e.stopPropagation();handleDelete(r.id);}}
+                    style={{width:26,height:26,borderRadius:5,background:"none",border:`1px solid ${T.border}`,color:T.muted,cursor:"pointer",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center"}}
                     onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;}}
                     onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color=T.muted;}}>✕</button>}
                   <span style={{fontSize:11,color:T.muted}}>{isOpen?"▲":"▼"}</span>
                 </div>
+                {/* Expand: edit mode or read-only view */}
                 {isOpen&&(
-                  <div style={{padding:"0 14px 12px",background:T.tealL}}>
-                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                      <thead>
-                        <tr>{["Item","Size","Qty Req","Qty Issued","Notes","Approved"].map(h=>(
-                          <th key={h} style={{padding:"6px 8px",textAlign:"left",fontWeight:600,color:T.sub,borderBottom:`1px solid ${T.border}`,fontSize:11}}>{h}</th>
-                        ))}</tr>
-                      </thead>
-                      <tbody>
-                        {items.map((it,j)=>(
-                          <tr key={j} style={{background:j%2===0?"rgba(255,255,255,.6)":"transparent"}}>
-                            <td style={{padding:"5px 8px",fontWeight:600}}>{it.item}</td>
-                            <td style={{padding:"5px 8px",color:T.sub}}>{it.size||"—"}</td>
-                            <td style={{padding:"5px 8px",textAlign:"center"}}>{it.qtyReq||"—"}</td>
-                            <td style={{padding:"5px 8px",textAlign:"center",color:T.teal,fontWeight:600}}>{it.qtyIssued||"—"}</td>
-                            <td style={{padding:"5px 8px",color:T.muted,fontStyle:"italic"}}>{it.notes||""}</td>
-                            <td style={{padding:"5px 8px"}}>{it.approved
-                              ? <span style={{padding:"2px 8px",borderRadius:99,fontSize:11,fontWeight:700,
-                                  background:it.approved==="Yes"?T.tealL:it.approved==="No"?T.redL:T.goldL,
-                                  color:it.approved==="Yes"?T.teal:it.approved==="No"?T.red:T.gold}}>{it.approved}</span>
-                              : "—"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <div style={{marginTop:10,fontSize:11,color:T.sub}}>
-                      Apprentice: <strong>{r.apprentice_name}</strong> · Staff: <strong>{r.staff_name||"—"}</strong>
-                    </div>
+                  <div style={{background:T.bg,borderTop:`1px solid ${T.border}44`}}>
+                    {editReqId===r.id ? (
+                      /* ── EDIT MODE ── */
+                      <div style={{padding:"12px 14px"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                          <div>
+                            <FL>Date Issued</FL>
+                            <input type="date" value={editDateIssued} onChange={e=>setEditDateIssued(e.target.value)} style={{fontSize:12}}/>
+                          </div>
+                        </div>
+                        <div style={{overflowX:"auto"}}>
+                          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+                            <thead>
+                              <tr style={{background:T.accentL}}>
+                                {["PPE Item","Size","Qty Req","Qty Issued","Notes","Approved"].map(h=>(
+                                  <th key={h} style={{padding:"6px 8px",textAlign:"left",fontWeight:700,fontSize:11,color:T.accent,borderBottom:`1px solid ${T.border}`}}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {editRows.filter(it=>parseFloat(it.qtyReq||0)>0||it.approved).map((it,j)=>(
+                                <tr key={j} style={{background:j%2===0?T.surface:T.bg}}>
+                                  <td style={{padding:"5px 8px",fontWeight:600,whiteSpace:"nowrap"}}>{it.item}</td>
+                                  <td style={{padding:"5px 8px",color:T.sub}}>{it.size||"—"}</td>
+                                  <td style={{padding:"5px 8px",textAlign:"center"}}>{it.qtyReq||"—"}</td>
+                                  <td style={{padding:"4px 6px"}}>
+                                    <input type="number" min="0" value={it.qtyIssued||""} onChange={e=>{
+                                      const issued=e.target.value;
+                                      const req=it.qtyReq;
+                                      const auto=issued&&req?(parseFloat(issued)>=parseFloat(req)?"Yes":"Pending"):"Pending";
+                                      setEditRows(prev=>prev.map((r2,idx)=>r2.item===it.item?{...r2,qtyIssued:issued,approved:auto}:r2));
+                                    }} style={{fontSize:11,padding:"3px 6px",width:52,textAlign:"center"}}/>
+                                  </td>
+                                  <td style={{padding:"4px 6px"}}>
+                                    <input value={it.notes||""} onChange={e=>setEditRows(prev=>prev.map(r2=>r2.item===it.item?{...r2,notes:e.target.value}:r2))}
+                                      placeholder="Notes…" style={{fontSize:11,padding:"3px 6px",width:120}}/>
+                                  </td>
+                                  <td style={{padding:"4px 6px"}}>
+                                    <select value={it.approved||""} onChange={e=>setEditRows(prev=>prev.map(r2=>r2.item===it.item?{...r2,approved:e.target.value}:r2))}
+                                      style={{fontSize:11,padding:"3px 6px",
+                                        background:it.approved==="Yes"?T.tealL:it.approved==="Pending"?T.goldL:it.approved==="No"?T.redL:"",
+                                        color:it.approved==="Yes"?T.teal:it.approved==="Pending"?T.gold:it.approved==="No"?T.red:T.ink,
+                                        fontWeight:600,borderRadius:5}}>
+                                      <option value="">—</option>
+                                      <option value="Yes">Yes</option>
+                                      <option value="Pending">Pending</option>
+                                      <option value="No">No</option>
+                                    </select>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {editRows.filter(it=>parseFloat(it.qtyReq||0)>0).every(it=>it.approved==="Yes")&&(
+                          <div style={{marginTop:10,padding:"8px 12px",background:T.tealL,borderRadius:7,fontSize:12,color:T.teal,fontWeight:600}}>
+                            ✓ All items issued — saving will mark this request as Completed
+                          </div>
+                        )}
+                        <div style={{display:"flex",gap:8,marginTop:12}}>
+                          <Btn sm onClick={()=>saveEditReq(r)} disabled={savingEdit}>{savingEdit?"Saving…":"Save Changes"}</Btn>
+                          {editRows.filter(it=>parseFloat(it.qtyReq||0)>0).some(it=>it.approved==="Pending")&&(
+                            <Btn sm v="ghost" onClick={()=>markComplete(r)} style={{background:T.tealL,color:T.teal,border:`1px solid ${T.teal}44`}}>✓ Mark All Complete</Btn>
+                          )}
+                          <Btn sm v="ghost" onClick={()=>setEditReqId(null)}>Cancel</Btn>
+                        </div>
+                      </div>
+                    ) : (
+                      /* ── READ-ONLY VIEW ── */
+                      <div style={{padding:"0 14px 12px"}}>
+                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginTop:10}}>
+                          <thead>
+                            <tr>{["Item","Size","Qty Req","Qty Issued","Notes","Approved"].map(h=>(
+                              <th key={h} style={{padding:"6px 8px",textAlign:"left",fontWeight:600,color:T.sub,borderBottom:`1px solid ${T.border}`,fontSize:11}}>{h}</th>
+                            ))}</tr>
+                          </thead>
+                          <tbody>
+                            {items.filter(it=>parseFloat(it.qtyReq||0)>0||it.approved).map((it,j)=>(
+                              <tr key={j} style={{background:j%2===0?"rgba(255,255,255,.6)":"transparent"}}>
+                                <td style={{padding:"5px 8px",fontWeight:600}}>{it.item}</td>
+                                <td style={{padding:"5px 8px",color:T.sub}}>{it.size||"—"}</td>
+                                <td style={{padding:"5px 8px",textAlign:"center"}}>{it.qtyReq||"—"}</td>
+                                <td style={{padding:"5px 8px",textAlign:"center",color:T.teal,fontWeight:600}}>{it.qtyIssued||"—"}</td>
+                                <td style={{padding:"5px 8px",color:T.muted,fontStyle:"italic"}}>{it.notes||""}</td>
+                                <td style={{padding:"5px 8px"}}>{it.approved
+                                  ? <span style={{padding:"2px 8px",borderRadius:99,fontSize:11,fontWeight:700,
+                                      background:it.approved==="Yes"?T.tealL:it.approved==="No"?T.redL:T.goldL,
+                                      color:it.approved==="Yes"?T.teal:it.approved==="No"?T.red:T.gold}}>{it.approved}</span>
+                                  : "—"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <div style={{marginTop:10,fontSize:11,color:T.sub}}>
+                          Apprentice: <strong>{r.apprentice_name}</strong> · Staff: <strong>{r.staff_name||"—"}</strong>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
