@@ -2578,6 +2578,31 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
               {hsMsg&&<div style={{marginTop:12,fontSize:12,fontWeight:600,lineHeight:1.7,
                 color:hsMsg.startsWith("✓")?T.teal:hsMsg.startsWith("Error")?T.red:T.sub}}>{hsMsg}</div>}
             </Card>
+
+            {canDelete&&(
+              <Card style={{border:`1.5px solid ${T.red}44`,marginTop:8}}>
+                <div style={{fontWeight:700,fontSize:13,color:T.red,marginBottom:6}}>⚠ Danger Zone</div>
+                <div style={{fontSize:12,color:T.sub,marginBottom:12}}>
+                  Permanently deletes <strong>all CRM contacts and companies</strong> from the database. This cannot be undone.
+                </div>
+                <button onClick={async()=>{
+                  if(!window.confirm("DELETE ALL contacts and companies? This cannot be undone.")) return;
+                  if(!window.confirm("Are you absolutely sure? All CRM data will be lost.")) return;
+                  setHsMsg("🗑 Deleting all contacts and companies…");
+                  try {
+                    const allC = await loadTable("crm_contacts").catch(()=>[]);
+                    for(const c of allC) await deleteRow("crm_contacts",c.id).catch(()=>{});
+                    const allCo = await loadTable("crm_companies").catch(()=>[]);
+                    for(const co of allCo) await deleteRow("crm_companies",co.id).catch(()=>{});
+                    setContacts([]); setCompanies([]);
+                    setHsMsg("✓ All contacts and companies deleted.");
+                  } catch(e){ setHsMsg("Error: "+e.message); }
+                }} style={{background:T.red,color:"#fff",border:"none",borderRadius:8,
+                  padding:"8px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                  🗑 Delete All Contacts &amp; Companies
+                </button>
+              </Card>
+            )}
           </div>
         );
       })()}
