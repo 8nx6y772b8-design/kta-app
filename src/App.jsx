@@ -632,8 +632,8 @@ const Btn = ({children,onClick,v="primary",sm=false,disabled=false,full=false,st
   );
 };
 
-const Card = ({children,style:sx={}}) => (
-  <div style={{background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:14,padding:20,...sx}}>
+const Card = ({children,style:sx={},onClick}) => (
+  <div onClick={onClick} style={{background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:14,padding:20,...sx}}>
     {children}
   </div>
 );
