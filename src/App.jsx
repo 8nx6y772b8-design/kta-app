@@ -5808,7 +5808,6 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                 setPdEdit(false);
                 setPdSaving(false);
               };
-
               const inp = (field, label, type="text", opts=null) => (
                 <div key={field} style={{display:"flex",flexDirection:"column",gap:4}}>
                   <label style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px"}}>{label}</label>
@@ -5827,7 +5826,6 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   )}
                 </div>
               );
-
               const readRow = (label, value, icon) => (
                 <div key={label} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",
                   borderBottom:`1px solid ${T.border}`}}>
@@ -5838,9 +5836,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   </div>
                 </div>
               );
-
               const addrDisplay = [apprentice.address,apprentice.addressLine2,apprentice.suburb,apprentice.city,apprentice.postcode].filter(Boolean).join(", ");
-
               return (
                 <Card style={{marginBottom:16,cursor:pdEdit?"default":"pointer"}}
                   onClick={()=>{ if(!pdEdit) setShowPersonal(s=>!s); }}>
@@ -5871,7 +5867,6 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                       </svg>
                     </div>
                   </div>
-
                   {showPersonal&&(
                     <div onClick={e=>e.stopPropagation()} style={{marginTop:14}}>
                       {pdEdit ? (
@@ -8599,10 +8594,14 @@ export default function App() {
   if(!window.__ktaSync) window.__ktaSync = { running:false, msg:"" };
   const [syncTick,setSyncTick] = useState(0);
 
-  const handleLogin  = (userId) => {
+  const handleLogin  = (userId, isRestore=false) => {
     const u = users.find(x=>x.id===userId);
-    const defaultMod = u?.role==="Admin"?"dashboard":u?.role==="Mentor"?"mentor":"timesheet";
-    navigateTo(defaultMod);
+    if(!isRestore){
+      // Fresh login — set default module and clear any saved page
+      const defaultMod = u?.role==="Admin"?"dashboard":u?.role==="Mentor"?"mentor":"timesheet";
+      navigateTo(defaultMod);
+    }
+    // On restore, module is already set from localStorage — don't overwrite
     setSessionId(userId);
     setViewingAppId(null);
   };
@@ -8715,7 +8714,8 @@ export default function App() {
   ].filter(n=>n.roles.includes(role));
 
   const validMods=navItems.map(n=>n.id);
-  const activeMod=validMods.includes(module)?module:validMods[0];
+  // Only fall back to first valid mod once role is known — prevents refresh resetting to dashboard
+  const activeMod=validMods.includes(module)?module:(role?validMods[0]:module);
 
   // When admin drills into an apprentice — use the full ApprenticeDetailView
   const viewingApp = viewingAppId ? users.find(u=>u.id===viewingAppId) : null;
