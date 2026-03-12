@@ -1998,6 +1998,8 @@ function CRMModule({currentUser,allUsers}) {
   const [hsSelected,setHsSelected]=useState(new Set());
   const [showCF,setShowCF]=useState(false);
   const [showDF,setShowDF]=useState(false);
+  const [expandedContact,setExpandedContact]=useState(null);
+  const [expandedCompany,setExpandedCompany]=useState(null);
   const [cForm,setCForm]=useState({name:"",company:"",email:"",phone:"",status:"Active",notes:""});
   const [dForm,setDForm]=useState({title:"",contact:"",value:"",stage:"Lead",closeDate:"",notes:""});
   const [editCId,setEditCId]=useState(null);
@@ -2214,46 +2216,84 @@ function CRMModule({currentUser,allUsers}) {
             <span>Name</span><span>Email</span><span>Phone</span><span>Status</span><span/>
           </div>
           {contacts.length===0&&<div style={{padding:"40px",textAlign:"center",color:T.muted}}>No contacts yet.</div>}
-          {contacts.map((c,i)=>(
-            <div key={c.id} className="ri" style={{display:"grid",gridTemplateColumns:"1fr 140px 160px 100px 60px",
-              padding:"12px 16px",borderBottom:i<contacts.length-1?`1px solid ${T.border}44`:"none",
-              background:i%2===0?T.surface:T.bg,alignItems:"center",gap:8,animationDelay:`${i*.03}s`}}>
-              <div>
-                <div style={{fontWeight:700,fontSize:13}}>{c.name}</div>
-                {c.company&&<div style={{fontSize:11,color:T.muted}}>{c.company}</div>}
+          {contacts.map((c,i)=>{
+            const isExpanded = expandedContact===c.id;
+            const linkedCo = companies.find(co=>co.id===c.companyId);
+            return (
+            <div key={c.id}>
+              <div className="ri" onClick={()=>setExpandedContact(isExpanded?null:c.id)}
+                style={{display:"grid",gridTemplateColumns:"1fr 140px 160px 100px 60px",
+                  padding:"12px 16px",borderBottom:(!isExpanded&&i<contacts.length-1)?`1px solid ${T.border}44`:"none",
+                  background:isExpanded?T.accentL:i%2===0?T.surface:T.bg,
+                  alignItems:"center",gap:8,animationDelay:`${i*.03}s`,cursor:"pointer"}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:13,color:isExpanded?T.accent:T.ink}}>{c.name}</div>
+                  {c.company&&<div style={{fontSize:11,color:T.muted}}>{c.company}</div>}
+                </div>
+                <div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.email||"—"}</div>
+                <div style={{fontSize:12,color:T.sub}}>{c.phone||"—"}</div>
+                <Pill label={c.status} size="sm"
+                  color={c.status==="Active"?T.accent:c.status==="Prospect"?T.warn:T.muted}
+                  bg={c.status==="Active"?T.accentL:c.status==="Prospect"?T.warnL:T.slateL}/>
+                {canEdit&&<div style={{display:"flex",gap:5}} onClick={e=>e.stopPropagation()}>
+                  <button onClick={()=>startEditC(c)} style={{width:26,height:26,borderRadius:6,fontSize:12,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
+                    onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
+                    onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
+                  {canDelete&&(()=>{
+                    const isApp = isApprenticeContact(c);
+                    return (
+                      <button
+                        onClick={()=>{
+                          if(isApp){ alert("This contact is linked to an apprentice and cannot be deleted."); return; }
+                          if(!window.confirm(`Delete ${c.name}? This cannot be undone.`)) return;
+                          setContacts(prev=>prev.filter(x=>x.id!==c.id));
+                          deleteRow("crm_contacts",c.id).catch(console.error);
+                        }}
+                        title={isApp?"Protected — linked to an apprentice":"Delete contact"}
+                        style={{width:26,height:26,borderRadius:6,fontSize:12,
+                          background:"transparent",color:isApp?T.border:T.muted,
+                          border:`1px solid ${isApp?T.border:T.border}`,
+                          display:"flex",alignItems:"center",justifyContent:"center",
+                          cursor:isApp?"not-allowed":"pointer",opacity:isApp?.4:1}}
+                        onMouseEnter={e=>{if(!isApp){e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}}
+                        onMouseLeave={e=>{if(!isApp){e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}}>✕</button>
+                    );
+                  })()}
+                </div>}
               </div>
-              <div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.email||"—"}</div>
-              <div style={{fontSize:12,color:T.sub}}>{c.phone||"—"}</div>
-              <Pill label={c.status} size="sm"
-                color={c.status==="Active"?T.accent:c.status==="Prospect"?T.warn:T.muted}
-                bg={c.status==="Active"?T.accentL:c.status==="Prospect"?T.warnL:T.slateL}/>
-              {canEdit&&<div style={{display:"flex",gap:5}}>
-                <button onClick={()=>startEditC(c)} style={{width:26,height:26,borderRadius:6,fontSize:12,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
-                  onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
-                  onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
-                {canDelete&&(()=>{
-                  const isApp = isApprenticeContact(c);
-                  return (
-                    <button
-                      onClick={()=>{
-                        if(isApp){ alert("This contact is linked to an apprentice and cannot be deleted."); return; }
-                        if(!window.confirm(`Delete ${c.name}? This cannot be undone.`)) return;
-                        setContacts(prev=>prev.filter(x=>x.id!==c.id));
-                        deleteRow("crm_contacts",c.id).catch(console.error);
-                      }}
-                      title={isApp?"Protected — linked to an apprentice":"Delete contact"}
-                      style={{width:26,height:26,borderRadius:6,fontSize:12,
-                        background:"transparent",color:isApp?T.border:T.muted,
-                        border:`1px solid ${isApp?T.border:T.border}`,
-                        display:"flex",alignItems:"center",justifyContent:"center",
-                        cursor:isApp?"not-allowed":"pointer",opacity:isApp?.4:1}}
-                      onMouseEnter={e=>{if(!isApp){e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}}
-                      onMouseLeave={e=>{if(!isApp){e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}}>✕</button>
-                  );
-                })()}
-              </div>}
+              {isExpanded&&(
+                <div style={{background:T.accentL,borderBottom:`1.5px solid ${T.accent}22`,padding:"14px 20px 16px",
+                  display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:"10px 20px"}}>
+                  {[
+                    ["📧 Email", c.email, c.email?`mailto:${c.email}`:null],
+                    ["📱 Phone", c.phone],
+                    ["🏢 Company", linkedCo?linkedCo.name:c.company],
+                    ["🔧 Trade", c.trade],
+                    ["📍 Address", [c.address,c.city,c.postcode].filter(Boolean).join(", ")],
+                    ["⚡ Status", c.status],
+                    ["🦺 Site Safe", c.site_safe_expiry||c.siteSafeExpiry],
+                    ["🩺 First Aid", c.first_aid_expiry||c.firstAidExpiry],
+                    ["📝 Notes", c.notes],
+                  ].map(([label,val,href])=>val?(
+                    <div key={label}>
+                      <div style={{fontSize:10,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:2}}>{label}</div>
+                      {href
+                        ? <a href={href} style={{fontSize:12,color:T.accent,textDecoration:"none",fontWeight:600}}>{val}</a>
+                        : <div style={{fontSize:12,color:T.ink,lineHeight:1.5}}>{val}</div>
+                      }
+                    </div>
+                  ):null)}
+                  {linkedCo&&(
+                    <div>
+                      <div style={{fontSize:10,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:2}}>🏭 Industry</div>
+                      <div style={{fontSize:12,color:T.ink}}>{linkedCo.industry||"—"}</div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          ))}
+            );
+          })}
         </Card>
       </>)}
       {tab==="companies"&&(<>
@@ -2274,26 +2314,26 @@ function CRMModule({currentUser,allUsers}) {
             </div>
             {companies.map((co,i)=>{
               const linkedContacts = contacts.filter(c=>c.companyId===co.id);
+              const isExpanded = expandedCompany===co.id;
               return (
                 <div key={co.id} style={{borderBottom:i<companies.length-1?`1px solid ${T.border}44`:"none"}}>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 120px 150px 150px 60px",
-                    padding:"11px 16px",gap:8,alignItems:"center",background:i%2===0?T.surface:T.bg}}>
+                  <div onClick={()=>setExpandedCompany(isExpanded?null:co.id)}
+                    style={{display:"grid",gridTemplateColumns:"1fr 120px 150px 150px 60px",
+                      padding:"11px 16px",gap:8,alignItems:"center",cursor:"pointer",
+                      background:isExpanded?T.accentL:i%2===0?T.surface:T.bg}}>
                     <div>
-                      <div style={{fontWeight:700,fontSize:13,color:T.ink}}>{co.name}</div>
+                      <div style={{fontWeight:700,fontSize:13,color:isExpanded?T.accent:T.ink}}>{co.name}</div>
                       {linkedContacts.length>0&&(
                         <div style={{fontSize:11,color:T.muted,marginTop:2}}>
                           {linkedContacts.slice(0,3).map(c=>c.name).join(", ")}
                           {linkedContacts.length>3&&` +${linkedContacts.length-3} more`}
                         </div>
                       )}
-                      {co.website&&<a href={co.website.startsWith("http")?co.website:"https://"+co.website}
-                        target="_blank" rel="noreferrer"
-                        style={{fontSize:11,color:T.accent,textDecoration:"none"}}>{co.website}</a>}
                     </div>
                     <div style={{fontSize:12,color:T.sub}}>{co.industry||"—"}</div>
                     <div style={{fontSize:12,color:T.sub}}>{co.phone||"—"}</div>
                     <div style={{fontSize:12,color:T.sub}}>{co.city||"—"}</div>
-                    <div style={{display:"flex",gap:5}}>
+                    <div style={{display:"flex",gap:5}} onClick={e=>e.stopPropagation()}>
                       {canDelete&&(
                         <button onClick={()=>{
                           if(!window.confirm(`Delete ${co.name}?`)) return;
@@ -2306,6 +2346,44 @@ function CRMModule({currentUser,allUsers}) {
                       )}
                     </div>
                   </div>
+                  {isExpanded&&(
+                    <div style={{background:T.accentL,borderTop:`1px solid ${T.accent}22`,padding:"14px 20px 16px"}}>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:"10px 20px",marginBottom:linkedContacts.length>0?14:0}}>
+                        {[
+                          ["🏭 Industry", co.industry],
+                          ["📱 Phone", co.phone],
+                          ["🌐 Website", co.website, co.website?(co.website.startsWith("http")?co.website:"https://"+co.website):null],
+                          ["📍 Address", [co.address,co.city,co.postcode,co.country].filter(Boolean).join(", ")],
+                          ["📝 Notes", co.notes],
+                        ].map(([label,val,href])=>val?(
+                          <div key={label}>
+                            <div style={{fontSize:10,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:2}}>{label}</div>
+                            {href
+                              ? <a href={href} target="_blank" rel="noreferrer" style={{fontSize:12,color:T.accent,textDecoration:"none",fontWeight:600}}>{val}</a>
+                              : <div style={{fontSize:12,color:T.ink,lineHeight:1.5}}>{val}</div>
+                            }
+                          </div>
+                        ):null)}
+                      </div>
+                      {linkedContacts.length>0&&(
+                        <div>
+                          <div style={{fontSize:10,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8}}>👥 Contacts ({linkedContacts.length})</div>
+                          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                            {linkedContacts.map(c=>(
+                              <div key={c.id} onClick={()=>{setTab("contacts");setExpandedContact(c.id);}}
+                                style={{background:T.surface,border:`1.5px solid ${T.accent}33`,borderRadius:8,
+                                  padding:"5px 10px",cursor:"pointer",fontSize:12,color:T.ink,fontWeight:600}}
+                                onMouseEnter={e=>e.currentTarget.style.background=T.blueL}
+                                onMouseLeave={e=>e.currentTarget.style.background=T.surface}>
+                                {c.name}
+                                {c.email&&<span style={{fontSize:10,color:T.muted,fontWeight:400,marginLeft:5}}>{c.email}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -2366,7 +2444,7 @@ function CRMModule({currentUser,allUsers}) {
                 body:JSON.stringify({action:"getCompanies",token:hsToken.trim(),after})});
               const d = await r.json();
               if(d.ok===false) throw new Error(d.error||"Proxy error");
-              const mapped = (d.results||[]).map((co:any)=>{
+              const mapped = (d.results||[]).map((co)=>{
                 const p = co.properties;
                 if(!p.name) return null;
                 return { hubspotId: co.id, name:p.name, industry:p.industry||"",
@@ -2385,7 +2463,7 @@ function CRMModule({currentUser,allUsers}) {
 
             // Import companies
             let coDone=0, coSkip=0;
-            const hsIdToLocalId: Record<string,string> = {};
+            const hsIdToLocalId = {};
             for(const co of allCo){
               const exists = companies.find(x=>x.hubspotId===co.hubspotId||x.name.toLowerCase()===co.name.toLowerCase());
               if(exists){ coSkip++; hsIdToLocalId[co.hubspotId]=exists.id; continue; }
