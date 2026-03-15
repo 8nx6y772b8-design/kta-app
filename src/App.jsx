@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.2.6
+// KTA Workforce Management — v2.2.9
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1063,7 +1063,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.2.6
+          v2.2.9
         </div>
       </div>
     </div>
@@ -2259,7 +2259,54 @@ function UserManagement({users, setUsers, currentUser}) {
 // ─────────────────────────────────────────────────────────────────────────────
 // CRM MODULE
 // ─────────────────────────────────────────────────────────────────────────────
-function CRMModule({currentUser,allUsers,onSyncTick}) {
+function CRMUsersPanel({allUsers, navigateTo}) {
+  const [open, setOpen] = React.useState(false);
+  const sorted = [...(allUsers||[])].sort((a,b)=>{
+    const rank = {Admin:0,Mentor:1,Approver:2,Viewer:3,Apprentice:4};
+    const ra = rank[a.role]??5, rb = rank[b.role]??5;
+    return ra!==rb ? ra-rb : a.name.localeCompare(b.name);
+  });
+  const shown = open ? sorted : sorted.slice(0,6);
+  return (
+    <Card style={{marginBottom:14,border:`1.5px solid ${T.accentL}`}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{width:28,height:28,borderRadius:8,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>{"👥"}</div>
+          <div>
+            <div style={{fontWeight:700,fontSize:13}}>KTA Users</div>
+            <div style={{fontSize:11,color:T.muted}}>{sorted.length} users</div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:6}}>
+          {sorted.length>6&&<button onClick={()=>setOpen(p=>!p)} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,padding:"3px 9px",fontSize:11,color:T.muted,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{open?"Less":"All "+sorted.length}</button>}
+          <Btn sm onClick={()=>navigateTo("users")}>Open Users</Btn>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:7}}>
+        {shown.map(u=>{
+          const roleColor = {Admin:T.accent,Mentor:T.teal,Approver:T.warn,Viewer:T.blue,Apprentice:T.sub}[u.role]||T.muted;
+          const roleLabel = u.role==="Admin"?`Admin${u.adminLevel?" L"+u.adminLevel:""}`:u.role;
+          return (
+            <div key={u.id} onClick={()=>navigateTo("users")}
+              style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",
+                background:T.bg,borderRadius:8,border:`1px solid ${T.border}`,cursor:"pointer"}}
+              onMouseEnter={e=>e.currentTarget.style.background=T.accentL}
+              onMouseLeave={e=>e.currentTarget.style.background=T.bg}>
+              <Avatar name={u.name} role={u.role} size={28}/>
+              <div style={{minWidth:0,flex:1}}>
+                <div style={{fontWeight:600,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name}</div>
+                <div style={{fontSize:10,color:roleColor,fontWeight:600}}>{roleLabel}{u.trade?" - "+u.trade:""}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {!open&&sorted.length>6&&<div style={{fontSize:11,color:T.muted,textAlign:"center",marginTop:6}}>+{sorted.length-6} more</div>}
+    </Card>
+  );
+}
+function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
+  const fmtDateNZ = (iso) => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
   const [contacts,setContacts]=useState([]);
   const [companies,setCompanies]=useState([]);
   const [deals,setDeals]=useState([]);
@@ -2577,55 +2624,7 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
         ))}
       </div>
       {tab==="contacts"&&(<>
-        {/* ── KTA Users quick-access ── */}
-        {isAdmin&&(()=>{
-          const [usersOpen, setUsersOpen] = React.useState(false);
-          const sorted = [...(allUsers||[])].sort((a,b)=>{
-            const roleRank = {Admin:0,Mentor:1,Approver:2,Viewer:3,Apprentice:4};
-            const ra = roleRank[a.role]??5, rb = roleRank[b.role]??5;
-            if(ra!==rb) return ra-rb;
-            return a.name.localeCompare(b.name);
-          });
-          const shown = usersOpen ? sorted : sorted.slice(0,6);
-          return (
-            <Card style={{marginBottom:14,border:`1.5px solid ${T.accentL}`}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <div style={{width:28,height:28,borderRadius:8,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>👥</div>
-                  <div>
-                    <div style={{fontWeight:700,fontSize:13}}>KTA Users</div>
-                    <div style={{fontSize:11,color:T.muted}}>{(allUsers||[]).length} users · click to open in Users tab</div>
-                  </div>
-                </div>
-                <div style={{display:"flex",gap:6}}>
-                  <button onClick={()=>setUsersOpen(p=>!p)} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,padding:"3px 9px",fontSize:11,color:T.muted,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{usersOpen?"Less":"All "+sorted.length}</button>
-                  <Btn sm onClick={()=>navigateTo("users")}>Open Users →</Btn>
-                </div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:7}}>
-                {shown.map(u=>{
-                  const roleColor = {Admin:T.accent,Mentor:T.teal,Approver:T.warn,Viewer:T.blue,Apprentice:T.sub}[u.role]||T.muted;
-                  const roleLabel = u.role==="Admin"?`Admin${u.adminLevel?" L"+u.adminLevel:""}`:u.role;
-                  return (
-                    <div key={u.id} onClick={()=>navigateTo("users")}
-                      style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",
-                        background:T.bg,borderRadius:8,border:`1px solid ${T.border}`,cursor:"pointer",
-                        transition:"background .12s"}}
-                      onMouseEnter={e=>e.currentTarget.style.background=T.accentL}
-                      onMouseLeave={e=>e.currentTarget.style.background=T.bg}>
-                      <Avatar name={u.name} role={u.role} size={28}/>
-                      <div style={{minWidth:0,flex:1}}>
-                        <div style={{fontWeight:600,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name}</div>
-                        <div style={{fontSize:10,color:roleColor,fontWeight:600}}>{roleLabel}{u.trade?" · "+u.trade:""}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {!usersOpen&&sorted.length>6&&<div style={{fontSize:11,color:T.muted,textAlign:"center",marginTop:6}}>+{sorted.length-6} more</div>}
-            </Card>
-          );
-        })()}
+        {role==="Admin"&&<CRMUsersPanel allUsers={allUsers} navigateTo={navigateTo}/>}
         {canEdit&&<div style={{marginBottom:14}}>
           <Btn sm onClick={()=>{ resetContactForm(); setEditCId(null); setShowCF(s=>!s); }}>
             {showCF?"✕ Cancel":"+ Add Contact"}
@@ -10540,7 +10539,7 @@ export default function App() {
             </>
           )}
           {activeMod==="crm" && (
-            <CRMModule currentUser={currentUser} allUsers={users} onSyncTick={()=>setSyncTick(t=>t+1)}/>
+            <CRMModule currentUser={currentUser} allUsers={users} onSyncTick={()=>setSyncTick(t=>t+1)} navigateTo={navigateTo}/>
           )}
           {activeMod==="users" && role==="Admin" && (
             <UserManagement users={users} setUsers={updateUsers} currentUser={currentUser}/>
