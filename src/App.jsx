@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.2.9
+// KTA Workforce Management — v2.3.0
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1063,7 +1063,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.2.9
+          v2.3.0
         </div>
       </div>
     </div>
@@ -2260,7 +2260,7 @@ function UserManagement({users, setUsers, currentUser}) {
 // CRM MODULE
 // ─────────────────────────────────────────────────────────────────────────────
 function CRMUsersPanel({allUsers, navigateTo}) {
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = useState(false);
   const sorted = [...(allUsers||[])].sort((a,b)=>{
     const rank = {Admin:0,Mentor:1,Approver:2,Viewer:3,Apprentice:4};
     const ra = rank[a.role]??5, rb = rank[b.role]??5;
