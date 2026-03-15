@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.3.0
+// KTA Workforce Management — v2.3.1
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1063,7 +1063,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.3.0
+          v2.3.1
         </div>
       </div>
     </div>
@@ -7072,7 +7072,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             )}
             {showActivity && isAdmin && apprentice.email && (
               <Card style={{marginBottom:16}}>
-                <EmailActivityFeed personEmail={apprentice.email} personName={apprentice.name} personId={apprentice.id} canEdit={true}
+                <EmailActivityFeed personEmail={apprentice.email} personName={apprentice.name} personId={apprentice.id} canEdit={true} isKristeena={viewer?.email?.toLowerCase()===CONF_OWNER_EMAIL}
                   extraItems={reports.map(r=>({id:r.id,created_at:r.created_at||r.date+"T12:00:00",date:r.date,
                     label:`Meeting Report — ${r.date?(()=>{const[y,m,d]=r.date.split('-');return`${d}/${m}/${y}`;})():""}`,
                     detail:r.goals_this_meeting?`Goals: ${r.goals_this_meeting}`:r.comments_feedback||""}))}/>
@@ -7503,7 +7503,7 @@ function MentorDashboard({currentUser, allUsers}) {
   const fmtDate = (iso) => { if(!iso) return null; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
   const daysUntil = (iso) => { if(!iso) return null; const today=new Date(); today.setHours(0,0,0,0); const exp=new Date(iso+"T00:00:00"); return Math.round((exp-today)/86400000); };
 
-  const MENTOR_DEFAULT_ORDER = ["apprentices", ...(currentUser.email?.toLowerCase()===CONF_OWNER_EMAIL ? ["confidential"] : []), "resources"];
+  const MENTOR_DEFAULT_ORDER = ["apprentices", "resources"];
   const { order: mentorOrder, dragProps: mentorDragProps } = useDraggableOrder(currentUser.id + "_mentor", MENTOR_DEFAULT_ORDER);
 
   if(selectedApprentice) {
@@ -7579,11 +7579,7 @@ function MentorDashboard({currentUser, allUsers}) {
         </Card>
       </DraggableSection>
     ),
-    confidential: (
-      <DraggableSection id="confidential" dragProps={mentorDragProps}>
-        <ConfidentialNotesCard currentUser={currentUser} allUsers={allUsers}/>
-      </DraggableSection>
-    ),
+
     resources: (
       <DraggableSection id="resources" dragProps={mentorDragProps}>
         <Card>
@@ -7621,423 +7617,62 @@ function MentorDashboard({currentUser, allUsers}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CONFIDENTIAL NOTES — PIN-protected card, only visible to Kristeena
+// CONFIDENTIAL NOTES — per-note PIN lock, only Kristeena can lock/unlock
+// ─────────────────────────────────────────────────────────────────────────────
+// PIN "1002" hash
+const CONF_PIN_HASH = "b281bc2c616cb3c3a097215fdc9397ae87e6e06b156cc34e656be7a1a9ce8839";
 
 async function sha256hex(str) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 
-function ConfidentialNotesCard({ currentUser, allUsers = [] }) {
-  // SHA-256 of "4444" — pre-set temporary PIN
-  const TEMP_PIN_HASH = "79f06f8fde333461739f220090a23cb2a79f6d714bee100d0e4b4af249294619";
-  const AUTO_LOCK_MS  = 5 * 60 * 1000;
-  const LOCKOUT_MS    = 15 * 60 * 1000;
+// PinPromptModal — shown when locking or unlocking a note
+function PinPromptModal({ title, onConfirm, onCancel }) {
+  const [pin, setPin] = useState("");
+  const [err, setErr] = useState("");
+  const [checking, setChecking] = useState(false);
 
-  // ALL hooks must be declared before any conditional return (React rules)
-  const [phase, setPhase]           = useState("locked");
-  const [pin, setPin]               = useState("");
-  const [pinError, setPinError]     = useState("");
-  const [wrongCount, setWrongCount] = useState(0);
-  const [lockUntil, setLockUntil]   = useState(null);
-  const [now, setNow]               = useState(Date.now());
-  const [notes, setNotes]           = useState([]);
-  const [loading, setLoading]       = useState(false);
-  const [newTitle, setNewTitle]     = useState("");
-  const [newBody, setNewBody]       = useState("");
-  const [adding, setAdding]         = useState(false);
-  const [saving, setSaving]         = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [activeTab, setActiveTab]         = useState("general"); // "general" | apprentice id
-  const lockTimer  = useRef(null);
-  const pinInputRef = useRef(null);
-
-  // ── HARD IDENTITY GUARD — after hooks, returns nothing for non-Kristeena ──
-  const isOwner = currentUser?.email?.toLowerCase() === CONF_OWNER_EMAIL;
-
-  // Load PIN hash from Supabase on mount (persists across devices/browsers)
-  const [pinHash,      setPinHash]      = useState(null);  // null = still loading
-  const [mustChange,   setMustChange]   = useState(false);
-  const [pinLoading,   setPinLoading]   = useState(true);
-
-  useEffect(()=>{
-    if(!isOwner) return;
-    sb.from("users").select("conf_pin_hash,conf_pin_must_change").eq("id", currentUser.id).single()
-      .then(({data})=>{
-        if(!data?.conf_pin_hash) {
-          // No PIN set yet — write temp PIN and must-change flag
-          sb.from("users").update({conf_pin_hash: TEMP_PIN_HASH, conf_pin_must_change: true}).eq("id", currentUser.id).then(()=>{});
-          setPinHash(TEMP_PIN_HASH);
-          setMustChange(true);
-        } else {
-          setPinHash(data.conf_pin_hash);
-          setMustChange(!!data.conf_pin_must_change);
-          // If still using temp PIN, ensure must-change is set
-          if(data.conf_pin_hash === TEMP_PIN_HASH && !data.conf_pin_must_change) {
-            sb.from("users").update({conf_pin_must_change: true}).eq("id", currentUser.id).then(()=>{});
-            setMustChange(true);
-          }
-        }
-      })
-      .catch(()=>{ setPinHash(TEMP_PIN_HASH); setMustChange(true); })
-      .finally(()=>setPinLoading(false));
-  },[isOwner]);
-
-  useEffect(()=>{
-    if(!isOwner) return;
-    const t = setInterval(()=>setNow(Date.now()), 1000);
-    return ()=>clearInterval(t);
-  },[isOwner]);
-
-  const resetLockTimer = useCallback(()=>{
-    if(lockTimer.current) clearTimeout(lockTimer.current);
-    lockTimer.current = setTimeout(()=>{ setPhase("locked"); setPin(""); }, AUTO_LOCK_MS);
-  },[]);
-
-  useEffect(()=>{ if(phase==="unlocked") resetLockTimer(); return ()=>{ if(lockTimer.current) clearTimeout(lockTimer.current); }; },[phase,resetLockTimer]);
-
-  useEffect(()=>{
-    if(phase!=="unlocked" || !isOwner) return;
-    setLoading(true);
-    loadTable("confidential_notes")
-      .then(rows=>setNotes((rows||[]).sort((a,b)=>b.created_at?.localeCompare(a.created_at||"")||0)))
-      .catch(()=>setNotes([]))
-      .finally(()=>setLoading(false));
-  },[phase, isOwner]);
-
-  const apprentices = allUsers.filter(u=>u.role==="Apprentice").sort((a,b)=>a.name.localeCompare(b.name));
-
-  // ── GUARD: render nothing for anyone other than Kristeena ──────────────────
-  if(!isOwner) return null;
-  if(pinLoading) return (
-    <Card style={{padding:"24px 20px",textAlign:"center",color:T.muted,fontSize:13}}>
-      Loading secure notes…
-    </Card>
-  );
-
-  const handlePinKey = (digit) => {
-    if(lockUntil && lockUntil > Date.now()) return;
-    const next = (pin + digit).slice(0, 4);
-    setPin(next);
-    setPinError("");
-    if(next.length === 4) setTimeout(()=>verifyPin(next), 80);
-  };
-
-  const verifyPin = async (attempt) => {
-    const hash = await sha256hex(attempt);
-    if(hash === pinHash) {
-      if(mustChange) {
-        setPhase("change"); setPin(""); setPinError("");
-      } else {
-        setPhase("unlocked"); setPin(""); setWrongCount(0); setPinError("");
-      }
+  const submit = async () => {
+    if(pin.length !== 4) { setErr("Enter your 4-digit PIN"); return; }
+    setChecking(true);
+    const h = await sha256hex(pin);
+    if(h === CONF_PIN_HASH) {
+      onConfirm();
     } else {
-      const wc = wrongCount + 1;
-      setWrongCount(wc);
+      setErr("Incorrect PIN");
       setPin("");
-      if(wc >= 3) {
-        const lu = Date.now() + LOCKOUT_MS;
-        setLockUntil(lu);
-        setPinError("Too many attempts — locked for 15 minutes.");
-        setWrongCount(0);
-      } else {
-        setPinError(`Incorrect PIN (${3-wc} attempt${3-wc===1?"":"s"} remaining)`);
-      }
     }
-  };
-
-  const [newPin, setNewPin]         = useState("");
-  const [confirmPin, setConfirmPin] = useState("");
-  const [changingStep, setChangingStep] = useState("new"); // "new" | "confirm"
-
-  const handleChangePinKey = (digit) => {
-    if(changingStep === "new") {
-      const next = (newPin + digit).slice(0, 4);
-      setNewPin(next); setPinError("");
-      if(next.length === 4) { setTimeout(()=>setChangingStep("confirm"), 150); }
-    } else {
-      const next = (confirmPin + digit).slice(0, 4);
-      setConfirmPin(next); setPinError("");
-      if(next.length === 4) { setTimeout(()=>confirmChangePin(next), 80); }
-    }
-  };
-
-  const confirmChangePin = async (attempt) => {
-    if(attempt !== newPin) {
-      setPinError("PINs don't match — try again.");
-      setNewPin(""); setConfirmPin(""); setChangingStep("new");
-      return;
-    }
-    if(attempt === "4444") {
-      setPinError("You must choose a different PIN from the temporary one.");
-      setNewPin(""); setConfirmPin(""); setChangingStep("new");
-      return;
-    }
-    const hash = await sha256hex(attempt);
-    await sb.from("users").update({conf_pin_hash: hash, conf_pin_must_change: false}).eq("id", currentUser.id);
-    setPinHash(hash); setMustChange(false);
-    setPhase("unlocked"); setNewPin(""); setConfirmPin(""); setChangingStep("new"); setPinError("");
-  };
-
-  const setupPin = async () => {
-    if(pin.length < 4) return;
-    const hash = await sha256hex(pin);
-    await sb.from("users").update({conf_pin_hash: hash, conf_pin_must_change: false}).eq("id", currentUser.id);
-    setPinHash(hash); setMustChange(false);
-    setPhase("locked"); setPin(""); setPinError("PIN set — please enter it to unlock.");
-  };
-
-  const addNote = async () => {
-    if(!newTitle.trim() && !newBody.trim()) return;
-    setSaving(true);
-    const row = {
-      id: uid(),
-      owner_id: currentUser.id,
-      apprentice_id: activeTab === "general" ? null : activeTab,
-      title: newTitle.trim()||"Untitled",
-      body: newBody.trim(),
-      created_at: new Date().toISOString()
-    };
-    await upsertRow("confidential_notes", row).catch(console.error);
-    setNotes(prev=>[row,...prev]);
-    setNewTitle(""); setNewBody(""); setAdding(false);
-    setSaving(false); resetLockTimer();
-  };
-
-  const deleteNote = async (id) => {
-    await deleteRow("confidential_notes", id).catch(console.error);
-    setNotes(prev=>prev.filter(n=>n.id!==id));
-    setDeleteConfirm(null); resetLockTimer();
-  };
-
-  const lockedSecs = lockUntil ? Math.max(0, Math.ceil((lockUntil - now)/1000)) : 0;
-  const isLockedOut = lockUntil && lockUntil > now;
-
-  // ── Styles ──
-  const cardStyle = { background:"#fff", borderRadius:14, border:`1.5px solid #c084fc55`,
-    boxShadow:"0 2px 18px #a855f711", padding:24, marginBottom:16 };
-  const headerStyle = { display:"flex", alignItems:"center", gap:12, marginBottom:20 };
-  const iconBox = { width:42, height:42, borderRadius:12, background:"#f3e8ff",
-    display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 };
-  const pinBtn = (d) => ({
-    width:64, height:64, borderRadius:12, border:`1.5px solid #d8b4fe`,
-    background:"#faf5ff", color:"#6b21a8", fontSize:22, fontWeight:700,
-    cursor: isLockedOut?"not-allowed":"pointer", fontFamily:"DM Sans,sans-serif",
-    transition:"all .1s", opacity: isLockedOut ? 0.4 : 1,
-  });
-  const dotStyle = (filled) => ({
-    width:14, height:14, borderRadius:"50%",
-    background: filled ? "#9333ea" : "#e9d5ff",
-    transition:"background .15s",
-  });
-
-  // ── Locked / Setup view ──
-  const renderPinScreen = () => {
-    if(phase === "change") {
-      const activePin = changingStep === "new" ? newPin : confirmPin;
-      return (
-        <div style={{textAlign:"center", padding:"8px 0 4px"}}>
-          <div style={{background:"#fef3c7", border:"1.5px solid #f59e0b", borderRadius:10, padding:"10px 16px", marginBottom:18}}>
-            <div style={{fontSize:13, fontWeight:700, color:"#92400e"}}>🔐 Please set a new personal PIN</div>
-            <div style={{fontSize:12, color:"#78350f", marginTop:3}}>The temporary PIN must be changed before you can access your notes.</div>
-          </div>
-          <div style={{fontSize:13, color:"#7e22ce", marginBottom:18, fontWeight:600}}>
-            {changingStep === "new" ? "Enter your new PIN" : "Confirm your new PIN"}
-          </div>
-          <div style={{display:"flex", gap:12, justifyContent:"center", marginBottom:20}}>
-            {[0,1,2,3].map(i=><div key={i} style={dotStyle(activePin.length>i)}/>)}
-          </div>
-          <div style={{display:"inline-grid", gridTemplateColumns:"repeat(3,64px)", gap:10, marginBottom:16}}>
-            {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((d,i)=>(
-              d===""
-                ? <div key={i}/>
-                : <button key={i} style={pinBtn(d)}
-                    onClick={()=>d==="⌫"
-                      ? (changingStep==="new" ? setNewPin(p=>p.slice(0,-1)) : setConfirmPin(p=>p.slice(0,-1)))
-                      : handleChangePinKey(d)}>
-                    {d}
-                  </button>
-            ))}
-          </div>
-          {changingStep === "confirm" && (
-            <div style={{fontSize:12, color:"#6b7280", marginBottom:8}}>Re-enter the same PIN to confirm</div>
-          )}
-          {pinError && <div style={{fontSize:12, color:"#b91c1c", marginTop:10, fontWeight:600}}>{pinError}</div>}
-        </div>
-      );
-    }
-
-    return (
-      <div style={{textAlign:"center", padding:"8px 0 4px"}}>
-        <div style={{fontSize:13, color:"#7e22ce", marginBottom:18, fontWeight:500}}>
-          Enter your 4-digit PIN
-        </div>
-        <div style={{display:"flex", gap:12, justifyContent:"center", marginBottom:20}}>
-          {[0,1,2,3].map(i=><div key={i} style={dotStyle(pin.length>i)}/>)}
-        </div>
-        <div style={{display:"inline-grid", gridTemplateColumns:"repeat(3,64px)", gap:10, marginBottom:16}}>
-          {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((d,i)=>(
-            d===""
-              ? <div key={i}/>
-              : <button key={i} style={pinBtn(d)}
-                  onClick={()=>d==="⌫" ? setPin(p=>p.slice(0,-1)) : handlePinKey(d)}>
-                  {d}
-                </button>
-          ))}
-        </div>
-        {pinError && <div style={{fontSize:12, color: isLockedOut?"#991b1b":"#b91c1c", marginTop:10, fontWeight:600}}>{pinError}</div>}
-        {isLockedOut && <div style={{fontSize:12, color:"#6b7280", marginTop:6}}>Try again in {Math.floor(lockedSecs/60)}:{String(lockedSecs%60).padStart(2,"0")}</div>}
-      </div>
-    );
-  };
-
-  // ── Unlocked view ──
-  const renderNotes = () => {
-    const tabNotes = notes.filter(n =>
-      activeTab === "general" ? !n.apprentice_id : n.apprentice_id === activeTab
-    );
-    const activeApprentice = activeTab !== "general"
-      ? apprentices.find(a => a.id === activeTab) : null;
-
-    return (
-      <div onClick={resetLockTimer}>
-        {/* Top bar */}
-        <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14}}>
-          <div style={{fontSize:12, color:"#9333ea", fontWeight:600}}>🔓 Unlocked · auto-locks after 5 min</div>
-          <button onClick={()=>{setPhase("locked"); setPin(""); if(lockTimer.current)clearTimeout(lockTimer.current);}}
-            style={{background:"#f3e8ff", color:"#6b21a8", border:"1.5px solid #d8b4fe", borderRadius:7, padding:"6px 14px", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>
-            🔒 Lock
-          </button>
-        </div>
-
-        {/* Tab bar */}
-        <div style={{display:"flex", gap:6, flexWrap:"wrap", marginBottom:16, borderBottom:"1.5px solid #f3e8ff", paddingBottom:12}}>
-          {/* General tab */}
-          <button onClick={()=>{setActiveTab("general"); setAdding(false); resetLockTimer();}}
-            style={{padding:"6px 14px", borderRadius:8, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"DM Sans,sans-serif", border:"none",
-              background: activeTab==="general" ? "#9333ea" : "#f3e8ff",
-              color: activeTab==="general" ? "#fff" : "#7e22ce",
-            }}>
-            📋 General
-            {notes.filter(n=>!n.apprentice_id).length > 0 &&
-              <span style={{marginLeft:5, background: activeTab==="general"?"#ffffff33":"#e9d5ff", borderRadius:99, padding:"1px 6px", fontSize:10}}>
-                {notes.filter(n=>!n.apprentice_id).length}
-              </span>
-            }
-          </button>
-          {/* One tab per apprentice */}
-          {apprentices.map(app => {
-            const count = notes.filter(n=>n.apprentice_id===app.id).length;
-            const isActive = activeTab === app.id;
-            return (
-              <button key={app.id} onClick={()=>{setActiveTab(app.id); setAdding(false); resetLockTimer();}}
-                style={{padding:"6px 14px", borderRadius:8, fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"DM Sans,sans-serif", border:"none",
-                  background: isActive ? "#9333ea" : "#f3e8ff",
-                  color: isActive ? "#fff" : "#7e22ce",
-                  display:"flex", alignItems:"center", gap:6,
-                }}>
-                <span style={{width:20, height:20, borderRadius:"50%", background: isActive?"#ffffff33":"#e9d5ff",
-                  display:"inline-flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:700, flexShrink:0}}>
-                  {(app.firstName||app.name||"?")[0]}
-                </span>
-                {app.firstName||app.name.split(" ")[0]}
-                {count > 0 &&
-                  <span style={{background: isActive?"#ffffff33":"#e9d5ff", borderRadius:99, padding:"1px 6px", fontSize:10}}>
-                    {count}
-                  </span>
-                }
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Tab heading */}
-        <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14}}>
-          <div>
-            {activeApprentice && (
-              <div style={{fontSize:13, fontWeight:700, color:"#581c87"}}>
-                🔒 Private notes — {activeApprentice.name}
-                <span style={{fontSize:11, color:"#9333ea", fontWeight:400, marginLeft:8}}>
-                  Hidden from all other users
-                </span>
-              </div>
-            )}
-            {!activeApprentice && (
-              <div style={{fontSize:13, fontWeight:700, color:"#581c87"}}>
-                📋 General confidential notes
-              </div>
-            )}
-          </div>
-          <button onClick={()=>{setAdding(s=>!s); resetLockTimer();}}
-            style={{background:"#9333ea", color:"#fff", border:"none", borderRadius:7, padding:"6px 14px", fontWeight:600, fontSize:12, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>
-            {adding?"✕ Cancel":"+ Add Note"}
-          </button>
-        </div>
-
-        {/* Add note form */}
-        {adding && (
-          <div style={{background:"#faf5ff", borderRadius:10, padding:16, marginBottom:16, border:"1.5px solid #d8b4fe"}}>
-            <input placeholder="Note title…" value={newTitle} onChange={e=>{setNewTitle(e.target.value);resetLockTimer();}}
-              style={{width:"100%", fontWeight:700, fontSize:14, border:"none", background:"transparent", outline:"none", marginBottom:8, fontFamily:"DM Sans,sans-serif", color:"#1e1b4b"}}/>
-            <textarea placeholder={`Enter confidential note${activeApprentice?` about ${activeApprentice.firstName||activeApprentice.name.split(" ")[0]}`:""}…`}
-              value={newBody} onChange={e=>{setNewBody(e.target.value);resetLockTimer();}}
-              rows={5} style={{width:"100%", border:"none", background:"transparent", outline:"none", fontSize:13, fontFamily:"DM Sans,sans-serif", color:"#374151", resize:"vertical", lineHeight:1.6}}/>
-            <div style={{display:"flex", justifyContent:"flex-end", marginTop:8}}>
-              <button onClick={addNote} disabled={saving}
-                style={{background:"#9333ea", color:"#fff", border:"none", borderRadius:7, padding:"7px 18px", fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"DM Sans,sans-serif"}}>
-                {saving?"Saving…":"Save Note"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {loading && <div style={{textAlign:"center", padding:24, color:"#9ca3af", fontSize:13}}>Loading…</div>}
-        {!loading && tabNotes.length===0 && !adding && (
-          <div style={{textAlign:"center", padding:24, color:"#c084fc", fontSize:13, fontStyle:"italic"}}>
-            {activeApprentice
-              ? `No private notes for ${activeApprentice.firstName||activeApprentice.name.split(" ")[0]} yet.`
-              : "No general notes yet."}
-          </div>
-        )}
-
-        {tabNotes.map(n=>(
-          <div key={n.id} style={{borderBottom:"1px solid #f3e8ff", padding:"14px 0"}}>
-            <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
-              <div style={{fontWeight:700, fontSize:13, color:"#1e1b4b", marginBottom:4}}>{n.title}</div>
-              <div style={{display:"flex", gap:6, alignItems:"center", flexShrink:0, marginLeft:12}}>
-                <div style={{fontSize:11, color:"#9ca3af"}}>
-                  {n.created_at ? new Date(n.created_at).toLocaleDateString("en-NZ",{day:"numeric",month:"short",year:"numeric"}) : ""}
-                </div>
-                {deleteConfirm===n.id
-                  ? <>
-                      <button onClick={()=>deleteNote(n.id)} style={{background:"#fde8e8",color:"#b91c1c",border:"1.5px solid #f87171",borderRadius:6,padding:"3px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>Confirm delete</button>
-                      <button onClick={()=>setDeleteConfirm(null)} style={{background:"#f3e8ff",color:"#6b21a8",border:"1.5px solid #d8b4fe",borderRadius:6,padding:"3px 10px",fontSize:11,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>Cancel</button>
-                    </>
-                  : <button onClick={()=>setDeleteConfirm(n.id)} style={{background:"none",border:"none",color:"#d8b4fe",cursor:"pointer",fontSize:14,padding:"0 4px"}}>✕</button>
-                }
-              </div>
-            </div>
-            <div style={{fontSize:13, color:"#374151", lineHeight:1.7, whiteSpace:"pre-wrap"}}>{n.body}</div>
-          </div>
-        ))}
-      </div>
-    );
+    setChecking(false);
   };
 
   return (
-    <div style={cardStyle}>
-      <div style={headerStyle}>
-        <div style={iconBox}>🔐</div>
-        <div>
-          <div style={{fontFamily:"'Libre Baskerville'", fontSize:16, fontWeight:700, color:"#581c87"}}>Kristeena Confidential Notes</div>
-          <div style={{fontSize:12, color:"#9333ea", marginTop:2}}>PIN-protected · not visible to any other user · auto-locks</div>
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div style={{background:T.surface,borderRadius:16,padding:"28px 28px 24px",maxWidth:320,width:"100%",border:`1.5px solid ${T.border}`,boxShadow:"0 8px 32px rgba(0,0,0,.18)"}}>
+        <div style={{fontWeight:700,fontSize:16,marginBottom:6}}>🔒 {title}</div>
+        <div style={{fontSize:13,color:T.sub,marginBottom:18}}>Enter your 4-digit PIN to continue.</div>
+        <input
+          type="password"
+          inputMode="numeric"
+          maxLength={4}
+          placeholder="····"
+          value={pin}
+          onChange={e=>{ setPin(e.target.value.replace(/\D/g,"")); setErr(""); }}
+          onKeyDown={e=>e.key==="Enter"&&submit()}
+          autoFocus
+          style={{textAlign:"center",fontSize:28,letterSpacing:12,marginBottom:8,width:"100%"}}
+        />
+        {err&&<div style={{color:T.red,fontSize:12,marginBottom:8,textAlign:"center"}}>{err}</div>}
+        <div style={{display:"flex",gap:8,marginTop:8}}>
+          <button onClick={onCancel} style={{flex:1,padding:"10px",borderRadius:8,border:`1.5px solid ${T.border}`,background:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:13}}>Cancel</button>
+          <button onClick={submit} disabled={checking} style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:T.accent,color:"#fff",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:13,fontWeight:700}}>
+            {checking?"…":"Confirm"}
+          </button>
         </div>
       </div>
-      {phase==="unlocked" ? renderNotes() : renderPinScreen()}
     </div>
   );
 }
-
 // ─────────────────────────────────────────────────────────────────────────────
 // BROADCAST COMPOSER — Admin + Mentor send messages to users
 // ─────────────────────────────────────────────────────────────────────────────
@@ -9233,7 +8868,7 @@ const NoteTextarea = ({value, onChange, placeholder}) => (
 //   personId    — Supabase user id (nullable for CRM contacts)
 //   extraItems  — pre-loaded items to merge (e.g. meeting reports as {_kind,_ts,label,detail})
 //   canEdit     — whether notes/pins are allowed
-function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[], canEdit=true}) {
+function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[], canEdit=true, isKristeena=false}) {
   const [emails, setEmails]             = useState([]);
   const [notes, setNotes]               = useState([]);
   const [loadingEmails, setLoadingEmails] = useState(false);
@@ -9243,6 +8878,9 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
   const [noteText, setNoteText]         = useState("");
   const [addingNote, setAddingNote]     = useState(false);
   const [savingNote, setSavingNote]     = useState(false);
+  const [pinPrompt, setPinPrompt]       = useState(null);  // null | "lock" | noteId (unlock)
+  const [pendingNote, setPendingNote]   = useState(null);  // note object waiting for PIN confirm
+  const [unlockedIds, setUnlockedIds]   = useState(new Set()); // IDs unlocked this session
   const [pinning, setPinning]           = useState({});
   const proxyOk = !!getEmailProxyUrl();
 
@@ -9271,19 +8909,58 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
 
   const saveNote = async () => {
     if(!noteText.trim()) return;
-    setSavingNote(true);
     const note = {
       id: uid(), person_email: personEmail||null, person_id: personId||null,
       person_name: personName||null, type:"note", subject:"Note",
       body: noteText.trim(), direction:"note",
       created_at: new Date().toISOString(),
+      is_locked: false,
     };
+    if(isKristeena) {
+      // Ask if she wants to lock it
+      setPendingNote(note);
+      setPinPrompt("asklock");
+      return;
+    }
+    setSavingNote(true);
     try {
       await upsertRow('activity_notes', note);
       setNotes(prev=>[note,...prev]);
       setNoteText(""); setAddingNote(false);
     } catch(e) { alert("Failed to save: "+e.message); }
     setSavingNote(false);
+  };
+
+  const commitNote = async (note) => {
+    setSavingNote(true);
+    try {
+      await upsertRow('activity_notes', note);
+      setNotes(prev=>[note,...prev]);
+      setNoteText(""); setAddingNote(false);
+      if(note.is_locked) setUnlockedIds(prev=>new Set([...prev, note.id]));
+    } catch(e) { alert("Failed to save: "+e.message); }
+    setSavingNote(false);
+    setPinPrompt(null); setPendingNote(null);
+  };
+
+  const toggleLock = async (note) => {
+    if(note.is_locked) {
+      // Already locked — prompt PIN to unlock (session only, no DB change needed)
+      setPinPrompt(note.id);
+    } else {
+      // Not locked — prompt PIN to lock it
+      setPendingNote({...note, is_locked:true});
+      setPinPrompt("lockexisting");
+    }
+  };
+
+  const lockExistingNote = async (note) => {
+    const updated = {...note, is_locked:true};
+    try {
+      await upsertRow('activity_notes', updated);
+      setNotes(prev=>prev.map(n=>n.id===note.id?updated:n));
+    } catch(e) { alert("Failed to lock note: "+e.message); }
+    setPinPrompt(null); setPendingNote(null);
   };
 
   const pinEmail = async (email) => {
@@ -9338,10 +9015,51 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
     report:   {label:"📋 Report",  color:T.blue,   bg:T.blueL},
   })[dir||"note"]||{label:"◈ Activity", color:T.sub, bg:T.bg};
 
+  const isNoteVisible = (n) => {
+    if(!n.is_locked) return true;
+    if(isKristeena) return unlockedIds.has(n.id); // locked — only show if unlocked this session
+    return false; // other users never see locked content
+  };
+
   const pinnedIds = new Set(notes.map(n=>n.email_id).filter(Boolean));
 
   return (
     <div>
+      {/* PIN prompt modals */}
+      {pinPrompt==="asklock"&&pendingNote&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div style={{background:T.surface,borderRadius:16,padding:"28px 28px 24px",maxWidth:340,width:"100%",border:`1.5px solid ${T.border}`}}>
+            <div style={{fontWeight:700,fontSize:16,marginBottom:8}}>Save Note</div>
+            <div style={{fontSize:13,color:T.sub,marginBottom:20}}>Would you like to lock this note with your PIN? Locked notes are only visible to you.</div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>commitNote({...pendingNote,is_locked:false})}
+                style={{flex:1,padding:"10px",borderRadius:8,border:`1.5px solid ${T.border}`,background:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:13}}>
+                💾 Save unlocked
+              </button>
+              <button onClick={()=>{ setPinPrompt("lockpin"); }}
+                style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:T.accent,color:"#fff",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:13,fontWeight:700}}>
+                🔒 Lock with PIN
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {(pinPrompt==="lockpin"||pinPrompt==="lockexisting"||typeof pinPrompt==="string"&&pinPrompt.length>10)&&(
+        <PinPromptModal
+          title={typeof pinPrompt==="string"&&pinPrompt.length>10?"Unlock Note":"Lock Note"}
+          onConfirm={()=>{
+            if(pinPrompt==="lockpin"&&pendingNote) { commitNote({...pendingNote,is_locked:true}); }
+            else if(pinPrompt==="lockexisting"&&pendingNote) {
+              lockExistingNote(pendingNote);
+            } else {
+              // Unlocking by note id
+              setUnlockedIds(prev=>new Set([...prev, pinPrompt]));
+              setPinPrompt(null);
+            }
+          }}
+          onCancel={()=>{ setPinPrompt(null); setPendingNote(null); }}
+        />
+      )}
       {/* Toolbar */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
         marginBottom:14,flexWrap:"wrap",gap:8}}>
@@ -9512,9 +9230,43 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                         {item.from_address&&<div style={{fontSize:11,color:T.sub,marginBottom:3}}>
                           {item.direction==="inbound"?"From":"To"}: {item.from_address||item.to_address}
                         </div>}
-                        <div style={{fontSize:13,color:T.ink,lineHeight:1.65,
-                          whiteSpace:"pre-wrap",marginTop:4}}>{item.body}</div>
-                        <div style={{fontSize:11,color:T.muted,marginTop:6}}>{fmtTs(item.email_date||item.created_at)}</div>
+                        {/* Locked note display */}
+                        {item.is_locked && !isNoteVisible(item) ? (
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginTop:6,
+                            background:T.bg,borderRadius:7,padding:"8px 12px",border:`1px solid ${T.border}`}}>
+                            <span style={{fontSize:16}}>🔒</span>
+                            <span style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>This note is locked</span>
+                            {isKristeena&&(
+                              <button onClick={()=>setPinPrompt(item.id)}
+                                style={{marginLeft:"auto",background:"none",border:`1px solid ${T.border}`,
+                                  borderRadius:6,padding:"3px 9px",fontSize:11,cursor:"pointer",
+                                  color:T.accent,fontFamily:"DM Sans,sans-serif"}}>
+                                🔓 Unlock
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div style={{fontSize:13,color:T.ink,lineHeight:1.65,whiteSpace:"pre-wrap",marginTop:4}}>
+                            {item.body}
+                            {item.is_locked&&isNoteVisible(item)&&(
+                              <span style={{display:"inline-flex",alignItems:"center",gap:4,marginLeft:8,
+                                fontSize:11,color:T.teal,fontWeight:600}}>
+                                🔓 Unlocked this session
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        <div style={{fontSize:11,color:T.muted,marginTop:6,display:"flex",alignItems:"center",gap:8}}>
+                          {fmtTs(item.email_date||item.created_at)}
+                          {isKristeena&&item.direction==="note"&&(
+                            <button onClick={()=>toggleLock(item)}
+                              style={{background:"none",border:`1px solid ${T.border}`,borderRadius:5,
+                                padding:"1px 7px",fontSize:10,cursor:"pointer",
+                                color:item.is_locked?T.warn:T.muted,fontFamily:"DM Sans,sans-serif"}}>
+                              {item.is_locked?"🔒 Locked":"🔓 Lock"}
+                            </button>
+                          )}
+                        </div>
                       </div>
                       {canEdit&&(
                         <button onClick={()=>deleteNote(item.id)}
