@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.2.5
+// KTA Workforce Management — v2.2.6
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -531,21 +531,98 @@ const withinWeek = d => d >= weekStart();
 const daysAgoStr = n => { const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); };
 
 // Send email notification to approvers when apprentice submits timesheets
+// Sign a timesheet action token
+const TIMESHEET_ACTION_URL = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/timesheet-action";
+const TIMESHEET_TOKEN_SECRET = "kta-leave-action-secret-v1"; // reuse same secret
+
+const signTimesheetToken = async (payload) => {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(TIMESHEET_TOKEN_SECRET),
+    { name:"HMAC", hash:"SHA-256" }, false, ["sign"]);
+  const data = enc.encode(JSON.stringify(payload));
+  const sig  = await crypto.subtle.sign("HMAC", key, data);
+  const b64  = btoa(String.fromCharCode(...new Uint8Array(sig)))
+    .replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
+  return btoa(JSON.stringify(payload)) + "." + b64;
+};
+
+const timesheetActionUrl = async (entryId, action, approverId) => {
+  const exp   = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  const token = await signTimesheetToken({ entryId, action, approverId, exp });
+  return `${TIMESHEET_ACTION_URL}?token=${token}`;
+};
+
 const notifyApprovers = async (apprentice, approvers, entries) => {
   if(!approvers.length) return;
-  const entryList = entries.map(e=>
-    `<li>${fmtD(e.date)} — ${e.type} — ${e.netHours}h${e.note?" ("+e.note+")":""}</li>`
-  ).join("");
+  // Compute hours summary
+  const normalHrs   = entries.filter(e=>e.type==="Normal Hours").reduce((a,e)=>a+e.netHours,0);
+  const overtimeHrs = entries.filter(e=>e.type==="Overtime").reduce((a,e)=>a+e.netHours,0);
+  const totalHrs    = entries.reduce((a,e)=>a+e.netHours,0);
+  const fmtH = h => h%1===0 ? h+"h" : h.toFixed(1)+"h";
+
+  const summaryBox = `
+<div style="background:#f0f4f9;border-radius:10px;padding:14px 18px;margin:16px 0;display:flex;gap:24px;flex-wrap:wrap">
+  ${normalHrs>0?`<div><div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Normal Hours</div><div style="font-size:20px;font-weight:700;color:#1b4f8c">${fmtH(normalHrs)}</div></div>`:""}
+  ${overtimeHrs>0?`<div><div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Overtime</div><div style="font-size:20px;font-weight:700;color:#b86e1a">${fmtH(overtimeHrs)}</div></div>`:""}
+  <div><div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Total Hours</div><div style="font-size:20px;font-weight:700;color:#1a8a7a">${fmtH(totalHrs)}</div></div>
+</div>`;
+
   for(const approver of approvers) {
+    if(!approver.email) continue;
     try {
+      // Build per-entry rows with approve/decline buttons
+      const entryRowsHtml = await Promise.all(entries.map(async (e) => {
+        const appUrl = await timesheetActionUrl(e.id, "approve", approver.id);
+        const decUrl = await timesheetActionUrl(e.id, "decline", approver.id);
+        const isNormal   = e.type==="Normal Hours";
+        const isOvertime = e.type==="Overtime";
+        const typeColor  = isOvertime?"#b86e1a":isNormal?"#1b4f8c":"#4a5a72";
+        return `
+<tr>
+  <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:13px;color:#0d1b2e;font-weight:600">${fmtD(e.date)}</td>
+  <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:12px;color:${typeColor}">${isNormal?"Normal":isOvertime?"Overtime":e.type}</td>
+  <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:13px;font-weight:700;color:#1b4f8c;text-align:right">${fmtH(e.netHours)}</td>
+  <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:11px;color:#8fa0b8">${e.start||""}${e.end?" – "+e.end:""}</td>
+  <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:11px;color:#4a5a72;font-style:italic">${e.note||""}</td>
+  <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;white-space:nowrap">
+    <a href="${appUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:5px;padding:4px 12px;font-size:11px;font-weight:700;text-decoration:none;margin-right:4px">✓</a>
+    <a href="${decUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:5px;padding:4px 12px;font-size:11px;font-weight:700;text-decoration:none">✕</a>
+  </td>
+</tr>`;
+      }));
+
       await sendKTAEmail({
         to: approver.email,
-        subject: `Timesheet submitted — ${apprentice.name}`,
-        html: `<p>Hi ${approver.name},</p>
-<p><strong>${apprentice.name}</strong> has submitted ${entries.length} timesheet entr${entries.length===1?"y":"ies"} for approval:</p>
-<ul>${entryList}</ul>
-<p>Please log in to <a href="https://crmkta.com">crmkta.com</a> to review.</p>
-<p style="color:#888;font-size:12px">KTA Workforce Management · timesheet@kta.org.nz</p>`,
+        subject: `Timesheet submitted — ${apprentice.name} (${fmtH(totalHrs)})`,
+        html: `
+<div style="font-family:DM Sans,Arial,sans-serif;max-width:620px;margin:0 auto;background:#f0f4f9;padding:24px">
+  <div style="background:#1b4f8c;border-radius:10px 10px 0 0;padding:18px 24px">
+    <div style="color:#fff;font-size:18px;font-weight:700">Timesheet Submitted</div>
+    <div style="color:#dce8f7;font-size:12px;margin-top:4px">Kiwi Trade Apprentices · ${apprentice.name}</div>
+  </div>
+  <div style="background:#fff;padding:24px;border-radius:0 0 10px 10px;border:1px solid #d0daea">
+    <p style="font-size:15px;color:#0d1b2e;margin-top:0">Hi ${approver.name},</p>
+    <p style="font-size:14px;color:#4a5a72"><strong>${apprentice.name}</strong> has submitted ${entries.length} timesheet entr${entries.length===1?"y":"ies"} for your approval.</p>
+    ${summaryBox}
+    <table style="width:100%;border-collapse:collapse;margin:0 0 16px">
+      <thead>
+        <tr style="background:#f0f4f9">
+          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Date</th>
+          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Type</th>
+          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:right;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Hours</th>
+          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Time</th>
+          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Note</th>
+          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Action</th>
+        </tr>
+      </thead>
+      <tbody>${entryRowsHtml.join("")}</tbody>
+    </table>
+    <p style="font-size:12px;color:#8fa0b8">✓ = Approve that day &nbsp;|&nbsp; ✕ = Decline that day &nbsp;|&nbsp; Links expire in 7 days. No login required.</p>
+    <p style="margin-top:16px"><a href="https://crmkta.com" style="display:inline-block;background:#1b4f8c;color:#fff;border-radius:8px;padding:10px 22px;font-size:13px;font-weight:600;text-decoration:none">Open KTA System →</a></p>
+    <hr style="border:none;border-top:1px solid #d0daea;margin:20px 0">
+    <p style="font-size:11px;color:#8fa0b8">KTA Workforce Management · timesheet@kta.org.nz</p>
+  </div>
+</div>`,
       });
     } catch(err) {
       console.error("notifyApprovers error:", err);
@@ -986,7 +1063,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.2.5
+          v2.2.6
         </div>
       </div>
     </div>
@@ -2338,10 +2415,17 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
           {[
             {label:"📧 Email",val:detailContact.email,href:detailContact.email?`mailto:${detailContact.email}`:null},
             {label:"📱 Phone",val:detailContact.phone,href:detailContact.phone?`tel:${detailContact.phone}`:null},
+            {label:"💼 Job Title",val:detailContact.job_title||detailContact.jobTitle||""},
             {label:"🏢 Company",val:co?co.name:detailContact.company},
             {label:"🏭 Industry",val:co?.industry},
             {label:"📍 Address",val:[detailContact.address,detailContact.city,detailContact.postcode].filter(Boolean).join(", ")},
             {label:"⚡ Status",val:detailContact.status},
+            {label:"🎯 Lead Status",val:detailContact.hs_lead_status||detailContact.hsLeadStatus||""},
+            {label:"⚡ EW Licence Expiry",val:(detailContact.ew_licence_expiry||detailContact.ewLicenceExpiry)?fmtDateNZ(detailContact.ew_licence_expiry||detailContact.ewLicenceExpiry):null},
+            {label:"🛡 Site Safe Expiry",val:detailContact.site_safe_expiry?fmtDateNZ(detailContact.site_safe_expiry):null},
+            {label:"🏥 First Aid Expiry",val:detailContact.first_aid_expiry?fmtDateNZ(detailContact.first_aid_expiry):null},
+            {label:"📅 Last Contacted",val:detailContact.notes_last_contacted||""},
+            {label:"ℹ Description",val:detailContact.description||""},
             {label:"📝 Notes",val:detailContact.notes},
           ].filter(f=>f.val).map(f=>(
             <Card key={f.label} style={{padding:"14px 16px"}}>
@@ -2493,6 +2577,55 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
         ))}
       </div>
       {tab==="contacts"&&(<>
+        {/* ── KTA Users quick-access ── */}
+        {isAdmin&&(()=>{
+          const [usersOpen, setUsersOpen] = React.useState(false);
+          const sorted = [...(allUsers||[])].sort((a,b)=>{
+            const roleRank = {Admin:0,Mentor:1,Approver:2,Viewer:3,Apprentice:4};
+            const ra = roleRank[a.role]??5, rb = roleRank[b.role]??5;
+            if(ra!==rb) return ra-rb;
+            return a.name.localeCompare(b.name);
+          });
+          const shown = usersOpen ? sorted : sorted.slice(0,6);
+          return (
+            <Card style={{marginBottom:14,border:`1.5px solid ${T.accentL}`}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:28,height:28,borderRadius:8,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>👥</div>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13}}>KTA Users</div>
+                    <div style={{fontSize:11,color:T.muted}}>{(allUsers||[]).length} users · click to open in Users tab</div>
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>setUsersOpen(p=>!p)} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,padding:"3px 9px",fontSize:11,color:T.muted,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{usersOpen?"Less":"All "+sorted.length}</button>
+                  <Btn sm onClick={()=>navigateTo("users")}>Open Users →</Btn>
+                </div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(210px,1fr))",gap:7}}>
+                {shown.map(u=>{
+                  const roleColor = {Admin:T.accent,Mentor:T.teal,Approver:T.warn,Viewer:T.blue,Apprentice:T.sub}[u.role]||T.muted;
+                  const roleLabel = u.role==="Admin"?`Admin${u.adminLevel?" L"+u.adminLevel:""}`:u.role;
+                  return (
+                    <div key={u.id} onClick={()=>navigateTo("users")}
+                      style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",
+                        background:T.bg,borderRadius:8,border:`1px solid ${T.border}`,cursor:"pointer",
+                        transition:"background .12s"}}
+                      onMouseEnter={e=>e.currentTarget.style.background=T.accentL}
+                      onMouseLeave={e=>e.currentTarget.style.background=T.bg}>
+                      <Avatar name={u.name} role={u.role} size={28}/>
+                      <div style={{minWidth:0,flex:1}}>
+                        <div style={{fontWeight:600,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name}</div>
+                        <div style={{fontSize:10,color:roleColor,fontWeight:600}}>{roleLabel}{u.trade?" · "+u.trade:""}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {!usersOpen&&sorted.length>6&&<div style={{fontSize:11,color:T.muted,textAlign:"center",marginTop:6}}>+{sorted.length-6} more</div>}
+            </Card>
+          );
+        })()}
         {canEdit&&<div style={{marginBottom:14}}>
           <Btn sm onClick={()=>{ resetContactForm(); setEditCId(null); setShowCF(s=>!s); }}>
             {showCF?"✕ Cancel":"+ Add Contact"}
@@ -2839,11 +2972,14 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
                 id, name:p.name, industry:p.industry||"", phone:p.phone||"",
                 website:p.website||"", address:p.address||"", city:p.city||"",
                 postcode:p.zip||"", country:(p.country&&p.country!=="New Zealand")?p.country:"",
+                description:p.description||"",hs_lead_status:p.hs_lead_status||"",
+                annual_revenue:p.annualrevenue||"",hs_created:p.createdate||null,
                 hubspot_id:co.id, status:"Active", notes:"",
               };
               await upsertRow("crm_companies", row).catch(()=>{});
               setCompanies(prev=>[...prev,{id,name:p.name,industry:p.industry||"",phone:p.phone||"",
                 website:p.website||"",address:p.address||"",city:p.city||"",country:p.country||"",
+                description:p.description||"",hsLeadStatus:p.hs_lead_status||"",
                 hubspotId:co.id,notes:"",status:"Active"}]);
               coDone++;
               if(i%20===0) syncMsg(`🏢 Importing companies… ${i+1}/${hsCompanies.length}`);
@@ -2867,15 +3003,23 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
               const row = {
                 id, name, email:p.email||"", phone:p.mobilephone||p.phone||"",
                 company:p.company||"", trade:p.industry||"",
+                job_title:p.jobtitle||"",description:p.description||"",
+                salutation:p.salutation||"",date_of_birth:p.date_of_birth||null,
                 address:p.address||"", city:p.city||"",
                 postcode:p.zip||"", country:(p.country&&p.country!=="New Zealand")?p.country:"",
                 site_safe_expiry:p.site_safe_expiry||p.sitesafe_expiry||null,
                 first_aid_expiry:p.first_aid_expiry||p.firstaid_expiry||null,
+                ew_licence_expiry:p.ew_licence_expiry||p.electrical_worker_licence_expiry||null,
+                hs_lead_status:p.hs_lead_status||"",
+                notes_last_contacted:p.notes_last_contacted||"",
+                hs_created:p.createdate||null,
                 status:"Active", notes:"", hubspot_id:c.id,
               };
               await upsertRow("crm_contacts", row).catch(()=>{});
               setContacts(prev=>[...prev,{id,name,email:row.email,phone:row.phone,
-                company:row.company,companyId:"",status:"Active",notes:"",hubspot_id:c.id}]);
+                company:row.company,companyId:"",status:"Active",notes:"",
+                jobTitle:row.job_title,ewLicenceExpiry:row.ew_licence_expiry,
+                hsLeadStatus:row.hs_lead_status,hubspot_id:c.id}]);
               ctDone++;
               if(i%50===0) syncMsg(`👤 Importing contacts… ${i+1}/${hsContacts.length}`);
             }
@@ -2940,10 +3084,13 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
               const row={id,name:p.name,industry:p.industry||"",phone:p.phone||"",
                 website:p.website||"",address:p.address||"",city:p.city||"",
                 postcode:p.zip||"",country:(p.country&&p.country!=="New Zealand")?p.country:"",
+                description:p.description||"",hs_lead_status:p.hs_lead_status||"",
+                annual_revenue:p.annualrevenue||"",hs_created:p.createdate||null,
                 hubspot_id:co.id,status:"Active",notes:""};
               await upsertRow("crm_companies",row).catch(()=>{});
               setCompanies(prev=>[...prev,{id,name:p.name,industry:p.industry||"",phone:p.phone||"",
                 website:p.website||"",address:p.address||"",city:p.city||"",country:p.country||"",
+                description:p.description||"",hsLeadStatus:p.hs_lead_status||"",
                 hubspotId:co.id,notes:"",status:"Active"}]);
               coDone++;
               if(i%20===0) syncMsg(`🏢 Importing companies… ${i+1}/${hsCompanies.length}`);
@@ -2994,14 +3141,22 @@ function CRMModule({currentUser,allUsers,onSyncTick}) {
               const id=crypto.randomUUID(); hsContactIdToLocalId[c.id]=id;
               const row={id,name,email:p.email||"",phone:p.mobilephone||p.phone||"",
                 company:p.company||"",trade:p.industry||"",
+                job_title:p.jobtitle||"",description:p.description||"",
+                salutation:p.salutation||"",date_of_birth:p.date_of_birth||null,
                 address:p.address||"",city:p.city||"",
                 postcode:p.zip||"",country:(p.country&&p.country!=="New Zealand")?p.country:"",
                 site_safe_expiry:p.site_safe_expiry||p.sitesafe_expiry||null,
                 first_aid_expiry:p.first_aid_expiry||p.firstaid_expiry||null,
+                ew_licence_expiry:p.ew_licence_expiry||p.electrical_worker_licence_expiry||null,
+                hs_lead_status:p.hs_lead_status||"",
+                notes_last_contacted:p.notes_last_contacted||"",
+                hs_created:p.createdate||null,
                 status:"Active",notes:"",hubspot_id:c.id};
               await upsertRow("crm_contacts",row).catch(()=>{});
               setContacts(prev=>[...prev,{id,name,email:row.email,phone:row.phone,
-                company:row.company,companyId:"",status:"Active",notes:"",hubspot_id:c.id}]);
+                company:row.company,companyId:"",status:"Active",notes:"",
+                jobTitle:row.job_title,ewLicenceExpiry:row.ew_licence_expiry,
+                hsLeadStatus:row.hs_lead_status,hubspot_id:c.id}]);
               ctDone++;
               if(i%50===0) syncMsg(`👥 Importing contacts… ${i+1}/${hsContacts.length}`);
             }
@@ -7539,20 +7694,6 @@ function ConfidentialNotesCard({ currentUser, allUsers = [] }) {
     if(lockTimer.current) clearTimeout(lockTimer.current);
     lockTimer.current = setTimeout(()=>{ setPhase("locked"); setPin(""); }, AUTO_LOCK_MS);
   },[]);
-
-  useEffect(()=>{
-    const fetchLeave = (showLoading=false) => {
-      if(showLoading) setAdvLeaveLoading(true);
-      loadTable("leave_requests").then(rows=>{
-        setAdvLeave(rows.filter(r=>r.apprentice_id===apprentice.id)
-          .sort((a,b)=>b.created_at.localeCompare(a.created_at)));
-      }).catch(()=>{}).finally(()=>setAdvLeaveLoading(false));
-    };
-    fetchLeave(true);
-    // Poll every 30s — picks up status changes made via email approve/decline links
-    const interval = setInterval(()=>fetchLeave(false), 30000);
-    return ()=>clearInterval(interval);
-  },[apprentice.id]);
 
   useEffect(()=>{ if(phase==="unlocked") resetLockTimer(); return ()=>{ if(lockTimer.current) clearTimeout(lockTimer.current); }; },[phase,resetLockTimer]);
 
