@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.5.4
+// KTA Workforce Management — v2.5.5
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1097,7 +1097,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.5.4
+          v2.5.5
         </div>
       </div>
     </div>
@@ -6067,7 +6067,7 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
 // ─────────────────────────────────────────────────────────────────────────────
 function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, show, setShow, onReply}) {
   const unread = notifs.filter(n=>!n.read).length;
-  const typeIcon = t => t==="licence_expiry"?"⚠":t==="approval"?"✓":t==="decline"?"✕":t==="broadcast"?"📢":t==="reply"?"↩":"◈";
+  const typeIcon = t => t==="licence_expiry"?"⚠":t==="approval"?"✓":t==="decline"?"✕":t==="broadcast"?"🦇":t==="reply"?"↩":"◈";
   const typeColor = t => t==="licence_expiry"?T.warn:t==="approval"?T.accent:t==="decline"?T.red:t==="broadcast"?T.blue:t==="reply"?T.teal:T.sub;
   const [replyId, setReplyId] = useState(null);
   const [replyText, setReplyText] = useState("");
@@ -9278,7 +9278,7 @@ function BroadcastComposer({users, currentUser, onSend, onClose}) {
       display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
       <Card style={{width:"100%",maxWidth:480,padding:28}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-          <div style={{fontFamily:"'Libre Baskerville'",fontSize:18,fontWeight:700}}>📢 Send Notification</div>
+          <div style={{fontFamily:"'Libre Baskerville'",fontSize:18,fontWeight:700}}>🦇 Contact Via App</div>
           <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,
             color:T.muted,cursor:"pointer"}}>✕</button>
         </div>
@@ -9313,7 +9313,7 @@ function BroadcastComposer({users, currentUser, onSend, onClose}) {
         </div>
         <div style={{display:"flex",gap:8}}>
           <Btn onClick={send} disabled={sending||!title.trim()||!message.trim()}>
-            {sending?"Sending…":"📢 Send Notification"}
+            {sending?"Sending…":"🦇 Contact Via App"}
           </Btn>
           <Btn v="ghost" onClick={onClose}>Cancel</Btn>
         </div>
@@ -10593,7 +10593,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
       if(nt==="licence_expiry") return {label:"⚠ Licence Expiry",  color:T.warn,   bg:T.warnL};
       if(nt==="approval")       return {label:"✓ Approved",         color:T.teal,   bg:T.tealL};
       if(nt==="decline")        return {label:"✕ Declined",         color:T.red,    bg:T.redL};
-      if(nt==="broadcast")      return {label:"📢 Broadcast",       color:T.blue,   bg:T.blueL};
+      if(nt==="broadcast")      return {label:"🦇 Contact Via App",       color:T.blue,   bg:T.blueL};
       if(nt==="reply")          return {label:"↩ Reply",            color:T.teal,   bg:T.tealL};
       return {label:"🔔 Notification", color:T.sub, bg:T.slateL};
     }
@@ -11548,7 +11548,7 @@ export default function App() {
 
             <Card style={{marginBottom:16}}>
               {unreadNotifs.map((n,i)=>{
-                const typeIcons={approval:"✓",decline:"✕",licence:"⚠",broadcast:"📢",reply:"↩",info:"◈"};
+                const typeIcons={approval:"✓",decline:"✕",licence:"⚠",broadcast:"🦇",reply:"↩",info:"◈"};
                 const typeColors={approval:T.teal,decline:T.red,licence:T.warn,broadcast:T.accent,reply:T.blue,info:T.sub};
                 return (
                   <div key={n.id} style={{
@@ -11694,12 +11694,12 @@ export default function App() {
               )}
             {["Admin","Mentor"].includes(role)&&(
               <button onClick={()=>{setShowBroadcast(s=>!s);setShowNotifs(false);}}
-                title="Broadcast message"
+                title="Contact Via App"
                 style={{background:"#ffffff18",border:"1.5px solid #ffffff28",color:"#fff",
                   borderRadius:9,padding:"7px 10px",fontSize:16,cursor:"pointer",
                   display:"flex",alignItems:"center",justifyContent:"center",transition:"all .14s"}}
                 onMouseEnter={e=>{e.currentTarget.style.background="#ffffff30";}}
-                onMouseLeave={e=>{e.currentTarget.style.background="#ffffff18";}}>📢</button>
+                onMouseLeave={e=>{e.currentTarget.style.background="#ffffff18";}}>🦇</button>
             )}
             {isAdmin1&&(
               <button onClick={()=>navigateTo("xero")}
