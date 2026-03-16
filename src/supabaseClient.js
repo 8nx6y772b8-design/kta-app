@@ -180,8 +180,16 @@ export const deleteUser = async (id) => {
 // ─── Entries ──────────────────────────────────────────────────────────────────
 
 export const upsertEntry = async (entry) => {
-  const { error } = await sb.from('entries').upsert(entryToRow(entry));
-  if (error) throw error;
+  const row = {
+    ...entryToRow(entry),
+    created_at: entry.createdAt || new Date().toISOString(),
+  };
+  const { data, error } = await sb.from('entries').upsert(row, { onConflict: 'id' });
+  if (error) {
+    console.error('upsertEntry FAILED:', JSON.stringify(error), 'row:', JSON.stringify(row));
+    throw error;
+  }
+  return data;
 };
 
 export const deleteEntry = async (id) => {

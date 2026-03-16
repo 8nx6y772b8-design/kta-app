@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.6.1
+// KTA Workforce Management — v2.6.2
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1097,7 +1097,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.6.1
+          v2.6.2
         </div>
       </div>
     </div>
@@ -11432,13 +11432,13 @@ export default function App() {
           const old = prevMap[e.id];
           if(!old || stableJ(old) !== stableJ(e)) {
             upsertEntry(e).catch(err=>{
-              console.error('upsertEntry failed:', err);
-              // Make DB errors visible — entries saved in memory but not persisted
-              if(err?.message) {
-                const msg = err.message.toLowerCase();
-                if(msg.includes('rls')||msg.includes('permission')||msg.includes('policy')||msg.includes('denied')) {
-                  console.error('DATABASE PERMISSION ERROR — run migration_entries_fix.sql in Supabase SQL Editor');
-                }
+              const msg = err?.message||JSON.stringify(err)||'Unknown error';
+              console.error('upsertEntry FAILED:', msg, 'entry:', e);
+              // Show visible alert so the error is never silent
+              if(!window.__entryErrShown) {
+                window.__entryErrShown = true;
+                setTimeout(()=>{ window.__entryErrShown=false; }, 10000);
+                alert('Timesheet save failed: ' + msg + '\n\nYour entry is NOT saved to the database. Please screenshot this message and report it.');
               }
             });
           }
