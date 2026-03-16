@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.5.8
+// KTA Workforce Management — v2.5.9
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -713,7 +713,7 @@ const CSS = `
   }
   select option{background:white;}
   input:focus,select:focus,textarea:focus{border-color:${T.accent};box-shadow:0 0 0 3px ${T.accentL};}
-  input[type=date]::-webkit-calendar-picker-indicator{opacity:.4;cursor:pointer;}
+  input[type=date]{cursor:pointer;} input[type=date]::-webkit-calendar-picker-indicator{opacity:0;cursor:pointer;position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;}
   button{cursor:pointer;font-family:"DM Sans",sans-serif;border:none;transition:all .14s;}
   textarea{resize:vertical;min-height:64px;line-height:1.55;font-size:16px;}
 
@@ -1097,7 +1097,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.5.8
+          v2.5.9
         </div>
       </div>
     </div>
@@ -1125,8 +1125,11 @@ function EntryForm({onSave,onCancel,initial=null,minDate=null,maxDate=null,usedD
   return (
     <Card style={{border:`1.5px solid ${T.accent}44`}} className="fu">
       <div className="fg-entry" style={{display:"grid",gap:12,marginBottom:12}}>
-        <div><FL>Date</FL><input type="date" value={f.date} onChange={e=>sf("date",e.target.value)} min={minDate||undefined} max={maxDate||undefined}
-                style={{borderColor:dateConflict?T.red:undefined}}/>
+        <div><FL>Date</FL>
+              <div style={{position:"relative"}}>
+                <input type="date" value={f.date} onChange={e=>sf("date",e.target.value)} min={minDate||undefined} max={maxDate||undefined}
+                  style={{borderColor:dateConflict?T.red:undefined,width:"100%",boxSizing:"border-box"}}/>
+              </div>
               {dateConflict&&<div style={{fontSize:11,color:T.red,marginTop:3}}>You already have an entry for this date</div>}</div>
         <div>
           <FL>Entry Type</FL>
