@@ -126,9 +126,24 @@ export const loadUsers = async () => {
 };
 
 export const loadEntries = async () => {
-  const { data, error } = await sb.from('entries').select('*');
-  if (error) throw error;
-  return data.map(rowToEntry);
+  // Paginate to avoid Supabase's 1000-row default cap
+  // WITHOUT pagination, rows >1000 are silently dropped and updateEntries
+  // would then DELETE the missing rows from the database on next sync
+  const PAGE = 1000;
+  let all = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await sb
+      .from('entries')
+      .select('*')
+      .range(from, from + PAGE - 1)
+      .order('date', { ascending: false });
+    if (error) throw error;
+    all = all.concat(data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all.map(rowToEntry);
 };
 
 // Fetches ALL rows from a table using pagination — bypasses Supabase's

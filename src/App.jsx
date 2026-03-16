@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.5.9
+// KTA Workforce Management — v2.6.1
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1097,7 +1097,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.5.9
+          v2.6.1
         </div>
       </div>
     </div>
@@ -1379,7 +1379,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   const vids=visibleIds();
   let shown=entries.filter(e=>vids.includes(e.userId));
   if(!forcedApprenticeId && filterUid!=="all") shown=shown.filter(e=>e.userId===filterUid);
-  if(role==="Apprentice") shown=shown.filter(e=>e.date>=daysAgoStr(21)||e.approval!=="draft");
+  if(role==="Apprentice") shown=shown.filter(e=>e.date>=daysAgoStr(60)||e.approval!=="draft");
   shown=[...shown].sort((a,b)=>b.date.localeCompare(a.date));
 
   const myE=entries.filter(e=>e.userId===currentUser.id);
@@ -11443,9 +11443,9 @@ export default function App() {
             });
           }
         });
-        prev.forEach(e => {
-          if(!nextIds.has(e.id)) deleteEntry(e.id).catch(err=>console.error('deleteEntry',err));
-        });
+        // NOTE: We do NOT auto-delete entries missing from 'next' here.
+        // Entries are only deleted explicitly via handleDelete() in TimesheetModule.
+        // Auto-deleting caused data loss when loadEntries was capped at 1000 rows.
       }, 0);
       return next;
     });
