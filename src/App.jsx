@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.5.3
+// KTA Workforce Management — v2.5.4
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1097,7 +1097,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.5.3
+          v2.5.4
         </div>
       </div>
     </div>
@@ -10584,11 +10584,20 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
 
   const activityMeta = (item) => {
     const t = item.activity_type||item.subject||"";
-    if(t==="Phone Call")       return {label:"📞 Phone Call",       color:T.teal,   bg:T.tealL};
-    if(t==="Email")            return {label:"✉ Email",            color:T.accent, bg:T.accentL};
-    if(t==="Text Message")     return {label:"💬 Text Message",     color:T.blue,   bg:T.blueL};
+    const nt = item.notif_type||"";
+    if(t==="Phone Call")        return {label:"📞 Phone Call",      color:T.teal,   bg:T.tealL};
+    if(t==="Email")             return {label:"✉ Email",           color:T.accent, bg:T.accentL};
+    if(t==="Text Message")      return {label:"💬 Text Message",    color:T.blue,   bg:T.blueL};
     if(t==="In Person Meeting") return {label:"🤝 In Person",      color:T.hol,    bg:T.holL};
-    if(t==="Other")            return {label:"📝 Note",            color:T.gold,   bg:T.goldL};
+    if(t==="Notification") {
+      if(nt==="licence_expiry") return {label:"⚠ Licence Expiry",  color:T.warn,   bg:T.warnL};
+      if(nt==="approval")       return {label:"✓ Approved",         color:T.teal,   bg:T.tealL};
+      if(nt==="decline")        return {label:"✕ Declined",         color:T.red,    bg:T.redL};
+      if(nt==="broadcast")      return {label:"📢 Broadcast",       color:T.blue,   bg:T.blueL};
+      if(nt==="reply")          return {label:"↩ Reply",            color:T.teal,   bg:T.tealL};
+      return {label:"🔔 Notification", color:T.sub, bg:T.slateL};
+    }
+    if(t==="Other")             return {label:"📝 Note",            color:T.gold,   bg:T.goldL};
     // fallback to direction-based
     return ({
       inbound:  {label:"↓ Received", color:T.teal,  bg:T.tealL},
@@ -11350,6 +11359,13 @@ export default function App() {
               : `${app.name}'s ${app.trade||"trade"} licence expires in ${daysUntil} day${daysUntil!==1?"s":""} (${app.licenceExpiry}).`;
             const notif = { id:uid(), user_id:recipId, type:"licence_expiry", title, message, read:false, created_by:null, meta:{ apprenticeId:app.id, daysUntil:threshold, expiry:app.licenceExpiry } };
             await insertNotification(notif).catch(console.error);
+            // Permanent activity record on the apprentice
+            upsertRow("activity_notes", {
+              id: uid(), person_id: app.id, person_email: app.email||null,
+              person_name: app.name||null, type:"note", activity_type:"Notification",
+              subject: title, body: message, direction:"note",
+              created_at: new Date().toISOString(), is_locked:false, notif_type:"licence_expiry",
+            }).catch(console.error);
             if(recipId===sessionId) {
               setNotifications(prev=>[notif,...prev]);
               sendBrowserPush(title, message, "licence");
@@ -11429,12 +11445,31 @@ export default function App() {
     for(const uid_ of [...new Set(userIds)]) {
       const notif = { id:uid(), user_id:uid_, type, title, message, read:false, created_by:createdBy, meta };
       await insertNotification(notif).catch(console.error);
+      // Also write to activity_notes for permanent record on the recipient's profile
+      const recipient = users.find(u=>u.id===uid_);
+      if(recipient) {
+        const activityNote = {
+          id: uid(),
+          person_id:    uid_,
+          person_email: recipient.email||null,
+          person_name:  recipient.name||null,
+          type:         "note",
+          activity_type: "Notification",
+          subject:      title,
+          body:         message,
+          direction:    "note",
+          created_at:   new Date().toISOString(),
+          is_locked:    false,
+          notif_type:   type,
+        };
+        upsertRow("activity_notes", activityNote).catch(console.error);
+      }
       if(uid_===sessionId) {
         setNotifications(prev=>[notif,...prev]);
         sendBrowserPush(title, message, type);
       }
     }
-  }, [sessionId]);
+  }, [sessionId, users]);
 
   const currentUser = users.find(u=>u.id===sessionId);
   const role = currentUser?.role;
@@ -11631,7 +11666,7 @@ export default function App() {
               setShow={(v)=>{setShowNotifs(v);if(v)setShowBroadcast(false);}}
               onRead={id=>{ markNotifRead(id).catch(console.error); setNotifications(prev=>prev.map(n=>n.id===id?{...n,read:true}:n)); }}
               onReadAll={()=>{ markAllNotifsRead(sessionId).catch(console.error); setNotifications(prev=>prev.map(n=>({...n,read:true}))); }}
-              canDelete={isAdmin1||role!=="Admin"}
+              canDelete={isAdmin1}
               onDelete={id=>{ deleteNotif(id).catch(console.error); setNotifications(prev=>prev.filter(n=>n.id!==id)); }}
               onReply={async(origNotif, text)=>{
                 const senderId = origNotif.created_by;
