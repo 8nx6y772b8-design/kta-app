@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.5.5
+// KTA Workforce Management — v2.5.8
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1097,7 +1097,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.5.5
+          v2.5.8
         </div>
       </div>
     </div>
@@ -6065,9 +6065,17 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
 // ─────────────────────────────────────────────────────────────────────────────
 // NOTIFICATION BELL
 // ─────────────────────────────────────────────────────────────────────────────
+const BatSignal = ({size=18}) => (
+  <svg width={size} height={Math.round(size*0.64)} viewBox="0 0 110 70" style={{display:"inline-block",verticalAlign:"middle",flexShrink:0}}>
+    <ellipse cx="55" cy="35" rx="53" ry="32" fill="#000" stroke="#f5c500" strokeWidth="4"/>
+    <path d="M55 12 C51 14 46 18 42 22 C36 17 27 15 18 18 C23 22 24 27 22 31 C17 28 11 29 8 33 C12 34 17 33 19 36 C17 41 18 47 21 50 C25 47 29 44 34 45 C37 49 39 54 42 56 C44 52 44 47 47 46 C49 50 49 54 51 56 C53 52 54 48 55 45 C56 48 57 52 59 56 C61 54 61 50 63 46 C66 47 66 52 68 56 C71 54 73 49 76 45 C81 44 85 47 89 50 C92 47 93 41 91 36 C93 33 98 34 102 33 C99 29 93 28 88 31 C86 27 87 22 92 18 C83 15 74 17 68 22 C64 18 59 14 55 12Z" fill="#f5c500"/>
+    <ellipse cx="55" cy="36" rx="8" ry="7" fill="#000"/>
+  </svg>
+);
+
 function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, show, setShow, onReply}) {
   const unread = notifs.filter(n=>!n.read).length;
-  const typeIcon = t => t==="licence_expiry"?"⚠":t==="approval"?"✓":t==="decline"?"✕":t==="broadcast"?"🦇":t==="reply"?"↩":"◈";
+  const typeIcon = t => t==="licence_expiry"?"⚠":t==="approval"?"✓":t==="decline"?"✕":t==="broadcast"?<BatSignal size={15}/>:t==="reply"?"↩":"◈";
   const typeColor = t => t==="licence_expiry"?T.warn:t==="approval"?T.accent:t==="decline"?T.red:t==="broadcast"?T.blue:t==="reply"?T.teal:T.sub;
   const [replyId, setReplyId] = useState(null);
   const [replyText, setReplyText] = useState("");
@@ -9278,7 +9286,7 @@ function BroadcastComposer({users, currentUser, onSend, onClose}) {
       display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
       <Card style={{width:"100%",maxWidth:480,padding:28}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-          <div style={{fontFamily:"'Libre Baskerville'",fontSize:18,fontWeight:700}}>🦇 Contact Via App</div>
+          <div style={{fontFamily:"'Libre Baskerville'",fontSize:18,fontWeight:700}}><span style={{display:"flex",alignItems:"center",gap:8}}><BatSignal size={22}/> Contact Via App</span></div>
           <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,
             color:T.muted,cursor:"pointer"}}>✕</button>
         </div>
@@ -9313,7 +9321,7 @@ function BroadcastComposer({users, currentUser, onSend, onClose}) {
         </div>
         <div style={{display:"flex",gap:8}}>
           <Btn onClick={send} disabled={sending||!title.trim()||!message.trim()}>
-            {sending?"Sending…":"🦇 Contact Via App"}
+            {sending?"Sending…":<><BatSignal size={14} color="#fff"/> Contact Via App</>}
           </Btn>
           <Btn v="ghost" onClick={onClose}>Cancel</Btn>
         </div>
@@ -10593,7 +10601,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
       if(nt==="licence_expiry") return {label:"⚠ Licence Expiry",  color:T.warn,   bg:T.warnL};
       if(nt==="approval")       return {label:"✓ Approved",         color:T.teal,   bg:T.tealL};
       if(nt==="decline")        return {label:"✕ Declined",         color:T.red,    bg:T.redL};
-      if(nt==="broadcast")      return {label:"🦇 Contact Via App",       color:T.blue,   bg:T.blueL};
+      if(nt==="broadcast")      return {label:"Contact Via App",       color:T.blue,   bg:T.blueL};
       if(nt==="reply")          return {label:"↩ Reply",            color:T.teal,   bg:T.tealL};
       return {label:"🔔 Notification", color:T.sub, bg:T.slateL};
     }
@@ -11548,7 +11556,7 @@ export default function App() {
 
             <Card style={{marginBottom:16}}>
               {unreadNotifs.map((n,i)=>{
-                const typeIcons={approval:"✓",decline:"✕",licence:"⚠",broadcast:"🦇",reply:"↩",info:"◈"};
+                const typeIcons={approval:"✓",decline:"✕",licence:"⚠",broadcast:null,reply:"↩",info:"◈"};
                 const typeColors={approval:T.teal,decline:T.red,licence:T.warn,broadcast:T.accent,reply:T.blue,info:T.sub};
                 return (
                   <div key={n.id} style={{
@@ -11557,7 +11565,7 @@ export default function App() {
                     background:T.warnL+"44",borderRadius:i===0?`10px 10px 0 0`:i===unreadNotifs.length-1?"0 0 10px 10px":"0"
                   }}>
                     <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-                      <span style={{fontSize:16,color:typeColors[n.type]||T.sub,flexShrink:0,marginTop:1}}>{typeIcons[n.type]||"◈"}</span>
+                      <span style={{fontSize:16,color:typeColors[n.type]||T.sub,flexShrink:0,marginTop:1,display:"flex",alignItems:"center"}}>{n.type==="broadcast"?<BatSignal size={15}/>:(typeIcons[n.type]||"◈")}</span>
                       <div style={{flex:1}}>
                         <div style={{fontWeight:700,fontSize:13,marginBottom:2}}>{n.title}</div>
                         <div style={{fontSize:12,color:T.sub,lineHeight:1.5}}>{n.message}</div>
@@ -11699,7 +11707,7 @@ export default function App() {
                   borderRadius:9,padding:"7px 10px",fontSize:16,cursor:"pointer",
                   display:"flex",alignItems:"center",justifyContent:"center",transition:"all .14s"}}
                 onMouseEnter={e=>{e.currentTarget.style.background="#ffffff30";}}
-                onMouseLeave={e=>{e.currentTarget.style.background="#ffffff18";}}>🦇</button>
+                onMouseLeave={e=>{e.currentTarget.style.background="#ffffff18";}}><BatSignal size={18}/></button>
             )}
             {isAdmin1&&(
               <button onClick={()=>navigateTo("xero")}
