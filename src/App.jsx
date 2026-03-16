@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.5.2
+// KTA Workforce Management — v2.5.3
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1097,7 +1097,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.5.2
+          v2.5.3
         </div>
       </div>
     </div>
@@ -10665,32 +10665,27 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
             addingNote ? (
               <Btn sm onClick={()=>{setAddingNote(false);setNoteText("");setActivityType("");}} v="ghost">✕ Cancel</Btn>
             ) : (
-              <div style={{position:"relative",display:"inline-block"}} className="log-activity-wrap">
-                <div style={{display:"flex",borderRadius:8,overflow:"hidden",border:`1.5px solid ${T.accent}`}}>
-                  <Btn sm onClick={()=>{setActivityType("Note");setAddingNote(true);}} style={{borderRadius:0,border:"none",borderRight:`1px solid ${T.accent}44`}}>+ Log Activity</Btn>
-                  <button
-                    onClick={e=>{
-                      const d=e.currentTarget.nextSibling;
-                      d.style.display=d.style.display==="block"?"none":"block";
-                      const close=()=>{d.style.display="none";document.removeEventListener("click",close);};
-                      setTimeout(()=>document.addEventListener("click",close),0);
-                    }}
-                    style={{background:T.accent,color:"#fff",border:"none",padding:"0 8px",cursor:"pointer",fontSize:12,fontFamily:"DM Sans,sans-serif"}}>▾</button>
-                  <div style={{display:"none",position:"absolute",top:"calc(100% + 4px)",right:0,
-                    background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,
-                    boxShadow:"0 4px 20px rgba(0,0,0,.12)",zIndex:200,minWidth:180,overflow:"hidden"}}>
-                    {[["📞","Phone Call"],["✉","Email"],["💬","Text Message"],["🤝","In Person Meeting"],["📝","Other"]].map(([icon,label])=>(
-                      <button key={label}
-                        onClick={()=>{setActivityType(label);setAddingNote(true);}}
-                        style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"9px 14px",
-                          background:"none",border:"none",cursor:"pointer",fontSize:13,
-                          color:T.ink,fontFamily:"DM Sans,sans-serif",textAlign:"left"}}
-                        onMouseEnter={e=>e.currentTarget.style.background=T.accentL}
-                        onMouseLeave={e=>e.currentTarget.style.background="none"}>
-                        <span style={{fontSize:15}}>{icon}</span>{label}
-                      </button>
-                    ))}
-                  </div>
+              <div style={{position:"relative",display:"inline-block"}}>
+                <Btn sm onClick={e=>{
+                  const d=e.currentTarget.nextSibling;
+                  d.style.display=d.style.display==="block"?"none":"block";
+                  const close=()=>{d.style.display="none";document.removeEventListener("click",close);};
+                  setTimeout(()=>document.addEventListener("click",close),0);
+                }}>+ Log Activity ▾</Btn>
+                <div style={{display:"none",position:"absolute",top:"calc(100% + 4px)",right:0,
+                  background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,
+                  boxShadow:"0 4px 20px rgba(0,0,0,.12)",zIndex:200,minWidth:190,overflow:"hidden"}}>
+                  {[["📞","Phone Call"],["✉","Email"],["💬","Text Message"],["🤝","In Person Meeting"],["📝","Other"]].map(([icon,label])=>(
+                    <button key={label}
+                      onClick={()=>{setActivityType(label);setAddingNote(true);}}
+                      style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"9px 14px",
+                        background:"none",border:"none",cursor:"pointer",fontSize:13,
+                        color:T.ink,fontFamily:"DM Sans,sans-serif",textAlign:"left"}}
+                      onMouseEnter={e=>e.currentTarget.style.background=T.accentL}
+                      onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                      <span style={{fontSize:15}}>{icon}</span>{label}
+                    </button>
+                  ))}
                 </div>
               </div>
             )
