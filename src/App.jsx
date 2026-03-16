@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.5.1
+// KTA Workforce Management — v2.5.2
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1097,7 +1097,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.5.1
+          v2.5.2
         </div>
       </div>
     </div>
@@ -10448,6 +10448,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
   const [expanded, setExpanded]         = useState({});
   const [noteText, setNoteText]         = useState("");
   const [addingNote, setAddingNote]     = useState(false);
+  const [activityType, setActivityType] = useState(""); // set when dropdown item clicked
   const [savingNote, setSavingNote]     = useState(false);
   const [pinPrompt, setPinPrompt]       = useState(null);  // null | "lock" | noteId (unlock)
   const [pendingNote, setPendingNote]   = useState(null);  // note object waiting for PIN confirm
@@ -10482,7 +10483,9 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
     if(!noteText.trim()) return;
     const note = {
       id: uid(), person_email: personEmail||null, person_id: personId||null,
-      person_name: personName||null, type:"note", subject:"Note",
+      person_name: personName||null, type:"note",
+      subject: activityType||"Note",
+      activity_type: activityType||"Note",
       body: noteText.trim(), direction:"note",
       created_at: new Date().toISOString(),
       is_locked: false,
@@ -10497,7 +10500,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
     try {
       await upsertRow('activity_notes', note);
       setNotes(prev=>[note,...prev]);
-      setNoteText(""); setAddingNote(false);
+      setNoteText(""); setAddingNote(false); setActivityType("");
     } catch(e) { alert("Failed to save: "+e.message); }
     setSavingNote(false);
   };
@@ -10507,7 +10510,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
     try {
       await upsertRow('activity_notes', note);
       setNotes(prev=>[note,...prev]);
-      setNoteText(""); setAddingNote(false);
+      setNoteText(""); setAddingNote(false); setActivityType("");
       if(note.is_locked) setUnlockedIds(prev=>new Set([...prev, note.id]));
     } catch(e) { alert("Failed to save: "+e.message); }
     setSavingNote(false);
@@ -10579,6 +10582,21 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
     }catch{ return iso; }
   };
 
+  const activityMeta = (item) => {
+    const t = item.activity_type||item.subject||"";
+    if(t==="Phone Call")       return {label:"📞 Phone Call",       color:T.teal,   bg:T.tealL};
+    if(t==="Email")            return {label:"✉ Email",            color:T.accent, bg:T.accentL};
+    if(t==="Text Message")     return {label:"💬 Text Message",     color:T.blue,   bg:T.blueL};
+    if(t==="In Person Meeting") return {label:"🤝 In Person",      color:T.hol,    bg:T.holL};
+    if(t==="Other")            return {label:"📝 Note",            color:T.gold,   bg:T.goldL};
+    // fallback to direction-based
+    return ({
+      inbound:  {label:"↓ Received", color:T.teal,  bg:T.tealL},
+      outbound: {label:"↑ Sent",     color:T.accent, bg:T.accentL},
+      note:     {label:"📝 Note",    color:T.gold,   bg:T.goldL},
+      report:   {label:"📋 Report",  color:T.blue,   bg:T.blueL},
+    })[item.direction||"note"]||{label:"◈ Activity", color:T.sub, bg:T.bg};
+  };
   const dirMeta = (dir) => ({
     inbound:  {label:"↓ Received", color:T.teal,  bg:T.tealL},
     outbound: {label:"↑ Sent",     color:T.accent, bg:T.accentL},
@@ -10644,9 +10662,38 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
         </div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
           {canEdit&&(
-            <Btn sm onClick={()=>setAddingNote(s=>!s)} v={addingNote?"ghost":"primary"}>
-              {addingNote?"✕ Cancel":"+ Log Activity"}
-            </Btn>
+            addingNote ? (
+              <Btn sm onClick={()=>{setAddingNote(false);setNoteText("");setActivityType("");}} v="ghost">✕ Cancel</Btn>
+            ) : (
+              <div style={{position:"relative",display:"inline-block"}} className="log-activity-wrap">
+                <div style={{display:"flex",borderRadius:8,overflow:"hidden",border:`1.5px solid ${T.accent}`}}>
+                  <Btn sm onClick={()=>{setActivityType("Note");setAddingNote(true);}} style={{borderRadius:0,border:"none",borderRight:`1px solid ${T.accent}44`}}>+ Log Activity</Btn>
+                  <button
+                    onClick={e=>{
+                      const d=e.currentTarget.nextSibling;
+                      d.style.display=d.style.display==="block"?"none":"block";
+                      const close=()=>{d.style.display="none";document.removeEventListener("click",close);};
+                      setTimeout(()=>document.addEventListener("click",close),0);
+                    }}
+                    style={{background:T.accent,color:"#fff",border:"none",padding:"0 8px",cursor:"pointer",fontSize:12,fontFamily:"DM Sans,sans-serif"}}>▾</button>
+                  <div style={{display:"none",position:"absolute",top:"calc(100% + 4px)",right:0,
+                    background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,
+                    boxShadow:"0 4px 20px rgba(0,0,0,.12)",zIndex:200,minWidth:180,overflow:"hidden"}}>
+                    {[["📞","Phone Call"],["✉","Email"],["💬","Text Message"],["🤝","In Person Meeting"],["📝","Other"]].map(([icon,label])=>(
+                      <button key={label}
+                        onClick={()=>{setActivityType(label);setAddingNote(true);}}
+                        style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"9px 14px",
+                          background:"none",border:"none",cursor:"pointer",fontSize:13,
+                          color:T.ink,fontFamily:"DM Sans,sans-serif",textAlign:"left"}}
+                        onMouseEnter={e=>e.currentTarget.style.background=T.accentL}
+                        onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                        <span style={{fontSize:15}}>{icon}</span>{label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )
           )}
           {proxyOk&&personEmail&&(
             <Btn sm v="ghost" onClick={loadEmails} disabled={loadingEmails}>
@@ -10661,7 +10708,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
         <div style={{background:T.goldL,border:`1.5px solid ${T.gold}44`,borderRadius:10,
           padding:14,marginBottom:14}}>
           <div style={{fontWeight:600,fontSize:13,marginBottom:8,color:T.gold}}>
-            📝 Log Activity Note
+            {activityType==="Phone Call"?"📞":activityType==="Email"?"✉":activityType==="Text Message"?"💬":activityType==="In Person Meeting"?"🤝":"📝"} Log {activityType||"Activity Note"}
           </div>
           <NoteTextarea
             value={noteText}
@@ -10672,7 +10719,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
             <Btn sm onClick={saveNote} disabled={savingNote||!noteText.trim()}>
               {savingNote?"Saving…":"💾 Save Note"}
             </Btn>
-            <Btn sm v="ghost" onClick={()=>{setAddingNote(false);setNoteText("");}}>Cancel</Btn>
+            <Btn sm v="ghost" onClick={()=>{setAddingNote(false);setNoteText("");setActivityType("");}}>Cancel</Btn>
           </div>
         </div>
       )}
@@ -10781,7 +10828,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                   </div>
                 );
               }
-              const dm = dirMeta(item.direction);
+              const dm = item._src==="note" ? activityMeta(item) : dirMeta(item.direction);
               return (
                 <div key={item.id} style={{display:"flex",gap:12,marginBottom:10}}>
                   <div style={{width:2,background:dm.bg,borderRadius:2,flexShrink:0,marginTop:4,marginBottom:4}}/>
