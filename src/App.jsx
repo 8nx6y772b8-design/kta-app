@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.3.1
+// KTA Workforce Management — v2.5.1
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -19,10 +19,27 @@
 //   v1.6.0 — Xero settings moved from localStorage to Supabase; edge fn uses refresh_token
 //   v1.6.1 — persist xeroStatus to Supabase on submit (was in-memory only)
 //   v1.6.2 — Xero OAuth connect button; refresh token stored in Supabase app_settings
-//   v1.6.1 — Xero import checks for email match; merges into existing user instead of duplicating
+//   v1.6.3 — Xero import checks for email match; merges into existing user instead of duplicating
+//   v2.3.2 — fix ConfidentialNotesCard missing component (Kristeena white screen on login)
+//   v2.3.3 — CRM search bars for contacts and companies (filter by name, email, phone, city)
+//   v2.3.4 — Supabase row limit raised to 10,000 (was silently capped at 1,000)
+//   v2.3.5 — email sender changed from timesheet@kta.org.nz to payroll@kta.org.nz
+//   v2.3.6 — HubSpot Activity sync: import notes, calls, meetings, emails and tasks
+//   v2.3.7 — HubSpot company/contact sync now incremental (skips existing, never deletes)
+//   v2.4.0 — version display added to login screen; changelog updated
+//   v2.5.0 — HubSpot activity import (notes/calls/meetings/emails/tasks)
+//   v2.5.1 — version number bump to confirm cache-busting deploy
+//             emergency contact fields added to contacts + apprentice profile
+//             compliance numbers (licence, site safe, first aid) added to CRM
+//             HubSpot property name fallbacks for licence/expiry fields
+//             contact-to-user conversion toggle (Admin L1, role + apprentice alloc)
+//             host business yes/no slider on company detail page
+//             activity note delete restricted to Admin L1
+//             CRM contact/company search bars
+//             supabase row limit removed (paginated fetch, unlimited rows)
 import { useState, useEffect, useCallback, useRef } from "react";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, deleteAllRows, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
-// Email via Microsoft Graph (timesheet@kta.org.nz)
+// Email via Microsoft Graph (payroll@kta.org.nz)
 
 const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/email-proxy";
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
@@ -199,7 +216,7 @@ const makeIcalAttachment = (apprenticeName, leaveType, dateFrom, dateTo, attende
     "STATUS:CONFIRMED",
     "TRANSP:TRANSPARENT",
     `ATTENDEE;CN=${attendeeName};ROLE=REQ-PARTICIPANT:mailto:${attendeeEmail}`,
-    "ORGANIZER;CN=KTA Workforce:mailto:timesheet@kta.org.nz",
+    "ORGANIZER;CN=KTA Workforce:mailto:payroll@kta.org.nz",
     "END:VEVENT",
     "END:VCALENDAR",
   ].join("\r\n");
@@ -295,7 +312,7 @@ const generateReportPDF = (report, apprentice, mentor) => {
   S.push(`${margin - 10} ${H - 70} ${W - 80} 50 re f`);
   S.push("1 1 1 rg");
   S.push(`BT /F1 14 Tf ${margin} ${H - 45} Td (${esc("Apprentice Check In Report")}) Tj ET`);
-  S.push(`BT /F2 8 Tf 1 1 1 rg ${margin} ${H - 58} Td (${esc("Kiwi Trade Apprentices  -  kta.org.nz  -  timesheet@kta.org.nz")}) Tj ET`);
+  S.push(`BT /F2 8 Tf 1 1 1 rg ${margin} ${H - 58} Td (${esc("Kiwi Trade Apprentices  -  kta.org.nz  -  payroll@kta.org.nz")}) Tj ET`);
 
   y = H - 90;
 
@@ -340,7 +357,7 @@ const generateReportPDF = (report, apprentice, mentor) => {
 
   // Footer
   S.push(`0.106 0.310 0.549 rg 0 0 ${W} 24 re f`);
-  S.push(`1 1 1 rg BT /F2 7 Tf ${margin} 9 Td (${esc("KTA Workforce Management  ·  timesheet@kta.org.nz")}) Tj ET`);
+  S.push(`1 1 1 rg BT /F2 7 Tf ${margin} 9 Td (${esc("KTA Workforce Management  ·  payroll@kta.org.nz")}) Tj ET`);
   const dateStr = new Date().toLocaleDateString("en-NZ");
   S.push(`1 1 1 rg BT /F2 7 Tf ${W - margin - 55} 9 Td (${esc("Generated " + dateStr)}) Tj ET`);
 
@@ -552,6 +569,13 @@ const timesheetActionUrl = async (entryId, action, approverId) => {
   return `${TIMESHEET_ACTION_URL}?token=${token}`;
 };
 
+// Generate a token that approves/declines ALL entries in one click
+const timesheetAllUrl = async (entryIds, action, approverId) => {
+  const exp = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  const token = await signTimesheetToken({ entryIds, action, approverId, exp });
+  return `${TIMESHEET_ACTION_URL}?token=${token}`;
+};
+
 const notifyApprovers = async (apprentice, approvers, entries) => {
   if(!approvers.length) return;
   // Compute hours summary
@@ -591,6 +615,11 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
 </tr>`;
       }));
 
+      // Generate approve-all and decline-all URLs covering every entry
+      const allEntryIds   = entries.map(e=>e.id);
+      const approveAllUrl = await timesheetAllUrl(allEntryIds, "approve", approver.id);
+      const declineAllUrl = await timesheetAllUrl(allEntryIds, "decline", approver.id);
+
       await sendKTAEmail({
         to: approver.email,
         subject: `Timesheet submitted — ${apprentice.name} (${fmtH(totalHrs)})`,
@@ -604,6 +633,11 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
     <p style="font-size:15px;color:#0d1b2e;margin-top:0">Hi ${approver.name},</p>
     <p style="font-size:14px;color:#4a5a72"><strong>${apprentice.name}</strong> has submitted ${entries.length} timesheet entr${entries.length===1?"y":"ies"} for your approval.</p>
     ${summaryBox}
+    <div style="background:#e8f5f3;border:1.5px solid #1a8a7a;border-radius:10px;padding:16px 20px;margin:0 0 20px;text-align:center">
+      <div style="font-size:13px;color:#4a5a72;margin-bottom:12px">Approve or decline all ${entries.length} ${entries.length===1?"entry":"entries"} at once:</div>
+      <a href="${approveAllUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:8px;padding:12px 32px;font-size:15px;font-weight:700;text-decoration:none;margin-right:8px">✓ Approve Week</a>
+      <a href="${declineAllUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:8px;padding:12px 32px;font-size:15px;font-weight:700;text-decoration:none">✕ Decline Week</a>
+    </div>
     <table style="width:100%;border-collapse:collapse;margin:0 0 16px">
       <thead>
         <tr style="background:#f0f4f9">
@@ -620,7 +654,7 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
     <p style="font-size:12px;color:#8fa0b8">✓ = Approve that day &nbsp;|&nbsp; ✕ = Decline that day &nbsp;|&nbsp; Links expire in 7 days. No login required.</p>
     <p style="margin-top:16px"><a href="https://crmkta.com" style="display:inline-block;background:#1b4f8c;color:#fff;border-radius:8px;padding:10px 22px;font-size:13px;font-weight:600;text-decoration:none">Open KTA System →</a></p>
     <hr style="border:none;border-top:1px solid #d0daea;margin:20px 0">
-    <p style="font-size:11px;color:#8fa0b8">KTA Workforce Management · timesheet@kta.org.nz</p>
+    <p style="font-size:11px;color:#8fa0b8">KTA Workforce Management · payroll@kta.org.nz</p>
   </div>
 </div>`,
       });
@@ -649,7 +683,7 @@ const notifyApprentice = async (apprentice, approver, entries, approved) => {
 <p><strong style="color:${statusColor}">${statusText}</strong></p>
 <p>${message}</p>
 <ul>${entryList}</ul>
-<p style="color:#888;font-size:12px">KTA Workforce Management · timesheet@kta.org.nz</p>`,
+<p style="color:#888;font-size:12px">KTA Workforce Management · payroll@kta.org.nz</p>`,
     });
   } catch(err) {
     console.error("notifyApprentice error:", err);
@@ -906,7 +940,7 @@ function LoginScreen({users, onLogin}) {
 <p>A password reset was requested for your KTA account.</p>
 <p>Please contact your administrator to have your password reset.</p>
 <p>If you did not request this, please ignore this email.</p>
-<p style="color:#888;font-size:12px">KTA Workforce Management · timesheet@kta.org.nz</p>`,
+<p style="color:#888;font-size:12px">KTA Workforce Management · payroll@kta.org.nz</p>`,
       });
       setForgotMsg({ok:true,text:"Reset instructions have been sent to your email."});
     } catch(e) {
@@ -1062,8 +1096,8 @@ function LoginScreen({users, onLogin}) {
           )}
         </div>
         {/* Version */}
-        <div style={{marginTop:24,textAlign:"center",fontSize:11,color:T.muted,fontFamily:"DM Sans,sans-serif"}}>
-          v2.3.1
+        <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
+          v2.5.1
         </div>
       </div>
     </div>
@@ -1235,6 +1269,44 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
 // ─────────────────────────────────────────────────────────────────────────────
 // TIMESHEET MODULE
 // ─────────────────────────────────────────────────────────────────────────────
+function WeekCard2({title, weekEntries, accent, canEdit, canDelete, handleEdit, handleDelete}) {
+  const fmtD2 = (iso) => { const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
+  const sColor = (s) => s==="approved"?T.teal:s==="submitted"?T.warn:s==="declined"?T.red:T.muted;
+  const sLabel = (s) => s==="approved"?"✓ Approved":s==="submitted"?"⏳ Pending":s==="declined"?"✕ Declined":"Draft";
+  return (
+    <Card style={{marginBottom:14,border:`1.5px solid ${accent}33`}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+        <div>
+          <div style={{fontWeight:700,fontSize:15,color:T.ink}}>{title}</div>
+          <div style={{fontSize:12,color:T.sub,marginTop:1}}>
+            {weekEntries.length===0?"No entries":`${weekEntries.length} entr${weekEntries.length===1?"y":"ies"} · ${weekEntries.reduce((a,e)=>a+e.netHours,0).toFixed(1)}h total`}
+          </div>
+        </div>
+        {weekEntries.length>0&&<div style={{fontSize:20,fontWeight:700,color:accent}}>{weekEntries.reduce((a,e)=>a+e.netHours,0).toFixed(1)}h</div>}
+      </div>
+      {weekEntries.length===0
+        ? <div style={{fontSize:13,color:T.muted,fontStyle:"italic",padding:"4px 0"}}>No entries for this week yet.</div>
+        : <div style={{display:"flex",flexDirection:"column",gap:0}}>
+            {[...weekEntries].sort((a,b)=>b.date.localeCompare(a.date)).map((e,i)=>(
+              <div key={e.id} style={{display:"grid",gridTemplateColumns:"86px 1fr auto auto",alignItems:"center",gap:8,padding:"8px 2px",borderBottom:i<weekEntries.length-1?`1px solid ${T.border}44`:"none"}}>
+                <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{fmtD2(e.date)}</div>
+                <div style={{minWidth:0}}>
+                  <div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.type}{e.note?` · ${e.note}`:""}</div>
+                  <div style={{fontSize:11,color:T.muted}}>{e.start&&e.end?`${e.start}–${e.end}`:""}</div>
+                </div>
+                <div style={{fontSize:13,fontWeight:700,color:accent,whiteSpace:"nowrap"}}>{e.netHours.toFixed(1)}h</div>
+                <div style={{display:"flex",alignItems:"center",gap:4}}>
+                  <span style={{fontSize:11,fontWeight:700,color:sColor(e.approval),whiteSpace:"nowrap"}}>{sLabel(e.approval)}</span>
+                  {canEdit&&canEdit(e)&&<button onClick={()=>handleEdit(e)} style={{width:22,height:22,borderRadius:5,fontSize:11,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={ev=>{ev.currentTarget.style.background=T.blueL;ev.currentTarget.style.color=T.blue;}} onMouseLeave={ev=>{ev.currentTarget.style.background="transparent";ev.currentTarget.style.color=T.muted;}}>✎</button>}
+                  {canDelete&&canDelete(e)&&<button onClick={()=>handleDelete(e.id)} style={{width:22,height:22,borderRadius:5,fontSize:11,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={ev=>{ev.currentTarget.style.background=T.redL;ev.currentTarget.style.color=T.red;}} onMouseLeave={ev=>{ev.currentTarget.style.background="transparent";ev.currentTarget.style.color=T.muted;}}>✕</button>}
+                </div>
+              </div>
+            ))}
+          </div>}
+    </Card>
+  );
+}
+
 function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenticeId=null}) {
   const [showForm,setShowForm] = useState(false);
   const [editEntry,setEditEntry] = useState(null);
@@ -1530,16 +1602,19 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
         </div>
       )}
       {/* ── Approver view: grouped by apprentice with per-day + approve-week actions ── */}
-      {(role==="Approver"||(role==="Admin"&&currentUser.secondaryRole==="Approver")) ? (()=>{
-        const myApprentices = allUsers.filter(u=>
-          u.role==="Apprentice" && (
-            (currentUser.allocatedTo||[]).includes(u.id) ||
-            u.approverUserId===currentUser.id
-          )
-        );
-        if(myApprentices.length===0) return (
-          <Card><div style={{padding:32,textAlign:"center",color:T.muted}}>No apprentices allocated to you yet.</div></Card>
-        );
+      {/* ── Entry list — split by role ── */}
+      {(()=>{
+        const isApprover = role==="Approver"||(role==="Admin"&&currentUser.secondaryRole==="Approver");
+        if(isApprover) {
+          const myApprentices = allUsers.filter(u=>
+            u.role==="Apprentice"&&(
+              (currentUser.allocatedTo||[]).includes(u.id)||
+              u.approverUserId===currentUser.id
+            )
+          );
+          if(!myApprentices.length) return (
+            <Card><div style={{padding:32,textAlign:"center",color:T.muted}}>No apprentices allocated to you yet.</div></Card>
+          );
 
         // Week-ending Sunday, UTC-safe
         const getWeekEnding = (dateStr) => {
@@ -1684,85 +1759,116 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
             </Card>
           );
         });
-      })() : (<>
-        <Card style={{padding:0,overflow:"hidden"}}>
-          <div style={{display:"grid",gridTemplateColumns:tcols,padding:"10px 16px",
-            background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-            fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
-            <span>Date</span>{showUserCol&&<span>Person</span>}<span>Note</span><span>Type</span>
-            <span style={{textAlign:"center"}}>Hours</span><span style={{textAlign:"center"}}>Break</span>
-            <span style={{textAlign:"center"}}>Time</span><span>Status</span>
-            <span style={{textAlign:"right"}}>Actions</span>
-          </div>
-          {shown.length===0&&(
-            <div style={{padding:"48px 24px",textAlign:"center",color:T.muted}}>
-              <div style={{fontSize:32,marginBottom:8}}>◈</div>
-              <div style={{fontWeight:600}}>No entries to display</div>
-              <div style={{fontSize:12,marginTop:4}}>{canAdd?"Use the button above to log your first entry.":"No entries in your scope yet."}</div>
+        }
+
+        if(role==="Apprentice") {
+          const today = tod();
+          const getMonday = (ds) => { const d=new Date(ds+"T00:00:00"); d.setDate(d.getDate()-((d.getDay()+6)%7)); return d.toISOString().slice(0,10); };
+          const thisMon = getMonday(today);
+          const d1=new Date(thisMon+"T00:00:00"); d1.setDate(d1.getDate()-7); const lastMon=d1.toISOString().slice(0,10);
+          const d2=new Date(thisMon+"T00:00:00"); d2.setDate(d2.getDate()-1); const lastSun=d2.toISOString().slice(0,10);
+          const myEntries = shown.filter(e=>e.userId===currentUser.id);
+          const thisWeekE = myEntries.filter(e=>e.date>=thisMon);
+          const lastWeekE = myEntries.filter(e=>e.date>=lastMon&&e.date<=lastSun);
+          const olderE    = myEntries.filter(e=>e.date<lastMon);
+
+
+          return (<>
+            <WeekCard2 title="This Week" weekEntries={thisWeekE} accent={T.accent} canEdit={canEdit} canDelete={canDelete} handleEdit={handleEdit} handleDelete={handleDelete}/>
+            <WeekCard2 title="Last Week" weekEntries={lastWeekE} accent={T.blue} canEdit={canEdit} canDelete={canDelete} handleEdit={handleEdit} handleDelete={handleDelete}/>
+            {olderE.length>0&&(
+              <Card style={{marginBottom:14}}>
+                <div style={{fontWeight:700,fontSize:14,marginBottom:8,color:T.sub}}>Older Entries</div>
+                <div style={{display:"flex",flexDirection:"column",gap:0}}>
+                  {[...olderE].sort((a,b)=>b.date.localeCompare(a.date)).map((e,i)=>(
+                    <div key={e.id} style={{display:"grid",gridTemplateColumns:"86px 1fr auto auto",alignItems:"center",gap:8,padding:"8px 2px",borderBottom:i<olderE.length-1?`1px solid ${T.border}44`:"none"}}>
+                      <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{fmtD2(e.date)}</div>
+                      <div style={{minWidth:0}}><div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.type}{e.note?` · ${e.note}`:""}</div></div>
+                      <div style={{fontSize:13,fontWeight:700,color:T.muted}}>{e.netHours.toFixed(1)}h</div>
+                      <span style={{fontSize:11,fontWeight:700,color:sColor(e.approval)}}>{sLabel(e.approval)}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+            {myEntries.length===0&&(
+              <Card><div style={{padding:"40px 24px",textAlign:"center",color:T.muted}}>
+                <div style={{fontSize:32,marginBottom:8}}>◈</div>
+                <div style={{fontWeight:600}}>No entries to display</div>
+                <div style={{fontSize:12,marginTop:4}}>Use the button above to log your first entry.</div>
+              </div></Card>
+            )}
+          </>);
+        }
+
+        // ── Default: flat table for Admin, Viewer, Mentor ──
+        return (<>
+          <Card style={{padding:0,overflow:"hidden"}}>
+            <div style={{display:"grid",gridTemplateColumns:tcols,padding:"10px 16px",
+              background:T.bg,borderBottom:`1.5px solid ${T.border}`,
+              fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
+              <span>Date</span>{showUserCol&&<span>Person</span>}<span>Note</span><span>Type</span>
+              <span style={{textAlign:"center"}}>Hours</span><span style={{textAlign:"center"}}>Break</span>
+              <span style={{textAlign:"center"}}>Time</span><span>Status</span>
+              <span style={{textAlign:"right"}}>Actions</span>
             </div>
-          )}
-          {shown.map((e,i)=>(
-            <EntryRow key={e.id} entry={e} idx={i}
-              canEdit={canEdit(e)} canApprove={canApprove(e)}
-              onDelete={handleDelete} onApprove={handleApprove}
-              onDecline={handleDecline} onEdit={handleEdit}
-              canDelete={canDelete(e)}
-              canSubmitXero={role==="Admin" && (currentUser?.adminLevel||1)===1}
-              onSubmitXero={async(id)=>{
-                const en = entries.find(x=>x.id===id);
-                if(!en) return;
-                const app = allUsers.find(u=>u.id===en.userId);
-                if(!app?.xeroEmployeeId) {
-                  showToast(`No Xero Employee ID set for ${app?.name||"this apprentice"} — map them in the Xero module first.`, false);
-                  return;
-                }
-                setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"submitting"}:x));
-                try {
-                  const res = await submitEntryToXero(en, app, entries);
-                  if(res.ok) {
-                    await updateRow("entries", id, { xero_status: "submitted", xero_timesheet_id: res.timesheetId||null }).catch(console.error);
-                    setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"submitted",xeroTimesheetId:res.timesheetId}:x));
-                    showToast(`✓ Submitted to Xero for ${app.name}`);
-                  } else {
-                    await updateRow("entries", id, { xero_status: "error" }).catch(console.error);
-                    setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"error",xeroError:res.error}:x));
-                    showToast(`Xero error: ${res.error}`, false);
+            {shown.length===0&&(
+              <div style={{padding:"48px 24px",textAlign:"center",color:T.muted}}>
+                <div style={{fontSize:32,marginBottom:8}}>◈</div>
+                <div style={{fontWeight:600}}>No entries to display</div>
+                <div style={{fontSize:12,marginTop:4}}>{canAdd?"Use the button above to log your first entry.":"No entries in your scope yet."}</div>
+              </div>
+            )}
+            {shown.map((e,i)=>(
+              <EntryRow key={e.id} entry={e} idx={i}
+                canEdit={canEdit(e)} canApprove={canApprove(e)}
+                onDelete={handleDelete} onApprove={handleApprove}
+                onDecline={handleDecline} onEdit={handleEdit}
+                canDelete={canDelete(e)}
+                canSubmitXero={role==="Admin" && (currentUser?.adminLevel||1)===1}
+                onSubmitXero={async(id)=>{
+                  const en = entries.find(x=>x.id===id);
+                  if(!en) return;
+                  setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"submitting"}:x));
+                  try{
+                    const res = await submitXeroTimesheet(en, allUsers.find(u=>u.id===en.userId), currentUser);
+                    if(res.ok) setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"submitted",xeroTimesheetId:res.timesheetId}:x));
+                    else setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"error",xeroError:res.error}:x));
+                  } catch(e2){
+                    setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"error",xeroError:e2.message}:x));
                   }
-                } catch(e) {
-                  await updateRow("entries", id, { xero_status: "error" }).catch(console.error);
-                  setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"error",xeroError:e.message}:x));
-                  showToast(`Xero error: ${e.message}`, false);
-                }
-              }}
-              onSubmit={role==="Apprentice"?async(id)=>{
-                setEntries(prev=>prev.map(x=>x.id===id?{...x,approval:"submitted"}:x));
-                const entry=shown.find(e=>e.id===id);
-                if(entry){
-                  const approvers=allUsers.filter(u=>
-                    (u.allocatedTo||[]).includes(currentUser.id) ||
-                    currentUser.approverUserId===u.id
-                  );
-                  if(!approvers.length){
-                    showToast("Submitted — no approver assigned yet, no email sent",false);
-                  } else {
-                    try {
-                      await notifyApprovers(currentUser, approvers, [entry]);
-                      showToast(`✓ Submitted & emailed ${approvers.map(a=>a.name).join(", ")}`);
-                    } catch(e) {
-                      showToast(`Submitted but email failed: ${e.message}`,false);
+                }}
+                onSubmit={role==="Apprentice"?async(id)=>{
+                  setEntries(prev=>prev.map(x=>x.id===id?{...x,approval:"submitted"}:x));
+                  const entry=entries.find(x=>x.id===id);
+                  if(entry){
+                    const approvers=allUsers.filter(u=>
+                      (u.role==="Approver"||(u.role==="Admin"&&u.secondaryRole==="Approver"))&&(
+                        (u.allocatedTo||[]).includes(currentUser.id)||
+                        currentUser.approverUserId===u.id
+                      ));
+                    if(!approvers.length){
+                      showToast("Submitted — no approver assigned yet, no email sent",false);
+                    } else {
+                      try{
+                        await notifyApprovers(currentUser, approvers, [entry]);
+                        showToast(`✓ Submitted & emailed ${approvers.map(a=>a.name).join(", ")}`);
+                      } catch(er){
+                        showToast(`Submitted but email failed: ${er.message}`,false);
+                      }
                     }
                   }
-                }
-              }:null}
-              showUser={showUserCol} users={allUsers}/>
-          ))}
-        </Card>
-        {shown.length>0&&(
-          <div style={{textAlign:"right",fontSize:12,color:T.sub,marginTop:10}}>
-            {shown.length} entr{shown.length===1?"y":"ies"} · <strong style={{color:T.accent}}>{shown.reduce((a,e)=>a+e.netHours,0).toFixed(2)}h</strong> net
-          </div>
-        )}
-      </>)}
+                }:null}
+                showUser={showUserCol} users={allUsers}/>
+            ))}
+          </Card>
+          {shown.length>0&&(
+            <div style={{textAlign:"right",fontSize:12,color:T.sub,marginTop:10}}>
+              {shown.length} entr{shown.length===1?"y":"ies"} · <strong style={{color:T.accent}}>{shown.reduce((a,e)=>a+e.netHours,0).toFixed(2)}h</strong> net
+            </div>
+          )}
+        </>);
+      })()}
     </div>
   );
 }
@@ -1771,9 +1877,10 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
 // USER MANAGEMENT
 // ─────────────────────────────────────────────────────────────────────────────
 function UserManagement({users, setUsers, currentUser}) {
-  const myLevel = currentUser?.adminLevel || 1; // 1 = superadmin, 2 = limited admin
+  const myLevel = currentUser?.adminLevel || 1;
+  const [viewingUser, setViewingUser] = useState(null); // full-page user detail
   const [crmHostCompanies,setCrmHostCompanies]=useState([]);
-  useEffect(()=>{ loadTable('crm_companies').then(rows=>setCrmHostCompanies(rows.filter(r=>r.is_host_business).map(r=>({id:r.id,name:r.name})))).catch(()=>{}); },[]);
+  useEffect(()=>{ loadTable('crm_companies').then(rows=>setCrmHostCompanies(rows.map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>a.name.localeCompare(b.name)))).catch(()=>{}); },[]);
 
   // Roles this admin level is allowed to create/edit
   // Admin 1: all roles. Admin 2: all except Admin 1.
@@ -1859,7 +1966,7 @@ function UserManagement({users, setUsers, currentUser}) {
       secondaryRole:u.secondaryRole||null,adminLevel:u.adminLevel||1,
       hostBusiness:u.hostBusiness||"",overtimeType:u.overtimeType||null,
       overtimeThreshold:u.overtimeThreshold||"",overtimeRateId:u.overtimeRateId||""});
-    setPwField(""); setEditId(u.id); setExpandId(u.id); setShowForm(false);
+    setPwField(""); setEditId(u.id); setShowForm(true);
     if(u.role==="Apprentice") {
       // Prefer the value stored directly on the apprentice record (new approach)
       // Fall back to searching allocatedTo on approver/viewer users (legacy + always works without DB migration)
@@ -1883,6 +1990,33 @@ function UserManagement({users, setUsers, currentUser}) {
   // For Apprentice approver/viewer dropdowns: include Admins with matching secondary role too
   const approverOptions = users.filter(u=>u.role==="Approver"||u.role==="Admin");
   const viewerOptions   = users.filter(u=>u.role==="Viewer"  ||u.role==="Admin");
+
+  if(viewingUser) {
+    return viewingUser.role==="Apprentice"
+      ? <ApprenticeDetailView
+          apprentice={viewingUser}
+          viewer={currentUser}
+          allUsers={users}
+          entries={[]}
+          isAdmin={true}
+          canEditExpiry={true}
+          onBack={()=>setViewingUser(null)}
+          onUserUpdated={(u)=>setUsers(prev=>prev.map(x=>x.id===u.id?u:x))}
+        />
+      : <UserDetailView
+          user={viewingUser}
+          allUsers={users}
+          currentUser={currentUser}
+          canEdit={canEditUser(viewingUser)}
+          onEdit={()=>{
+            startEdit(viewingUser);
+            setShowForm(true);
+            setViewingUser(null);
+            setTimeout(()=>document.getElementById("um-form")?.scrollIntoView({behavior:"smooth",block:"start"}),80);
+          }}
+          onBack={()=>setViewingUser(null)}
+        />;
+  }
 
   return (
     <div className="fu">
@@ -2041,13 +2175,20 @@ function UserManagement({users, setUsers, currentUser}) {
               <div style={{marginBottom:12}}>
                 <FL>Host Business</FL>
                 {(()=>{
-                  const hostCos = (crmHostCompanies||[]).sort((a,b)=>a.name.localeCompare(b.name));
+                  const hostCos = (crmHostCompanies||[]);
                   const isListed = hostCos.some(c=>c.name===(form.hostBusiness||""));
+                  const hostOnes = hostCos.filter(c=>c.isHostBusiness);
+                  const otherOnes = hostCos.filter(c=>!c.isHostBusiness);
                   return hostCos.length>0?(
                     <div>
                       <select value={isListed?(form.hostBusiness||""):"__custom__"} onChange={e=>{if(e.target.value!=="__custom__")sf("hostBusiness",e.target.value);}}>
                         <option value="">— Select host business —</option>
-                        {hostCos.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                        {hostOnes.length>0&&<optgroup label="🏢 Host Businesses">
+                          {hostOnes.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                        </optgroup>}
+                        {otherOnes.length>0&&<optgroup label="All Companies">
+                          {otherOnes.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                        </optgroup>}
                         <option value="__custom__">Other (type below)…</option>
                       </select>
                       {!isListed&&<input style={{marginTop:6}} placeholder="Type host business name…" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>}
@@ -2197,16 +2338,16 @@ function UserManagement({users, setUsers, currentUser}) {
                     borderBottom:i<groupUsers.length-1?`1px solid ${T.border}44`:"none",
                     background:isEditing?T.blueL:i%2===0?T.surface:T.bg,
                     alignItems:"center",gap:8,animationDelay:`${i*.03}s`,
-                    cursor:canEditUser(u)?"pointer":"default"}}
-                    onClick={()=>canEditUser(u)&&startEdit(u)}
-                    onMouseEnter={e=>{if(!isEditing&&canEditUser(u))e.currentTarget.style.background=T.blueL+"99";}}
+                    cursor:"pointer"}}
+                    onClick={()=>setViewingUser(u)}
+                    onMouseEnter={e=>{if(!isEditing)e.currentTarget.style.background=T.blueL+"99";}}
                     onMouseLeave={e=>{e.currentTarget.style.background=isEditing?T.blueL:i%2===0?T.surface:T.bg;}}>
                     <Avatar name={u.name} role={u.role}/>
                     <div>
                       <div style={{fontWeight:700,fontSize:13}}>{u.name}</div>
                       {u.phone&&<div style={{fontSize:11,color:T.muted}}>{u.phone}</div>}
-                      <div style={{fontSize:11,color:canEditUser(u)?T.blue:T.muted,marginTop:1}}>
-                        {isEditing?"editing…":canEditUser(u)?"click to edit":"view only"}
+                      <div style={{fontSize:11,color:T.blue,marginTop:1}}>
+                        {isEditing?"editing…":"view details →"}
                       </div>
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
@@ -2227,7 +2368,7 @@ function UserManagement({users, setUsers, currentUser}) {
                     </div>
                     <div style={{display:"flex",gap:5,justifyContent:"flex-end"}} onClick={e=>e.stopPropagation()}>
                       {canEditUser(u)&&(
-                        <button onClick={()=>startEdit(u)} style={{width:26,height:26,borderRadius:6,fontSize:12,
+                        <button onClick={()=>setViewingUser(u)} style={{width:26,height:26,borderRadius:6,fontSize:12,
                           background:isEditing?T.blueL:"transparent",color:isEditing?T.blue:T.muted,
                           border:`1px solid ${isEditing?T.blue+"66":T.border}`,
                           display:"flex",alignItems:"center",justifyContent:"center"}}
@@ -2252,6 +2393,163 @@ function UserManagement({users, setUsers, currentUser}) {
           );
         })()}
       </Card>
+    </div>
+  );
+}
+
+
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USER DETAIL VIEW — full detail page for non-Apprentice users (Approver, Viewer, Mentor, Admin)
+// Apprentices use ApprenticeDetailView instead
+// ─────────────────────────────────────────────────────────────────────────────
+function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }) {
+  const fmtDate = (iso) => { if(!iso) return null; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
+  const daysUntil = (iso) => { if(!iso) return null; const t=new Date(); t.setHours(0,0,0,0); return Math.round((new Date(iso+"T00:00:00")-t)/86400000); };
+  const expiryColor = (days) => days===null?T.muted:days<0?T.red:days<=30?T.warn:T.teal;
+
+  const allocatedApprentices = allUsers.filter(u =>
+    (user.allocatedTo||[]).includes(u.id) ||
+    u.approverUserId===user.id ||
+    u.viewerUserId===user.id ||
+    u.mentorUserId===user.id
+  );
+
+  const roleColor = {Admin:T.accent,Mentor:T.teal,Approver:T.warn,Viewer:T.blue,Apprentice:T.sub}[user.role]||T.muted;
+  const roleBg    = {Admin:T.accentL,Mentor:T.tealL,Approver:T.warnL,Viewer:T.blueL,Apprentice:T.slateL}[user.role]||T.bg;
+
+  const Field = ({icon, label, value, href}) => value ? (
+    <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",borderBottom:`1px solid ${T.border}`}}>
+      <span style={{fontSize:15,width:20,textAlign:"center",flexShrink:0,marginTop:1}}>{icon}</span>
+      <div style={{flex:1}}>
+        <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
+        {href
+          ? <a href={href} style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>{value}</a>
+          : <div style={{fontSize:13,color:T.ink,lineHeight:1.5}}>{value}</div>}
+      </div>
+    </div>
+  ) : null;
+
+  return (
+    <div className="fu">
+      {/* Back */}
+      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",
+        color:T.accent,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"DM Sans,sans-serif"}}>
+        ← Back to Users
+      </button>
+
+      {/* Header card */}
+      <Card style={{marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:14}}>
+            <Avatar name={user.name} role={user.role} size={52}/>
+            <div>
+              <div style={{fontWeight:800,fontSize:22,color:T.ink}}>{user.name}</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}>
+                <span style={{fontSize:12,fontWeight:700,padding:"3px 12px",borderRadius:20,background:roleBg,color:roleColor}}>
+                  {user.role}{user.role==="Admin"&&user.adminLevel?` L${user.adminLevel}`:""}
+                </span>
+                {user.trade&&<span style={{fontSize:12,color:T.sub}}>🔧 {user.trade}</span>}
+              </div>
+            </div>
+          </div>
+          {canEdit&&(
+            <Btn sm onClick={onEdit}>✎ Edit</Btn>
+          )}
+        </div>
+      </Card>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:16}}>
+
+        {/* Contact details */}
+        <Card>
+          <div style={{fontSize:11,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>📋 Details</div>
+          <Field icon="✉" label="Email"  value={user.email}  href={user.email?`mailto:${user.email}`:null}/>
+          <Field icon="📞" label="Phone"  value={user.phone}  href={user.phone?`tel:${user.phone}`:null}/>
+          <Field icon="📅" label="Start Date"    value={user.startDate?fmtDate(user.startDate):null}/>
+          <Field icon="🎂" label="Date of Birth" value={user.dateOfBirth?fmtDate(user.dateOfBirth):null}/>
+          <Field icon="⚧"  label="Gender"        value={user.gender}/>
+          {(user.address||user.city)&&(
+            <Field icon="📍" label="Address"
+              value={[user.address,user.addressLine2,user.suburb,user.city,user.postcode].filter(Boolean).join(", ")}/>
+          )}
+        </Card>
+
+        {/* Compliance */}
+        {(user.licenceExpiry||user.siteSafeExpiry||user.firstAidExpiry||user.licenceNumber||user.siteSafeNumber) && (
+          <Card>
+            <div style={{fontSize:11,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>🪪 Compliance</div>
+            {user.licenceExpiry&&(()=>{const d=daysUntil(user.licenceExpiry);return(
+              <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",borderBottom:`1px solid ${T.border}`}}>
+                <span style={{fontSize:15,width:20,textAlign:"center",flexShrink:0}}>⚡</span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>EW Licence Expiry</div>
+                  <div style={{fontSize:13,fontWeight:700,color:expiryColor(d)}}>
+                    {fmtDate(user.licenceExpiry)}{d!==null?` (${d<0?"Expired":d===0?"Today":`${d}d`})`:""}
+                  </div>
+                </div>
+              </div>
+            );})()}
+            <Field icon="🪪" label="Licence Number" value={user.licenceNumber}/>
+            {user.siteSafeExpiry&&(()=>{const d=daysUntil(user.siteSafeExpiry);return(
+              <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",borderBottom:`1px solid ${T.border}`}}>
+                <span style={{fontSize:15,width:20,textAlign:"center",flexShrink:0}}>🛡</span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>Site Safe Expiry</div>
+                  <div style={{fontSize:13,fontWeight:700,color:expiryColor(d)}}>
+                    {fmtDate(user.siteSafeExpiry)}{d!==null?` (${d<0?"Expired":d===0?"Today":`${d}d`})`:""}
+                  </div>
+                </div>
+              </div>
+            );})()}
+            <Field icon="🛡" label="Site Safe Number" value={user.siteSafeNumber}/>
+            {user.firstAidExpiry&&(()=>{const d=daysUntil(user.firstAidExpiry);return(
+              <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",borderBottom:`1px solid ${T.border}`}}>
+                <span style={{fontSize:15,width:20,textAlign:"center",flexShrink:0}}>🏥</span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>First Aid Expiry</div>
+                  <div style={{fontSize:13,fontWeight:700,color:expiryColor(d)}}>
+                    {fmtDate(user.firstAidExpiry)}{d!==null?` (${d<0?"Expired":d===0?"Today":`${d}d`})`:""}
+                  </div>
+                </div>
+              </div>
+            );})()}
+          </Card>
+        )}
+
+        {/* Emergency contact */}
+        {(user.emergencyContactName||user.emergencyContactPhone)&&(
+          <Card style={{border:`1.5px solid ${T.red}33`,background:T.redL+"44"}}>
+            <div style={{fontSize:11,fontWeight:700,color:T.red,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>🚨 Emergency Contact</div>
+            <Field icon="👤" label="Name"         value={user.emergencyContactName}/>
+            <Field icon="🤝" label="Relationship" value={user.emergencyContactRelationship}/>
+            <Field icon="📞" label="Phone"         value={user.emergencyContactPhone} href={user.emergencyContactPhone?`tel:${user.emergencyContactPhone}`:null}/>
+          </Card>
+        )}
+
+        {/* Allocated apprentices */}
+        {allocatedApprentices.length>0&&(
+          <Card>
+            <div style={{fontSize:11,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>
+              👷 Allocated Apprentices ({allocatedApprentices.length})
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {allocatedApprentices.map(app=>(
+                <div key={app.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",
+                  background:T.accentL,borderRadius:8}}>
+                  <Avatar name={app.name} role="Apprentice" size={32}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:13}}>{app.name}</div>
+                    <div style={{fontSize:11,color:T.sub}}>{app.trade||"—"}{app.hostBusiness?` · ${app.hostBusiness}`:""}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
+      </div>
     </div>
   );
 }
@@ -2305,7 +2603,378 @@ function CRMUsersPanel({allUsers, navigateTo}) {
     </Card>
   );
 }
-function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HUBSPOT PROPERTY INSPECTOR — standalone component so hooks are valid
+// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPANY CONTACT ROW — inline editable contact row inside company detail view
+// ─────────────────────────────────────────────────────────────────────────────
+function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isApprenticeContact, onView, onEdit, onDelete, onSave }) {
+  const [expanded, setExpanded] = useState(false);
+  const [editing,  setEditing]  = useState(false);
+  const [form, setForm] = useState({
+    name:c.name||"", email:c.email||"", phone:c.phone||"",
+    job_title:c.job_title||c.jobTitle||"", status:c.status||"Active", notes:c.notes||"",
+  });
+  const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    await onSave(form);
+    setEditing(false);
+    setSaving(false);
+  };
+
+  return (
+    <div style={{borderBottom:i<total-1?`1px solid ${T.border}44`:"none"}}>
+      {/* Row summary */}
+      <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 4px",
+        borderRadius:8,background:editing?T.blueL+"44":"none"}}
+        onMouseEnter={e=>{if(!editing)e.currentTarget.style.background=T.accentL+"55";}}
+        onMouseLeave={e=>{if(!editing)e.currentTarget.style.background="none";}}>
+        <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>!editing&&setExpanded(s=>!s)}>
+          <div style={{fontWeight:700,fontSize:13,color:T.ink}}>{c.name}</div>
+          <div style={{fontSize:11,color:T.muted,display:"flex",gap:10,marginTop:1,flexWrap:"wrap"}}>
+            {c.email&&<span>✉ {c.email}</span>}
+            {c.phone&&<span>📞 {c.phone}</span>}
+            {(c.job_title||c.jobTitle)&&<span>💼 {c.job_title||c.jobTitle}</span>}
+          </div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+          <span style={{fontSize:11,padding:"2px 8px",borderRadius:10,
+            background:c.status==="Active"?T.accentL:T.slateL,
+            color:c.status==="Active"?T.accent:T.muted}}>{c.status||"Active"}</span>
+          {canEdit&&!editing&&(
+            <button onClick={()=>{setEditing(true);setExpanded(true);setForm({name:c.name||"",email:c.email||"",phone:c.phone||"",job_title:c.job_title||c.jobTitle||"",status:c.status||"Active",notes:c.notes||""});}}
+              style={{width:26,height:26,borderRadius:6,fontSize:12,background:"transparent",
+                color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}
+              onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
+              onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
+          )}
+          <button onClick={()=>!editing&&setExpanded(s=>!s)}
+            style={{width:26,height:26,borderRadius:6,fontSize:10,background:"transparent",
+              color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+            {expanded?"▲":"▼"}
+          </button>
+          {canDelete&&!isApprenticeContact&&(
+            <button onClick={onDelete}
+              style={{width:26,height:26,borderRadius:6,fontSize:12,background:"transparent",
+                color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}
+              onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
+              onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
+          )}
+        </div>
+      </div>
+
+      {/* Expanded detail / edit form */}
+      {expanded&&(
+        <div style={{padding:"0 4px 12px 4px"}}>
+          {editing ? (
+            <div style={{background:T.blueL+"33",borderRadius:8,padding:"12px 14px",border:`1px solid ${T.blue}33`}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10,marginBottom:10}}>
+                {[["name","Name"],["email","Email"],["phone","Phone"],["job_title","Job Title"]].map(([k,lbl])=>(
+                  <div key={k}>
+                    <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>{lbl}</div>
+                    <input value={form[k]} onChange={e=>sf(k,e.target.value)}
+                      style={{width:"100%",fontSize:13,padding:"6px 10px",borderRadius:6,
+                        border:`1.5px solid ${T.border}`,background:T.surface,color:T.ink,
+                        fontFamily:"DM Sans,sans-serif",boxSizing:"border-box"}}/>
+                  </div>
+                ))}
+                <div>
+                  <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>Status</div>
+                  <select value={form.status} onChange={e=>sf("status",e.target.value)}
+                    style={{width:"100%",fontSize:13,padding:"6px 10px",borderRadius:6,
+                      border:`1.5px solid ${T.border}`,background:T.surface,color:T.ink,fontFamily:"DM Sans,sans-serif"}}>
+                    {["Active","Prospect","Inactive"].map(s=><option key={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>Notes</div>
+                <textarea value={form.notes} onChange={e=>sf("notes",e.target.value)} rows={2}
+                  style={{width:"100%",fontSize:13,padding:"6px 10px",borderRadius:6,
+                    border:`1.5px solid ${T.border}`,background:T.surface,color:T.ink,
+                    fontFamily:"DM Sans,sans-serif",resize:"vertical",boxSizing:"border-box"}}/>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <Btn sm onClick={save} disabled={saving}>{saving?"Saving…":"💾 Save"}</Btn>
+                <Btn sm v="ghost" onClick={()=>setEditing(false)}>Cancel</Btn>
+                <button onClick={()=>{setEditing(false);onView();}}
+                  style={{marginLeft:"auto",fontSize:12,color:T.accent,background:"none",border:"none",
+                    cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:600,textDecoration:"underline"}}>
+                  Full profile →
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{padding:"4px 0 4px 4px",display:"flex",flexWrap:"wrap",gap:"6px 20px"}}>
+              {c.notes&&<div style={{width:"100%",fontSize:12,color:T.sub,lineHeight:1.5}}>📝 {c.notes}</div>}
+              <button onClick={onView}
+                style={{fontSize:12,color:T.accent,background:"none",border:"none",
+                  cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:600,padding:0,textDecoration:"underline"}}>
+                View full profile →
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DUPLICATE FINDER — finds duplicate contacts or companies by name/email
+// ─────────────────────────────────────────────────────────────────────────────
+function DuplicateFinder({ items, type, onDelete, onView, canDelete }) {
+  const [show, setShow]         = useState(false);
+  const [matchBy, setMatchBy]   = useState("name"); // "name" | "email"
+  const [dismissed, setDismissed] = useState(new Set());
+
+  // Group items by normalised key
+  const groups = (() => {
+    const map = {};
+    items.forEach(item => {
+      let key = "";
+      if (matchBy === "name") {
+        key = (item.name || "").toLowerCase().trim().replace(/\s+/g, " ");
+      } else {
+        key = (item.email || "").toLowerCase().trim();
+      }
+      if (!key) return;
+      if (!map[key]) map[key] = [];
+      map[key].push(item);
+    });
+    return Object.values(map)
+      .filter(g => g.length > 1)
+      .filter(g => !dismissed.has(g.map(i => i.id).sort().join(",")))
+      .sort((a, b) => (a[0].name || "").localeCompare(b[0].name || ""));
+  })();
+
+  const dismiss = (group) => {
+    setDismissed(prev => new Set([...prev, group.map(i => i.id).sort().join(",")]));
+  };
+
+  return (
+    <Card style={{marginBottom:14, border:`1.5px solid ${T.warn}44`}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}
+        onClick={()=>setShow(s=>!s)}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:32,height:32,borderRadius:8,background:T.warnL,display:"flex",
+            alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>🔁</div>
+          <div>
+            <div style={{fontWeight:700,fontSize:13,color:T.warn}}>
+              Find Duplicate {type === "contacts" ? "Contacts" : "Companies"}
+            </div>
+            <div style={{fontSize:11,color:T.muted,marginTop:1}}>
+              {show && groups.length > 0
+                ? `${groups.length} potential duplicate group${groups.length!==1?"s":""} found`
+                : show && groups.length === 0
+                ? "No duplicates found"
+                : `Scan ${items.length} ${type} for duplicates`}
+            </div>
+          </div>
+        </div>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2.5"
+          style={{transition:"transform .2s",transform:show?"rotate(180deg)":"rotate(0deg)",flexShrink:0}}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </div>
+
+      {show && (
+        <div style={{marginTop:14}}>
+          {/* Match by toggle */}
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+            <span style={{fontSize:12,color:T.muted,fontWeight:600}}>Match by:</span>
+            {["name","email"].map(opt => (
+              <button key={opt} onClick={()=>{setMatchBy(opt);setDismissed(new Set());}}
+                style={{padding:"4px 14px",borderRadius:8,fontSize:12,fontWeight:600,
+                  cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                  background:matchBy===opt?T.warn:T.bg,
+                  color:matchBy===opt?"#fff":T.sub,
+                  border:`1.5px solid ${matchBy===opt?T.warn:T.border}`}}>
+                {opt.charAt(0).toUpperCase()+opt.slice(1)}
+              </button>
+            ))}
+            {type === "contacts" && matchBy === "email" && (
+              <span style={{fontSize:11,color:T.muted}}>— blank emails are ignored</span>
+            )}
+          </div>
+
+          {groups.length === 0 ? (
+            <div style={{padding:"20px 0",textAlign:"center",color:T.teal,fontSize:13,fontWeight:600}}>
+              ✓ No duplicates found by {matchBy}
+            </div>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {groups.map(group => (
+                <div key={group.map(i=>i.id).join(",")}
+                  style={{border:`1.5px solid ${T.warn}44`,borderRadius:10,overflow:"hidden"}}>
+                  {/* Group header */}
+                  <div style={{background:T.warnL,padding:"8px 14px",display:"flex",
+                    alignItems:"center",justifyContent:"space-between"}}>
+                    <div style={{fontSize:12,fontWeight:700,color:T.warn}}>
+                      {group.length} records · {matchBy==="name"
+                        ? `"${group[0].name}"`
+                        : `"${group[0].email}"`}
+                    </div>
+                    <button onClick={()=>dismiss(group)}
+                      style={{fontSize:11,color:T.muted,background:"none",border:"none",
+                        cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                      Dismiss ✕
+                    </button>
+                  </div>
+                  {/* Records in this group */}
+                  {group.map((item, i) => (
+                    <div key={item.id} style={{
+                      display:"flex",alignItems:"center",gap:12,padding:"10px 14px",
+                      borderBottom:i<group.length-1?`1px solid ${T.border}44`:"none",
+                      background:i%2===0?T.surface:T.bg}}>
+                      <Avatar name={item.name} role={type==="contacts"?"Apprentice":"Admin"} size={32}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:600,fontSize:13,color:T.ink}}>{item.name||"—"}</div>
+                        <div style={{fontSize:11,color:T.muted,display:"flex",gap:10,flexWrap:"wrap",marginTop:1}}>
+                          {item.email&&<span>✉ {item.email}</span>}
+                          {item.phone&&<span>📞 {item.phone}</span>}
+                          {type==="contacts"&&item.company&&<span>🏢 {item.company}</span>}
+                          {type==="companies"&&item.city&&<span>📍 {item.city}</span>}
+                          {type==="companies"&&item.industry&&<span>🔧 {item.industry}</span>}
+                        </div>
+                      </div>
+                      <div style={{display:"flex",gap:6,flexShrink:0}}>
+                        <button onClick={()=>onView(item)}
+                          style={{fontSize:11,padding:"4px 10px",borderRadius:6,cursor:"pointer",
+                            background:T.accentL,color:T.accent,border:`1px solid ${T.accent}44`,
+                            fontFamily:"DM Sans,sans-serif",fontWeight:600}}>
+                          View
+                        </button>
+                        {canDelete&&(
+                          <button onClick={()=>{
+                            if(!window.confirm(`Delete "${item.name}"? This cannot be undone.`)) return;
+                            onDelete(item.id);
+                          }}
+                            style={{fontSize:11,padding:"4px 10px",borderRadius:6,cursor:"pointer",
+                              background:T.redL,color:T.red,border:`1px solid ${T.red}44`,
+                              fontFamily:"DM Sans,sans-serif",fontWeight:600}}>
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function HubSpotPropertyInspector({ hsToken, hsFetch }) {
+  const [inspecting, setInspecting]   = useState(false);
+  const [propData,   setPropData]     = useState(null);
+  const [propFilter, setPropFilter]   = useState("");
+  const [showInspector, setShowInspector] = useState(false);
+
+  const runInspect = async () => {
+    if(!hsToken.trim()){alert("Enter your HubSpot token first.");return;}
+    setInspecting(true); setPropData(null);
+    try {
+      const propDefs = await hsFetch("getContactProperties");
+      const sample   = await hsFetch("inspectContact");
+      const sampleProps = sample.results?.[0]?.properties || {};
+      const props = (propDefs.results||[])
+        .filter(p=>p.name&&!p.hidden)
+        .map(p=>({
+          name:  p.name,
+          label: p.label||p.name,
+          value: sampleProps[p.name]||"",
+        }))
+        .sort((a,b)=>a.name.localeCompare(b.name));
+      setPropData(props);
+    } catch(e){ alert("Inspect failed: "+e.message); }
+    setInspecting(false);
+  };
+
+  return (
+    <Card style={{marginBottom:12,border:`1.5px solid ${T.gold}44`}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}
+        onClick={()=>setShowInspector(s=>!s)}>
+        <div>
+          <div style={{fontWeight:700,fontSize:13,color:T.gold}}>🔍 Property Inspector</div>
+          <div style={{fontSize:11,color:T.muted,marginTop:2}}>
+            Find exact HubSpot property names for licence expiry, emergency contact etc.
+          </div>
+        </div>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.muted} strokeWidth="2.5"
+          style={{transition:"transform .2s",transform:showInspector?"rotate(180deg)":"rotate(0deg)",flexShrink:0}}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </div>
+
+      {showInspector&&(
+        <div style={{marginTop:14}}>
+          <div style={{fontSize:12,color:T.sub,marginBottom:10,lineHeight:1.6}}>
+            Fetches all property definitions from your HubSpot account and shows their exact internal names
+            alongside a sample value from the first contact. Search for "licence", "safe", "emergency", "expiry" etc.
+          </div>
+          <Btn sm onClick={runInspect} disabled={inspecting} style={{marginBottom:12}}>
+            {inspecting?"⏳ Fetching…":"🔍 Inspect Contact Properties"}
+          </Btn>
+          {propData&&(
+            <>
+              <div style={{marginBottom:8,display:"flex",gap:8,alignItems:"center"}}>
+                <input placeholder="Filter by name or label…" value={propFilter}
+                  onChange={e=>setPropFilter(e.target.value)}
+                  style={{flex:1,fontSize:12,padding:"5px 10px"}}/>
+                <span style={{fontSize:11,color:T.muted,flexShrink:0}}>{propData.length} properties</span>
+              </div>
+              <div style={{maxHeight:400,overflowY:"auto",border:`1px solid ${T.border}`,borderRadius:8}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                  <thead>
+                    <tr style={{background:T.bg,position:"sticky",top:0}}>
+                      {["Internal Name","Label","Sample Value"].map(h=>(
+                        <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:T.muted,
+                          textTransform:"uppercase",letterSpacing:".5px",borderBottom:`1px solid ${T.border}`}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {propData
+                      .filter(p=>!propFilter.trim()||
+                        p.name.toLowerCase().includes(propFilter.toLowerCase())||
+                        p.label.toLowerCase().includes(propFilter.toLowerCase())||
+                        (p.value&&p.value.toLowerCase().includes(propFilter.toLowerCase())))
+                      .map((p,i)=>(
+                        <tr key={p.name} style={{background:i%2===0?T.surface:T.bg,borderBottom:`1px solid ${T.border}44`}}>
+                          <td style={{padding:"6px 10px",fontFamily:"monospace",color:p.value?T.accent:T.muted,
+                            fontWeight:p.value?700:400,whiteSpace:"nowrap"}}>{p.name}</td>
+                          <td style={{padding:"6px 10px",color:T.sub}}>{p.label}</td>
+                          <td style={{padding:"6px 10px",color:p.value?T.ink:T.muted,fontStyle:p.value?"normal":"italic",
+                            maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                            {p.value||"—"}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{fontSize:11,color:T.muted,marginTop:8}}>
+                💡 Properties shown in blue have data in your account. Share the exact names and we'll update the sync.
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
   const fmtDateNZ = (iso) => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
   const [contacts,setContacts]=useState([]);
   const [companies,setCompanies]=useState([]);
@@ -2313,6 +2982,13 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
   const [crmLoading,setCrmLoading]=useState(true);
   const [tab,setTab]=useState(()=>{try{return localStorage.getItem("wos_crm_tab")||"contacts";}catch{return "contacts";}});
   const goTab=(t)=>{setTab(t);try{localStorage.setItem("wos_crm_tab",t);}catch{}};
+  const [contactSearch,setContactSearch]=useState("");
+  const [companySearch,setCompanySearch]=useState("");
+  const [contactSort,setContactSort]=useState("az");   // "az" | "za"
+  const [companySort,setCompanySort]=useState("az");   // "az" | "za"
+  const [showHostsOnly,setShowHostsOnly]=useState(()=>{
+    try{ const v=localStorage.getItem("wos_crm_hosts_only"); localStorage.removeItem("wos_crm_hosts_only"); return v==="1"; }catch{ return false; }
+  });
   const [hsToken,setHsToken]=useState("");
   const [hsPreview,setHsPreview]=useState(null);   // {total, contacts:[]}
   const [hsLoading,setHsLoading]=useState(false);
@@ -2326,6 +3002,11 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
   const [showCoForm,setShowCoForm]=useState(false);
   const [detailContact,setDetailContact]=useState(null); // contact object for full-page view
   const [detailCompany,setDetailCompany]=useState(null); // company object for full-page view
+  const [convertContact,setConvertContact]=useState(null);   // contact being converted to user
+  const [convertRole,setConvertRole]=useState("Approver");   // selected role for new user
+  const [convertAlloc,setConvertAlloc]=useState([]);          // allocated apprentice IDs
+  const [convertSaving,setConvertSaving]=useState(false);
+  const [convertDone,setConvertDone]=useState(false);
   const [editCoId,setEditCoId]=useState(null);
   const [coForm,setCoForm]=useState({name:"",industry:"",phone:"",website:"",address:"",city:"",postcode:"",country:"New Zealand",notes:"",status:"Active",isHostBusiness:false});
   const [coSaving,setCoSaving]=useState(false);
@@ -2352,7 +3033,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
     }
     setCoSaving(false);
   };
-  const [cForm,setCForm]=useState({name:"",company:"",email:"",phone:"",status:"Active",notes:""});
+  const [cForm,setCForm]=useState({name:"",company:"",companyId:"",email:"",phone:"",status:"Active",notes:""});
   const [dForm,setDForm]=useState({title:"",contact:"",value:"",stage:"Lead",closeDate:"",notes:""});
   const [editCId,setEditCId]=useState(null);
   const [hsEmail,setHsEmail]=useState("");
@@ -2373,16 +3054,75 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
 
   const role=currentUser.role;
   const fullAccess=role==="Admin"||role==="Mentor";
-  const canEdit=role==="Admin"||role==="Mentor"; // Both Admins (all levels) and Mentors can create/edit contacts & deals
-  const canDelete=role==="Admin"&&(currentUser.adminLevel||1)===1; // Admin L1 only
-  // Check if a CRM contact is also an apprentice in the users table (protected from deletion)
+  const canEdit=role==="Admin"||role==="Mentor";
+  const canDelete=role==="Admin"&&(currentUser.adminLevel||1)===1;
+  const isAdmin1CRM = role==="Admin"&&(currentUser.adminLevel||1)===1;
+
   const isApprenticeContact = (c) => allUsers && allUsers.some(u=>u.role==="Apprentice"&&u.email&&c.email&&u.email.toLowerCase()===c.email.toLowerCase());
+  const isExistingUser = (c) => allUsers && allUsers.some(u=>u.email&&c.email&&u.email.toLowerCase()===c.email.toLowerCase());
+
+  const saveConvertToUser = async () => {
+    if(!convertContact) return;
+    setConvertSaving(true);
+    try {
+      const nameParts = (convertContact.name||"").trim().split(" ");
+      const newUser = {
+        id:            uid(),
+        name:          convertContact.name||"",
+        firstName:     nameParts[0]||"",
+        lastName:      nameParts.slice(1).join(" ")||"",
+        email:         convertContact.email||"",
+        phone:         convertContact.phone||"",
+        role:          convertRole,
+        password:      Math.random().toString(36).slice(2,10),
+        allocatedTo:   [...convertAlloc],   // copy the array
+        trade:         convertContact.trade||"",
+        address:       convertContact.address||"",
+        addressLine2:  "",
+        suburb:        "",
+        city:          convertContact.city||"",
+        postcode:      convertContact.postcode||"",
+        country:       convertContact.country||"",
+        adminLevel:    1,
+        secondaryRole: null,
+        licenceExpiry: convertContact.ew_licence_expiry||"",
+        siteSafeExpiry:convertContact.site_safe_expiry||"",
+        firstAidExpiry:convertContact.first_aid_expiry||"",
+        licenceNumber: convertContact.licence_number||"",
+        siteSafeNumber:convertContact.site_safe_number||"",
+        emergencyContactName:         convertContact.emergency_contact_name||"",
+        emergencyContactPhone:        convertContact.emergency_contact_phone||"",
+        emergencyContactRelationship: convertContact.emergency_contact_relationship||"",
+        hostBusiness:"", mentorUserId:null, approverUserId:null, viewerUserId:null,
+        overtimeType:null, overtimeThreshold:null, overtimeRateId:null,
+        xeroEmployeeId:null, gender:"", startDate:null, dateOfBirth:null,
+      };
+
+      // upsertUser handles all snake_case field mapping correctly
+      const { upsertUser } = await import("./supabaseClient");
+      await upsertUser(newUser);
+
+      // Update App-level users state immediately (don't rely on realtime delay)
+      if(onUserCreated) onUserCreated(newUser);
+
+      setConvertDone(true);
+      setTimeout(()=>{
+        setConvertContact(null);
+        setConvertDone(false);
+        setConvertRole("Approver");
+        setConvertAlloc([]);
+      }, 2000);
+    } catch(e) {
+      alert("Failed to create user: "+e.message);
+    }
+    setConvertSaving(false);
+  };
 
   const sc=(k,v)=>setCForm(f=>({...f,[k]:v}));
   const sd=(k,v)=>setDForm(f=>({...f,[k]:v}));
 
   const resetContactForm = () => {
-    setCForm({name:"",company:"",email:"",phone:"",status:"Active",notes:""});
+    setCForm({name:"",company:"",companyId:"",email:"",phone:"",status:"Active",notes:""});
     setHsEmail(""); setHsStatus(null); setHsSource(false);
   };
 
@@ -2408,16 +3148,15 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
     if(!cForm.name.trim()) return;
     const row={...cForm};
     if(editCId){
-      const updated={id:editCId,...row};
-      setContacts(prev=>prev.map(c=>c.id===editCId?{...c,...row}:c));
-      upsertRow('crm_contacts',{id:editCId,name:row.name,company:row.company||"",email:row.email||"",phone:row.phone||"",status:row.status||"Active",notes:row.notes||""}).catch(console.error);
+      setContacts(prev=>prev.map(c=>c.id===editCId?{...c,...row,companyId:row.companyId||c.companyId}:c));
+      upsertRow('crm_contacts',{id:editCId,name:row.name,company:row.company||"",company_id:row.companyId||null,email:row.email||"",phone:row.phone||"",status:row.status||"Active",notes:row.notes||""}).catch(console.error);
       setEditCId(null);
     } else {
       const id=uid();
       setContacts(prev=>[{id,...row},...prev]);
-      upsertRow('crm_contacts',{id,name:row.name,company:row.company||"",email:row.email||"",phone:row.phone||"",status:row.status||"Active",notes:row.notes||""}).catch(console.error);
+      upsertRow('crm_contacts',{id,name:row.name,company:row.company||"",company_id:row.companyId||null,email:row.email||"",phone:row.phone||"",status:row.status||"Active",notes:row.notes||""}).catch(console.error);
     }
-    setCForm({name:"",company:"",email:"",phone:"",status:"Active",notes:""});resetContactForm();setShowCF(false);
+    setCForm({name:"",company:"",companyId:"",email:"",phone:"",status:"Active",notes:""});resetContactForm();setShowCF(false);
   };
   const saveDeal=()=>{
     if(!dForm.title.trim()) return;
@@ -2428,7 +3167,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
     setDForm({title:"",contact:"",value:"",stage:"Lead",closeDate:"",notes:""});setShowDF(false);
   };
   const moveDeal=(id,stage)=>{ setDeals(prev=>prev.map(d=>d.id===id?{...d,stage}:d)); upsertRow("crm_deals",{id,stage}).catch(console.error); };
-  const startEditC=(c)=>{setCForm({name:c.name,company:c.company||"",email:c.email||"",phone:c.phone||"",status:c.status,notes:c.notes||""});setEditCId(c.id);setHsStatus(null);setHsSource(false);setHsEmail("");setShowCF(true);};
+  const startEditC=(c)=>{setCForm({name:c.name,company:c.company||"",companyId:c.companyId||c.company_id||"",email:c.email||"",phone:c.phone||"",status:c.status,notes:c.notes||""});setEditCId(c.id);setHsStatus(null);setHsSource(false);setHsEmail("");setShowCF(true);};
 
   const pipeline=STAGES.map(s=>({stage:s,color:STAGE_C[s],
     items:deals.filter(d=>d.stage===s),
@@ -2458,6 +3197,108 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
             </div>
           </div>
         </Card>
+
+        {/* ── Convert to User toggle — Admin L1 only ── */}
+        {isAdmin1CRM && !isExistingUser(detailContact) && (
+          <Card style={{marginBottom:16, border:`1.5px solid ${convertContact?T.accent:T.border}`}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div>
+                <div style={{fontWeight:700,fontSize:13,color:convertContact?T.accent:T.ink}}>👤 Make this contact a system user</div>
+                <div style={{fontSize:11,color:T.muted,marginTop:2}}>Adds them to KTA so they can log in</div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+                <span style={{fontSize:12,fontWeight:700,color:convertContact?T.accent:T.muted}}>{convertContact?"Yes":"No"}</span>
+                <div onClick={()=>{ setConvertContact(convertContact?null:detailContact); setConvertRole("Approver"); setConvertAlloc([]); setConvertDone(false); }}
+                  style={{position:"relative",width:52,height:28,borderRadius:14,cursor:"pointer",
+                    background:convertContact?T.accent:T.border,transition:"background .2s",flexShrink:0}}>
+                  <div style={{position:"absolute",top:3,left:convertContact?26:3,width:22,height:22,
+                    borderRadius:"50%",background:"#fff",boxShadow:"0 1px 4px rgba(0,0,0,.25)",transition:"left .2s"}}/>
+                </div>
+              </div>
+            </div>
+
+            {convertContact && (
+              <div style={{marginTop:16,borderTop:`1px solid ${T.border}`,paddingTop:16}}>
+                {convertDone ? (
+                  <div style={{textAlign:"center",color:T.teal,fontWeight:700,fontSize:14,padding:"8px 0"}}>
+                    ✓ User created successfully!
+                  </div>
+                ) : (
+                  <>
+                    {/* Role picker */}
+                    <div style={{marginBottom:14}}>
+                      <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Assign Role</div>
+                      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                        {["Approver","Viewer","Mentor","Admin"].map(r=>(
+                          <button key={r} onClick={()=>{setConvertRole(r);setConvertAlloc([]);}}
+                            style={{padding:"6px 16px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                              background:convertRole===r?T.accent:T.bg,
+                              color:convertRole===r?"#fff":T.sub,
+                              border:`1.5px solid ${convertRole===r?T.accent:T.border}`}}>
+                            {r}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Apprentice allocation — only for Approver/Viewer */}
+                    {["Approver","Viewer"].includes(convertRole) && (
+                      <div style={{marginBottom:14}}>
+                        <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>
+                          Allocate Apprentices
+                        </div>
+                        {allUsers.filter(u=>u.role==="Apprentice").length===0
+                          ? <div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>No apprentices in system yet</div>
+                          : <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:180,overflowY:"auto"}}>
+                            {allUsers.filter(u=>u.role==="Apprentice").sort((a,b)=>a.name.localeCompare(b.name)).map(u=>{
+                              const checked=convertAlloc.includes(u.id);
+                              return (
+                                <div key={u.id} onClick={()=>setConvertAlloc(prev=>checked?prev.filter(id=>id!==u.id):[...prev,u.id])}
+                                  style={{display:"flex",alignItems:"center",gap:10,padding:"7px 10px",borderRadius:7,cursor:"pointer",
+                                    background:checked?T.accentL:T.bg,border:`1.5px solid ${checked?T.accent:T.border}`}}>
+                                  <div style={{width:16,height:16,borderRadius:4,background:checked?T.accent:T.surface,
+                                    border:`2px solid ${checked?T.accent:T.border}`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                                    {checked&&<span style={{color:"#fff",fontSize:10,fontWeight:700}}>✓</span>}
+                                  </div>
+                                  <Avatar name={u.name} role="Apprentice" size={24}/>
+                                  <div style={{flex:1,minWidth:0}}>
+                                    <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{u.name}</div>
+                                    {u.trade&&<div style={{fontSize:11,color:T.muted}}>{u.trade}</div>}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        }
+                      </div>
+                    )}
+
+                    {/* Summary & save */}
+                    <div style={{background:T.accentL,borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:12,color:T.accent}}>
+                      Will create: <strong>{detailContact.name}</strong> as <strong>{convertRole}</strong>
+                      {["Approver","Viewer"].includes(convertRole)&&convertAlloc.length>0&&` · ${convertAlloc.length} apprentice${convertAlloc.length!==1?"s":""} allocated`}
+                      {["Approver","Viewer"].includes(convertRole)&&convertAlloc.length===0&&<span style={{color:T.warn}}> · No apprentices allocated yet</span>}
+                      <br/><span style={{color:T.muted}}>A temporary password will be set — remind them to update it on first login.</span>
+                    </div>
+
+                    <Btn onClick={saveConvertToUser} disabled={convertSaving}>
+                      {convertSaving?"Creating user…":"✓ Create User"}
+                    </Btn>
+                  </>
+                )}
+              </div>
+            )}
+          </Card>
+        )}
+
+        {/* Already a user badge */}
+        {isExistingUser(detailContact) && (
+          <div style={{marginBottom:16,padding:"10px 14px",borderRadius:8,background:T.tealL,
+            border:`1px solid ${T.teal}44`,fontSize:12,color:T.teal,fontWeight:600}}>
+            ✓ This contact is already a KTA system user
+          </div>
+        )}
+
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:14}}>
           {[
             {label:"📧 Email",val:detailContact.email,href:detailContact.email?`mailto:${detailContact.email}`:null},
@@ -2469,8 +3310,11 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
             {label:"⚡ Status",val:detailContact.status},
             {label:"🎯 Lead Status",val:detailContact.hs_lead_status||detailContact.hsLeadStatus||""},
             {label:"⚡ EW Licence Expiry",val:(detailContact.ew_licence_expiry||detailContact.ewLicenceExpiry)?fmtDateNZ(detailContact.ew_licence_expiry||detailContact.ewLicenceExpiry):null},
+            {label:"🪪 Licence Number",val:detailContact.licence_number||detailContact.licenceNumber||""},
             {label:"🛡 Site Safe Expiry",val:detailContact.site_safe_expiry?fmtDateNZ(detailContact.site_safe_expiry):null},
+            {label:"🛡 Site Safe Number",val:detailContact.site_safe_number||detailContact.siteSafeNumber||""},
             {label:"🏥 First Aid Expiry",val:detailContact.first_aid_expiry?fmtDateNZ(detailContact.first_aid_expiry):null},
+            {label:"🏥 First Aid Number",val:detailContact.first_aid_number||""},
             {label:"📅 Last Contacted",val:detailContact.notes_last_contacted||""},
             {label:"ℹ Description",val:detailContact.description||""},
             {label:"📝 Notes",val:detailContact.notes},
@@ -2483,6 +3327,33 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
             </Card>
           ))}
         </div>
+        {/* Emergency Contact */}
+        {(detailContact.emergency_contact_name||detailContact.emergencyContactName)&&(
+          <Card style={{marginTop:14,border:`1.5px solid ${T.red}33`,background:T.redL+"44"}}>
+            <div style={{fontSize:11,fontWeight:700,color:T.red,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>🚨 Emergency Contact</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:"8px 20px"}}>
+              <div>
+                <div style={{fontSize:10,color:T.muted,fontWeight:600,marginBottom:2}}>Name</div>
+                <div style={{fontSize:13,fontWeight:700,color:T.ink}}>{detailContact.emergency_contact_name||detailContact.emergencyContactName}</div>
+              </div>
+              {(detailContact.emergency_contact_relationship||detailContact.emergencyContactRelationship)&&(
+                <div>
+                  <div style={{fontSize:10,color:T.muted,fontWeight:600,marginBottom:2}}>Relationship</div>
+                  <div style={{fontSize:13,color:T.ink}}>{detailContact.emergency_contact_relationship||detailContact.emergencyContactRelationship}</div>
+                </div>
+              )}
+              {(detailContact.emergency_contact_phone||detailContact.emergencyContactPhone)&&(
+                <div>
+                  <div style={{fontSize:10,color:T.muted,fontWeight:600,marginBottom:2}}>Phone</div>
+                  <a href={`tel:${detailContact.emergency_contact_phone||detailContact.emergencyContactPhone}`}
+                    style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>
+                    {detailContact.emergency_contact_phone||detailContact.emergencyContactPhone}
+                  </a>
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
         {linkedApp&&(
           <Card style={{marginTop:14}}>
             <div style={{fontSize:11,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>👷 KTA Apprentice</div>
@@ -2512,9 +3383,29 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
   // ── Company Detail Page ───────────────────────────────────────────────────
   if(detailCompany) {
     const co = detailCompany;
-    const linkedContacts = contacts.filter(c=>c.companyId===co.id);
+    const linkedContacts = contacts.filter(c=>
+      c.companyId===co.id ||
+      (!c.companyId && (c.company||"").toLowerCase().trim()===(co.name||"").toLowerCase().trim())
+    );
+
+    // Auto-fix any contacts linked by name but missing the company_id FK
+    const unlinkFixed = linkedContacts.filter(c=>!c.companyId&&c.company);
+    if(unlinkFixed.length>0){
+      unlinkFixed.forEach(c=>{
+        upsertRow("crm_contacts",{id:c.id,company_id:co.id}).catch(()=>{});
+        setContacts(prev=>prev.map(x=>x.id===c.id?{...x,companyId:co.id}:x));
+      });
+    }
     const allocatedApprentices = allUsers ? allUsers.filter(u=>u.role==="Apprentice"&&(u.hostBusiness||"").toLowerCase().trim()===(co.name||"").toLowerCase().trim()) : [];
     const wsiteHref = co.website?(co.website.startsWith("http")?co.website:"https://"+co.website):null;
+
+    const toggleHostBusiness = async () => {
+      const updated = {...co, isHostBusiness: !co.isHostBusiness};
+      await upsertRow("crm_companies", {id:co.id, is_host_business: !co.isHostBusiness}).catch(console.error);
+      setCompanies(prev=>prev.map(c=>c.id===co.id?updated:c));
+      setDetailCompany(updated);
+    };
+
     return (
       <div className="fu">
         <button onClick={()=>setDetailCompany(null)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:T.accent,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"DM Sans,sans-serif"}}>
@@ -2525,7 +3416,6 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
             <div>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
                 <div style={{fontWeight:800,fontSize:22,color:T.ink}}>{co.name}</div>
-                {co.isHostBusiness&&<span style={{fontSize:11,fontWeight:700,padding:"3px 10px",borderRadius:20,background:T.tealL,color:T.teal}}>🏢 Host Business</span>}
               </div>
               {co.industry&&<div style={{fontSize:13,color:T.sub,marginTop:4}}>{co.industry}</div>}
             </div>
@@ -2534,6 +3424,46 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
               {canDelete&&<Btn sm v="danger" onClick={()=>{if(!window.confirm(`Delete ${co.name}?`))return;setCompanies(prev=>prev.filter(x=>x.id!==co.id));deleteRow("crm_companies",co.id).catch(console.error);setDetailCompany(null);}}>✕ Delete</Btn>}
             </div>
           </div>
+
+          {/* ── Host Business Toggle ── */}
+          {canEdit&&(
+            <div style={{
+              display:"flex",alignItems:"center",justifyContent:"space-between",
+              marginTop:16,padding:"12px 14px",borderRadius:10,
+              background:co.isHostBusiness?T.tealL:T.bg,
+              border:`1.5px solid ${co.isHostBusiness?T.teal:T.border}`,
+              transition:"background .2s, border-color .2s",
+            }}>
+              <div>
+                <div style={{fontWeight:700,fontSize:13,color:co.isHostBusiness?T.teal:T.ink}}>
+                  🏢 Host Business
+                </div>
+                <div style={{fontSize:11,color:co.isHostBusiness?T.teal:T.muted,marginTop:2}}>
+                  {co.isHostBusiness
+                    ?"This company is a host business — appears in apprentice host business dropdowns"
+                    :"Mark as a host business to link apprentices to this company"}
+                </div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+                <span style={{fontSize:12,fontWeight:700,color:co.isHostBusiness?T.teal:T.muted}}>
+                  {co.isHostBusiness?"Yes":"No"}
+                </span>
+                <div onClick={toggleHostBusiness}
+                  style={{position:"relative",width:52,height:28,borderRadius:14,cursor:"pointer",
+                    background:co.isHostBusiness?T.teal:T.border,transition:"background .2s",flexShrink:0}}>
+                  <div style={{position:"absolute",top:3,left:co.isHostBusiness?26:3,width:22,height:22,
+                    borderRadius:"50%",background:"#fff",boxShadow:"0 1px 4px rgba(0,0,0,.25)",transition:"left .2s"}}/>
+                </div>
+              </div>
+            </div>
+          )}
+          {!canEdit&&co.isHostBusiness&&(
+            <div style={{marginTop:12,display:"inline-flex",alignItems:"center",gap:6,
+              padding:"4px 12px",borderRadius:20,background:T.tealL,border:`1px solid ${T.teal}44`}}>
+              <span style={{fontSize:13}}>🏢</span>
+              <span style={{fontSize:12,fontWeight:700,color:T.teal}}>Host Business</span>
+            </div>
+          )}
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:"10px 24px",marginTop:16}}>
             {co.phone&&<div><div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3}}>📱 Phone</div><a href={`tel:${co.phone}`} style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>{co.phone}</a></div>}
             {co.website&&<div><div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3}}>🌐 Website</div><a href={wsiteHref} target="_blank" rel="noreferrer" style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>{co.website}</a></div>}
@@ -2557,32 +3487,50 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
             </div>
           </Card>
         )}
-        {linkedContacts.length>0&&(
-          <Card style={{marginBottom:14}}>
-            <div style={{fontSize:11,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>👥 Contacts ({linkedContacts.length})</div>
-            <div style={{display:"flex",flexDirection:"column",gap:1}}>
-              {linkedContacts.map((c,i)=>(
-                <div key={c.id} onClick={()=>{setDetailCompany(null);setDetailContact(c);}}
-                  style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",borderRadius:8,cursor:"pointer",background:i%2===0?T.bg:T.surface}}
-                  onMouseEnter={e=>e.currentTarget.style.background=T.accentL}
-                  onMouseLeave={e=>e.currentTarget.style.background=i%2===0?T.bg:T.surface}>
-                  <div>
-                    <div style={{fontWeight:700,fontSize:13}}>{c.name}</div>
-                    {c.email&&<div style={{fontSize:11,color:T.muted}}>{c.email}</div>}
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    {c.phone&&<span style={{fontSize:12,color:T.sub}}>{c.phone}</span>}
-                    <span style={{fontSize:11,padding:"2px 8px",borderRadius:10,background:c.status==="Active"?T.accentL:T.slateL,color:c.status==="Active"?T.accent:T.muted}}>{c.status}</span>
-                    <span style={{color:T.accent,fontSize:12}}>→</span>
-                  </div>
-                </div>
-              ))}
+        {/* ── Contacts associated with this company ── */}
+        <Card style={{marginBottom:14}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px"}}>
+              👥 Contacts {linkedContacts.length>0&&`(${linkedContacts.length})`}
             </div>
-          </Card>
-        )}
-        {linkedContacts.length===0&&allocatedApprentices.length===0&&(
-          <div style={{textAlign:"center",color:T.muted,padding:32,fontSize:13}}>No contacts or apprentices linked to this company yet.</div>
-        )}
+            {canEdit&&(
+              <Btn sm onClick={()=>{resetContactForm();setEditCId(null);setCForm(f=>({...f,company:co.name,companyId:co.id}));setShowCF(true);goTab("contacts");}}>
+                + Add Contact
+              </Btn>
+            )}
+          </div>
+          {linkedContacts.length===0&&(
+            <div style={{fontSize:12,color:T.muted,fontStyle:"italic",padding:"8px 0"}}>
+              No contacts linked to this company yet.
+            </div>
+          )}
+          <div style={{display:"flex",flexDirection:"column",gap:1}}>
+            {linkedContacts.map((c,i)=>(
+              <CompanyContactRow
+                key={c.id}
+                contact={c}
+                index={i}
+                total={linkedContacts.length}
+                canEdit={canEdit}
+                canDelete={canDelete}
+                isApprenticeContact={isApprenticeContact(c)}
+                onView={()=>{setDetailCompany(null);setDetailContact(c);}}
+                onEdit={()=>{startEditC(c);setDetailCompany(null);goTab("contacts");}}
+                onDelete={()=>{
+                  if(!window.confirm(`Delete ${c.name}? This cannot be undone.`)) return;
+                  setContacts(prev=>prev.filter(x=>x.id!==c.id));
+                  deleteRow("crm_contacts",c.id).catch(console.error);
+                }}
+                onSave={(updated)=>{
+                  setContacts(prev=>prev.map(x=>x.id===c.id?{...x,...updated}:x));
+                  upsertRow("crm_contacts",{id:c.id,...updated}).catch(console.error);
+                }}
+              />
+            ))}
+          </div>
+        </Card>
+
+        {linkedContacts.length===0&&allocatedApprentices.length===0&&null}
       </div>
     );
   }
@@ -2630,6 +3578,14 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
             {showCF?"✕ Cancel":"+ Add Contact"}
           </Btn>
         </div>}
+
+        <DuplicateFinder
+          items={contacts}
+          type="contacts"
+          canDelete={canDelete}
+          onView={(c)=>setDetailContact(c)}
+          onDelete={(id)=>{ setContacts(prev=>prev.filter(x=>x.id!==id)); deleteRow("crm_contacts",id).catch(console.error); }}
+        />
 
         {showCF&&<Card style={{marginBottom:16,border:`1.5px solid ${T.blue}44`}}>
           {/* ── Step 1: HubSpot lookup (only shown for new contacts) ── */}
@@ -2697,7 +3653,45 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
           {(editCId||hsStatus==="found"||hsStatus==="notfound")&&(<>
             <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
               <div><FL req>Name</FL><input value={cForm.name} onChange={e=>sc("name",e.target.value)} placeholder="Contact name"/></div>
-              <div><FL>Company</FL><input value={cForm.company} onChange={e=>sc("company",e.target.value)} placeholder="Company"/></div>
+              <div>
+                <FL>Company</FL>
+                {companies.length>0?(()=>{
+                  const selectedCo = companies.find(co=>co.id===cForm.companyId);
+                  const isCustom = cForm.company && !selectedCo && !companies.some(co=>co.name===cForm.company);
+                  const hostCos  = companies.filter(co=>co.isHostBusiness).sort((a,b)=>a.name.localeCompare(b.name));
+                  const otherCos = companies.filter(co=>!co.isHostBusiness).sort((a,b)=>a.name.localeCompare(b.name));
+                  return (
+                    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                      <select
+                        value={cForm.companyId||"__custom__"}
+                        onChange={e=>{
+                          const val=e.target.value;
+                          if(val==="__none__"){ sc("company",""); sc("companyId",""); }
+                          else if(val==="__custom__"){ sc("companyId",""); }
+                          else {
+                            const co=companies.find(c=>c.id===val);
+                            if(co){ sc("company",co.name); sc("companyId",co.id); }
+                          }
+                        }}>
+                        <option value="__none__">— No company —</option>
+                        {hostCos.length>0&&<optgroup label="🏢 Host Businesses">
+                          {hostCos.map(co=><option key={co.id} value={co.id}>{co.name}</option>)}
+                        </optgroup>}
+                        {otherCos.length>0&&<optgroup label="All Companies">
+                          {otherCos.map(co=><option key={co.id} value={co.id}>{co.name}</option>)}
+                        </optgroup>}
+                        <option value="__custom__">Other (type below)…</option>
+                      </select>
+                      {(!cForm.companyId)&&(
+                        <input value={cForm.company} onChange={e=>sc("company",e.target.value)}
+                          placeholder="Type company name…"/>
+                      )}
+                    </div>
+                  );
+                })():(
+                  <input value={cForm.company} onChange={e=>sc("company",e.target.value)} placeholder="Company"/>
+                )}
+              </div>
               <div><FL>Email</FL><input value={cForm.email} onChange={e=>sc("email",e.target.value)} placeholder="email@co.com"/></div>
               <div><FL>Phone</FL><input value={cForm.phone} onChange={e=>sc("phone",e.target.value)} placeholder="+64…"/></div>
               <div><FL>Status</FL>
@@ -2713,14 +3707,39 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
             </div>
           </>)}
         </Card>}
+        {contacts.length>0&&(
+          <div style={{marginBottom:10,position:"relative"}}>
+            <span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",fontSize:14,color:T.muted,pointerEvents:"none"}}>🔍</span>
+            <input
+              value={contactSearch}
+              onChange={e=>setContactSearch(e.target.value)}
+              placeholder="Search contacts by name, email, phone or company…"
+              style={{width:"100%",paddingLeft:34,boxSizing:"border-box"}}
+            />
+          </div>
+        )}
         <Card style={{padding:0,overflow:"hidden"}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 140px 160px 100px 60px",
             padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
             fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
-            <span>Name</span><span>Email</span><span>Phone</span><span>Status</span><span/>
+            <span onClick={()=>setContactSort(s=>s==="az"?"za":"az")}
+              style={{cursor:"pointer",userSelect:"none",display:"flex",alignItems:"center",gap:4}}>
+              Name <span style={{fontSize:10}}>{contactSort==="az"?"▲":"▼"}</span>
+            </span>
+            <span>Email</span><span>Phone</span><span>Status</span><span/>
           </div>
           {contacts.length===0&&<div style={{padding:"40px",textAlign:"center",color:T.muted}}>No contacts yet.</div>}
-          {contacts.map((c,i)=>{
+          {[...contacts].filter(c=>{
+            if(!contactSearch.trim()) return true;
+            const q=contactSearch.toLowerCase();
+            return (c.name||"").toLowerCase().includes(q)
+              ||(c.email||"").toLowerCase().includes(q)
+              ||(c.phone||"").toLowerCase().includes(q)
+              ||(c.company||"").toLowerCase().includes(q);
+          }).sort((a,b)=>contactSort==="az"
+            ?(a.name||"").localeCompare(b.name||"")
+            :(b.name||"").localeCompare(a.name||"")
+          ).map((c,i)=>{
             const linkedCo = companies.find(co=>co.id===c.companyId);
             return (
             <div key={c.id}>
@@ -2769,13 +3788,43 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
             </div>
             );
           })}
+          {contacts.length>0&&contactSearch.trim()&&contacts.filter(c=>{
+            const q=contactSearch.toLowerCase();
+            return (c.name||"").toLowerCase().includes(q)||(c.email||"").toLowerCase().includes(q)||(c.phone||"").toLowerCase().includes(q)||(c.company||"").toLowerCase().includes(q);
+          }).length===0&&(
+            <div style={{padding:"32px",textAlign:"center",color:T.muted,fontSize:13}}>
+              No contacts match "<strong>{contactSearch}</strong>"
+            </div>
+          )}
         </Card>
       </>)}
       {tab==="companies"&&(<>
         <div style={{marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-          <div style={{fontSize:13,color:T.sub}}>{companies.length} companies</div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{fontSize:13,color:T.sub}}>
+              {showHostsOnly
+                ? `${companies.filter(c=>c.isHostBusiness).length} host businesses`
+                : `${companies.length} companies`}
+            </div>
+            {showHostsOnly&&(
+              <button onClick={()=>setShowHostsOnly(false)}
+                style={{fontSize:11,padding:"2px 10px",borderRadius:20,background:T.tealL,
+                  color:T.teal,border:`1px solid ${T.teal}44`,cursor:"pointer",
+                  fontFamily:"DM Sans,sans-serif",fontWeight:700,display:"flex",alignItems:"center",gap:5}}>
+                🏢 Host Businesses only &nbsp;✕
+              </button>
+            )}
+          </div>
           {canEdit&&<Btn sm onClick={()=>{setShowCoForm(s=>!s);setEditCoId(null);setCoForm(coBlank);}}>{showCoForm?"✕ Cancel":"+ Add Company"}</Btn>}
         </div>
+
+        <DuplicateFinder
+          items={companies}
+          type="companies"
+          canDelete={canDelete}
+          onView={(co)=>setDetailCompany(co)}
+          onDelete={(id)=>{ setCompanies(prev=>prev.filter(x=>x.id!==id)); deleteRow("crm_companies",id).catch(console.error); }}
+        />
 
         {showCoForm&&canEdit&&(
           <Card style={{marginBottom:16,border:`1.5px solid ${T.accent}44`}}>
@@ -2817,14 +3866,43 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
             No companies yet. Use <strong>+ Add Company</strong> above or import from HubSpot using the <strong>Import</strong> tab.
           </div></Card>
         )}
-        {companies.length>0&&(
+        {showHostsOnly&&companies.filter(c=>c.isHostBusiness).length===0&&companies.length>0&&(
+          <Card><div style={{textAlign:"center",color:T.muted,padding:24,fontSize:13}}>
+            No companies are flagged as Host Businesses yet. Open a company and toggle the <strong>🏢 Host Business</strong> switch to mark it.
+          </div></Card>
+        )}
+        {companies.length>0&&(!showHostsOnly||companies.filter(c=>c.isHostBusiness).length>0)&&(
+          <>
+          <div style={{marginBottom:10,position:"relative"}}>
+            <span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",fontSize:14,color:T.muted,pointerEvents:"none"}}>🔍</span>
+            <input
+              value={companySearch}
+              onChange={e=>setCompanySearch(e.target.value)}
+              placeholder="Search companies by name, industry, city or phone…"
+              style={{width:"100%",paddingLeft:34,boxSizing:"border-box"}}
+            />
+          </div>
           <Card style={{padding:0,overflow:"hidden"}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 120px 150px 150px 60px",
               padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
               fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
-              <span>Company</span><span>Industry</span><span>Phone</span><span>City</span><span/>
+              <span onClick={()=>setCompanySort(s=>s==="az"?"za":"az")}
+                style={{cursor:"pointer",userSelect:"none",display:"flex",alignItems:"center",gap:4}}>
+                Company <span style={{fontSize:10}}>{companySort==="az"?"▲":"▼"}</span>
+              </span>
+              <span>Industry</span><span>Phone</span><span>City</span><span/>
             </div>
-            {companies.map((co,i)=>{
+            {[...companies].filter(co=>showHostsOnly?co.isHostBusiness:true).filter(co=>{
+              if(!companySearch.trim()) return true;
+              const q=companySearch.toLowerCase();
+              return (co.name||"").toLowerCase().includes(q)
+                ||(co.industry||"").toLowerCase().includes(q)
+                ||(co.city||"").toLowerCase().includes(q)
+                ||(co.phone||"").toLowerCase().includes(q);
+            }).sort((a,b)=>companySort==="az"
+              ?(a.name||"").localeCompare(b.name||"")
+              :(b.name||"").localeCompare(a.name||"")
+            ).map((co,i)=>{
               const linkedContacts = contacts.filter(c=>c.companyId===co.id);
               return (
                 <div key={co.id} style={{borderBottom:i<companies.length-1?`1px solid ${T.border}44`:"none"}}>
@@ -2871,7 +3949,16 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
                 </div>
               );
             })}
+            {companySearch.trim()&&companies.filter(co=>{
+              const q=companySearch.toLowerCase();
+              return (co.name||"").toLowerCase().includes(q)||(co.industry||"").toLowerCase().includes(q)||(co.city||"").toLowerCase().includes(q)||(co.phone||"").toLowerCase().includes(q);
+            }).length===0&&(
+              <div style={{padding:"32px",textAlign:"center",color:T.muted,fontSize:13}}>
+                No companies match "<strong>{companySearch}</strong>"
+              </div>
+            )}
           </Card>
+          </>
         )}
       </>)}
 
@@ -2929,6 +4016,31 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
             if(!after) break;
           }
           return all;
+        };
+
+        // ── Match HubSpot contact to a KTA user by email and update their compliance fields ──
+        // Called after every contact import so users stay in sync with HubSpot data
+        const syncUserFromContact = async (row) => {
+          if(!row.email) return;
+          const matchedUser = allUsers.find(u=>
+            u.email && u.email.toLowerCase().trim() === row.email.toLowerCase().trim()
+          );
+          if(!matchedUser) return;
+          // Only update fields that HubSpot actually has a value for — don't blank out existing data
+          const updates = {};
+          if(row.ew_licence_expiry)     updates.licenceExpiry    = row.ew_licence_expiry;
+          if(row.site_safe_expiry)      updates.siteSafeExpiry   = row.site_safe_expiry;
+          if(row.first_aid_expiry)      updates.firstAidExpiry   = row.first_aid_expiry;
+          if(row.licence_number)        updates.licenceNumber    = row.licence_number;
+          if(row.site_safe_number)      updates.siteSafeNumber   = row.site_safe_number;
+          if(row.emergency_contact_name)         updates.emergencyContactName         = row.emergency_contact_name;
+          if(row.emergency_contact_phone)        updates.emergencyContactPhone        = row.emergency_contact_phone;
+          if(row.emergency_contact_relationship) updates.emergencyContactRelationship = row.emergency_contact_relationship;
+          if(row.phone && !matchedUser.phone)    updates.phone = row.phone;
+          if(Object.keys(updates).length === 0) return;
+          const updatedUser = {...matchedUser, ...updates};
+          await upsertUser(updatedUser).catch(console.error);
+          if(onUserCreated) onUserCreated(updatedUser); // re-uses the callback to update App state
         };
 
         // ── Full HubSpot Sync ────────────────────────────────────────────────
@@ -2999,33 +4111,64 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
               if(!name) continue;
               const id = crypto.randomUUID();
               hsContactIdToLocalId[c.id] = id;
+              const pick = (...keys) => keys.map(k=>p[k]).find(v=>v&&String(v).trim())||null;
               const row = {
                 id, name, email:p.email||"", phone:p.mobilephone||p.phone||"",
                 company:p.company||"", trade:p.industry||"",
-                job_title:p.jobtitle||"",description:p.description||"",
-                salutation:p.salutation||"",date_of_birth:p.date_of_birth||null,
+                job_title:p.jobtitle||"", description:p.description||"",
+                salutation:p.salutation||"", date_of_birth:p.date_of_birth||null,
                 address:p.address||"", city:p.city||"",
                 postcode:p.zip||"", country:(p.country&&p.country!=="New Zealand")?p.country:"",
-                site_safe_expiry:p.site_safe_expiry||p.sitesafe_expiry||null,
-                first_aid_expiry:p.first_aid_expiry||p.firstaid_expiry||null,
-                ew_licence_expiry:p.ew_licence_expiry||p.electrical_worker_licence_expiry||null,
+                // Compliance expiries — try all known HubSpot property name variants
+                ew_licence_expiry: pick("ew_licence_expiry","electrical_worker_licence_expiry","ew_licence_expiry_date","electrician_licence_expiry","licence_expiry","licence_expiry_date","trade_licence_expiry"),
+                site_safe_expiry:  pick("site_safe_expiry","sitesafe_expiry","site_safe_expiry_date","sitesafe_expiry_date","site_safe_card_expiry","sitesafe"),
+                first_aid_expiry:  pick("first_aid_expiry","firstaid_expiry","first_aid_expiry_date","firstaid_expiry_date","first_aid_certificate_expiry"),
+                // Compliance numbers
+                licence_number:   pick("ew_licence_number","licence_number","electrical_licence_number"),
+                site_safe_number: pick("site_safe_number","sitesafe_number","site_safe_card_number"),
+                first_aid_number: pick("first_aid_number","firstaid_number","first_aid_certificate_number"),
+                // Emergency / next of kin
+                emergency_contact_name:         pick("emergency_contact_name","emergency_contact","next_of_kin","nok_name","emergency_name","emergency_contact_firstname"),
+                emergency_contact_phone:        pick("emergency_contact_phone","emergency_phone","nok_phone"),
+                emergency_contact_relationship: pick("emergency_contact_relationship","nok_relationship","emergency_relationship"),
                 hs_lead_status:p.hs_lead_status||"",
                 notes_last_contacted:p.notes_last_contacted||"",
                 hs_created:p.createdate||null,
                 status:"Active", notes:"", hubspot_id:c.id,
               };
               await upsertRow("crm_contacts", row).catch(()=>{});
+              await syncUserFromContact(row);
               setContacts(prev=>[...prev,{id,name,email:row.email,phone:row.phone,
                 company:row.company,companyId:"",status:"Active",notes:"",
                 jobTitle:row.job_title,ewLicenceExpiry:row.ew_licence_expiry,
-                hsLeadStatus:row.hs_lead_status,hubspot_id:c.id}]);
+                siteSafeExpiry:row.site_safe_expiry, firstAidExpiry:row.first_aid_expiry,
+                licenceNumber:row.licence_number, siteSafeNumber:row.site_safe_number,
+                emergencyContactName:row.emergency_contact_name,
+                emergencyContactPhone:row.emergency_contact_phone,
+                emergencyContactRelationship:row.emergency_contact_relationship,
+                hsLeadStatus:row.hs_lead_status, hubspot_id:c.id}]);
               ctDone++;
               if(i%50===0) syncMsg(`👤 Importing contacts… ${i+1}/${hsContacts.length}`);
             }
 
-            // 4 — Link contacts to companies via HubSpot associations
+            // 4 — Link contacts to companies
+            // First pass: use association data already returned with each contact (faster, no extra API calls)
             syncMsg(`🔗 Linking contacts to companies…`);
             let linked=0;
+            for(const c of hsContacts){
+              const localContactId = hsContactIdToLocalId[c.id];
+              if(!localContactId) continue;
+              // HubSpot returns associations.companies.results when associations param is set
+              const assocCompanyIds = c.associations?.companies?.results?.map(r=>r.id)||[];
+              for(const hsCoId of assocCompanyIds){
+                const localCoId = hsCoIdToLocalId[hsCoId];
+                if(!localCoId) continue;
+                await upsertRow("crm_contacts",{id:localContactId,company_id:localCoId}).catch(()=>{});
+                setContacts(prev=>prev.map(ct=>ct.id===localContactId?{...ct,companyId:localCoId}:ct));
+                linked++; break; // use first association only
+              }
+            }
+            // Second pass: per-company lookup for any contacts that weren't linked above
             for(let i=0;i<hsCompanies.length;i++){
               const co = hsCompanies[i];
               const localCoId = hsCoIdToLocalId[co.id];
@@ -3035,8 +4178,11 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
                 for(const assoc of (d.results||[])){
                   const localContactId = hsContactIdToLocalId[assoc.id];
                   if(!localContactId) continue;
+                  // Only link if not already linked in first pass
+                  const alreadyLinked = contacts.find(ct=>ct.id===localContactId&&ct.companyId);
+                  if(alreadyLinked) continue;
                   await upsertRow("crm_contacts",{id:localContactId,company_id:localCoId}).catch(()=>{});
-                  setContacts(prev=>prev.map(c=>c.id===localContactId?{...c,companyId:localCoId}:c));
+                  setContacts(prev=>prev.map(ct=>ct.id===localContactId?{...ct,companyId:localCoId}:ct));
                   linked++;
                 }
               } catch{}
@@ -3055,111 +4201,142 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
         };
 
         // ── Sync Companies Only ──────────────────────────────────────────────
+        // ── Sync New Companies (incremental — skips existing hubspot_ids) ────
         const syncCompaniesOnly = async () => {
           if(!hsToken.trim()){setHsMsg("Please enter your HubSpot token."); return;}
-          if(!window.confirm("This will DELETE all existing CRM companies (and unlink contacts from them), then re-import companies fresh from HubSpot. Contacts will be kept. Continue?")) return;
           setHsImporting(true);
           const syncMsg = (msg) => { setHsMsg(msg); if(onSyncTick) onSyncTick(); };
           try {
-            syncMsg("🗑 Clearing existing companies…");
+            // Build a set of HubSpot IDs already in Supabase so we never overwrite local edits
+            syncMsg("🏢 Checking existing companies…");
             const existingCos = await loadTable("crm_companies").catch(()=>[]);
-            for(const co of existingCos) await deleteRow("crm_companies", co.id).catch(()=>{});
-            setCompanies([]);
-            // Unlink contacts from companies
-            const existingContacts = await loadTable("crm_contacts").catch(()=>[]);
-            for(const c of existingContacts.filter(c=>c.company_id)) {
-              await upsertRow("crm_contacts",{...c, company_id:null}).catch(()=>{});
-            }
+            const knownHsIds  = new Set(existingCos.map(c=>c.hubspot_id).filter(Boolean));
+            const hsCoIdToLocalId = {};
+            existingCos.forEach(c=>{ if(c.hubspot_id) hsCoIdToLocalId[c.hubspot_id]=c.id; });
 
             syncMsg("🏢 Fetching companies from HubSpot…");
             const hsCompanies = await fetchAllPages("getCompanies");
-            syncMsg(`🏢 Importing ${hsCompanies.length} companies…`);
-            const hsCoIdToLocalId = {};
-            let coDone=0;
+            let added=0, skipped=0;
+            syncMsg(`🏢 Found ${hsCompanies.length} in HubSpot — checking for new ones…`);
+
             for(let i=0;i<hsCompanies.length;i++){
               const co=hsCompanies[i]; const p=co.properties;
-              if(!p?.name) continue;
-              const id=crypto.randomUUID(); hsCoIdToLocalId[co.id]=id;
-              const row={id,name:p.name,industry:p.industry||"",phone:p.phone||"",
-                website:p.website||"",address:p.address||"",city:p.city||"",
-                postcode:p.zip||"",country:(p.country&&p.country!=="New Zealand")?p.country:"",
-                description:p.description||"",hs_lead_status:p.hs_lead_status||"",
-                annual_revenue:p.annualrevenue||"",hs_created:p.createdate||null,
-                hubspot_id:co.id,status:"Active",notes:""};
+              if(!p?.name){ skipped++; continue; }
+              if(knownHsIds.has(co.id)){ skipped++; continue; }
+              // New company — add it
+              const id=crypto.randomUUID();
+              hsCoIdToLocalId[co.id]=id;
+              const row={
+                id, name:p.name, industry:p.industry||"", phone:p.phone||"",
+                website:p.website||"", address:p.address||"", city:p.city||"",
+                postcode:p.zip||"", country:(p.country&&p.country!=="New Zealand")?p.country:"",
+                description:p.description||"", hs_lead_status:p.hs_lead_status||"",
+                annual_revenue:p.annualrevenue||"", hs_created:p.createdate||null,
+                hubspot_id:co.id, status:"Active", notes:"",
+              };
               await upsertRow("crm_companies",row).catch(()=>{});
-              setCompanies(prev=>[...prev,{id,name:p.name,industry:p.industry||"",phone:p.phone||"",
-                website:p.website||"",address:p.address||"",city:p.city||"",country:p.country||"",
-                description:p.description||"",hsLeadStatus:p.hs_lead_status||"",
-                hubspotId:co.id,notes:"",status:"Active"}]);
-              coDone++;
-              if(i%20===0) syncMsg(`🏢 Importing companies… ${i+1}/${hsCompanies.length}`);
+              setCompanies(prev=>[...prev,{
+                id, name:p.name, industry:p.industry||"", phone:p.phone||"",
+                website:p.website||"", address:p.address||"", city:p.city||"",
+                country:p.country||"", description:p.description||"",
+                hsLeadStatus:p.hs_lead_status||"", hubspotId:co.id,
+                notes:"", status:"Active", postcode:p.zip||"",
+              }]);
+              added++;
+              if(i%20===0) syncMsg(`🏢 Checking… ${i+1}/${hsCompanies.length} (${added} new)`);
             }
-            // Re-link existing contacts to new company records via HubSpot ID
-            syncMsg("🔗 Re-linking contacts to companies…");
+
+            // Link contacts to any newly added companies
+            syncMsg("🔗 Linking contacts to new companies…");
             let linked=0;
             const freshContacts = await loadTable("crm_contacts").catch(()=>[]);
-            for(let i=0;i<hsCompanies.length;i++){
-              const co=hsCompanies[i]; const localCoId=hsCoIdToLocalId[co.id]; if(!localCoId) continue;
+            const newHsCos = hsCompanies.filter(co=>!knownHsIds.has(co.id)&&co.properties?.name);
+            for(let i=0;i<newHsCos.length;i++){
+              const co=newHsCos[i]; const localCoId=hsCoIdToLocalId[co.id]; if(!localCoId) continue;
               try {
                 const d=await hsFetch("getCompanyContacts",{companyId:co.id});
                 for(const assoc of (d.results||[])){
-                  const localContact=freshContacts.find(c=>c.hubspot_id===assoc.id);
-                  if(!localContact) continue;
-                  await upsertRow("crm_contacts",{...localContact,company_id:localCoId}).catch(()=>{});
-                  setContacts(prev=>prev.map(c=>c.id===localContact.id?{...c,companyId:localCoId}:c));
+                  const lc=freshContacts.find(c=>c.hubspot_id===assoc.id);
+                  if(!lc) continue;
+                  await upsertRow("crm_contacts",{...lc,company_id:localCoId}).catch(()=>{});
+                  setContacts(prev=>prev.map(c=>c.id===lc.id?{...c,companyId:localCoId}:c));
                   linked++;
                 }
               } catch{}
-              if(i%20===0) syncMsg(`🔗 Linking… ${i+1}/${hsCompanies.length}`);
             }
-            syncMsg(`✓ Companies sync complete — ${coDone} companies · ${linked} contact links restored`);
+            syncMsg(`✓ Done — ${added} new companies added, ${skipped} already existed (skipped), ${linked} contact links updated`);
           } catch(e){ syncMsg("Error: "+e.message); }
           setHsImporting(false);
         };
 
         // ── Sync Contacts Only ───────────────────────────────────────────────
+        // ── Sync New Contacts (incremental — skips existing hubspot_ids) ────
         const syncContactsOnly = async () => {
           if(!hsToken.trim()){setHsMsg("Please enter your HubSpot token."); return;}
-          if(!window.confirm("This will DELETE all existing CRM contacts, then re-import contacts fresh from HubSpot. Companies will be kept and re-linked. Continue?")) return;
           setHsImporting(true);
           const syncMsg = (msg) => { setHsMsg(msg); if(onSyncTick) onSyncTick(); };
           try {
-            syncMsg("🗑 Clearing existing contacts…");
+            // Build a set of HubSpot IDs already in Supabase so we never overwrite local edits
+            syncMsg("👥 Checking existing contacts…");
             const existingContacts = await loadTable("crm_contacts").catch(()=>[]);
-            for(const c of existingContacts) await deleteRow("crm_contacts", c.id).catch(()=>{});
-            setContacts([]);
+            const knownHsIds = new Set(existingContacts.map(c=>c.hubspot_id).filter(Boolean));
+            const hsContactIdToLocalId = {};
+            existingContacts.forEach(c=>{ if(c.hubspot_id) hsContactIdToLocalId[c.hubspot_id]=c.id; });
+
             syncMsg("👥 Fetching contacts from HubSpot…");
             const hsContacts = await fetchAllPages("searchContacts");
-            syncMsg(`👥 Importing ${hsContacts.length} contacts…`);
-            const hsContactIdToLocalId = {};
-            let ctDone=0;
+            let added=0, skipped=0;
+            syncMsg(`👥 Found ${hsContacts.length} in HubSpot — checking for new ones…`);
+
             for(let i=0;i<hsContacts.length;i++){
               const c=hsContacts[i]; const p=c.properties;
               const name=[p.firstname,p.lastname].filter(Boolean).join(" ")||p.company||"";
-              if(!name) continue;
-              const id=crypto.randomUUID(); hsContactIdToLocalId[c.id]=id;
-              const row={id,name,email:p.email||"",phone:p.mobilephone||p.phone||"",
-                company:p.company||"",trade:p.industry||"",
-                job_title:p.jobtitle||"",description:p.description||"",
-                salutation:p.salutation||"",date_of_birth:p.date_of_birth||null,
-                address:p.address||"",city:p.city||"",
-                postcode:p.zip||"",country:(p.country&&p.country!=="New Zealand")?p.country:"",
-                site_safe_expiry:p.site_safe_expiry||p.sitesafe_expiry||null,
-                first_aid_expiry:p.first_aid_expiry||p.firstaid_expiry||null,
-                ew_licence_expiry:p.ew_licence_expiry||p.electrical_worker_licence_expiry||null,
+              if(!name){ skipped++; continue; }
+              if(knownHsIds.has(c.id)){ skipped++; continue; }
+              // New contact — add it
+              const id=crypto.randomUUID();
+              hsContactIdToLocalId[c.id]=id;
+              const pick = (...keys) => keys.map(k=>p[k]).find(v=>v&&String(v).trim())||null;
+              const row={
+                id, name, email:p.email||"", phone:p.mobilephone||p.phone||"",
+                company:p.company||"", trade:p.industry||"",
+                job_title:p.jobtitle||"", description:p.description||"",
+                salutation:p.salutation||"", date_of_birth:p.date_of_birth||null,
+                address:p.address||"", city:p.city||"",
+                postcode:p.zip||"", country:(p.country&&p.country!=="New Zealand")?p.country:"",
+                ew_licence_expiry: pick("ew_licence_expiry","electrical_worker_licence_expiry","ew_licence_expiry_date","electrician_licence_expiry","licence_expiry","licence_expiry_date","trade_licence_expiry"),
+                site_safe_expiry:  pick("site_safe_expiry","sitesafe_expiry","site_safe_expiry_date","sitesafe_expiry_date","site_safe_card_expiry","sitesafe"),
+                first_aid_expiry:  pick("first_aid_expiry","firstaid_expiry","first_aid_expiry_date","firstaid_expiry_date","first_aid_certificate_expiry"),
+                licence_number:   pick("ew_licence_number","licence_number","electrical_licence_number"),
+                site_safe_number: pick("site_safe_number","sitesafe_number","site_safe_card_number"),
+                first_aid_number: pick("first_aid_number","firstaid_number","first_aid_certificate_number"),
+                emergency_contact_name:         pick("emergency_contact_name","emergency_contact","next_of_kin","nok_name","emergency_name","emergency_contact_firstname"),
+                emergency_contact_phone:        pick("emergency_contact_phone","emergency_phone","nok_phone"),
+                emergency_contact_relationship: pick("emergency_contact_relationship","nok_relationship","emergency_relationship"),
                 hs_lead_status:p.hs_lead_status||"",
                 notes_last_contacted:p.notes_last_contacted||"",
                 hs_created:p.createdate||null,
-                status:"Active",notes:"",hubspot_id:c.id};
+                status:"Active", notes:"", hubspot_id:c.id,
+              };
               await upsertRow("crm_contacts",row).catch(()=>{});
-              setContacts(prev=>[...prev,{id,name,email:row.email,phone:row.phone,
-                company:row.company,companyId:"",status:"Active",notes:"",
-                jobTitle:row.job_title,ewLicenceExpiry:row.ew_licence_expiry,
-                hsLeadStatus:row.hs_lead_status,hubspot_id:c.id}]);
-              ctDone++;
-              if(i%50===0) syncMsg(`👥 Importing contacts… ${i+1}/${hsContacts.length}`);
+              await syncUserFromContact(row);
+              setContacts(prev=>[...prev,{
+                id, name, email:row.email, phone:row.phone,
+                company:row.company, companyId:"", status:"Active", notes:"",
+                jobTitle:row.job_title, ewLicenceExpiry:row.ew_licence_expiry,
+                siteSafeExpiry:row.site_safe_expiry, firstAidExpiry:row.first_aid_expiry,
+                licenceNumber:row.licence_number, siteSafeNumber:row.site_safe_number,
+                emergencyContactName:row.emergency_contact_name,
+                emergencyContactPhone:row.emergency_contact_phone,
+                emergencyContactRelationship:row.emergency_contact_relationship,
+                hsLeadStatus:row.hs_lead_status, hubspot_id:c.id,
+              }]);
+              added++;
+              if(i%50===0) syncMsg(`👥 Checking… ${i+1}/${hsContacts.length} (${added} new)`);
             }
-            syncMsg("🔗 Re-linking contacts to companies…");
+
+            // Link only the newly added contacts to their companies
+            syncMsg("🔗 Linking new contacts to companies…");
             const existingCos = await loadTable("crm_companies").catch(()=>[]);
             let linked=0;
             for(const co of existingCos){
@@ -3167,16 +4344,246 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
               try {
                 const d=await hsFetch("getCompanyContacts",{companyId:co.hubspot_id});
                 for(const assoc of (d.results||[])){
-                  const localContactId=hsContactIdToLocalId[assoc.id];
-                  if(!localContactId) continue;
-                  await upsertRow("crm_contacts",{id:localContactId,company_id:co.id}).catch(()=>{});
-                  setContacts(prev=>prev.map(c=>c.id===localContactId?{...c,companyId:co.id}:c));
+                  // Only link if this was a newly added contact (not pre-existing)
+                  const localId=hsContactIdToLocalId[assoc.id];
+                  if(!localId||knownHsIds.has(assoc.id)) continue;
+                  await upsertRow("crm_contacts",{id:localId,company_id:co.id}).catch(()=>{});
+                  setContacts(prev=>prev.map(c=>c.id===localId?{...c,companyId:co.id}:c));
                   linked++;
                 }
               } catch{}
             }
-            syncMsg(`✓ Contacts sync complete — ${ctDone} contacts · ${linked} company links restored`);
+            syncMsg(`✓ Done — ${added} new contacts added, ${skipped} already existed (skipped), ${linked} company links updated`);
           } catch(e){ syncMsg("Error: "+e.message); }
+          setHsImporting(false);
+        };
+
+        // ── Sync User Compliance Data from HubSpot ───────────────────────────
+        // Matches HubSpot contacts to KTA users by email and updates their
+        // compliance fields (licence expiry, site safe, first aid, emergency contact)
+        // without touching contacts/companies or wiping any data
+        const syncUsersFromHubSpot = async () => {
+          if(!hsToken.trim()){setHsMsg("Please enter your HubSpot token."); return;}
+          if(!allUsers.length){setHsMsg("No KTA users loaded yet."); return;}
+          setHsImporting(true);
+          const syncMsg = (msg) => { setHsMsg(msg); if(onSyncTick) onSyncTick(); };
+          try {
+            syncMsg("📋 Fetching contacts from HubSpot to match against KTA users…");
+            const hsContacts = await fetchAllPages("searchContacts");
+            syncMsg(`📋 Checking ${hsContacts.length} HubSpot contacts against ${allUsers.length} KTA users…`);
+
+            let updated=0, skipped=0;
+            for(let i=0; i<hsContacts.length; i++){
+              const c = hsContacts[i];
+              const p = c.properties;
+              if(!p.email){ skipped++; continue; }
+              const matchedUser = allUsers.find(u=>
+                u.email && u.email.toLowerCase().trim() === p.email.toLowerCase().trim()
+              );
+              if(!matchedUser){ skipped++; continue; }
+
+              const pick = (...keys) => keys.map(k=>p[k]).find(v=>v&&String(v).trim())||null;
+
+              const updates = {};
+              const ewExp = pick("ew_licence_expiry","electrical_worker_licence_expiry","ew_licence_expiry_date","electrician_licence_expiry","licence_expiry","licence_expiry_date","trade_licence_expiry");
+              const ssExp = pick("site_safe_expiry","sitesafe_expiry","site_safe_expiry_date","sitesafe_expiry_date","site_safe_card_expiry");
+              const faExp = pick("first_aid_expiry","firstaid_expiry","first_aid_expiry_date","firstaid_expiry_date","first_aid_certificate_expiry");
+              const licNo = pick("ew_licence_number","licence_number","electrical_licence_number");
+              const ssNo  = pick("site_safe_number","sitesafe_number","site_safe_card_number");
+              const emName = pick("emergency_contact_name","emergency_contact","next_of_kin","nok_name","emergency_name","emergency_contact_firstname");
+              const emPhone = pick("emergency_contact_phone","emergency_phone","nok_phone");
+              const emRel   = pick("emergency_contact_relationship","nok_relationship","emergency_relationship");
+
+              if(ewExp)    updates.licenceExpiry    = ewExp;
+              if(ssExp)    updates.siteSafeExpiry   = ssExp;
+              if(faExp)    updates.firstAidExpiry   = faExp;
+              if(licNo)    updates.licenceNumber    = licNo;
+              if(ssNo)     updates.siteSafeNumber   = ssNo;
+              if(emName)   updates.emergencyContactName         = emName;
+              if(emPhone)  updates.emergencyContactPhone        = emPhone;
+              if(emRel)    updates.emergencyContactRelationship = emRel;
+              if(p.phone && !matchedUser.phone) updates.phone  = p.mobilephone||p.phone;
+
+              if(Object.keys(updates).length === 0){ skipped++; continue; }
+
+              const updatedUser = {...matchedUser, ...updates};
+              await upsertUser(updatedUser).catch(console.error);
+              if(onUserCreated) onUserCreated(updatedUser);
+              updated++;
+              if(i%20===0) syncMsg(`📋 Matched ${updated} users so far…`);
+            }
+            syncMsg(`✓ User sync complete — ${updated} KTA users updated from HubSpot, ${skipped} contacts had no match or no new data`);
+          } catch(e){ syncMsg("Error: "+e.message); }
+          setHsImporting(false);
+        };
+
+        // ── Sync Activity (Notes, Calls, Meetings, Emails, Tasks) ────────────
+        const syncActivity = async () => {
+          if(!hsToken.trim()){setHsMsg("Please enter your HubSpot token."); return;}
+          if(!window.confirm("This will import all HubSpot activity (notes, calls, meetings, emails, tasks) for all contacts and companies. Existing activity records with the same HubSpot ID will be skipped. Continue?")) return;
+          setHsImporting(true);
+          const syncMsg = (msg) => { setHsMsg(msg); if(onSyncTick) onSyncTick(); };
+
+          try {
+            // Build HubSpot ID → local ID maps from current contacts + companies
+            const allLocalContacts  = await loadTable("crm_contacts").catch(()=>[]);
+            const allLocalCompanies = await loadTable("crm_companies").catch(()=>[]);
+            const hsContactMap  = {}; // hubspot_id → {local_id, name, email}
+            const hsCompanyMap  = {}; // hubspot_id → {local_id, name}
+            allLocalContacts.forEach(c=>{ if(c.hubspot_id) hsContactMap[c.hubspot_id]={id:c.id,name:c.name,email:c.email||""}; });
+            allLocalCompanies.forEach(c=>{ if(c.hubspot_id) hsCompanyMap[c.hubspot_id]={id:c.id,name:c.name}; });
+
+            // Load existing activity_notes to avoid duplicates
+            syncMsg("📋 Loading existing activity records…");
+            const existingActivity = await loadTable("activity_notes").catch(()=>[]);
+            const existingHsIds = new Set(existingActivity.map(a=>a.hubspot_engagement_id).filter(Boolean));
+
+            let totalSaved = 0;
+            let totalSkipped = 0;
+
+            // Helper: resolve person from engagement associations
+            const resolvePersonFromAssoc = (assocs) => {
+              const contactIds = assocs?.contacts?.results?.map(r=>r.id)||[];
+              const companyIds = assocs?.companies?.results?.map(r=>r.id)||[];
+              for(const hsId of contactIds){
+                const local = hsContactMap[hsId];
+                if(local) return { person_id: local.id, person_name: local.name, person_email: local.email };
+              }
+              for(const hsId of companyIds){
+                const local = hsCompanyMap[hsId];
+                if(local) return { person_id: local.id, person_name: local.name, person_email: "" };
+              }
+              return null;
+            };
+
+            // Helper: save one engagement as an activity_note row
+            const saveEngagement = async (engId, person, type, subject, body, direction, createdAt) => {
+              if(existingHsIds.has(String(engId))) { totalSkipped++; return; }
+              if(!person) { totalSkipped++; return; }
+              const row = {
+                id: crypto.randomUUID(),
+                person_email:            person.person_email || null,
+                person_id:               person.person_id   || null,
+                person_name:             person.person_name || null,
+                type,
+                subject:                 subject || type,
+                body:                    body    || "",
+                direction:               direction || "note",
+                hubspot_engagement_id:   String(engId),
+                created_at:              createdAt || new Date().toISOString(),
+                is_locked:               false,
+              };
+              await upsertRow("activity_notes", row).catch(()=>{});
+              existingHsIds.add(String(engId));
+              totalSaved++;
+            };
+
+            // ── 1. NOTES ────────────────────────────────────────────────────
+            syncMsg("📝 Fetching notes from HubSpot…");
+            let notePages=0; let noteAfter=null;
+            while(notePages<500){
+              const d = await hsFetch("getNotes", noteAfter?{after:noteAfter}:{});
+              for(const n of (d.results||[])){
+                const person = resolvePersonFromAssoc(n.associations);
+                const body   = n.properties?.hs_note_body||"";
+                const ts     = n.properties?.hs_timestamp||n.properties?.createdate||null;
+                await saveEngagement(n.id, person, "note", "Note", body, "note", ts);
+              }
+              noteAfter = d.paging?.next?.after;
+              notePages++;
+              if(!noteAfter) break;
+              if(notePages%5===0) syncMsg(`📝 Notes… ${totalSaved} saved so far`);
+            }
+            syncMsg(`📝 Notes done — ${totalSaved} saved, ${totalSkipped} skipped`);
+
+            // ── 2. CALLS ────────────────────────────────────────────────────
+            const callStart = totalSaved;
+            syncMsg("📞 Fetching calls from HubSpot…");
+            let callPages=0; let callAfter=null;
+            while(callPages<500){
+              const d = await hsFetch("getCalls", callAfter?{after:callAfter}:{});
+              for(const c of (d.results||[])){
+                const person   = resolvePersonFromAssoc(c.associations);
+                const p        = c.properties||{};
+                const subject  = p.hs_call_title||"Call";
+                const duration = p.hs_call_duration ? ` (${Math.round(p.hs_call_duration/1000/60)}min)` : "";
+                const body     = [p.hs_call_body, p.hs_call_disposition, p.hs_call_direction].filter(Boolean).join(" · ")+duration;
+                const ts       = p.hs_timestamp||p.createdate||null;
+                await saveEngagement(c.id, person, "call", subject, body, p.hs_call_direction==="INBOUND"?"inbound":"outbound", ts);
+              }
+              callAfter = d.paging?.next?.after;
+              callPages++;
+              if(!callAfter) break;
+              if(callPages%5===0) syncMsg(`📞 Calls… ${totalSaved-callStart} calls saved`);
+            }
+            syncMsg(`📞 Calls done — ${totalSaved-callStart} saved`);
+
+            // ── 3. MEETINGS ─────────────────────────────────────────────────
+            const meetStart = totalSaved;
+            syncMsg("🤝 Fetching meetings from HubSpot…");
+            let meetPages=0; let meetAfter=null;
+            while(meetPages<500){
+              const d = await hsFetch("getMeetings", meetAfter?{after:meetAfter}:{});
+              for(const m of (d.results||[])){
+                const person  = resolvePersonFromAssoc(m.associations);
+                const p       = m.properties||{};
+                const subject = p.hs_meeting_title||"Meeting";
+                const body    = [p.hs_meeting_body, p.hs_meeting_outcome].filter(Boolean).join("\n\n");
+                const ts      = p.hs_meeting_start_time||p.hs_timestamp||p.createdate||null;
+                await saveEngagement(m.id, person, "meeting", subject, body, "note", ts);
+              }
+              meetAfter = d.paging?.next?.after;
+              meetPages++;
+              if(!meetAfter) break;
+              if(meetPages%5===0) syncMsg(`🤝 Meetings… ${totalSaved-meetStart} meetings saved`);
+            }
+            syncMsg(`🤝 Meetings done — ${totalSaved-meetStart} saved`);
+
+            // ── 4. EMAILS ───────────────────────────────────────────────────
+            const emailStart = totalSaved;
+            syncMsg("✉ Fetching emails from HubSpot…");
+            let emailPages=0; let emailAfter=null;
+            while(emailPages<500){
+              const d = await hsFetch("getEngagementEmails", emailAfter?{after:emailAfter}:{});
+              for(const e of (d.results||[])){
+                const person    = resolvePersonFromAssoc(e.associations);
+                const p         = e.properties||{};
+                const subject   = p.hs_email_subject||"Email";
+                const body      = p.hs_email_text||p.hs_email_html||"";
+                const direction = p.hs_email_direction==="INBOUND"?"inbound":"outbound";
+                const ts        = p.hs_timestamp||p.createdate||null;
+                await saveEngagement(e.id, person, "email", subject, body, direction, ts);
+              }
+              emailAfter = d.paging?.next?.after;
+              emailPages++;
+              if(!emailAfter) break;
+              if(emailPages%5===0) syncMsg(`✉ Emails… ${totalSaved-emailStart} emails saved`);
+            }
+            syncMsg(`✉ Emails done — ${totalSaved-emailStart} saved`);
+
+            // ── 5. TASKS ────────────────────────────────────────────────────
+            const taskStart = totalSaved;
+            syncMsg("✅ Fetching tasks from HubSpot…");
+            let taskPages=0; let taskAfter=null;
+            while(taskPages<500){
+              const d = await hsFetch("getTasks", taskAfter?{after:taskAfter}:{});
+              for(const t of (d.results||[])){
+                const person  = resolvePersonFromAssoc(t.associations);
+                const p       = t.properties||{};
+                const subject = p.hs_task_subject||"Task";
+                const body    = [p.hs_task_body, p.hs_task_status, p.hs_task_type].filter(Boolean).join(" · ");
+                const ts      = p.hs_timestamp||p.createdate||null;
+                await saveEngagement(t.id, person, "task", subject, body, "note", ts);
+              }
+              taskAfter = d.paging?.next?.after;
+              taskPages++;
+              if(!taskAfter) break;
+              if(taskPages%5===0) syncMsg(`✅ Tasks… ${totalSaved-taskStart} tasks saved`);
+            }
+            syncMsg(`✓ Activity sync complete — ${totalSaved} records imported, ${totalSkipped} already existed or unlinked`);
+          } catch(e){
+            syncMsg("Error: "+e.message);
+          }
           setHsImporting(false);
         };
 
@@ -3193,21 +4600,39 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
                 </Btn>
               </Card>
               <Card style={{border:`1.5px solid ${T.teal}33`}}>
-                <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>🏢 Sync Companies Only</div>
+                <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>🏢 Add New Companies</div>
                 <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
-                  Re-imports companies from HubSpot. Contacts are kept and re-linked to new company records.
+                  Adds companies from HubSpot that don't exist here yet. Existing companies are <strong>never deleted or overwritten</strong> — only new ones are added.
                 </div>
                 <Btn sm onClick={syncCompaniesOnly} disabled={hsImporting} style={{background:T.teal,color:"#fff",fontWeight:700,width:"100%"}}>
-                  {hsImporting?"⏳ Syncing…":"🏢 Sync Companies Only"}
+                  {hsImporting?"⏳ Syncing…":"🏢 Add New Companies from HubSpot"}
                 </Btn>
               </Card>
               <Card style={{border:`1.5px solid ${T.blue}33`}}>
-                <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>👥 Sync Contacts Only</div>
+                <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>👥 Add New Contacts</div>
                 <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
-                  Re-imports contacts from HubSpot. Companies are kept and contacts re-linked automatically.
+                  Adds contacts from HubSpot that don't exist here yet. Existing contacts are <strong>never deleted or overwritten</strong> — only new ones are added.
                 </div>
                 <Btn sm onClick={syncContactsOnly} disabled={hsImporting} style={{background:T.blue,color:"#fff",fontWeight:700,width:"100%"}}>
-                  {hsImporting?"⏳ Syncing…":"👥 Sync Contacts Only"}
+                  {hsImporting?"⏳ Syncing…":"👥 Add New Contacts from HubSpot"}
+                </Btn>
+              </Card>
+              <Card style={{border:`1.5px solid ${T.gold}33`}}>
+                <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>📋 Sync Activity</div>
+                <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+                  Imports all HubSpot activity — notes, calls, meetings, emails and tasks — linked to your contacts and companies. Safe to re-run; duplicates are skipped.
+                </div>
+                <Btn sm onClick={syncActivity} disabled={hsImporting} style={{background:T.gold,color:"#fff",fontWeight:700,width:"100%"}}>
+                  {hsImporting?"⏳ Syncing…":"📋 Sync Activity (Notes, Calls, Meetings, Emails, Tasks)"}
+                </Btn>
+              </Card>
+              <Card style={{border:`1.5px solid ${T.teal}33`,gridColumn:"1 / -1"}}>
+                <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>👤 Sync User Compliance Data</div>
+                <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+                  Matches HubSpot contacts to KTA users by email and updates their <strong>EW Licence expiry, Site Safe, First Aid, licence numbers and emergency contact</strong> — without touching any other data. Run this whenever compliance data is updated in HubSpot.
+                </div>
+                <Btn sm onClick={syncUsersFromHubSpot} disabled={hsImporting} style={{background:T.teal,color:"#fff",fontWeight:700,width:"100%"}}>
+                  {hsImporting?"⏳ Syncing…":"👤 Sync User Compliance Data from HubSpot"}
                 </Btn>
               </Card>
             </div>
@@ -3219,6 +4644,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo}) {
               {hsMsg&&<div style={{marginTop:10,fontSize:12,fontWeight:600,lineHeight:1.7,
                 color:hsMsg.startsWith("✓")?T.teal:hsMsg.startsWith("Error")?T.red:T.sub}}>{hsMsg}</div>}
             </Card>
+
+            <HubSpotPropertyInspector hsToken={hsToken} hsFetch={hsFetch}/>
 
             {canDelete&&(
               <Card style={{border:`1.5px solid ${T.red}44`,marginTop:8}}>
@@ -3511,7 +4938,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
   const [formMentorId,   setFormMentorId]   = useState("");
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
   const [hostCos, setHostCos] = useState([]);
-  useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCos(rows.filter(r=>r.is_host_business).map(r=>({id:r.id,name:r.name})).sort((a,b)=>a.name.localeCompare(b.name)))).catch(()=>{}); },[]);
+  useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCos(rows.map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>a.name.localeCompare(b.name)))).catch(()=>{}); },[]);
 
   const getAllocated = (role, appId) =>
     allUsers.filter(u => (u.role===role || u.role==="Admin") && (u.allocatedTo||[]).includes(appId));
@@ -3649,10 +5076,13 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
             <div><FL>Host Business</FL>
               {hostCos.length>0?(()=>{
                 const listed=hostCos.some(c=>c.name===(form.hostBusiness||""));
+                const hostOnes=hostCos.filter(c=>c.isHostBusiness);
+                const otherOnes=hostCos.filter(c=>!c.isHostBusiness);
                 return(<div>
                   <select value={listed?(form.hostBusiness||""):"__custom__"} onChange={e=>{if(e.target.value!=="__custom__")sf("hostBusiness",e.target.value);}}>
                     <option value="">— Select host business —</option>
-                    {hostCos.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                    {hostOnes.length>0&&<optgroup label="🏢 Host Businesses">{hostOnes.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</optgroup>}
+                    {otherOnes.length>0&&<optgroup label="All Companies">{otherOnes.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</optgroup>}
                     <option value="__custom__">Other (type below)…</option>
                   </select>
                   {!listed&&<input style={{marginTop:6}} placeholder="Type host business name…" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>}
@@ -3875,10 +5305,13 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
                       <div><FL>Host Business</FL>
                         {hostCos.length>0?(()=>{
                           const listed=hostCos.some(c=>c.name===(form.hostBusiness||""));
+                          const hostOnes=hostCos.filter(c=>c.isHostBusiness);
+                          const otherOnes=hostCos.filter(c=>!c.isHostBusiness);
                           return(<div>
                             <select value={listed?(form.hostBusiness||""):"__custom__"} onChange={e=>{if(e.target.value!=="__custom__")sf("hostBusiness",e.target.value);}}>
                               <option value="">— Select host business —</option>
-                              {hostCos.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                              {hostOnes.length>0&&<optgroup label="🏢 Host Businesses">{hostOnes.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</optgroup>}
+                              {otherOnes.length>0&&<optgroup label="All Companies">{otherOnes.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</optgroup>}
                               <option value="__custom__">Other (type below)…</option>
                             </select>
                             {!listed&&<input style={{marginTop:6}} placeholder="Type host business name…" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>}
@@ -4438,7 +5871,7 @@ function DraggableSection({ id, dragProps, children, style = {} }) {
   );
 }
 
-function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeList, onViewList, onViewTimesheets, onViewLeave, currentUser}) {
+function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeList, onViewList, onViewTimesheets, onViewLeave, currentUser, navigateTo}) {
   const apprentices = allUsers.filter(u=>u.role==="Apprentice");
   const wsStart = ()=>{ const d=new Date(); d.setDate(d.getDate()-d.getDay()); return d.toISOString().slice(0,10); };
   const ws = wsStart();
@@ -4569,9 +6002,19 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
   };
 
   const crmData = {
-    contacts: {label:"Contacts",        sub:"business & other contacts",    color:T.slate, icon:"◉"},
-    hosts:    {label:"Host Businesses",  sub:"companies hosting apprentices", color:T.teal,  icon:"◆"},
-    deals:    {label:"Target Deals",     sub:"opportunities & pipeline",      color:T.gold,  icon:"◈"},
+    contacts: {label:"Contacts",        sub:"business & other contacts",    color:T.slate, icon:"◉", tab:"contacts"},
+    hosts:    {label:"Host Businesses",  sub:"companies hosting apprentices", color:T.teal,  icon:"◆", tab:"companies"},
+    deals:    {label:"Target Deals",     sub:"opportunities & pipeline",      color:T.gold,  icon:"◈", tab:"deals"},
+  };
+
+  const handleCrmCard = (id) => {
+    const tabMap = {contacts:"contacts", hosts:"companies", deals:"deals"};
+    const crmTab = tabMap[id]||"contacts";
+    try { localStorage.setItem("wos_crm_tab", crmTab); } catch {}
+    // When Host Businesses card clicked, flag to filter companies to hosts only
+    try { localStorage.setItem("wos_crm_hosts_only", id==="hosts"?"1":""); } catch {}
+    if(navigateTo) navigateTo("crm");
+    else onViewList(id);
   };
 
   const sections = {
@@ -4593,7 +6036,7 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
             const {label,sub,color,icon} = crmData[id];
             return (
               <div key={id} {...crmDrag(id)} style={{borderRadius:14, cursor:"grab"}}>
-                <button onClick={()=>onViewList(id)} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
+                <button onClick={()=>handleCrmCard(id)} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
                   onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
                   <Card style={{paddingBlock:18,border:`1.5px solid ${color}44`}}>
                     <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{label}</div>
@@ -4814,7 +6257,7 @@ const leaveEmailHtml = (title, body) => `
     <p style="font-size:15px;color:#0d1b2e;margin-top:0">${title}</p>
     ${body}
     <hr style="border:none;border-top:1px solid #d0daea;margin:20px 0">
-    <p style="font-size:11px;color:#8fa0b8">KTA Workforce Management · timesheet@kta.org.nz</p>
+    <p style="font-size:11px;color:#8fa0b8">KTA Workforce Management · payroll@kta.org.nz</p>
   </div>
 </div>`;
 
@@ -5867,7 +7310,7 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver) => {
 <p>Please find attached the apprentice check in report for <strong>${apprentice.name}</strong>.</p>
 <hr>
 <pre style="font-family:monospace;font-size:13px;line-height:1.6">${lines}</pre>
-<p style="color:#888;font-size:12px">KTA Workforce Management · timesheet@kta.org.nz</p>`,
+<p style="color:#888;font-size:12px">KTA Workforce Management · payroll@kta.org.nz</p>`,
       attachments,
     });
   }
@@ -6450,7 +7893,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
     <div style="font-size:12px;color:#4a5a72;font-style:italic;line-height:1.6">I request the PPE items listed above. I understand that all items are provided new and are mine to keep. I agree to use them appropriately and in accordance with health and safety requirements.</div>
   </div>
   <div style="padding:14px 28px;background:#f8fafc;border-top:1px solid #dce8f7">
-    <div style="font-size:11px;color:#8fa0b8">KTA Workforce Management &nbsp;·&nbsp; timesheet@kta.org.nz</div>
+    <div style="font-size:11px;color:#8fa0b8">KTA Workforce Management &nbsp;·&nbsp; payroll@kta.org.nz</div>
   </div>
 </div></body></html>`;
 
@@ -6744,7 +8187,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
 }
 
 // ── Apprentice Detail Page (used by both Mentor and Admin) ────────────────────
-function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entries, onBack, isAdmin=false, canEditExpiry=false}) {
+function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entries, onBack, isAdmin=false, canEditExpiry=false, onUserUpdated=null}) {
   const [apprentice, setApprentice]           = useState(apprenticeProp);
   const [showMeetingForm, setShowMeetingForm] = useState(false);
   const [showPastReports, setShowPastReports] = useState(false);
@@ -6762,6 +8205,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   const [pdForm, setPdForm]                   = useState({
     email:"", phone:"", startDate:"", dateOfBirth:"",
     gender:"", hostBusiness:"", address:"", addressLine2:"", suburb:"", city:"", postcode:"",
+    emergencyContactName:"", emergencyContactPhone:"", emergencyContactRelationship:"",
   });
   const [editingExpiry, setEditingExpiry]     = useState(null); // "licence"|"siteSafe"|"firstAid"|"licenceNum"|"siteSafeNum"
   const [expiryVal, setExpiryVal]             = useState("");
@@ -6772,12 +8216,21 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   const [hostBizVal, setHostBizVal]           = useState("");
   const [savingHostBiz, setSavingHostBiz]     = useState(false);
   const [hostCosAdv, setHostCosAdv]           = useState([]);
-  useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCosAdv(rows.filter(r=>r.is_host_business).map(r=>({id:r.id,name:r.name})).sort((a,b)=>a.name.localeCompare(b.name)))).catch(()=>{}); },[]);
+  useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCosAdv(rows.map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>a.name.localeCompare(b.name)))).catch(()=>{}); },[]);
 
   const saveHostBiz = async () => {
     setSavingHostBiz(true);
-    await upsertUser({...apprentice, hostBusiness: hostBizVal}).catch(console.error);
+    const updated = {...apprentice, hostBusiness: hostBizVal};
+    await upsertUser(updated).catch(console.error);
     setApprentice(prev=>({...prev, hostBusiness: hostBizVal}));
+    if(onUserUpdated) onUserUpdated(updated);
+    if(hostBizVal.trim()) {
+      const match = hostCosAdv.find(c=>c.name.toLowerCase().trim()===hostBizVal.toLowerCase().trim());
+      if(match && !match.isHostBusiness) {
+        await upsertRow('crm_companies', {id:match.id, is_host_business:true}).catch(console.error);
+        setHostCosAdv(prev=>prev.map(c=>c.id===match.id?{...c,isHostBusiness:true}:c));
+      }
+    }
     setEditingHostBiz(false);
     setSavingHostBiz(false);
   };
@@ -6793,8 +8246,10 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
     setSavingExpiry(true);
     const dbField = field==="licence"?"licence_expiry":field==="siteSafe"?"site_safe_expiry":field==="firstAid"?"first_aid_expiry":field==="licenceNum"?"licence_number":"site_safe_number";
     const stateField = field==="licence"?"licenceExpiry":field==="siteSafe"?"siteSafeExpiry":field==="firstAid"?"firstAidExpiry":field==="licenceNum"?"licenceNumber":"siteSafeNumber";
-    await upsertUser({...apprentice, [stateField]: val||null}).catch(console.error);
+    const updated = {...apprentice, [stateField]: val||null};
+    await upsertUser(updated).catch(console.error);
     setApprentice(prev=>({...prev,[stateField]:val||null}));
+    if(onUserUpdated) onUserUpdated(updated);
     setEditingExpiry(null);
     setSavingExpiry(false);
   };
@@ -6828,6 +8283,11 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   const approver = allUsers.find(u=>
     u.id===apprentice.approverUserId ||
     (u.role==="Approver"&&(u.allocatedTo||[]).includes(apprentice.id))
+  );
+  // Viewer for this apprentice
+  const allocatedViewer = allUsers.find(u=>
+    u.id===apprentice.viewerUserId ||
+    (u.role==="Viewer"&&(u.allocatedTo||[]).includes(apprentice.id))
   );
   // Mentor for this apprentice
   const mentor = allUsers.find(u=>
@@ -6981,16 +8441,26 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               <div style={{display:"flex",gap:5,alignItems:"center",marginTop:4,flexWrap:"wrap"}}>
                 {hostCosAdv.length>0?(()=>{
                   const listed=hostCosAdv.some(c=>c.name===hostBizVal);
+                  const hostOnes = hostCosAdv.filter(c=>c.isHostBusiness);
+                  const otherOnes = hostCosAdv.filter(c=>!c.isHostBusiness);
                   return(<div style={{flex:1,display:"flex",flexDirection:"column",gap:4}}>
                     <select value={listed?hostBizVal:"__custom__"} onChange={e=>{if(e.target.value!=="__custom__")setHostBizVal(e.target.value);}}
                       style={{fontSize:12,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",width:"100%"}}>
                       <option value="">— Select host business —</option>
-                      {hostCosAdv.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                      {hostOnes.length>0&&<optgroup label="🏢 Host Businesses">
+                        {hostOnes.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                      </optgroup>}
+                      {otherOnes.length>0&&<optgroup label="All Companies">
+                        {otherOnes.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
+                      </optgroup>}
                       <option value="__custom__">Other (type below)…</option>
                     </select>
                     {!listed&&<input value={hostBizVal} onChange={e=>setHostBizVal(e.target.value)}
                       placeholder="Type host business name…"
                       style={{fontSize:12,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",width:"100%"}}/>}
+                    {listed&&!hostCosAdv.find(c=>c.name===hostBizVal)?.isHostBusiness&&hostBizVal&&(
+                      <div style={{fontSize:11,color:T.teal}}>✓ Will be flagged as a Host Business in CRM on save</div>
+                    )}
                   </div>);
                 })():<input value={hostBizVal} onChange={e=>setHostBizVal(e.target.value)}
                   placeholder="e.g. Sparks Electrical Ltd"
@@ -7000,8 +8470,32 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                 <button onClick={()=>setEditingHostBiz(false)}
                   style={{fontSize:11,padding:"4px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
               </div>
-            ):(
-              <div style={{fontSize:13,fontWeight:700,color:T.slate}}>{apprentice.hostBusiness||"Not set"}</div>
+            ):( 
+              <div>
+                <div style={{fontSize:13,fontWeight:700,color:T.slate}}>{apprentice.hostBusiness||"Not set"}</div>
+                {(approver||allocatedViewer)&&apprentice.hostBusiness&&(
+                  <div style={{display:"flex",flexDirection:"column",gap:4,marginTop:8}}>
+                    {approver&&(
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{fontSize:10,fontWeight:700,color:T.warn,textTransform:"uppercase",letterSpacing:".5px",minWidth:52}}>Approver</span>
+                        <span style={{fontSize:12,fontWeight:600,color:T.ink,background:T.warnL,
+                          padding:"2px 8px",borderRadius:10,border:`1px solid ${T.warn}33`}}>
+                          {approver.name}
+                        </span>
+                      </div>
+                    )}
+                    {allocatedViewer&&(
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{fontSize:10,fontWeight:700,color:T.blue,textTransform:"uppercase",letterSpacing:".5px",minWidth:52}}>Viewer</span>
+                        <span style={{fontSize:12,fontWeight:600,color:T.ink,background:T.blueL,
+                          padding:"2px 8px",borderRadius:10,border:`1px solid ${T.blue}33`}}>
+                          {allocatedViewer.name}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -7072,7 +8566,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             )}
             {showActivity && isAdmin && apprentice.email && (
               <Card style={{marginBottom:16}}>
-                <EmailActivityFeed personEmail={apprentice.email} personName={apprentice.name} personId={apprentice.id} canEdit={true} isKristeena={viewer?.email?.toLowerCase()===CONF_OWNER_EMAIL}
+                <EmailActivityFeed personEmail={apprentice.email} personName={apprentice.name} personId={apprentice.id} canEdit={true} isKristeena={viewer?.email?.toLowerCase()===CONF_OWNER_EMAIL} isAdmin1={(viewer?.adminLevel||1)===1&&viewer?.role==="Admin"}
                   extraItems={reports.map(r=>({id:r.id,created_at:r.created_at||r.date+"T12:00:00",date:r.date,
                     label:`Meeting Report — ${r.date?(()=>{const[y,m,d]=r.date.split('-');return`${d}/${m}/${y}`;})():""}`,
                     detail:r.goals_this_meeting?`Goals: ${r.goals_this_meeting}`:r.comments_feedback||""}))}/>
@@ -7089,9 +8583,13 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                 const updated = {...apprentice, ...pdForm,
                   startDate: pdForm.startDate||null,
                   dateOfBirth: pdForm.dateOfBirth||null,
+                  emergencyContactName: pdForm.emergencyContactName||"",
+                  emergencyContactPhone: pdForm.emergencyContactPhone||"",
+                  emergencyContactRelationship: pdForm.emergencyContactRelationship||"",
                 };
                 await upsertUser(updated).catch(console.error);
                 setApprentice(updated);
+                if(onUserUpdated) onUserUpdated(updated);
                 setPdEdit(false);
                 setPdSaving(false);
               };
@@ -7140,6 +8638,9 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                             gender:apprentice.gender||"",hostBusiness:apprentice.hostBusiness||"",
                             address:apprentice.address||"",addressLine2:apprentice.addressLine2||"",
                             suburb:apprentice.suburb||"",city:apprentice.city||"",postcode:apprentice.postcode||"",
+                            emergencyContactName:apprentice.emergencyContactName||"",
+                            emergencyContactPhone:apprentice.emergencyContactPhone||"",
+                            emergencyContactRelationship:apprentice.emergencyContactRelationship||"",
                           });
                           setPdEdit(true);
                         }} style={{fontSize:12,color:T.accent,background:T.accentL,border:"none",
@@ -7176,6 +8677,14 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                               {inp("postcode","Postcode")}
                             </div>
                           </div>
+                          <div style={{borderTop:`1px solid ${T.border}`,paddingTop:12,marginBottom:12}}>
+                            <div style={{fontSize:11,fontWeight:600,color:T.red,textTransform:"uppercase",letterSpacing:".5px",marginBottom:10}}>🚨 Emergency Contact</div>
+                            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12}}>
+                              {inp("emergencyContactName","Name")}
+                              {inp("emergencyContactPhone","Phone","tel")}
+                              {inp("emergencyContactRelationship","Relationship")}
+                            </div>
+                          </div>
                           <div style={{display:"flex",gap:8}}>
                             <button onClick={savePd} disabled={pdSaving}
                               style={{background:T.accent,color:"#fff",border:"none",borderRadius:8,
@@ -7208,6 +8717,36 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                               </div>
                             </div>
                           </div>
+                          {(apprentice.emergencyContactName||apprentice.emergencyContactPhone)&&(
+                            <div style={{marginTop:12,padding:"10px 14px",borderRadius:8,
+                              background:T.redL+"66",border:`1px solid ${T.red}33`}}>
+                              <div style={{fontSize:11,fontWeight:700,color:T.red,textTransform:"uppercase",
+                                letterSpacing:".5px",marginBottom:8}}>🚨 Emergency Contact</div>
+                              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:"6px 16px"}}>
+                                {apprentice.emergencyContactName&&(
+                                  <div>
+                                    <div style={{fontSize:10,color:T.muted,fontWeight:600,marginBottom:1}}>Name</div>
+                                    <div style={{fontSize:13,fontWeight:700,color:T.ink}}>{apprentice.emergencyContactName}</div>
+                                  </div>
+                                )}
+                                {apprentice.emergencyContactRelationship&&(
+                                  <div>
+                                    <div style={{fontSize:10,color:T.muted,fontWeight:600,marginBottom:1}}>Relationship</div>
+                                    <div style={{fontSize:13,color:T.ink}}>{apprentice.emergencyContactRelationship}</div>
+                                  </div>
+                                )}
+                                {apprentice.emergencyContactPhone&&(
+                                  <div>
+                                    <div style={{fontSize:10,color:T.muted,fontWeight:600,marginBottom:1}}>Phone</div>
+                                    <a href={`tel:${apprentice.emergencyContactPhone}`}
+                                      style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>
+                                      {apprentice.emergencyContactPhone}
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
@@ -7673,6 +9212,38 @@ function PinPromptModal({ title, onConfirm, onCancel }) {
     </div>
   );
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIDENTIAL NOTES CARD — only rendered for Kristeena (kristeena@kta.org.nz)
+// Wraps EmailActivityFeed with PIN-lock enabled and pre-scoped to her own account
+// ─────────────────────────────────────────────────────────────────────────────
+function ConfidentialNotesCard({ currentUser, allUsers }) {
+  return (
+    <div style={{ marginTop: 24 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
+      }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 10,
+          background: T.accentL, display: 'flex', alignItems: 'center',
+          justifyContent: 'center', fontSize: 18,
+        }}>🔒</div>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>Confidential Notes</div>
+          <div style={{ fontSize: 12, color: T.sub }}>Private notes — PIN-lockable, visible only to you</div>
+        </div>
+      </div>
+      <EmailActivityFeed
+        personEmail={currentUser.email}
+        personName={currentUser.name}
+        personId={currentUser.id}
+        canEdit={true}
+        isKristeena={true}
+        isAdmin1={(currentUser?.adminLevel||1)===1&&currentUser?.role==="Admin"}
+      />
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // BROADCAST COMPOSER — Admin + Mentor send messages to users
 // ─────────────────────────────────────────────────────────────────────────────
@@ -8868,7 +10439,7 @@ const NoteTextarea = ({value, onChange, placeholder}) => (
 //   personId    — Supabase user id (nullable for CRM contacts)
 //   extraItems  — pre-loaded items to merge (e.g. meeting reports as {_kind,_ts,label,detail})
 //   canEdit     — whether notes/pins are allowed
-function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[], canEdit=true, isKristeena=false}) {
+function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[], canEdit=true, isKristeena=false, isAdmin1=false}) {
   const [emails, setEmails]             = useState([]);
   const [notes, setNotes]               = useState([]);
   const [loadingEmails, setLoadingEmails] = useState(false);
@@ -9268,7 +10839,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                           )}
                         </div>
                       </div>
-                      {canEdit&&(
+                      {canEdit && isAdmin1 && (
                         <button onClick={()=>deleteNote(item.id)}
                           title="Remove activity"
                           style={{flexShrink:0,background:"none",border:"none",
@@ -9791,7 +11362,16 @@ export default function App() {
         next.forEach(e => {
           const old = prevMap[e.id];
           if(!old || stableJ(old) !== stableJ(e)) {
-            upsertEntry(e).catch(err=>console.error('upsertEntry',err));
+            upsertEntry(e).catch(err=>{
+              console.error('upsertEntry failed:', err);
+              // Make DB errors visible — entries saved in memory but not persisted
+              if(err?.message) {
+                const msg = err.message.toLowerCase();
+                if(msg.includes('rls')||msg.includes('permission')||msg.includes('policy')||msg.includes('denied')) {
+                  console.error('DATABASE PERMISSION ERROR — run migration_entries_fix.sql in Supabase SQL Editor');
+                }
+              }
+            });
           }
         });
         prev.forEach(e => {
@@ -10192,6 +11772,7 @@ export default function App() {
               isAdmin={true}
               canEditExpiry={true}
               onBack={()=>setViewingAppId(null)}
+              onUserUpdated={(u)=>updateUsers(prev=>prev.map(x=>x.id===u.id?u:x))}
             />
           )}
           {adminAppList && showAppList==="apprentices" && (
@@ -10238,6 +11819,7 @@ export default function App() {
                 onViewList={(key)=>{setShowAppList(key);setViewingAppId(null);}}
                 onViewTimesheets={()=>setModule("timesheet")}
                 onViewLeave={()=>{ setShowAppList("leave"); setViewingAppId(null); }}
+                navigateTo={navigateTo}
               />
 
               {currentUser.email?.toLowerCase() === CONF_OWNER_EMAIL && (
@@ -10291,7 +11873,12 @@ export default function App() {
             </>
           )}
           {activeMod==="crm" && (
-            <CRMModule currentUser={currentUser} allUsers={users} onSyncTick={()=>setSyncTick(t=>t+1)} navigateTo={navigateTo}/>
+            <CRMModule currentUser={currentUser} allUsers={users} onSyncTick={()=>setSyncTick(t=>t+1)} navigateTo={navigateTo}
+              onUserCreated={(newUser)=>updateUsers(prev=>{
+                const exists = prev.some(u=>u.id===newUser.id);
+                if(exists) return prev.map(u=>u.id===newUser.id?newUser:u); // update existing
+                return [...prev, newUser]; // add new
+              })}/>
           )}
           {activeMod==="users" && role==="Admin" && (
             <UserManagement users={users} setUsers={updateUsers} currentUser={currentUser}/>
