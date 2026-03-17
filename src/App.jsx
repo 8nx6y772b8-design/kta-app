@@ -9814,7 +9814,16 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
               );
             })}
 
-            <div style={{marginTop:16}}>
+            <div style={{marginTop:16,padding:"14px 16px",background:T.warnL,borderRadius:8,border:`1px solid ${T.warn}44`,marginBottom:12}}>
+              <div style={{fontWeight:700,fontSize:13,color:T.warn,marginBottom:8}}>🔧 Tool Allowance Reimbursement</div>
+              <div style={{fontSize:12,color:T.sub,marginBottom:10,lineHeight:1.5}}>Automatically submits Tool Allowance = (Normal Hours + Overtime) × /bin/zsh.50 per hour when you submit a timesheet to Xero. Paste the Xero Reimbursement ID for Tool Allowance below.</div>
+              <div style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:8,alignItems:"center"}}>
+                <span style={{fontSize:13,fontWeight:600,color:T.ink}}>Tool Allowance ID</span>
+                <input value={settings.toolAllowanceReimbursementId||""} onChange={e=>ss("toolAllowanceReimbursementId",e.target.value)} placeholder="Paste Xero Reimbursement Type ID" style={{fontSize:12,padding:"6px 8px",border:`1px solid ${settings.toolAllowanceReimbursementId?T.teal:T.border}`,borderRadius:6}}/>
+              </div>
+              <div style={{fontSize:11,color:T.muted,marginTop:6}}>To find this: Xero → Payroll → Pay Items → Reimbursements → Tool Allowance → copy the ID from the URL</div>
+            </div>
+            <div style={{marginTop:4}}>
               {saved
                 ? <div style={{display:"inline-flex",alignItems:"center",gap:6,color:T.teal,fontWeight:600,fontSize:13}}>✓ Settings saved</div>
                 : <Btn onClick={saveSettings}>Save Settings</Btn>
