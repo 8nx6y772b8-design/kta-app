@@ -1251,20 +1251,20 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
             style={{width:26,height:26,borderRadius:6,fontSize:13,background:T.bg,color:T.muted,
               border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}>🔒</div>
         )}
-        {canEdit&&(<>
+        {canEdit&&(
           <button onClick={()=>onEdit(entry)} style={{width:26,height:26,borderRadius:6,fontSize:12,
             background:"transparent",color:T.muted,border:`1px solid ${T.border}`,
             display:"flex",alignItems:"center",justifyContent:"center"}}
             onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
             onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
-          {(canDelete===undefined?canEdit:canDelete)&&(
-            <button onClick={()=>onDelete(entry.id)} style={{width:26,height:26,borderRadius:6,fontSize:12,
-              background:"transparent",color:T.muted,border:`1px solid ${T.border}`,
-              display:"flex",alignItems:"center",justifyContent:"center"}}
-              onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
-              onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
-          )}
-        </>)}
+        )}
+        {(canDelete===undefined?canEdit:canDelete)&&(
+          <button onClick={()=>onDelete(entry.id)} title="Delete entry" style={{width:26,height:26,borderRadius:6,fontSize:12,
+            background:"transparent",color:T.muted,border:`1px solid ${T.border}`,
+            display:"flex",alignItems:"center",justifyContent:"center"}}
+            onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
+            onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
+        )}
       </div>
     </div>
   );
