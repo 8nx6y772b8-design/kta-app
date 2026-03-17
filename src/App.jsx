@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.6.2
+// KTA Workforce Management — v2.6.4
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -713,7 +713,7 @@ const CSS = `
   }
   select option{background:white;}
   input:focus,select:focus,textarea:focus{border-color:${T.accent};box-shadow:0 0 0 3px ${T.accentL};}
-  input[type=date]{cursor:pointer;} input[type=date]::-webkit-calendar-picker-indicator{opacity:0;cursor:pointer;position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;}
+  input[type=date]{cursor:pointer;} input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer;width:20px;height:20px;} .ts-date-input::-webkit-calendar-picker-indicator{opacity:0;position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;cursor:pointer;}
   button{cursor:pointer;font-family:"DM Sans",sans-serif;border:none;transition:all .14s;}
   textarea{resize:vertical;min-height:64px;line-height:1.55;font-size:16px;}
 
@@ -1097,7 +1097,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.6.2
+          v2.6.4
         </div>
       </div>
     </div>
@@ -1128,6 +1128,7 @@ function EntryForm({onSave,onCancel,initial=null,minDate=null,maxDate=null,usedD
         <div><FL>Date</FL>
               <div style={{position:"relative"}}>
                 <input type="date" value={f.date} onChange={e=>sf("date",e.target.value)} min={minDate||undefined} max={maxDate||undefined}
+                  className="ts-date-input"
                   style={{borderColor:dateConflict?T.red:undefined,width:"100%",boxSizing:"border-box"}}/>
               </div>
               {dateConflict&&<div style={{fontSize:11,color:T.red,marginTop:3}}>You already have an entry for this date</div>}</div>
@@ -1391,15 +1392,16 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
 
   const handleSave=(data)=>{
     if(editEntry){
-      const updated={...editEntry,...data};
+      const updated = {...editEntry,...data};
       setEntries(prev=>prev.map(e=>e.id===editEntry.id?updated:e));
       upsertEntry(updated).catch(err=>alert('Save failed: '+err.message));
     } else {
+      // Block duplicate date for apprentices
       if(role==="Apprentice"){
         const already=entries.some(e=>e.userId===currentUser.id&&e.date===data.date);
         if(already){ showToast("You already have an entry for this date. Edit the existing one instead.",false); return; }
       }
-      const newEntry={id:uid(),userId:currentUser.id,...data,createdAt:new Date().toISOString()};
+      const newEntry = {id:uid(),userId:currentUser.id,...data,createdAt:new Date().toISOString()};
       setEntries(prev=>[newEntry,...prev]);
       upsertEntry(newEntry).catch(err=>alert('Save failed: '+err.message));
     }
@@ -1439,6 +1441,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
     const e=entries.find(x=>x.id===id);
     if(e && !canDelete(e)) return; // safety guard
     setEntries(prev=>prev.filter(e=>e.id!==id));
+    deleteEntry(id).catch(err=>console.error('deleteEntry failed:',err));
   };
   const handleEdit=(entry)=>{setEditEntry(entry);setShowForm(true);};
 
@@ -7547,8 +7550,9 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
             placeholder="e.g. Worksite, Zoom, Head Office"
             onKeyDown={e=>e.stopPropagation()}
             style={{border:"none",fontSize:13,width:"100%",outline:"none",padding:"6px",fontFamily:"DM Sans,sans-serif",background:"transparent"}}/>},
-          {label:"Date",         content:<input type="date" value={form.date} onChange={e=>sf("date",e.target.value)}
-            style={{border:"none",fontSize:13,width:"100%",outline:"none",padding:"6px",fontFamily:"DM Sans,sans-serif",background:"transparent"}}/>},
+          {label:"Date",         content:<div style={{position:"relative"}}><input type="date" value={form.date} onChange={e=>sf("date",e.target.value)}
+            className="ts-date-input"
+            style={{border:"none",fontSize:13,width:"100%",outline:"none",padding:"6px",fontFamily:"DM Sans,sans-serif",background:"transparent",cursor:"pointer"}}/></div>},
         ].map(({label,content})=>(
           <div key={label} style={{display:"grid",gridTemplateColumns:"160px 1fr",borderBottom:`1px solid ${T.border}`}}>
             <div style={{padding:"10px 12px",fontWeight:700,fontSize:13,borderRight:`1px solid ${T.border}`,background:"#f5f7fa"}}>{label}</div>
