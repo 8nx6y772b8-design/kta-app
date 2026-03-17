@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.6
+// KTA Workforce Management — v2.7.7
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -588,13 +588,37 @@ const timesheetAllUrl = async (entryIds, action, approverId) => {
 const notifyApprovers = async (apprentice, approvers, entries) => {
   if(!approvers.length) return;
   // Compute hours summary — apply overtime split using apprentice settings
+  // Note: we skip the overtimeRateId check here since this is display-only (not Xero submission)
   let normalHrs = 0;
   let overtimeHrs = 0;
   for(const e of entries) {
-    const splits = calcOvertimeSplit(e, apprentice, entries);
-    for(const s of splits) {
-      if(s.isOvertime) overtimeHrs += s.hours;
-      else normalHrs += s.hours;
+    const { overtimeType, overtimeThreshold } = apprentice;
+    if(overtimeType && overtimeThreshold && e.type === "Normal Hours") {
+      const threshold = parseFloat(overtimeThreshold);
+      if(overtimeType === "daily") {
+        normalHrs   += Math.min(e.netHours, threshold);
+        overtimeHrs += Math.max(0, e.netHours - threshold);
+      } else if(overtimeType === "weekly") {
+        // Sum hours before this entry in the week
+        const d = new Date(e.date + "T00:00:00");
+        const day = d.getDay();
+        const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
+        const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+        const monStr = mon.toISOString().slice(0,10);
+        const sunStr = sun.toISOString().slice(0,10);
+        const hoursBefore = entries
+          .filter(x => x.date >= monStr && x.date <= sunStr && x.date < e.date)
+          .reduce((s,x) => s + x.netHours, 0);
+        const remainingNormal = Math.max(0, threshold - hoursBefore);
+        normalHrs   += Math.min(e.netHours, remainingNormal);
+        overtimeHrs += Math.max(0, e.netHours - remainingNormal);
+      } else {
+        normalHrs += e.netHours;
+      }
+    } else {
+      if(e.type === "Normal Hours") normalHrs += e.netHours;
+      else if(e.type === "Overtime") overtimeHrs += e.netHours;
+      else normalHrs += e.netHours;
     }
   }
   const totalHrs = entries.reduce((a,e)=>a+e.netHours,0);
@@ -1117,7 +1141,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.6
+          v2.7.7
         </div>
       </div>
     </div>
