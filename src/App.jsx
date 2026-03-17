@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.12
+// KTA Workforce Management — v2.7.13
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.12
+          v2.7.13
         </div>
       </div>
     </div>
@@ -1897,7 +1897,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
               background:T.bg,borderBottom:`1.5px solid ${T.border}`,
               fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
               <span>Date</span>{showUserCol&&<span>Person</span>}<span>Note</span><span>Type</span>
-              <span style={{textAlign:"center"}}>Normal</span><span style={{textAlign:"center",color:"#b86e1a"}}>OT</span><span style={{textAlign:"center"}}>Total</span><span style={{textAlign:"center"}}>Break</span>
+              <span style={{textAlign:"center"}}>Normal</span><span style={{textAlign:"center",color:"#b86e1a"}}>OT</span><span style={{textAlign:"center"}}>Total Hours Worked</span><span style={{textAlign:"center"}}>Break</span>
               <span style={{textAlign:"center"}}>Time</span><span>Status</span>
               <span style={{textAlign:"right"}}>Actions</span>
             </div>
