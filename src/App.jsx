@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.6.7
+// KTA Workforce Management — v2.6.8
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1097,7 +1097,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.6.7
+          v2.6.8
         </div>
       </div>
     </div>
@@ -7533,7 +7533,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
   };
 
   return (
-    <div style={{border:`1.5px solid ${T.border}`,borderRadius:10,overflow:"hidden",background:"#fff"}}>
+    <div style={{border:`1.5px solid ${T.border}`,borderRadius:10,background:"#fff"}}>
       {/* KTA Header */}
       <div style={{background:T.dark,padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div>
@@ -7605,7 +7605,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
       </div>
 
       {/* Email notice + save */}
-      <div style={{padding:"14px 16px",background:T.bg,borderTop:`1px solid ${T.border}`}}>
+      <div style={{padding:"14px 16px 40px 16px",background:T.bg,borderTop:`1px solid ${T.border}`}}>
         <div style={{fontSize:12,color:T.accent,marginBottom:12,padding:"8px 12px",
           background:T.accentL,borderRadius:7,border:`1px solid ${T.accent}33`}}>
           📧 On save this report will be emailed to:
