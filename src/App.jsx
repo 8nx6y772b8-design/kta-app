@@ -1391,14 +1391,17 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
 
   const handleSave=(data)=>{
     if(editEntry){
-      setEntries(prev=>prev.map(e=>e.id===editEntry.id?{...e,...data}:e));
+      const updated={...editEntry,...data};
+      setEntries(prev=>prev.map(e=>e.id===editEntry.id?updated:e));
+      upsertEntry(updated).catch(err=>alert('Save failed: '+err.message));
     } else {
-      // Block duplicate date for apprentices
       if(role==="Apprentice"){
         const already=entries.some(e=>e.userId===currentUser.id&&e.date===data.date);
         if(already){ showToast("You already have an entry for this date. Edit the existing one instead.",false); return; }
       }
-      setEntries(prev=>[{id:uid(),userId:currentUser.id,...data},...prev]);
+      const newEntry={id:uid(),userId:currentUser.id,...data,createdAt:new Date().toISOString()};
+      setEntries(prev=>[newEntry,...prev]);
+      upsertEntry(newEntry).catch(err=>alert('Save failed: '+err.message));
     }
     setShowForm(false); setEditEntry(null);
   };
