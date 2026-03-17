@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.9
+// KTA Workforce Management — v2.7.10
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1141,7 +1141,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.9
+          v2.7.10
         </div>
       </div>
     </div>
@@ -11383,20 +11383,7 @@ export default function App() {
     setTimeout(()=>setAppToast(null), 4000);
   };
 
-  // Show toast if redirected back from timesheet-action approval
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if(params.get("approved") === "week") {
-      const n = params.get("n") || "";
-      const forName = params.get("for") || "";
-      // Force dashboard view
-      setModule("dashboard");
-      try { localStorage.setItem("wos_module", "dashboard"); } catch {}
-      showToast(`✓ Week approved${forName ? " — "+forName : ""}${n ? " ("+n+" entries)" : ""}`, true);
-      // Clean URL without reload
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, []);
+
 
   // ── Initial load from Supabase ──────────────────────────────────────────
   useEffect(()=>{
