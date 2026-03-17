@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.5
+// KTA Workforce Management — v2.7.6
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -587,10 +587,17 @@ const timesheetAllUrl = async (entryIds, action, approverId) => {
 
 const notifyApprovers = async (apprentice, approvers, entries) => {
   if(!approvers.length) return;
-  // Compute hours summary
-  const normalHrs   = entries.filter(e=>e.type==="Normal Hours").reduce((a,e)=>a+e.netHours,0);
-  const overtimeHrs = entries.filter(e=>e.type==="Overtime").reduce((a,e)=>a+e.netHours,0);
-  const totalHrs    = entries.reduce((a,e)=>a+e.netHours,0);
+  // Compute hours summary — apply overtime split using apprentice settings
+  let normalHrs = 0;
+  let overtimeHrs = 0;
+  for(const e of entries) {
+    const splits = calcOvertimeSplit(e, apprentice, entries);
+    for(const s of splits) {
+      if(s.isOvertime) overtimeHrs += s.hours;
+      else normalHrs += s.hours;
+    }
+  }
+  const totalHrs = entries.reduce((a,e)=>a+e.netHours,0);
   const fmtH = h => h%1===0 ? h+"h" : h.toFixed(1)+"h";
   const toolAllowanceAmt = ((normalHrs + overtimeHrs) * 0.50).toFixed(2);
 
@@ -1110,7 +1117,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.5
+          v2.7.6
         </div>
       </div>
     </div>
