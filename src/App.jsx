@@ -1185,8 +1185,8 @@ function EntryForm({onSave,onCancel,initial=null,minDate=null,maxDate=null,usedD
 function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onApprove,onDecline,onEdit,onSubmit,onSubmitXero,idx,showUser,users}) {
   const user=users?.find(u=>u.id===entry.userId);
   const tcols=showUser
-    ?"130px 130px 1fr 130px 64px 60px 70px 100px 68px"
-    :"130px 1fr 130px 64px 60px 70px 100px 68px";
+    ?"130px 130px 1fr 130px 64px 60px 70px 100px 100px"
+    :"130px 1fr 130px 64px 60px 70px 100px 100px";
   const isLocked = !canEdit && (entry.approval==="submitted"||entry.approval==="approved");
   return (
     <div className="ri" style={{display:"grid",gridTemplateColumns:tcols,
@@ -1450,8 +1450,8 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   const filterableUsers=allUsers.filter(u=>vids.includes(u.id));
   const showUserCol=role!=="Apprentice";
   const tcols=showUserCol
-    ?"130px 130px 1fr 130px 64px 60px 70px 100px 68px"
-    :"130px 1fr 130px 64px 60px 70px 100px 68px";
+    ?"130px 130px 1fr 130px 64px 60px 70px 100px 100px"
+    :"130px 1fr 130px 64px 60px 70px 100px 100px";
 
   return (
     <div className="fu">
