@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.3
+// KTA Workforce Management — v2.7.4
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -42,6 +42,9 @@
 //   v2.7.3 — Xero NZ Payroll: toolAllowanceId+Hours now sent in payload
 //             proxy tool allowance uses PUT /Lines (NZ style, not AU array)
 //             removed AU-style NumberOfUnits array from tool allowance section
+//   v2.7.4 — Xero: Load from Xero now fetches Reimbursements (Tool Allowance)
+//             Tool Allowance field shows dropdown when reimbursements loaded
+//             reimbursements optgroup added to earnings rate mapping selects
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, deleteAllRows, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
@@ -1103,7 +1106,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.3
+          v2.7.4
         </div>
       </div>
     </div>
@@ -9656,6 +9659,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
   const [xeroEmployees, setXeroEmployees] = useState([]); // loaded from Xero
   const [xeroRates, setXeroRates]         = useState([]); // earnings rates loaded from Xero
   const [xeroLeaveTypes, setXeroLeaveTypes] = useState([]); // leave types loaded from Xero
+  const [xeroReimbursements, setXeroReimbursements] = useState([]); // reimbursements (Tool Allowance etc)
   const [savingMap, setSavingMap] = useState({});
 
 
@@ -9779,19 +9783,20 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
                   if(data.ok){
                     setXeroRates(data.earningsRates||[]);
                     setXeroLeaveTypes(data.leaveTypes||[]);
-                    showToast(`✓ Loaded ${(data.earningsRates||[]).length} earnings rates + ${(data.leaveTypes||[]).length} leave types`);
+                    setXeroReimbursements(data.reimbursements||[]);
+                    showToast(`✓ Loaded ${(data.earningsRates||[]).length} rates · ${(data.leaveTypes||[]).length} leave types · ${(data.reimbursements||[]).length} reimbursements`);
                   } else { alert("Error: "+(data.error||JSON.stringify(data))); }
                 }catch(e){ alert("Failed: "+e.message); }
               }}>🔄 Load from Xero</Btn>
-              {(xeroRates.length>0||xeroLeaveTypes.length>0)&&(
+              {(xeroRates.length>0||xeroLeaveTypes.length>0||xeroReimbursements.length>0)&&(
                 <span style={{fontSize:12,color:T.teal,fontWeight:600}}>
-                  ✓ {xeroRates.length} earnings rates · {xeroLeaveTypes.length} leave types
+                  ✓ {xeroRates.length} rates · {xeroLeaveTypes.length} leave · {xeroReimbursements.length} reimbursements
                 </span>
               )}
             </div>
             {ENTRY_TYPE_NAMES.map(type=>{
               const val = settings.earningsRates?.[type]||"";
-              const hasOptions = xeroRates.length>0||xeroLeaveTypes.length>0;
+              const hasOptions = xeroRates.length>0||xeroLeaveTypes.length>0||xeroReimbursements.length>0;
               // Which group does this entry type naturally belong to?
               const isLeaveType = ["Annual Leave","Sick Leave","Bereavement Leave","Leave Without Pay"].includes(type);
               return (
@@ -9816,6 +9821,9 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
                       {xeroLeaveTypes.length>0&&<optgroup label="── Leave Types ──">
                         {xeroLeaveTypes.map(l=><option key={l.id} value={"leave:"+l.id}>{l.name}</option>)}
                       </optgroup>}
+                      {xeroReimbursements.length>0&&<optgroup label="── Reimbursements ──">
+                        {xeroReimbursements.map(r=><option key={r.id} value={"reimb:"+r.id}>{r.name}</option>)}
+                      </optgroup>}
                     </select>
                   ) : (
                     <input value={val}
@@ -9835,7 +9843,14 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
               <div style={{fontSize:12,color:T.sub,marginBottom:10,lineHeight:1.5}}>Automatically submits Tool Allowance = (Normal Hours + Overtime) × /bin/zsh.50 per hour when you submit a timesheet to Xero. Paste the Xero Reimbursement ID for Tool Allowance below.</div>
               <div style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:8,alignItems:"center"}}>
                 <span style={{fontSize:13,fontWeight:600,color:T.ink}}>Tool Allowance ID</span>
-                <input value={settings.toolAllowanceReimbursementId||""} onChange={e=>ss("toolAllowanceReimbursementId",e.target.value)} placeholder="Paste Xero Reimbursement Type ID" style={{fontSize:12,padding:"6px 8px",border:`1px solid ${settings.toolAllowanceReimbursementId?T.teal:T.border}`,borderRadius:6}}/>
+                {xeroReimbursements.length>0
+                  ? <select value={settings.toolAllowanceReimbursementId||""} onChange={e=>ss("toolAllowanceReimbursementId",e.target.value)}
+                      style={{fontSize:12,padding:"6px 8px",border:`1px solid ${settings.toolAllowanceReimbursementId?T.teal:T.border}`,borderRadius:6,background:"#fff",flex:1}}>
+                      <option value="">— Select reimbursement type —</option>
+                      {xeroReimbursements.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                  : <input value={settings.toolAllowanceReimbursementId||""} onChange={e=>ss("toolAllowanceReimbursementId",e.target.value)} placeholder="Load from Xero above, or paste ID" style={{fontSize:12,padding:"6px 8px",border:`1px solid ${settings.toolAllowanceReimbursementId?T.teal:T.border}`,borderRadius:6,flex:1}}/>
+                }
               </div>
               <div style={{fontSize:11,color:T.muted,marginTop:6}}>To find this: Xero → Payroll → Pay Items → Reimbursements → Tool Allowance → copy the ID from the URL</div>
             </div>
