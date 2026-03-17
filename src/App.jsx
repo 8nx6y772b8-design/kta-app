@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.4
+// KTA Workforce Management — v2.7.5
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -592,15 +592,19 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
   const overtimeHrs = entries.filter(e=>e.type==="Overtime").reduce((a,e)=>a+e.netHours,0);
   const totalHrs    = entries.reduce((a,e)=>a+e.netHours,0);
   const fmtH = h => h%1===0 ? h+"h" : h.toFixed(1)+"h";
+  const toolAllowanceAmt = ((normalHrs + overtimeHrs) * 0.50).toFixed(2);
 
-  const summaryBox = `
+  for(const approver of approvers) {
+    const isAdminL1 = approver.role === "Admin" && (approver.adminLevel||1) === 1;
+    const toolAllowanceBox = isAdminL1 ? `
+  <div style="border-left:2px solid #d0daea;padding-left:20px"><div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Tool Allowance</div><div style="font-size:20px;font-weight:700;color:#6b46c1">$${toolAllowanceAmt}</div><div style="font-size:10px;color:#8fa0b8;margin-top:2px">Add manually in Xero</div></div>` : "";
+    const summaryBox = `
 <div style="background:#f0f4f9;border-radius:10px;padding:14px 18px;margin:16px 0;display:flex;gap:24px;flex-wrap:wrap">
   ${normalHrs>0?`<div><div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Normal Hours</div><div style="font-size:20px;font-weight:700;color:#1b4f8c">${fmtH(normalHrs)}</div></div>`:""}
   ${overtimeHrs>0?`<div><div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Overtime</div><div style="font-size:20px;font-weight:700;color:#b86e1a">${fmtH(overtimeHrs)}</div></div>`:""}
   <div><div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Total Hours</div><div style="font-size:20px;font-weight:700;color:#1a8a7a">${fmtH(totalHrs)}</div></div>
+  ${toolAllowanceBox}
 </div>`;
-
-  for(const approver of approvers) {
     if(!approver.email) continue;
     try {
       // Build per-entry rows with approve/decline buttons
@@ -1106,7 +1110,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.4
+          v2.7.5
         </div>
       </div>
     </div>
@@ -9611,10 +9615,10 @@ const submitEntryToXero = async (entry, apprentice, allEntries=[]) => {
     isOvertime: s.isOvertime,
   }));
 
-  // Tool allowance: (normal + overtime hours) x $0.50 per hour
+  // Tool allowance: submit total hours as numberOfUnits — Xero multiplies by $0.50/hr rate
   const totalHours = lines.reduce((s, l) => s + l.hours, 0);
   const toolAllowanceId    = xeroSettings.toolAllowanceReimbursementId || null;
-  const toolAllowanceHours = toolAllowanceId ? Math.round(totalHours * 0.5 * 100) / 100 : 0;
+  const toolAllowanceHours = toolAllowanceId ? totalHours : 0;
 
   const payload = {
     action:      "upsertTimesheet",
