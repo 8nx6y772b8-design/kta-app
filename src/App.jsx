@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.6.4
+// KTA Workforce Management — v2.6.5
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1097,7 +1097,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.6.4
+          v2.6.5
         </div>
       </div>
     </div>
@@ -1359,8 +1359,10 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
     if(role==="Apprentice"&&entry.userId===currentUser.id&&entry.approval==="draft"&&entry.date>=daysAgoStr(21)) return true;
     return false;
   };
+  const isAdmin1ts = role==="Admin" && (currentUser?.adminLevel||1)===1;
   const canDelete=(entry)=>{
-    if(role==="Admin") return true;
+    // Only Admin L1 can delete any entry
+    if(isAdmin1ts) return true;
     // Apprentice can delete own draft entries only
     if(role==="Apprentice"&&entry.userId===currentUser.id&&entry.approval==="draft") return true;
     return false;
