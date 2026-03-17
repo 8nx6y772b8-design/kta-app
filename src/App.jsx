@@ -11625,7 +11625,7 @@ export default function App() {
 
   const validMods=navItems.map(n=>n.id);
   // "xero" is a special admin-only module not in navItems but valid for Admin L1
-  const allValidMods = isAdmin1 ? [...validMods, "xero"] : validMods;
+  const allValidMods = isAdmin1 ? [...validMods, "xero", "timesheet"] : [...validMods, "timesheet"];
   // Use saved module if valid, otherwise fall back — but only for rendering (don't reset state)
   const activeMod = allValidMods.includes(module) ? module : (role ? validMods[0] : module);
 
