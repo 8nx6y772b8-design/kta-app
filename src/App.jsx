@@ -1842,7 +1842,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                   if(!en) return;
                   setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"submitting"}:x));
                   try{
-                    const res = await submitXeroTimesheet(en, allUsers.find(u=>u.id===en.userId), currentUser);
+                    const res = await submitEntryToXero(en, allUsers.find(u=>u.id===en.userId));
                     if(res.ok) setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"submitted",xeroTimesheetId:res.timesheetId}:x));
                     else setEntries(prev=>prev.map(x=>x.id===id?{...x,xeroStatus:"error",xeroError:res.error}:x));
                   } catch(e2){
