@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.0
+// KTA Workforce Management — v2.7.3
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -37,7 +37,13 @@
 //             activity note delete restricted to Admin L1
 //             CRM contact/company search bars
 //             supabase row limit removed (paginated fetch, unlimited rows)
+//   v2.7.2 — visit report modal rendered via React Portal (document.body)
+//             fixes transform:translateY on .fu animation breaking position:fixed
+//   v2.7.3 — Xero NZ Payroll: toolAllowanceId+Hours now sent in payload
+//             proxy tool allowance uses PUT /Lines (NZ style, not AU array)
+//             removed AU-style NumberOfUnits array from tool allowance section
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, deleteAllRows, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
 // Email via Microsoft Graph (payroll@kta.org.nz)
 
@@ -1097,7 +1103,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.0
+          v2.7.3
         </div>
       </div>
     </div>
@@ -7347,10 +7353,10 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  return (
+  return createPortal(
     <div style={{
-      position:"fixed", inset:0, zIndex:2000,
-      background:"rgba(13,27,46,0.55)", backdropFilter:"blur(3px)",
+      position:"fixed", top:0, left:0, right:0, bottom:0, zIndex:2000,
+      background:"rgba(13,27,46,0.6)",
       display:"flex", alignItems:"stretch",
     }}>
       {/* Main form panel */}
@@ -7441,7 +7447,8 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
           <PastMeetingReports key={meetingKey} apprentice={apprentice} allUsers={allUsers} canEdit={false}/>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -8574,10 +8581,6 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               </div>
             ) : null}
             {/* Expanded panels */}
-            {showMeetingForm && isAdmin && (
-              <ReportFullscreenModal apprentice={apprentice} mentor={viewer} allUsers={allUsers} meetingKey={meetingKey}
-                onSave={()=>{ setShowMeetingForm(false); setMeetingKey(k=>k+1); }} onClose={()=>setShowMeetingForm(false)}/>
-            )}
             {showPastReports && isAdmin && (
               <Card style={{marginBottom:16}}><PastMeetingReports key={meetingKey} apprentice={apprentice} allUsers={allUsers} canEdit={true}/></Card>
             )}
@@ -8956,11 +8959,27 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
         return null;
       })}
 
+      {/* Report modal — top-level fixed overlay for both admin and mentor */}
+      {showMeetingForm && isAdmin && (
+        <ReportFullscreenModal apprentice={apprentice} mentor={viewer} allUsers={allUsers} meetingKey={meetingKey}
+          onSave={()=>{ setShowMeetingForm(false); setMeetingKey(k=>k+1); }} onClose={()=>setShowMeetingForm(false)}/>
+      )}
+
       {/* Full cards for mentor view */}
       {!isAdmin && (
         <>
+          {showMeetingForm && (
+            <ReportFullscreenModal
+              apprentice={apprentice}
+              mentor={viewer}
+              allUsers={allUsers}
+              meetingKey={meetingKey}
+              onSave={()=>{ setShowMeetingForm(false); setMeetingKey(k=>k+1); }}
+              onClose={()=>setShowMeetingForm(false)}
+            />
+          )}
           <Card style={{marginBottom:16}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:showMeetingForm?16:0}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
                 <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📋</div>
                 <div>
@@ -8968,18 +8987,8 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   <div style={{fontSize:12,color:T.sub}}>Record a visit or check-in with {apprentice.name}</div>
                 </div>
               </div>
-              {!showMeetingForm&&<Btn onClick={()=>setShowMeetingForm(true)}>+ New Report</Btn>}
+              <Btn onClick={()=>setShowMeetingForm(true)}>+ New Report</Btn>
             </div>
-            {showMeetingForm&&(
-              <ReportFullscreenModal
-                apprentice={apprentice}
-                mentor={viewer}
-                allUsers={allUsers}
-                meetingKey={meetingKey}
-                onSave={()=>{ setShowMeetingForm(false); setMeetingKey(k=>k+1); }}
-                onClose={()=>setShowMeetingForm(false)}
-              />
-            )}
           </Card>
           <Card style={{marginBottom:16}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
@@ -9599,18 +9608,10 @@ const submitEntryToXero = async (entry, apprentice, allEntries=[]) => {
     isOvertime: s.isOvertime,
   }));
 
-  // Calculate tool allowance for the week (Normal Hours + Overtime) × $0.50
-  const toolAllowanceId = xeroSettings.toolAllowanceReimbursementId || null;
-  let toolAllowanceHours = 0;
-  if(toolAllowanceId && allEntries.length > 0) {
-    // Get all entries for this apprentice in the same week
-    const getWkMon = d => { const dt=new Date(d+"T00:00:00"); dt.setDate(dt.getDate()-((dt.getDay()+6)%7)); return dt.toISOString().slice(0,10); };
-    const weekMon = getWkMon(entry.date);
-    const weekSun = new Date(weekMon+"T00:00:00"); weekSun.setDate(weekSun.getDate()+6);
-    const weekSunStr = weekSun.toISOString().slice(0,10);
-    const weekEntries = allEntries.filter(e=>e.userId===entry.userId&&e.date>=weekMon&&e.date<=weekSunStr&&(e.type==="Normal Hours"||e.type==="Overtime")&&e.approval==="approved");
-    toolAllowanceHours = weekEntries.reduce((a,e)=>a+e.netHours,0);
-  }
+  // Tool allowance: (normal + overtime hours) x $0.50 per hour
+  const totalHours = lines.reduce((s, l) => s + l.hours, 0);
+  const toolAllowanceId    = xeroSettings.toolAllowanceReimbursementId || null;
+  const toolAllowanceHours = toolAllowanceId ? Math.round(totalHours * 0.5 * 100) / 100 : 0;
 
   const payload = {
     action:      "upsertTimesheet",
@@ -9829,23 +9830,15 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
               );
             })}
 
-            {/* Tool Allowance Reimbursement */}
             <div style={{marginTop:16,padding:"14px 16px",background:T.warnL,borderRadius:8,border:`1px solid ${T.warn}44`,marginBottom:12}}>
               <div style={{fontWeight:700,fontSize:13,color:T.warn,marginBottom:8}}>🔧 Tool Allowance Reimbursement</div>
-              <div style={{fontSize:12,color:T.sub,marginBottom:10,lineHeight:1.5}}>
-                Automatically submits Tool Allowance = (Normal Hours + Overtime) × $0.50 per hour when you submit a timesheet to Xero.
-                Paste the Xero Reimbursement ID for Tool Allowance below.
-              </div>
+              <div style={{fontSize:12,color:T.sub,marginBottom:10,lineHeight:1.5}}>Automatically submits Tool Allowance = (Normal Hours + Overtime) × /bin/zsh.50 per hour when you submit a timesheet to Xero. Paste the Xero Reimbursement ID for Tool Allowance below.</div>
               <div style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:8,alignItems:"center"}}>
                 <span style={{fontSize:13,fontWeight:600,color:T.ink}}>Tool Allowance ID</span>
-                <input value={settings.toolAllowanceReimbursementId||""}
-                  onChange={e=>ss("toolAllowanceReimbursementId",e.target.value)}
-                  placeholder="Paste Xero Reimbursement Type ID"
-                  style={{fontSize:12,padding:"6px 8px",border:`1px solid ${settings.toolAllowanceReimbursementId?T.teal:T.border}`,borderRadius:6}}/>
+                <input value={settings.toolAllowanceReimbursementId||""} onChange={e=>ss("toolAllowanceReimbursementId",e.target.value)} placeholder="Paste Xero Reimbursement Type ID" style={{fontSize:12,padding:"6px 8px",border:`1px solid ${settings.toolAllowanceReimbursementId?T.teal:T.border}`,borderRadius:6}}/>
               </div>
               <div style={{fontSize:11,color:T.muted,marginTop:6}}>To find this: Xero → Payroll → Pay Items → Reimbursements → Tool Allowance → copy the ID from the URL</div>
             </div>
-
             <div style={{marginTop:4}}>
               {saved
                 ? <div style={{display:"inline-flex",alignItems:"center",gap:6,color:T.teal,fontWeight:600,fontSize:13}}>✓ Settings saved</div>
