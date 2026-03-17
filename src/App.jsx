@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.8
+// KTA Workforce Management — v2.7.9
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1141,7 +1141,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.8
+          v2.7.9
         </div>
       </div>
     </div>
@@ -1248,8 +1248,28 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
       <div style={{fontSize:12,color:entry.note?T.ink:T.muted,fontStyle:entry.note?"normal":"italic",
         overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.note||"No note"}</div>
       <TypePill type={entry.type} size="sm"/>
-      <div style={{textAlign:"center",fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:15,
-        color:TYPE_META[entry.type]?.color||T.accent}}>{entry.netHours}h</div>
+      <div style={{textAlign:"center"}}>
+        {(()=>{
+          const u = users?.find(u=>u.id===entry.userId);
+          if(u?.overtimeType && u?.overtimeThreshold && entry.type==="Normal Hours") {
+            const threshold = parseFloat(u.overtimeThreshold);
+            let normalH = entry.netHours, overtimeH = 0;
+            if(u.overtimeType==="daily") {
+              normalH = Math.min(entry.netHours, threshold);
+              overtimeH = Math.max(0, entry.netHours - threshold);
+            }
+            if(overtimeH > 0) return (
+              <div>
+                <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:14,color:T.accent}}>{entry.netHours}h</div>
+                <div style={{fontSize:10,color:T.muted,lineHeight:1.3}}>
+                  <span style={{color:"#1b4f8c"}}>{normalH}h</span>+<span style={{color:"#b86e1a"}}>{overtimeH}h OT</span>
+                </div>
+              </div>
+            );
+          }
+          return <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:15,color:TYPE_META[entry.type]?.color||T.accent}}>{entry.netHours}h</div>;
+        })()}
+      </div>
       <div style={{textAlign:"center",fontSize:11,color:T.sub}}>{entry.breakMins>0?`${entry.breakMins}m`:"—"}</div>
       <div style={{textAlign:"center",fontSize:11,color:T.muted,fontFamily:"monospace"}}>{entry.start}–{entry.end}</div>
       <AppvPill status={entry.approval}/>
@@ -9566,9 +9586,10 @@ const XERO_DEFAULT_RATES = {
 // Submit a single approved entry to Xero via a Supabase Edge Function proxy
 // The edge function handles OAuth token management and CORS
 // Calculate overtime split for an entry given apprentice settings + all entries this week
-const calcOvertimeSplit = (entry, apprentice, allEntries) => {
+const calcOvertimeSplit = (entry, apprentice, allEntries, displayOnly=false) => {
   const { overtimeType, overtimeThreshold, overtimeRateId } = apprentice;
-  if(!overtimeType || !overtimeThreshold || !overtimeRateId || entry.type !== "Normal Hours") {
+  // For display purposes we don't need a rateId — only Xero submission does
+  if(!overtimeType || !overtimeThreshold || (!displayOnly && !overtimeRateId) || entry.type !== "Normal Hours") {
     return [{ hours: entry.netHours, isOvertime: false }];
   }
 
@@ -11367,7 +11388,11 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     if(params.get("approved") === "week") {
       const n = params.get("n") || "";
-      showToast(`✓ Timesheet approved${n ? " ("+n+" entries)" : ""}`, true);
+      const forName = params.get("for") || "";
+      // Force dashboard view
+      setModule("dashboard");
+      try { localStorage.setItem("wos_module", "dashboard"); } catch {}
+      showToast(`✓ Week approved${forName ? " — "+forName : ""}${n ? " ("+n+" entries)" : ""}`, true);
       // Clean URL without reload
       window.history.replaceState({}, "", window.location.pathname);
     }
