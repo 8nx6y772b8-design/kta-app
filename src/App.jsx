@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.10
+// KTA Workforce Management — v2.7.12
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -645,16 +645,36 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
         const isNormal   = e.type==="Normal Hours";
         const isOvertime = e.type==="Overtime";
         const typeColor  = isOvertime?"#b86e1a":isNormal?"#1b4f8c":"#4a5a72";
+
+        // Calculate overtime split for this entry (display only — no rateId needed)
+        let hoursCell = `<td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:13px;font-weight:700;color:#1b4f8c;text-align:right">${fmtH(e.netHours)}</td>`;
+        let typeCell  = `<td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:12px;color:${typeColor}">${isNormal?"Normal":isOvertime?"Overtime":e.type}</td>`;
+        if(isNormal && apprentice.overtimeType && apprentice.overtimeThreshold) {
+          const threshold = parseFloat(apprentice.overtimeThreshold);
+          let normalH = e.netHours, overtimeH = 0;
+          if(apprentice.overtimeType === "daily") {
+            normalH   = Math.min(e.netHours, threshold);
+            overtimeH = Math.max(0, e.netHours - threshold);
+          }
+          if(overtimeH > 0) {
+            typeCell  = `<td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:12px;color:#4a5a72">Normal + OT</td>`;
+            hoursCell = `<td style="padding:10px 12px;border-bottom:1px solid #e8edf3;text-align:right">
+              <span style="font-size:13px;font-weight:700;color:#1b4f8c">${fmtH(normalH)}</span>
+              <span style="font-size:11px;color:#b86e1a;margin-left:4px">+${fmtH(overtimeH)} OT</span>
+            </td>`;
+          }
+        }
+
         return `
 <tr>
   <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:13px;color:#0d1b2e;font-weight:600">${fmtD(e.date)}</td>
-  <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:12px;color:${typeColor}">${isNormal?"Normal":isOvertime?"Overtime":e.type}</td>
-  <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:13px;font-weight:700;color:#1b4f8c;text-align:right">${fmtH(e.netHours)}</td>
+  ${typeCell}
+  ${hoursCell}
   <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:11px;color:#8fa0b8">${e.start||""}${e.end?" – "+e.end:""}</td>
   <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:11px;color:#4a5a72;font-style:italic">${e.note||""}</td>
   <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;white-space:nowrap">
-    <a href="${appUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:5px;padding:4px 12px;font-size:11px;font-weight:700;text-decoration:none;margin-right:4px">✓</a>
-    <a href="${decUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:5px;padding:4px 12px;font-size:11px;font-weight:700;text-decoration:none">✕</a>
+    <a href="${appUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:5px;padding:4px 12px;font-size:11px;font-weight:700;text-decoration:none;margin-right:4px">&#10003;</a>
+    <a href="${decUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:5px;padding:4px 12px;font-size:11px;font-weight:700;text-decoration:none">&#10005;</a>
   </td>
 </tr>`;
       }));
@@ -1141,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.10
+          v2.7.12
         </div>
       </div>
     </div>
@@ -1229,8 +1249,8 @@ function EntryForm({onSave,onCancel,initial=null,minDate=null,maxDate=null,usedD
 function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onApprove,onDecline,onEdit,onSubmit,onSubmitXero,idx,showUser,users}) {
   const user=users?.find(u=>u.id===entry.userId);
   const tcols=showUser
-    ?"130px 130px 1fr 130px 64px 60px 70px 100px 100px"
-    :"130px 1fr 130px 64px 60px 70px 100px 100px";
+    ?"130px 130px 1fr 130px 64px 64px 64px 60px 70px 100px 100px"
+    :"130px 1fr 130px 64px 64px 64px 60px 70px 100px 100px";
   const isLocked = !canEdit && (entry.approval==="submitted"||entry.approval==="approved");
   return (
     <div className="ri" style={{display:"grid",gridTemplateColumns:tcols,
@@ -1248,28 +1268,22 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
       <div style={{fontSize:12,color:entry.note?T.ink:T.muted,fontStyle:entry.note?"normal":"italic",
         overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.note||"No note"}</div>
       <TypePill type={entry.type} size="sm"/>
-      <div style={{textAlign:"center"}}>
-        {(()=>{
-          const u = users?.find(u=>u.id===entry.userId);
-          if(u?.overtimeType && u?.overtimeThreshold && entry.type==="Normal Hours") {
-            const threshold = parseFloat(u.overtimeThreshold);
-            let normalH = entry.netHours, overtimeH = 0;
-            if(u.overtimeType==="daily") {
-              normalH = Math.min(entry.netHours, threshold);
-              overtimeH = Math.max(0, entry.netHours - threshold);
-            }
-            if(overtimeH > 0) return (
-              <div>
-                <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:14,color:T.accent}}>{entry.netHours}h</div>
-                <div style={{fontSize:10,color:T.muted,lineHeight:1.3}}>
-                  <span style={{color:"#1b4f8c"}}>{normalH}h</span>+<span style={{color:"#b86e1a"}}>{overtimeH}h OT</span>
-                </div>
-              </div>
-            );
+      {(()=>{
+        const u = users?.find(u=>u.id===entry.userId);
+        let normalH = entry.netHours, overtimeH = 0;
+        if(u?.overtimeType && u?.overtimeThreshold && entry.type==="Normal Hours") {
+          const threshold = parseFloat(u.overtimeThreshold);
+          if(u.overtimeType==="daily") {
+            normalH   = Math.min(entry.netHours, threshold);
+            overtimeH = Math.max(0, entry.netHours - threshold);
           }
-          return <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:15,color:TYPE_META[entry.type]?.color||T.accent}}>{entry.netHours}h</div>;
-        })()}
-      </div>
+        }
+        return (<>
+          <div style={{textAlign:"center",fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:14,color:"#1b4f8c"}}>{normalH}h</div>
+          <div style={{textAlign:"center",fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:14,color:overtimeH>0?"#b86e1a":T.muted}}>{overtimeH>0?`${overtimeH}h`:"—"}</div>
+          <div style={{textAlign:"center",fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:14,color:TYPE_META[entry.type]?.color||T.accent}}>{entry.netHours}h</div>
+        </>);
+      })()}
       <div style={{textAlign:"center",fontSize:11,color:T.sub}}>{entry.breakMins>0?`${entry.breakMins}m`:"—"}</div>
       <div style={{textAlign:"center",fontSize:11,color:T.muted,fontFamily:"monospace"}}>{entry.start}–{entry.end}</div>
       <AppvPill status={entry.approval}/>
@@ -1514,8 +1528,8 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   const filterableUsers=allUsers.filter(u=>vids.includes(u.id));
   const showUserCol=role!=="Apprentice";
   const tcols=showUserCol
-    ?"130px 130px 1fr 130px 64px 60px 70px 100px 100px"
-    :"130px 1fr 130px 64px 60px 70px 100px 100px";
+    ?"130px 130px 1fr 130px 64px 64px 64px 60px 70px 100px 100px"
+    :"130px 1fr 130px 64px 64px 64px 60px 70px 100px 100px";
 
   return (
     <div className="fu">
@@ -1883,7 +1897,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
               background:T.bg,borderBottom:`1.5px solid ${T.border}`,
               fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
               <span>Date</span>{showUserCol&&<span>Person</span>}<span>Note</span><span>Type</span>
-              <span style={{textAlign:"center"}}>Hours</span><span style={{textAlign:"center"}}>Break</span>
+              <span style={{textAlign:"center"}}>Normal</span><span style={{textAlign:"center",color:"#b86e1a"}}>OT</span><span style={{textAlign:"center"}}>Total</span><span style={{textAlign:"center"}}>Break</span>
               <span style={{textAlign:"center"}}>Time</span><span>Status</span>
               <span style={{textAlign:"right"}}>Actions</span>
             </div>
