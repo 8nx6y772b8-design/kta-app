@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.24
+// KTA Workforce Management — v2.7.25
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.24
+          v2.7.25
         </div>
       </div>
     </div>
@@ -1969,7 +1969,7 @@ function UserManagement({users, setUsers, currentUser}) {
   const myLevel = currentUser?.adminLevel || 1;
   const [viewingUser, setViewingUser] = useState(null); // full-page user detail
   const [crmHostCompanies,setCrmHostCompanies]=useState([]);
-  useEffect(()=>{ loadTable('crm_companies').then(rows=>setCrmHostCompanies(rows.map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>a.name.localeCompare(b.name)))).catch(()=>{}); },[]);
+  useEffect(()=>{ loadTable('crm_companies').then(rows=>setCrmHostCompanies(rows.map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")))).catch(()=>{}); },[]);
 
   // Roles this admin level is allowed to create/edit
   // Admin 1: all roles. Admin 2: all except Admin 1.
@@ -3073,7 +3073,7 @@ function HubSpotPropertyInspector({ hsToken, hsFetch }) {
           label: p.label||p.name,
           value: sampleProps[p.name]||"",
         }))
-        .sort((a,b)=>a.name.localeCompare(b.name));
+        .sort((a,b)=>(a.name||"").localeCompare(b.name||""));
       setPropData(props);
     } catch(e){ alert("Inspect failed: "+e.message); }
     setInspecting(false);
@@ -3429,7 +3429,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                         {allUsers.filter(u=>u.role==="Apprentice").length===0
                           ? <div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>No apprentices in system yet</div>
                           : <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:180,overflowY:"auto"}}>
-                            {allUsers.filter(u=>u.role==="Apprentice").sort((a,b)=>a.name.localeCompare(b.name)).map(u=>{
+                            {allUsers.filter(u=>u.role==="Apprentice").sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(u=>{
                               const checked=convertAlloc.includes(u.id);
                               return (
                                 <div key={u.id} onClick={()=>setConvertAlloc(prev=>checked?prev.filter(id=>id!==u.id):[...prev,u.id])}
@@ -3855,8 +3855,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 {companies.length>0?(()=>{
                   const selectedCo = companies.find(co=>co.id===cForm.companyId);
                   const isCustom = cForm.company && !selectedCo && !companies.some(co=>co.name===cForm.company);
-                  const hostCos  = companies.filter(co=>co.isHostBusiness).sort((a,b)=>a.name.localeCompare(b.name));
-                  const otherCos = companies.filter(co=>!co.isHostBusiness).sort((a,b)=>a.name.localeCompare(b.name));
+                  const hostCos  = companies.filter(co=>co.isHostBusiness).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+                  const otherCos = companies.filter(co=>!co.isHostBusiness).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
                   return (
                     <div style={{display:"flex",flexDirection:"column",gap:4}}>
                       <select
@@ -4952,7 +4952,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
 function WeeklyHoursList({allUsers, entries}) {
   const ws = ()=>{ const d=new Date(); d.setDate(d.getDate()-d.getDay()); return d.toISOString().slice(0,10); };
   const wsDate = ws();
-  const apprentices = [...allUsers.filter(u=>u.role==="Apprentice")].sort((a,b)=>a.name.localeCompare(b.name));
+  const apprentices = [...allUsers.filter(u=>u.role==="Apprentice")].sort((a,b)=>(a.name||"").localeCompare(b.name||""));
   const weekEntries = entries.filter(e=>e.date>=wsDate);
 
   // Total hours by type across all apprentices this week
@@ -5077,7 +5077,7 @@ function WeeklyHoursList({allUsers, entries}) {
 // PENDING / APPROVED ENTRIES LIST  — grouped by apprentice A-Z
 // ─────────────────────────────────────────────────────────────────────────────
 function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
-  const apprentices = [...allUsers.filter(u=>u.role==="Apprentice")].sort((a,b)=>a.name.localeCompare(b.name));
+  const apprentices = [...allUsers.filter(u=>u.role==="Apprentice")].sort((a,b)=>(a.name||"").localeCompare(b.name||""));
   const filtered = entries.filter(e=>e.approval===status);
   const isPending = status==="submitted";
 
@@ -5142,11 +5142,11 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
 // ── Shared Apprentice Edit Form — used by UserManagement, ApprenticeList, ApprenticeDetailView ──
 function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewer=null}) {
   const TRADES = ["Electrical Apprentice","Electrical","Plumbing & Gasfitting","Plumbing","Gasfitting","Drain Laying","Roofing","Carpentry","Joinery","Painting & Decorating","Mechanical Engineering","Refrigeration & Air Conditioning","Bricklaying","Plastering","Tiling","Other"];
-  const approvers = allUsers.filter(u=>u.role==="Approver"||u.role==="Admin").sort((a,b)=>a.name.localeCompare(b.name));
-  const viewers   = allUsers.filter(u=>u.role==="Viewer"  ||u.role==="Admin").sort((a,b)=>a.name.localeCompare(b.name));
-  const mentors   = allUsers.filter(u=>u.role==="Mentor"  ||u.role==="Admin").sort((a,b)=>a.name.localeCompare(b.name));
+  const approvers = allUsers.filter(u=>u.role==="Approver"||u.role==="Admin").sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  const viewers   = allUsers.filter(u=>u.role==="Viewer"  ||u.role==="Admin").sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  const mentors   = allUsers.filter(u=>u.role==="Mentor"  ||u.role==="Admin").sort((a,b)=>(a.name||"").localeCompare(b.name||""));
   const [hostCos, setHostCos] = useState([]);
-  useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCos(rows.map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>a.name.localeCompare(b.name)))).catch(()=>{}); },[]);
+  useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCos(rows.filter(r=>r.name).map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")))).catch(()=>{}); },[]);
 
   const nameParts = (user.name||"").split(" ");
   const [form, setForm] = useState({
@@ -5322,7 +5322,7 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
 }
 
 function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
-  const apprentices = [...allUsers.filter(u => u.role === "Apprentice")].sort((a,b)=>a.name.localeCompare(b.name));
+  const apprentices = [...allUsers.filter(u => u.role === "Apprentice")].sort((a,b)=>(a.name||"").localeCompare(b.name||""));
   const approvers   = allUsers.filter(u => u.role === "Approver" || u.role === "Admin");
   const viewers     = allUsers.filter(u => u.role === "Viewer"   || u.role === "Admin");
   const mentors     = allUsers.filter(u => u.role === "Mentor"   || u.role === "Admin");
@@ -5346,7 +5346,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
   const canEditXero     = isAdminL1;
   const canEditAllocs   = isAdminL1 || isAdmin;
   const [hostCos, setHostCos] = useState([]);
-  useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCos(rows.map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>a.name.localeCompare(b.name)))).catch(()=>{}); },[]);
+  useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCos(rows.filter(r=>r.name).map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")))).catch(()=>{}); },[]);
 
   const getAllocated = (role, appId) =>
     allUsers.filter(u => (u.role===role || u.role==="Admin") && (u.allocatedTo||[]).includes(appId));
@@ -5865,7 +5865,7 @@ function ContactsList() {
           <span>Name</span><span>Organisation</span><span>Type</span><span>Email</span><span>Phone</span><span/>
         </div>
         {items.length===0&&<div style={{padding:"40px",textAlign:"center",color:T.muted}}>No contacts yet.</div>}
-        {[...items].sort((a,b)=>a.name.localeCompare(b.name)).map((x,i)=>(
+        {[...items].sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map((x,i)=>(
           <div key={x.id} className="ri" style={{display:"grid",gridTemplateColumns:"1fr 160px 100px 160px 160px 68px",
             padding:"12px 16px",borderBottom:i<items.length-1?`1px solid ${T.border}44`:"none",
             background:i%2===0?T.surface:T.bg,alignItems:"center",gap:8,animationDelay:`${i*.03}s`}}>
@@ -5968,7 +5968,7 @@ function HostBusinessList() {
           <span>Business</span><span>Industry</span><span>Contact</span><span>Email</span><span style={{textAlign:"center"}}>Cap.</span><span>Status</span><span/>
         </div>
         {items.length===0&&<div style={{padding:"40px",textAlign:"center",color:T.muted}}>No host businesses yet.</div>}
-        {[...items].sort((a,b)=>a.name.localeCompare(b.name)).map((x,i)=>(
+        {[...items].sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map((x,i)=>(
           <div key={x.id} className="ri" style={{display:"grid",gridTemplateColumns:"1fr 120px 140px 140px 60px 80px 68px",
             padding:"12px 16px",borderBottom:i<items.length-1?`1px solid ${T.border}44`:"none",
             background:i%2===0?T.surface:T.bg,alignItems:"center",gap:8,animationDelay:`${i*.03}s`}}>
@@ -8588,7 +8588,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   const [hostBizVal, setHostBizVal]           = useState("");
   const [savingHostBiz, setSavingHostBiz]     = useState(false);
   const [hostCosAdv, setHostCosAdv]           = useState([]);
-  useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCosAdv(rows.map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>a.name.localeCompare(b.name)))).catch(()=>{}); },[]);
+  useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCosAdv(rows.filter(r=>r.name).map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")))).catch(()=>{}); },[]);
 
   const saveHostBiz = async () => {
     setSavingHostBiz(true);
@@ -9437,7 +9437,7 @@ function MentorDashboard({currentUser, allUsers}) {
       (currentUser.allocatedTo||[]).includes(u.id) ||
       u.mentorUserId===currentUser.id
     )
-  ).sort((a,b)=>a.name.localeCompare(b.name));
+  ).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
 
   // Load meeting report meta for each apprentice
   useEffect(()=>{
@@ -10048,7 +10048,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
   const [submittingAll, setSubmittingAll] = useState(false);
 
 
-  const apprentices = allUsers.filter(u=>u.role==="Apprentice").sort((a,b)=>a.name.localeCompare(b.name));
+  const apprentices = allUsers.filter(u=>u.role==="Apprentice").sort((a,b)=>(a.name||"").localeCompare(b.name||""));
   const approvedEntries = entries.filter(e=>e.approval==="approved")
     .sort((a,b)=>b.date.localeCompare(a.date));
   const pendingXero = approvedEntries.filter(e=>!e.xeroStatus);
