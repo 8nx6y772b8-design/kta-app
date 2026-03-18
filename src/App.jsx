@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.32
+// KTA Workforce Management — v2.7.33
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.32
+          v2.7.33
         </div>
       </div>
     </div>
@@ -7641,7 +7641,7 @@ function ContactUs({currentUser, allUsers, onSend}) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Meeting Report — Email sender ─────────────────────────────────────────────
-const sendMeetingReportEmail = async (report, apprentice, mentor, approver) => {
+const sendMeetingReportEmail = async (report, apprentice, mentor, approver, ccEmails=[]) => {
   const fD = (iso) => { if(!iso) return "TBC"; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
 
   // HTML body (existing plain-text format)
@@ -7696,7 +7696,9 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver) => {
   const recipients = [
     { email: apprentice.email, name: apprentice.name },
     reportRecipient,
-  ].filter(r => r && r.email && r.email.trim());
+    ...(ccEmails||[]),
+  ].filter(r => r && r.email && r.email.trim())
+   .filter((r,i,arr)=>arr.findIndex(x=>x.email===r.email)===i); // dedupe
 
   if(recipients.length === 0) {
     throw new Error("No valid email addresses found — check that the apprentice and approver both have email addresses set in their profiles.");
@@ -7876,7 +7878,32 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
   const [saving, setSaving]           = useState(false);
   const [emailStatus, setEmailStatus] = useState(null);
   const [prevGoalsSource, setPrevGoalsSource] = useState(null);
+  const [ccEmails, setCcEmails]       = useState([]); // extra CC recipients
+  const [companyContacts, setCompanyContacts] = useState([]); // contacts from apprentice's company
+  const [showAddEmail, setShowAddEmail] = useState(false);
+  const [customEmail, setCustomEmail]   = useState("");
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  // Load contacts for the apprentice's host business
+  useEffect(()=>{
+    if(!apprentice.hostBusiness) return;
+    loadTable('crm_contacts').then(rows=>{
+      loadTable('crm_companies').then(cos=>{
+        const co = cos.find(c=>(c.name||"").toLowerCase().trim()===(apprentice.hostBusiness||"").toLowerCase().trim());
+        const linked = rows.filter(r=>
+          (co && r.company_id===co.id) ||
+          (!r.company_id && (r.company||"").toLowerCase().trim()===(apprentice.hostBusiness||"").toLowerCase().trim())
+        ).filter(r=>r.email);
+        setCompanyContacts(linked.map(r=>({name:r.name,email:r.email})));
+      }).catch(()=>{});
+    }).catch(()=>{});
+  },[apprentice.hostBusiness]);
+
+  const addCc = (email, name) => {
+    if(!email || ccEmails.find(x=>x.email===email)) return;
+    setCcEmails(prev=>[...prev, {email, name:name||email}]);
+  };
+  const removeCc = (email) => setCcEmails(prev=>prev.filter(x=>x.email!==email));
 
   const fD = (iso) => { if(!iso) return "—"; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
 
@@ -7913,7 +7940,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
     try {
       await upsertRow('meeting_reports', report);
       setEmailStatus("sending");
-      await sendMeetingReportEmail(report, apprentice, mentor, approver);
+      await sendMeetingReportEmail(report, apprentice, mentor, approver, ccEmails);
       setEmailStatus("sent");
       setTimeout(()=>onSave(report), 1200);
     } catch(e) {
@@ -8017,6 +8044,83 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
               : <span style={{color:T.warn}}> — ⚠ no approver linked to this apprentice</span>
           }
         </div>
+        {/* ── Additional CC recipients ── */}
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:12,fontWeight:700,color:T.sub,marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <span>➕ Also send to</span>
+            <button onClick={()=>setShowAddEmail(s=>!s)} style={{fontSize:11,padding:"3px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:T.surface,color:T.sub,cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:600}}>
+              {showAddEmail?"✕ Close":"+ Add recipient"}
+            </button>
+          </div>
+
+          {/* Existing CC tags */}
+          {ccEmails.length>0&&(
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
+              {ccEmails.map(r=>(
+                <div key={r.email} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 10px",borderRadius:20,background:T.tealL,border:`1px solid ${T.teal}44`,fontSize:12,fontWeight:600,color:T.teal}}>
+                  <span>{r.name}</span>
+                  <span style={{fontSize:10,fontWeight:400,color:T.muted}}>({r.email})</span>
+                  <button onClick={()=>removeCc(r.email)} style={{background:"none",border:"none",cursor:"pointer",color:T.teal,fontSize:13,lineHeight:1,padding:0,fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Dropdown picker */}
+          {showAddEmail&&(
+            <div style={{background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"12px 14px"}}>
+              {companyContacts.length>0&&(
+                <div style={{marginBottom:10}}>
+                  <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>
+                    🏢 {apprentice.hostBusiness} Contacts
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                    {companyContacts.map(c=>{
+                      const already = !!ccEmails.find(x=>x.email===c.email);
+                      return (
+                        <button key={c.email} onClick={()=>{if(!already){addCc(c.email,c.name);setShowAddEmail(false);}}}
+                          disabled={already}
+                          style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",
+                            borderRadius:8,border:`1.5px solid ${already?T.teal:T.border}`,
+                            background:already?T.tealL:"#fff",cursor:already?"default":"pointer",
+                            fontFamily:"DM Sans,sans-serif",textAlign:"left",transition:"all .12s"}}>
+                          <div>
+                            <div style={{fontWeight:700,fontSize:13,color:T.ink}}>{c.name}</div>
+                            <div style={{fontSize:11,color:T.muted}}>{c.email}</div>
+                          </div>
+                          {already
+                            ? <span style={{fontSize:11,fontWeight:700,color:T.teal}}>✓ Added</span>
+                            : <span style={{fontSize:11,color:T.accent,fontWeight:600}}>+ Add</span>
+                          }
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {/* Type a new address */}
+              <div style={{borderTop:companyContacts.length>0?`1px solid ${T.border}`:"none",paddingTop:companyContacts.length>0?10:0}}>
+                <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>
+                  ✉ Enter email manually
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  <input
+                    type="email"
+                    placeholder="name@company.co.nz"
+                    value={customEmail}
+                    onChange={e=>setCustomEmail(e.target.value)}
+                    onKeyDown={e=>{if(e.key==="Enter"&&customEmail.includes("@")){addCc(customEmail.trim(),customEmail.trim());setCustomEmail("");setShowAddEmail(false);}}}
+                    style={{flex:1,fontSize:13}}
+                  />
+                  <Btn sm onClick={()=>{if(customEmail.includes("@")){addCc(customEmail.trim(),customEmail.trim());setCustomEmail("");setShowAddEmail(false);}else{alert("Enter a valid email address.");}}}>
+                    Add
+                  </Btn>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         {emailStatus==="sending"&&<div style={{background:T.warnL,border:`1px solid ${T.warn}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:12,color:T.warn}}>⏳ Sending emails…</div>}
         {emailStatus==="sent"&&<div style={{background:T.tealL,border:`1px solid ${T.teal}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:12,color:T.teal}}>✓ Saved and emailed!</div>}
         {emailStatus==="error"&&<div style={{background:T.redL,border:`1px solid ${T.red}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:12,color:T.red}}>⚠ Report saved but email failed — check Edge Function deployment.</div>}
