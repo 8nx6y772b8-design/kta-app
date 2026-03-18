@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.29
+// KTA Workforce Management — v2.7.30
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.29
+          v2.7.30
         </div>
       </div>
     </div>
@@ -1993,6 +1993,7 @@ function UserManagement({users, setUsers, currentUser}) {
     address:"",suburb:"",city:"",postcode:"",approverUserId:null,viewerUserId:null,secondaryRole:null,adminLevel:1,
     hostBusiness:"",overtimeType:null,overtimeThreshold:"",overtimeRateId:"",reportsEmail:"",company:""};
   const [form,setForm]=useState(blank);
+  const [formKey,setFormKey]=useState(0);
   const [showForm,setShowForm]=useState(false);
   const [editId,setEditId]=useState(null);
   const [pwField,setPwField]=useState("");
@@ -2054,8 +2055,8 @@ function UserManagement({users, setUsers, currentUser}) {
       approverUserId:u.approverUserId||null,viewerUserId:u.viewerUserId||null,
       secondaryRole:u.secondaryRole||null,adminLevel:u.adminLevel||1,
       hostBusiness:u.hostBusiness||"",overtimeType:u.overtimeType||null,
-      overtimeThreshold:u.overtimeThreshold||"",overtimeRateId:u.overtimeRateId||"",reportsEmail:u.reportsEmail||"",company:u.company||""});
-    setPwField(""); setEditId(u.id); setShowForm(true);
+      overtimeThreshold:u.overtimeThreshold||"",overtimeRateId:u.overtimeRateId||"",reportsEmail:u.reportsEmail||"",company:(typeof u.company==="string"?u.company:"")});
+    setPwField(""); setEditId(u.id); setShowForm(true); setFormKey(k=>k+1);
     if(u.role==="Apprentice") {
       // Prefer the value stored directly on the apprentice record (new approach)
       // Fall back to searching allocatedTo on approver/viewer users (legacy + always works without DB migration)
@@ -2116,7 +2117,7 @@ function UserManagement({users, setUsers, currentUser}) {
       </div>
 
       {showForm&&(
-        <Card id="um-form" style={{marginBottom:20,border:`1.5px solid ${T.blue}44`}}>
+        <Card id="um-form" key={formKey} style={{marginBottom:20,border:`1.5px solid ${T.blue}44`}}>
           <div style={{fontWeight:700,fontSize:14,marginBottom:16,color:T.blue}}>
             {editId?"✎ Edit User":"+ New User"}
           </div>
