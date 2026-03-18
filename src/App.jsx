@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.41
+// KTA Workforce Management — v2.7.42
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -251,12 +251,12 @@ const sendCalendarInvite = async (toEmail, toName, apprenticeName, leaveType, da
       `<strong>Leave Calendar Reminder</strong>`,
       `<p style="font-size:13px;color:#0d1b2e">A calendar invite has been attached for the approved leave period below. Please add it to your calendar.</p>
        <table style="width:100%;border-collapse:collapse;font-size:13px;margin:12px 0">
-         <tr><td style="padding:7px 12px;background:#f0f4f9;font-weight:700;width:40%">Apprentice</td><td style="padding:7px 12px">${apprenticeName}</td></tr>
-         <tr><td style="padding:7px 12px;background:#f0f4f9;font-weight:700">Leave Type</td><td style="padding:7px 12px">${leaveType}</td></tr>
-         <tr><td style="padding:7px 12px;background:#f0f4f9;font-weight:700">From</td><td style="padding:7px 12px">${fmtNZ(dateFrom)}</td></tr>
-         <tr><td style="padding:7px 12px;background:#f0f4f9;font-weight:700">To</td><td style="padding:7px 12px">${fmtNZ(dateTo)}</td></tr>
+         <tr><td style="padding:7px 12px;background:#f0f4f9;font-weight:800;width:40%">Apprentice</td><td style="padding:7px 12px">${apprenticeName}</td></tr>
+         <tr><td style="padding:7px 12px;background:#f0f4f9;font-weight:800">Leave Type</td><td style="padding:7px 12px">${leaveType}</td></tr>
+         <tr><td style="padding:7px 12px;background:#f0f4f9;font-weight:800">From</td><td style="padding:7px 12px">${fmtNZ(dateFrom)}</td></tr>
+         <tr><td style="padding:7px 12px;background:#f0f4f9;font-weight:800">To</td><td style="padding:7px 12px">${fmtNZ(dateTo)}</td></tr>
        </table>
-       <div style="background:#dce8f7;border-radius:8px;padding:12px 16px;font-size:12px;color:#1b4f8c;font-weight:600">
+       <div style="background:#dce8f7;border-radius:8px;padding:12px 16px;font-size:12px;color:#1b4f8c;font-weight:800">
          ★ Fully approved by KTA — please open the attached .ics file to add to your calendar.
        </div>`
     ),
@@ -628,12 +628,12 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
   for(const approver of approvers) {
     const isAdminL1 = approver.role === "Admin" && (approver.adminLevel||1) === 1;
     const toolAllowanceBox = isAdminL1 ? `
-  <div style="border-left:2px solid #d0daea;padding-left:20px"><div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Tool Allowance</div><div style="font-size:20px;font-weight:700;color:#6b46c1">$${toolAllowanceAmt}</div><div style="font-size:10px;color:#8fa0b8;margin-top:2px">Add manually in Xero</div></div>` : "";
+  <div style="border-left:2px solid #d0daea;padding-left:20px"><div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Tool Allowance</div><div style="font-size:20px;font-weight:800;color:#6b46c1">$${toolAllowanceAmt}</div><div style="font-size:10px;color:#8fa0b8;margin-top:2px">Add manually in Xero</div></div>` : "";
     const summaryBox = `
 <div style="background:#f0f4f9;border-radius:10px;padding:14px 18px;margin:16px 0;display:flex;gap:24px;flex-wrap:wrap">
-  ${normalHrs>0?`<div><div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Normal Hours</div><div style="font-size:20px;font-weight:700;color:#1b4f8c">${fmtH(normalHrs)}</div></div>`:""}
-  ${overtimeHrs>0?`<div><div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Overtime</div><div style="font-size:20px;font-weight:700;color:#b86e1a">${fmtH(overtimeHrs)}</div></div>`:""}
-  <div><div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Total Hours</div><div style="font-size:20px;font-weight:700;color:#1a8a7a">${fmtH(totalHrs)}</div></div>
+  ${normalHrs>0?`<div><div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Normal Hours</div><div style="font-size:20px;font-weight:800;color:#1b4f8c">${fmtH(normalHrs)}</div></div>`:""}
+  ${overtimeHrs>0?`<div><div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Overtime</div><div style="font-size:20px;font-weight:800;color:#b86e1a">${fmtH(overtimeHrs)}</div></div>`:""}
+  <div><div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Total Hours</div><div style="font-size:20px;font-weight:800;color:#1a8a7a">${fmtH(totalHrs)}</div></div>
   ${toolAllowanceBox}
 </div>`;
     if(!approver.email) continue;
@@ -647,7 +647,7 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
         const typeColor  = isOvertime?"#b86e1a":isNormal?"#1b4f8c":"#4a5a72";
 
         // Calculate overtime split for this entry (display only — no rateId needed)
-        let hoursCell = `<td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:13px;font-weight:700;color:#1b4f8c;text-align:right">${fmtH(e.netHours)}</td>`;
+        let hoursCell = `<td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:13px;font-weight:800;color:#1b4f8c;text-align:right">${fmtH(e.netHours)}</td>`;
         let typeCell  = `<td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:12px;color:${typeColor}">${isNormal?"Normal":isOvertime?"Overtime":e.type}</td>`;
         if(isNormal && apprentice.overtimeType && apprentice.overtimeThreshold) {
           const threshold = parseFloat(apprentice.overtimeThreshold);
@@ -659,7 +659,7 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
           if(overtimeH > 0) {
             typeCell  = `<td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:12px;color:#4a5a72">Normal + OT</td>`;
             hoursCell = `<td style="padding:10px 12px;border-bottom:1px solid #e8edf3;text-align:right">
-              <span style="font-size:13px;font-weight:700;color:#1b4f8c">${fmtH(normalH)}</span>
+              <span style="font-size:13px;font-weight:800;color:#1b4f8c">${fmtH(normalH)}</span>
               <span style="font-size:11px;color:#b86e1a;margin-left:4px">+${fmtH(overtimeH)} OT</span>
             </td>`;
           }
@@ -667,14 +667,14 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
 
         return `
 <tr>
-  <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:13px;color:#0d1b2e;font-weight:600">${fmtD(e.date)}</td>
+  <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:13px;color:#0d1b2e;font-weight:800">${fmtD(e.date)}</td>
   ${typeCell}
   ${hoursCell}
   <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:11px;color:#8fa0b8">${e.start||""}${e.end?" – "+e.end:""}</td>
   <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:11px;color:#4a5a72;font-style:italic">${e.note||""}</td>
   <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;white-space:nowrap">
-    <a href="${appUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:5px;padding:4px 12px;font-size:11px;font-weight:700;text-decoration:none;margin-right:4px">&#10003;</a>
-    <a href="${decUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:5px;padding:4px 12px;font-size:11px;font-weight:700;text-decoration:none">&#10005;</a>
+    <a href="${appUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:5px;padding:4px 12px;font-size:11px;font-weight:800;text-decoration:none;margin-right:4px">&#10003;</a>
+    <a href="${decUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:5px;padding:4px 12px;font-size:11px;font-weight:800;text-decoration:none">&#10005;</a>
   </td>
 </tr>`;
       }));
@@ -690,7 +690,7 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
         html: `
 <div style="font-family:"Good Headline Pro",Arial,sans-serif;max-width:620px;margin:0 auto;background:#f0f4f9;padding:24px">
   <div style="background:#1b4f8c;border-radius:10px 10px 0 0;padding:18px 24px">
-    <div style="color:#fff;font-size:18px;font-weight:700">Timesheet Submitted</div>
+    <div style="color:#fff;font-size:18px;font-weight:800">Timesheet Submitted</div>
     <div style="color:#dce8f7;font-size:12px;margin-top:4px">Kiwi Trade Apprentices · ${apprentice.name}</div>
   </div>
   <div style="background:#fff;padding:24px;border-radius:0 0 10px 10px;border:1px solid #d0daea">
@@ -699,24 +699,24 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
     ${summaryBox}
     <div style="background:#e8f5f3;border:1.5px solid #1a8a7a;border-radius:10px;padding:16px 20px;margin:0 0 20px;text-align:center">
       <div style="font-size:13px;color:#4a5a72;margin-bottom:12px">Approve or decline all ${entries.length} ${entries.length===1?"entry":"entries"} at once:</div>
-      <a href="${approveAllUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:8px;padding:12px 32px;font-size:15px;font-weight:700;text-decoration:none;margin-right:8px">✓ Approve Week</a>
-      <a href="${declineAllUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:8px;padding:12px 32px;font-size:15px;font-weight:700;text-decoration:none">✕ Decline Week</a>
+      <a href="${approveAllUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:8px;padding:12px 32px;font-size:15px;font-weight:800;text-decoration:none;margin-right:8px">✓ Approve Week</a>
+      <a href="${declineAllUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:8px;padding:12px 32px;font-size:15px;font-weight:800;text-decoration:none">✕ Decline Week</a>
     </div>
     <table style="width:100%;border-collapse:collapse;margin:0 0 16px">
       <thead>
         <tr style="background:#f0f4f9">
-          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Date</th>
-          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Type</th>
-          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:right;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Hours</th>
-          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Time</th>
-          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Note</th>
-          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:600">Action</th>
+          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:800">Date</th>
+          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:800">Type</th>
+          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:right;text-transform:uppercase;letter-spacing:.5px;font-weight:800">Hours</th>
+          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:800">Time</th>
+          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:800">Note</th>
+          <th style="padding:8px 12px;font-size:11px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:800">Action</th>
         </tr>
       </thead>
       <tbody>${entryRowsHtml.join("")}</tbody>
     </table>
     <p style="font-size:12px;color:#8fa0b8">✓ = Approve that day &nbsp;|&nbsp; ✕ = Decline that day &nbsp;|&nbsp; Links expire in 7 days. No login required.</p>
-    <p style="margin-top:16px"><a href="https://crmkta.com" style="display:inline-block;background:#1b4f8c;color:#fff;border-radius:8px;padding:10px 22px;font-size:13px;font-weight:600;text-decoration:none">Open KTA System →</a></p>
+    <p style="margin-top:16px"><a href="https://crmkta.com" style="display:inline-block;background:#1b4f8c;color:#fff;border-radius:8px;padding:10px 22px;font-size:13px;font-weight:800;text-decoration:none">Open KTA System →</a></p>
     <hr style="border:none;border-top:1px solid #d0daea;margin:20px 0">
     <p style="font-size:11px;color:#8fa0b8">KTA Workforce Management · payroll@kta.org.nz</p>
   </div>
@@ -758,25 +758,25 @@ const notifyApprentice = async (apprentice, approver, entries, approved) => {
 // GLOBAL STYLES
 // ─────────────────────────────────────────────────────────────────────────────
 const CSS = `
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Italic.ttf') format('truetype'); font-weight:700; font-style:italic; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Light.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-LightItalic.ttf') format('truetype'); font-weight:700; font-style:italic; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro.ttf') format('truetype'); font-weight:800; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Italic.ttf') format('truetype'); font-weight:800; font-style:italic; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Light.ttf') format('truetype'); font-weight:800; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-LightItalic.ttf') format('truetype'); font-weight:800; font-style:italic; font-display:swap; }
   @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-News.ttf') format('truetype'); font-weight:450; font-style:normal; font-display:swap; }
   @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-NewsItalic.ttf') format('truetype'); font-weight:450; font-style:italic; font-display:swap; }
   @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Medium.ttf') format('truetype'); font-weight:500; font-style:normal; font-display:swap; }
   @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-MediumItalic.ttf') format('truetype'); font-weight:500; font-style:italic; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-BoldItalic.ttf') format('truetype'); font-weight:700; font-style:italic; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Bold.ttf') format('truetype'); font-weight:800; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-BoldItalic.ttf') format('truetype'); font-weight:800; font-style:italic; font-display:swap; }
   @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Black.ttf') format('truetype'); font-weight:900; font-style:normal; font-display:swap; }
   @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-BlackItalic.ttf') format('truetype'); font-weight:900; font-style:italic; font-display:swap; }
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;font-weight:inherit;}
-  html,body{background:${T.bg};font-family:"Good Headline Pro",sans-serif;font-weight:700;color:${T.ink};font-size:14px;-webkit-tap-highlight-color:transparent;}
+  html,body{background:${T.bg};font-family:"Good Headline Pro",sans-serif;font-weight:800;color:${T.ink};font-size:14px;-webkit-tap-highlight-color:transparent;}
   ::-webkit-scrollbar{width:5px;height:5px;}
   ::-webkit-scrollbar-track{background:${T.border};}
   ::-webkit-scrollbar-thumb{background:${T.muted};border-radius:3px;}
   select,input,textarea{
-    font-family:"Good Headline Pro",sans-serif;font-weight:700;background:${T.surface};
+    font-family:"Good Headline Pro",sans-serif;font-weight:800;background:${T.surface};
     border:1.5px solid ${T.border};color:${T.ink};border-radius:9px;
     padding:9px 12px;font-size:16px;outline:none;width:100%;
     transition:border-color .15s,box-shadow .15s;
@@ -789,7 +789,7 @@ const CSS = `
   select option{background:white;}
   input:focus,select:focus,textarea:focus{border-color:${T.accent};box-shadow:0 0 0 3px ${T.accentL};}
   input[type=date]{cursor:pointer;} input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer;width:20px;height:20px;} .ts-date-input::-webkit-calendar-picker-indicator{opacity:0;position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;cursor:pointer;}
-  button{cursor:pointer;font-family:"Good Headline Pro",sans-serif;font-weight:700;border:none;transition:all .14s;}
+  button{cursor:pointer;font-family:"Good Headline Pro",sans-serif;font-weight:800;border:none;transition:all .14s;}
   textarea{resize:vertical;min-height:64px;line-height:1.55;font-size:16px;}
 
   @keyframes fadeUp  {from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
@@ -857,7 +857,7 @@ const CSS = `
       font-family:"Good Headline Pro",sans-serif;transition:all .14s;min-height:52px;
     }
     .bottom-nav-icon{font-size:22px;line-height:1;display:block;}
-    .bottom-nav-label{font-size:10px;font-weight:600;letter-spacing:.2px;display:block;}
+    .bottom-nav-label{font-size:10px;font-weight:800;letter-spacing:.2px;display:block;}
     .bottom-nav-btn.active .bottom-nav-icon,
     .bottom-nav-btn.active .bottom-nav-label{color:${T.accentL};}
     .bottom-nav-btn:not(.active) .bottom-nav-icon,
@@ -913,7 +913,7 @@ const CSS = `
 const Pill = ({label,color,bg,sym,size="md"}) => (
   <span style={{display:"inline-flex",alignItems:"center",gap:4,background:bg,color,
     padding:size==="sm"?"2px 8px":"4px 10px",borderRadius:99,
-    fontSize:size==="sm"?11:12,fontWeight:600,whiteSpace:"nowrap"}}>
+    fontSize:size==="sm"?11:12,fontWeight:800,whiteSpace:"nowrap"}}>
     {sym&&<span style={{fontSize:size==="sm"?9:10}}>{sym}</span>}{label}
   </span>
 );
@@ -926,7 +926,7 @@ const TypePill = ({type,size="md"}) => { const m=TYPE_META[type]||TYPE_META["Oth
 const AppvPill = ({status}) => { const m=APPROVAL_META[status]||APPROVAL_META.draft; return <Pill label={m.label} color={m.color} bg={m.bg} sym={m.sym} size="sm"/> };
 
 const FL = ({children,req}) => (
-  <div style={{fontSize:11,fontWeight:600,color:T.sub,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>
+  <div style={{fontSize:11,fontWeight:800,color:T.sub,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>
     {children}{req&&<span style={{color:T.red}}> *</span>}
   </div>
 );
@@ -939,12 +939,12 @@ const Btn = ({children,onClick,v="primary",sm=false,disabled=false,full=false,st
     approve: {background:T.accentL,color:T.accent,border:`1.5px solid ${T.accent}55`},
     decline: {background:T.redL,color:T.red,border:`1.5px solid ${T.red}55`},
     blue:    {background:T.blueL,color:T.blue,border:`1.5px solid ${T.blue}55`},
-    loginbtn:{background:T.accent,color:"#fff",border:`1.5px solid ${T.accentD}`,fontSize:15,padding:"13px 20px",borderRadius:10,fontWeight:700},
+    loginbtn:{background:T.accent,color:"#fff",border:`1.5px solid ${T.accentD}`,fontSize:15,padding:"13px 20px",borderRadius:10,fontWeight:800},
   };
   return (
     <button onClick={onClick} disabled={disabled} style={{
       ...vs[v]||vs.primary,borderRadius:8,
-      padding:sm?"5px 12px":"9px 16px",fontSize:sm?12:13,fontWeight:600,
+      padding:sm?"5px 12px":"9px 16px",fontSize:sm?12:13,fontWeight:800,
       display:"inline-flex",alignItems:"center",justifyContent:"center",gap:5,
       opacity:disabled?.45:1,width:full?"100%":undefined,...sx
     }}
@@ -963,7 +963,7 @@ const Card = ({children,style:sx={},onClick}) => (
 const StatCard = ({label,value,sub,color=T.accent}) => (
   <Card style={{paddingBlock:18}}>
     <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{label}</div>
-    <div style={{fontSize:24,fontWeight:700,color,fontFamily:"Good Headline Pro"}}>{value}</div>
+    <div style={{fontSize:24,fontWeight:800,color,fontFamily:"Good Headline Pro"}}>{value}</div>
     {sub&&<div style={{fontSize:11,color:T.sub,marginTop:2}}>{sub}</div>}
   </Card>
 );
@@ -973,7 +973,7 @@ const Avatar = ({name,role,size=36}) => {
     <div style={{width:size,height:size,borderRadius:"50%",flexShrink:0,
       background:m.bg,border:`2px solid ${m.color}44`,
       display:"flex",alignItems:"center",justifyContent:"center",
-      fontWeight:700,fontSize:size*.38,color:m.color}}>
+      fontWeight:800,fontSize:size*.38,color:m.color}}>
       {name?.[0]?.toUpperCase()||"?"}
     </div>
   );
@@ -1051,7 +1051,7 @@ function LoginScreen({users, onLogin}) {
           </div>
 
           {/* Tagline */}
-          <h1 style={{fontFamily:"Good Headline Pro",fontSize:36,fontWeight:700,color:"#fff",lineHeight:1.25,marginBottom:20,letterSpacing:"-.5px"}}>
+          <h1 style={{fontFamily:"Good Headline Pro",fontSize:36,fontWeight:800,color:"#fff",lineHeight:1.25,marginBottom:20,letterSpacing:"-.5px"}}>
             Timesheet management, approvals, and CRM
           </h1>
           <p style={{fontSize:16,color:"#ffffffaa",lineHeight:1.7}}>
@@ -1063,7 +1063,7 @@ function LoginScreen({users, onLogin}) {
       {/* RIGHT — login form */}
       <div className="login-right">
         <div style={{marginBottom:36}}>
-          <h2 style={{fontFamily:"Good Headline Pro",fontSize:26,fontWeight:700,color:T.ink,marginBottom:8}}>
+          <h2 style={{fontFamily:"Good Headline Pro",fontSize:26,fontWeight:800,color:T.ink,marginBottom:8}}>
             Welcome back
           </h2>
           <p style={{fontSize:13,color:T.sub}}>Sign in to your account to continue.</p>
@@ -1115,7 +1115,7 @@ function LoginScreen({users, onLogin}) {
             background:loading?T.accentL:T.accent,
             color:loading?T.accent:"#fff",
             border:`1.5px solid ${T.accentD}`,
-            borderRadius:10,fontSize:15,fontWeight:700,
+            borderRadius:10,fontSize:15,fontWeight:800,
             display:"flex",alignItems:"center",justifyContent:"center",gap:10,
             cursor:loading?"default":"pointer",fontFamily:"Good Headline Pro,sans-serif",transition:"all .15s"
           }}>
@@ -1131,12 +1131,12 @@ function LoginScreen({users, onLogin}) {
           {!forgotMode ? (
             <button onClick={()=>{setForgotMode(true);setErr("");setForgotMsg("");}} style={{
               background:"none",border:"none",color:T.accent,fontSize:13,
-              fontWeight:600,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",
+              fontWeight:800,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",
               padding:0,display:"block",margin:"0 auto"
             }}>Forgot your password?</button>
           ) : (
             <div className="fi">
-              <div style={{fontSize:13,fontWeight:600,color:T.ink,marginBottom:8}}>Reset Password</div>
+              <div style={{fontSize:13,fontWeight:800,color:T.ink,marginBottom:8}}>Reset Password</div>
               <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.5}}>
                 Enter your email and we'll send a reset link to your inbox.
               </div>
@@ -1157,13 +1157,13 @@ function LoginScreen({users, onLogin}) {
               <div style={{display:"flex",gap:8}}>
                 <button onClick={sendReset} disabled={forgotSending} style={{
                   flex:1,padding:"10px",background:T.accent,color:"#fff",
-                  border:`1.5px solid ${T.accentD}`,borderRadius:9,fontSize:13,fontWeight:700,
+                  border:`1.5px solid ${T.accentD}`,borderRadius:9,fontSize:13,fontWeight:800,
                   cursor:forgotSending?"default":"pointer",fontFamily:"Good Headline Pro,sans-serif",
                   opacity:forgotSending?0.6:1,transition:"all .15s"
                 }}>{forgotSending?"Sending…":"Send Reset Link"}</button>
                 <button onClick={()=>{setForgotMode(false);setForgotEmail("");setForgotMsg("");}} style={{
                   padding:"10px 16px",background:"none",color:T.sub,
-                  border:`1.5px solid ${T.border}`,borderRadius:9,fontSize:13,fontWeight:600,
+                  border:`1.5px solid ${T.border}`,borderRadius:9,fontSize:13,fontWeight:800,
                   cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"
                 }}>Cancel</button>
               </div>
@@ -1172,7 +1172,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"Good Headline Pro,sans-serif",letterSpacing:".5px"}}>
-          v2.7.41
+          v2.7.42
         </div>
       </div>
     </div>
@@ -1235,10 +1235,10 @@ function EntryForm({onSave,onCancel,initial=null,minDate=null,maxDate=null,usedD
       <div style={{background:netH>0?T.accentL:T.redL,border:`1.5px solid ${netH>0?T.accent+"44":T.red+"44"}`,
         borderRadius:9,padding:"10px 14px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
-          <div style={{fontSize:11,color:T.sub,fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>Net Hours</div>
+          <div style={{fontSize:11,color:T.sub,fontWeight:800,textTransform:"uppercase",letterSpacing:".5px"}}>Net Hours</div>
           <div style={{fontSize:11,color:T.muted,marginTop:1}}>{gross>0?`${f.start}–${f.end} minus ${f.breakMins}m`:"—"}</div>
         </div>
-        <div style={{fontFamily:"Good Headline Pro",fontSize:26,fontWeight:700,color:netH>0?T.accent:T.red}}>
+        <div style={{fontFamily:"Good Headline Pro",fontSize:26,fontWeight:800,color:netH>0?T.accent:T.red}}>
           {netH>0?`${netH}h`:"—"}
         </div>
       </div>
@@ -1268,12 +1268,12 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
       padding:"12px 16px",borderBottom:`1px solid ${T.border}44`,
       background:idx%2===0?T.surface:T.bg,alignItems:"center",gap:8,animationDelay:`${idx*.03}s`}}>
       <div>
-        <div style={{fontSize:13,fontWeight:600}}>{fmtD(entry.date)}</div>
+        <div style={{fontSize:13,fontWeight:800}}>{fmtD(entry.date)}</div>
       </div>
       {showUser&&(
         <div style={{display:"flex",alignItems:"center",gap:7}}>
           <Avatar name={user?.name} role={user?.role} size={26}/>
-          <span style={{fontSize:12,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user?.name||"—"}</span>
+          <span style={{fontSize:12,fontWeight:800,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user?.name||"—"}</span>
         </div>
       )}
       <div style={{fontSize:12,color:entry.note?T.ink:T.muted,fontStyle:entry.note?"normal":"italic",
@@ -1290,9 +1290,9 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
           }
         }
         return (<>
-          <div style={{textAlign:"center",fontFamily:"Good Headline Pro",fontWeight:700,fontSize:14,color:"#1b4f8c"}}>{normalH}h</div>
-          <div style={{textAlign:"center",fontFamily:"Good Headline Pro",fontWeight:700,fontSize:14,color:overtimeH>0?"#b86e1a":T.muted}}>{overtimeH>0?`${overtimeH}h`:"—"}</div>
-          <div style={{textAlign:"center",fontFamily:"Good Headline Pro",fontWeight:700,fontSize:14,color:TYPE_META[entry.type]?.color||T.accent}}>{entry.netHours}h</div>
+          <div style={{textAlign:"center",fontFamily:"Good Headline Pro",fontWeight:800,fontSize:14,color:"#1b4f8c"}}>{normalH}h</div>
+          <div style={{textAlign:"center",fontFamily:"Good Headline Pro",fontWeight:800,fontSize:14,color:overtimeH>0?"#b86e1a":T.muted}}>{overtimeH>0?`${overtimeH}h`:"—"}</div>
+          <div style={{textAlign:"center",fontFamily:"Good Headline Pro",fontWeight:800,fontSize:14,color:TYPE_META[entry.type]?.color||T.accent}}>{entry.netHours}h</div>
         </>);
       })()}
       <div style={{textAlign:"center",fontSize:11,color:T.sub}}>{entry.breakMins>0?`${entry.breakMins}m`:"—"}</div>
@@ -1310,7 +1310,7 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
         {canSubmitXero && entry.approval==="approved" && !entry.xeroStatus && (
           <button onClick={()=>onSubmitXero&&onSubmitXero(entry.id)}
             title="Submit to Xero Payroll"
-            style={{height:26,borderRadius:6,fontSize:11,fontWeight:700,
+            style={{height:26,borderRadius:6,fontSize:11,fontWeight:800,
               background:"#e6f7fd",color:"#0d7bb5",padding:"0 7px",
               border:"1px solid #13b5ea55",display:"flex",alignItems:"center",gap:3,
               cursor:"pointer",whiteSpace:"nowrap"}}
@@ -1321,7 +1321,7 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
         )}
         {entry.xeroStatus==="submitted" && (
           <div title="Submitted to Xero"
-            style={{height:26,borderRadius:6,fontSize:11,fontWeight:700,
+            style={{height:26,borderRadius:6,fontSize:11,fontWeight:800,
               background:"#e6f7fd",color:"#0d7bb5",padding:"0 7px",
               border:"1px solid #13b5ea55",display:"flex",alignItems:"center",gap:3}}>
             𝕏 ✓
@@ -1329,7 +1329,7 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
         )}
         {entry.xeroStatus==="error" && (
           <div title={entry.xeroError||"Xero error"}
-            style={{height:26,borderRadius:6,fontSize:11,fontWeight:700,
+            style={{height:26,borderRadius:6,fontSize:11,fontWeight:800,
               background:T.redL,color:T.red,padding:"0 7px",
               border:`1px solid ${T.red}44`,display:"flex",alignItems:"center",gap:3}}>
             𝕏 ✕
@@ -1370,26 +1370,26 @@ function WeekCard2({title, weekEntries, accent, canEdit, canDelete, handleEdit, 
     <Card style={{marginBottom:14,border:`1.5px solid ${accent}33`}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
         <div>
-          <div style={{fontWeight:700,fontSize:15,color:T.ink}}>{title}</div>
+          <div style={{fontWeight:800,fontSize:15,color:T.ink}}>{title}</div>
           <div style={{fontSize:12,color:T.sub,marginTop:1}}>
             {weekEntries.length===0?"No entries":`${weekEntries.length} entr${weekEntries.length===1?"y":"ies"} · ${weekEntries.reduce((a,e)=>a+e.netHours,0).toFixed(1)}h total`}
           </div>
         </div>
-        {weekEntries.length>0&&<div style={{fontSize:20,fontWeight:700,color:accent}}>{weekEntries.reduce((a,e)=>a+e.netHours,0).toFixed(1)}h</div>}
+        {weekEntries.length>0&&<div style={{fontSize:20,fontWeight:800,color:accent}}>{weekEntries.reduce((a,e)=>a+e.netHours,0).toFixed(1)}h</div>}
       </div>
       {weekEntries.length===0
         ? <div style={{fontSize:13,color:T.muted,fontStyle:"italic",padding:"4px 0"}}>No entries for this week yet.</div>
         : <div style={{display:"flex",flexDirection:"column",gap:0}}>
             {[...weekEntries].sort((a,b)=>b.date.localeCompare(a.date)).map((e,i)=>(
               <div key={e.id} style={{display:"grid",gridTemplateColumns:"86px 1fr auto auto",alignItems:"center",gap:8,padding:"8px 2px",borderBottom:i<weekEntries.length-1?`1px solid ${T.border}44`:"none"}}>
-                <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{fmtD2(e.date)}</div>
+                <div style={{fontSize:13,fontWeight:800,color:T.ink}}>{fmtD2(e.date)}</div>
                 <div style={{minWidth:0}}>
                   <div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.type}{e.note?` · ${e.note}`:""}</div>
                   <div style={{fontSize:11,color:T.muted}}>{e.start&&e.end?`${e.start}–${e.end}`:""}</div>
                 </div>
-                <div style={{fontSize:13,fontWeight:700,color:accent,whiteSpace:"nowrap"}}>{e.netHours.toFixed(1)}h</div>
+                <div style={{fontSize:13,fontWeight:800,color:accent,whiteSpace:"nowrap"}}>{e.netHours.toFixed(1)}h</div>
                 <div style={{display:"flex",alignItems:"center",gap:4}}>
-                  <span style={{fontSize:11,fontWeight:700,color:sColor(e.approval),whiteSpace:"nowrap"}}>{sLabel(e.approval)}</span>
+                  <span style={{fontSize:11,fontWeight:800,color:sColor(e.approval),whiteSpace:"nowrap"}}>{sLabel(e.approval)}</span>
                   {canEdit&&canEdit(e)&&<button onClick={()=>handleEdit(e)} style={{width:22,height:22,borderRadius:5,fontSize:11,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={ev=>{ev.currentTarget.style.background=T.blueL;ev.currentTarget.style.color=T.blue;}} onMouseLeave={ev=>{ev.currentTarget.style.background="transparent";ev.currentTarget.style.color=T.muted;}}>✎</button>}
                   {canDelete&&canDelete(e)&&<button onClick={()=>handleDelete(e.id)} style={{width:22,height:22,borderRadius:5,fontSize:11,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={ev=>{ev.currentTarget.style.background=T.redL;ev.currentTarget.style.color=T.red;}} onMouseLeave={ev=>{ev.currentTarget.style.background="transparent";ev.currentTarget.style.color=T.muted;}}>✕</button>}
                 </div>
@@ -1548,7 +1548,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
         <div style={{position:"fixed",bottom:24,right:24,zIndex:999,
           background:toast.ok?T.accentL:T.warnL,
           border:`1.5px solid ${toast.ok?T.accent:T.warn}`,
-          borderRadius:10,padding:"12px 20px",fontSize:13,fontWeight:600,
+          borderRadius:10,padding:"12px 20px",fontSize:13,fontWeight:800,
           color:toast.ok?T.accent:T.warn,boxShadow:"0 4px 20px #00000022",
           maxWidth:360,lineHeight:1.4}}>
           {toast.msg}
@@ -1557,7 +1557,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
       <div style={{background:ROLE_META[role].bg,border:`1.5px solid ${ROLE_META[role].color}44`,
         borderRadius:10,padding:"10px 16px",marginBottom:20,display:"flex",gap:10,alignItems:"center"}}>
         <span style={{fontSize:16}}>{ROLE_META[role].symbol}</span>
-        <span style={{fontWeight:700,color:ROLE_META[role].color,fontSize:13}}>{role} View — </span>
+        <span style={{fontWeight:800,color:ROLE_META[role].color,fontSize:13}}>{role} View — </span>
         <span style={{fontSize:13,color:T.sub}}>{ROLE_META[role]?.desc||""}</span>
       </div>
       <div className="stat-grid-4">
@@ -1632,7 +1632,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                   <div style={{position:"fixed",inset:0,background:"#00000066",zIndex:300,
                     display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
                     <Card style={{width:"100%",maxWidth:420,padding:24}}>
-                      <div style={{fontWeight:700,fontSize:16,marginBottom:6}}>Which week to submit?</div>
+                      <div style={{fontWeight:800,fontSize:16,marginBottom:6}}>Which week to submit?</div>
                       <div style={{fontSize:13,color:T.sub,marginBottom:18}}>
                         Your drafts span multiple weeks. Choose which week to submit for approval.
                       </div>
@@ -1649,7 +1649,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                               border:`2px solid ${selected?T.accent:T.border}`,
                               background:selected?T.accentL:T.surface,
                               fontFamily:"Good Headline Pro,sans-serif",transition:"all .14s"}}>
-                              <div style={{fontWeight:700,fontSize:14,color:selected?T.accent:T.ink}}>
+                              <div style={{fontWeight:800,fontSize:14,color:selected?T.accent:T.ink}}>
                                 Week ending {label}
                               </div>
                               <div style={{fontSize:12,color:T.sub,marginTop:3}}>
@@ -1663,7 +1663,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                           border:`2px solid ${weekPickerSelected==="all"?T.blue:T.border}`,
                           background:weekPickerSelected==="all"?T.blueL:T.surface,
                           fontFamily:"Good Headline Pro,sans-serif",transition:"all .14s"}}>
-                          <div style={{fontWeight:700,fontSize:14,color:weekPickerSelected==="all"?T.blue:T.ink}}>
+                          <div style={{fontWeight:800,fontSize:14,color:weekPickerSelected==="all"?T.blue:T.ink}}>
                             Submit all weeks at once
                           </div>
                           <div style={{fontSize:12,color:T.sub,marginTop:3}}>
@@ -1755,7 +1755,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                 background:T.bg,borderBottom:`1.5px solid ${T.border}`,flexWrap:"wrap"}}>
                 <Avatar name={app.name} role="Apprentice" size={34}/>
                 <div style={{flex:1,minWidth:120}}>
-                  <div style={{fontWeight:700,fontSize:14}}>{app.name}</div>
+                  <div style={{fontWeight:800,fontSize:14}}>{app.name}</div>
                   <div style={{fontSize:12,color:T.sub}}>{appEntries.length} entries · {submitted.length} awaiting approval</div>
                 </div>
               </div>
@@ -1764,7 +1764,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
               {submitted.length>0&&(
                 <div style={{padding:"10px 16px",background:T.warnL+"44",borderBottom:`1px solid ${T.border}`,
                   display:"flex",flexDirection:"column",gap:8}}>
-                  <div style={{fontSize:11,fontWeight:600,color:T.warn,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>
+                  <div style={{fontSize:11,fontWeight:800,color:T.warn,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>
                     Pending approval
                   </div>
                   <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
@@ -1776,14 +1776,14 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                           if(window.confirm(`Approve week ending ${fmtWeekEnd(we)} for ${app.name}?\n${cnt} ${cnt===1?"entry":"entries"} · ${hrs}h total`))
                             approveWeek(we);
                         }} style={{
-                          padding:"9px 16px",borderRadius:8,fontSize:13,fontWeight:700,
+                          padding:"9px 16px",borderRadius:8,fontSize:13,fontWeight:800,
                           background:T.accent,color:"#fff",border:"none",
                           cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",
                           display:"flex",alignItems:"center",gap:7,transition:"opacity .14s"}}
                           onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
                           onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
                           ✓ Approve week ending {fmtWeekEnd(we)}
-                          <span style={{fontWeight:700,opacity:.8,fontSize:12}}>({cnt} {cnt===1?"entry":"entries"} · {hrs}h)</span>
+                          <span style={{fontWeight:800,opacity:.8,fontSize:12}}>({cnt} {cnt===1?"entry":"entries"} · {hrs}h)</span>
                         </button>
                       );
                     })}
@@ -1792,7 +1792,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                         if(window.confirm(`Approve ALL ${submitted.length} pending entries for ${app.name}?`))
                           approveAllWeeks();
                       }} style={{
-                        padding:"9px 16px",borderRadius:8,fontSize:13,fontWeight:700,
+                        padding:"9px 16px",borderRadius:8,fontSize:13,fontWeight:800,
                         background:T.accentD,color:"#fff",border:"none",
                         cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",transition:"opacity .14s"}}
                         onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
@@ -1808,7 +1808,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
               <div style={{display:"grid",
                 gridTemplateColumns:"100px 1fr 110px 56px 80px 70px 80px",
                 padding:"8px 16px",background:T.bg,
-                fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
+                fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
                 <span>Date</span><span>Note</span><span>Type</span>
                 <span style={{textAlign:"center"}}>Hours</span>
                 <span style={{textAlign:"center"}}>Start–End</span>
@@ -1825,11 +1825,11 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                   padding:"9px 16px",gap:8,alignItems:"center",fontSize:12,
                   borderBottom:i<appEntries.length-1?`1px solid ${T.border}44`:"none",
                   background:e.approval==="submitted"?T.warnL+"55":i%2===0?T.surface:T.bg}}>
-                  <div style={{fontWeight:600,fontSize:12}}>{fmtD(e.date)}</div>
+                  <div style={{fontWeight:800,fontSize:12}}>{fmtD(e.date)}</div>
                   <div style={{color:e.note?T.ink:T.muted,fontStyle:e.note?"normal":"italic",
                     overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12}}>{e.note||"No note"}</div>
                   <TypePill type={e.type} size="sm"/>
-                  <div style={{textAlign:"center",fontWeight:700,color:TYPE_META[e.type]?.color||T.accent,
+                  <div style={{textAlign:"center",fontWeight:800,color:TYPE_META[e.type]?.color||T.accent,
                     fontFamily:"Good Headline Pro",fontSize:14}}>{e.netHours}h</div>
                   <div style={{textAlign:"center",fontSize:11,color:T.muted,fontFamily:"monospace"}}>{e.start}–{e.end}</div>
                   <div style={{textAlign:"center",fontSize:11,color:T.sub}}>{e.breakMins>0?`${e.breakMins}m`:"—"}</div>
@@ -1878,14 +1878,14 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
             <WeekCard2 title="Last Week" weekEntries={lastWeekE} accent={T.blue} canEdit={canEdit} canDelete={canDelete} handleEdit={handleEdit} handleDelete={handleDelete}/>
             {olderE.length>0&&(
               <Card style={{marginBottom:14}}>
-                <div style={{fontWeight:700,fontSize:14,marginBottom:8,color:T.sub}}>Older Entries</div>
+                <div style={{fontWeight:800,fontSize:14,marginBottom:8,color:T.sub}}>Older Entries</div>
                 <div style={{display:"flex",flexDirection:"column",gap:0}}>
                   {[...olderE].sort((a,b)=>b.date.localeCompare(a.date)).map((e,i)=>(
                     <div key={e.id} style={{display:"grid",gridTemplateColumns:"86px 1fr auto auto",alignItems:"center",gap:8,padding:"8px 2px",borderBottom:i<olderE.length-1?`1px solid ${T.border}44`:"none"}}>
-                      <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{fmtD2(e.date)}</div>
+                      <div style={{fontSize:13,fontWeight:800,color:T.ink}}>{fmtD2(e.date)}</div>
                       <div style={{minWidth:0}}><div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.type}{e.note?` · ${e.note}`:""}</div></div>
-                      <div style={{fontSize:13,fontWeight:700,color:T.muted}}>{e.netHours.toFixed(1)}h</div>
-                      <span style={{fontSize:11,fontWeight:700,color:sColor(e.approval)}}>{sLabel(e.approval)}</span>
+                      <div style={{fontSize:13,fontWeight:800,color:T.muted}}>{e.netHours.toFixed(1)}h</div>
+                      <span style={{fontSize:11,fontWeight:800,color:sColor(e.approval)}}>{sLabel(e.approval)}</span>
                     </div>
                   ))}
                 </div>
@@ -1894,7 +1894,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
             {myEntries.length===0&&(
               <Card><div style={{padding:"40px 24px",textAlign:"center",color:T.muted}}>
                 <div style={{fontSize:32,marginBottom:8}}>◈</div>
-                <div style={{fontWeight:600}}>No entries to display</div>
+                <div style={{fontWeight:800}}>No entries to display</div>
                 <div style={{fontSize:12,marginTop:4}}>Use the button above to log your first entry.</div>
               </div></Card>
             )}
@@ -1906,7 +1906,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
           <Card style={{padding:0,overflow:"hidden"}}>
             <div style={{display:"grid",gridTemplateColumns:tcols,padding:"10px 16px",
               background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-              fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
+              fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
               <span>Date</span>{showUserCol&&<span>Person</span>}<span>Note</span><span>Type</span>
               <span style={{textAlign:"center"}}>Normal</span><span style={{textAlign:"center",color:"#b86e1a"}}>OT</span><span style={{textAlign:"center"}}>Total Hours Worked</span><span style={{textAlign:"center"}}>Break</span>
               <span style={{textAlign:"center"}}>Time</span><span>Status</span>
@@ -1915,7 +1915,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
             {shown.length===0&&(
               <div style={{padding:"48px 24px",textAlign:"center",color:T.muted}}>
                 <div style={{fontSize:32,marginBottom:8}}>◈</div>
-                <div style={{fontWeight:600}}>No entries to display</div>
+                <div style={{fontWeight:800}}>No entries to display</div>
                 <div style={{fontSize:12,marginTop:4}}>{canAdd?"Use the button above to log your first entry.":"No entries in your scope yet."}</div>
               </div>
             )}
@@ -2129,7 +2129,7 @@ function UserManagement({users, setUsers, currentUser}) {
 
       {showForm&&(
         <Card id="um-form" key={formKey} style={{marginBottom:20,border:`1.5px solid ${T.blue}44`}}>
-          <div style={{fontWeight:700,fontSize:14,marginBottom:16,color:T.blue}}>
+          <div style={{fontWeight:800,fontSize:14,marginBottom:16,color:T.blue}}>
             {editId?"✎ Edit User":"+ New User"}
           </div>
           <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
@@ -2143,7 +2143,7 @@ function UserManagement({users, setUsers, currentUser}) {
             </div>
             {form.role==="Admin"&&(
               <div>
-                <FL>Secondary Role <span style={{fontWeight:700,color:T.muted}}>(optional — grants additional access)</span></FL>
+                <FL>Secondary Role <span style={{fontWeight:800,color:T.muted}}>(optional — grants additional access)</span></FL>
                 <select value={form.secondaryRole||""} onChange={e=>sf("secondaryRole",e.target.value||null)}>
                   <option value="">— None —</option>
                   <option value="Approver">Approver — can approve timesheets for allocated apprentices</option>
@@ -2168,7 +2168,7 @@ function UserManagement({users, setUsers, currentUser}) {
                       <button key={lvl} type="button"
                         onClick={()=>!locked&&sf("adminLevel",lvl)}
                         style={{
-                          flex:1,padding:"10px 12px",borderRadius:9,fontSize:13,fontWeight:600,
+                          flex:1,padding:"10px 12px",borderRadius:9,fontSize:13,fontWeight:800,
                           border:`2px solid ${locked?T.border:(form.adminLevel||1)===lvl?T.accent:T.border}`,
                           background:locked?T.bg:(form.adminLevel||1)===lvl?T.accentL:T.surface,
                           color:locked?T.muted:(form.adminLevel||1)===lvl?T.accent:T.sub,
@@ -2178,7 +2178,7 @@ function UserManagement({users, setUsers, currentUser}) {
                           <span style={{fontSize:16}}>{lvl===1?"★":"☆"}</span>
                           <span>Admin Level {lvl}{locked?" (requires Admin 1)":""}</span>
                         </div>
-                        <div style={{fontSize:11,fontWeight:700,lineHeight:1.4,
+                        <div style={{fontSize:11,fontWeight:800,lineHeight:1.4,
                           color:locked?T.muted:(form.adminLevel||1)===lvl?T.accent:T.muted}}>
                           {lvl===1
                             ? "Full access — edit, delete & manage all data including message history"
@@ -2235,8 +2235,8 @@ function UserManagement({users, setUsers, currentUser}) {
 
           {/* Address fields — optional */}
           <div style={{borderTop:`1px dashed ${T.border}`,paddingTop:12,marginBottom:12}}>
-            <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:10}}>
-              Address <span style={{fontWeight:700,textTransform:"none",letterSpacing:0}}>(optional)</span>
+            <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:10}}>
+              Address <span style={{fontWeight:800,textTransform:"none",letterSpacing:0}}>(optional)</span>
             </div>
             <div className="fg-addr" style={{display:"grid",gap:12}}>
               <div><FL>Street Address</FL><input placeholder="123 Main Street" value={form.address} onChange={e=>sf("address",e.target.value)}/></div>
@@ -2272,7 +2272,7 @@ function UserManagement({users, setUsers, currentUser}) {
                           return (
                             <div key={id} style={{
                               display:"inline-flex",alignItems:"center",gap:6,
-                              padding:"4px 10px",borderRadius:99,fontSize:12,fontWeight:600,
+                              padding:"4px 10px",borderRadius:99,fontSize:12,fontWeight:800,
                               background:T.accentL,color:T.accent,
                               border:`1.5px solid ${T.accent}44`}}>
                               {u.name}
@@ -2325,7 +2325,7 @@ function UserManagement({users, setUsers, currentUser}) {
               </div>
               {/* Overtime Settings */}
               <div style={{borderTop:`1px solid ${T.border}`,paddingTop:12,marginBottom:12}}>
-                <div style={{fontWeight:700,fontSize:12,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8}}>
+                <div style={{fontWeight:800,fontSize:12,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8}}>
                   Overtime Settings
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
@@ -2364,7 +2364,7 @@ function UserManagement({users, setUsers, currentUser}) {
               {/* Approver / Viewer / Mentor */}
               <div className="fg2" style={{display:"grid",gap:16}}>
               <div>
-                <FL>Approver <span style={{fontWeight:700,color:T.muted}}>(approves timesheets)</span></FL>
+                <FL>Approver <span style={{fontWeight:800,color:T.muted}}>(approves timesheets)</span></FL>
                 <select value={appApprover} onChange={e=>setAppApprover(e.target.value)}>
                   <option value="">— None —</option>
                   {approverOptions.map(u=>(
@@ -2374,7 +2374,7 @@ function UserManagement({users, setUsers, currentUser}) {
                 </select>
               </div>
               <div>
-                <FL>Viewer <span style={{fontWeight:700,color:T.muted}}>(read-only access)</span></FL>
+                <FL>Viewer <span style={{fontWeight:800,color:T.muted}}>(read-only access)</span></FL>
                 <select value={appViewer} onChange={e=>setAppViewer(e.target.value)}>
                   <option value="">— None —</option>
                   {viewerOptions.map(u=>(
@@ -2384,7 +2384,7 @@ function UserManagement({users, setUsers, currentUser}) {
                 </select>
               </div>
               <div>
-                <FL>Mentor <span style={{fontWeight:700,color:T.muted}}>(assigned KTA mentor)</span></FL>
+                <FL>Mentor <span style={{fontWeight:800,color:T.muted}}>(assigned KTA mentor)</span></FL>
                 <select value={appMentor} onChange={e=>setAppMentor(e.target.value)}>
                   <option value="">— None —</option>
                   {users.filter(u=>u.role==="Mentor"||(u.role==="Admin")).map(u=>(
@@ -2417,14 +2417,14 @@ function UserManagement({users, setUsers, currentUser}) {
               const active = umTab===key;
               return (
                 <button key={key} onClick={()=>setUmTab(key)} style={{
-                  padding:"7px 16px",borderRadius:99,fontSize:13,fontWeight:600,
+                  padding:"7px 16px",borderRadius:99,fontSize:13,fontWeight:800,
                   border:`1.5px solid ${active?T.accent:T.border}`,
                   background:active?T.accentL:T.surface,
                   color:active?T.accent:T.sub,
                   cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",
                   display:"flex",alignItems:"center",gap:6,transition:"all .15s"}}>
                   {g.label}
-                  <span style={{fontSize:11,fontWeight:700,padding:"1px 7px",borderRadius:99,
+                  <span style={{fontSize:11,fontWeight:800,padding:"1px 7px",borderRadius:99,
                     background:active?T.accent:T.border+"88",color:active?"#fff":T.muted}}>{count}</span>
                 </button>
               );
@@ -2451,7 +2451,7 @@ function UserManagement({users, setUsers, currentUser}) {
               <div style={{padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
                 fontSize:11,color:T.muted,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div style={{display:"grid",gridTemplateColumns:"44px 1fr 130px 170px 1fr 72px",gap:8,flex:1,
-                  fontWeight:600,textTransform:"uppercase",letterSpacing:".6px"}}>
+                  fontWeight:800,textTransform:"uppercase",letterSpacing:".6px"}}>
                   <span/><span>Name</span><span>Role</span><span>Email</span><span>Allocated To</span><span/>
                 </div>
               </div>
@@ -2474,7 +2474,7 @@ function UserManagement({users, setUsers, currentUser}) {
                     onMouseLeave={e=>{e.currentTarget.style.background=isEditing?T.blueL:i%2===0?T.surface:T.bg;}}>
                     <Avatar name={u.name} role={u.role}/>
                     <div>
-                      <div style={{fontWeight:700,fontSize:13}}>{u.name}</div>
+                      <div style={{fontWeight:800,fontSize:13}}>{u.name}</div>
                       {u.phone&&<div style={{fontSize:11,color:T.muted}}>{u.phone}</div>}
                       <div style={{fontSize:11,color:T.blue,marginTop:1}}>
                         {isEditing?"editing…":"view details →"}
@@ -2553,9 +2553,9 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
     <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",borderBottom:`1px solid ${T.border}`}}>
       <span style={{fontSize:15,width:20,textAlign:"center",flexShrink:0,marginTop:1}}>{icon}</span>
       <div style={{flex:1}}>
-        <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
+        <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
         {href
-          ? <a href={href} style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>{value}</a>
+          ? <a href={href} style={{fontSize:13,color:T.accent,fontWeight:800,textDecoration:"none"}}>{value}</a>
           : <div style={{fontSize:13,color:T.ink,lineHeight:1.5}}>{value}</div>}
       </div>
     </div>
@@ -2565,7 +2565,7 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
     <div className="fu">
       {/* Back */}
       <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",
-        color:T.accent,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"Good Headline Pro,sans-serif"}}>
+        color:T.accent,fontWeight:800,fontSize:13,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"Good Headline Pro,sans-serif"}}>
         ← Back to Users
       </button>
 
@@ -2577,7 +2577,7 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
             <div>
               <div style={{fontWeight:800,fontSize:22,color:T.ink}}>{user.name}</div>
               <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}>
-                <span style={{fontSize:12,fontWeight:700,padding:"3px 12px",borderRadius:20,background:roleBg,color:roleColor}}>
+                <span style={{fontSize:12,fontWeight:800,padding:"3px 12px",borderRadius:20,background:roleBg,color:roleColor}}>
                   {user.role}{user.role==="Admin"&&user.adminLevel?` L${user.adminLevel}`:""}
                 </span>
                 {user.trade&&<span style={{fontSize:12,color:T.sub}}>🔧 {user.trade}</span>}
@@ -2594,7 +2594,7 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
 
         {/* Contact details */}
         <Card>
-          <div style={{fontSize:11,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>📋 Details</div>
+          <div style={{fontSize:11,fontWeight:800,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>📋 Details</div>
           <Field icon="✉" label="Email"  value={user.email}  href={user.email?`mailto:${user.email}`:null}/>
           <Field icon="📞" label="Phone"  value={user.phone}  href={user.phone?`tel:${user.phone}`:null}/>
           {user.company&&<Field icon="🏢" label="Company" value={user.company}/>}
@@ -2610,13 +2610,13 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
         {/* Compliance */}
         {(user.licenceExpiry||user.siteSafeExpiry||user.firstAidExpiry||user.licenceNumber||user.siteSafeNumber) && (
           <Card>
-            <div style={{fontSize:11,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>🪪 Compliance</div>
+            <div style={{fontSize:11,fontWeight:800,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>🪪 Compliance</div>
             {user.licenceExpiry&&(()=>{const d=daysUntil(user.licenceExpiry);return(
               <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",borderBottom:`1px solid ${T.border}`}}>
                 <span style={{fontSize:15,width:20,textAlign:"center",flexShrink:0}}>⚡</span>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>EW Licence Expiry</div>
-                  <div style={{fontSize:13,fontWeight:700,color:expiryColor(d)}}>
+                  <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>EW Licence Expiry</div>
+                  <div style={{fontSize:13,fontWeight:800,color:expiryColor(d)}}>
                     {fmtDate(user.licenceExpiry)}{d!==null?` (${d<0?"Expired":d===0?"Today":`${d}d`})`:""}
                   </div>
                 </div>
@@ -2627,8 +2627,8 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
               <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",borderBottom:`1px solid ${T.border}`}}>
                 <span style={{fontSize:15,width:20,textAlign:"center",flexShrink:0}}>🛡</span>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>Site Safe Expiry</div>
-                  <div style={{fontSize:13,fontWeight:700,color:expiryColor(d)}}>
+                  <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>Site Safe Expiry</div>
+                  <div style={{fontSize:13,fontWeight:800,color:expiryColor(d)}}>
                     {fmtDate(user.siteSafeExpiry)}{d!==null?` (${d<0?"Expired":d===0?"Today":`${d}d`})`:""}
                   </div>
                 </div>
@@ -2639,8 +2639,8 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
               <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",borderBottom:`1px solid ${T.border}`}}>
                 <span style={{fontSize:15,width:20,textAlign:"center",flexShrink:0}}>🏥</span>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>First Aid Expiry</div>
-                  <div style={{fontSize:13,fontWeight:700,color:expiryColor(d)}}>
+                  <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>First Aid Expiry</div>
+                  <div style={{fontSize:13,fontWeight:800,color:expiryColor(d)}}>
                     {fmtDate(user.firstAidExpiry)}{d!==null?` (${d<0?"Expired":d===0?"Today":`${d}d`})`:""}
                   </div>
                 </div>
@@ -2652,7 +2652,7 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
         {/* Emergency contact */}
         {(user.emergencyContactName||user.emergencyContactPhone)&&(
           <Card style={{border:`1.5px solid ${T.red}33`,background:T.redL+"44"}}>
-            <div style={{fontSize:11,fontWeight:700,color:T.red,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>🚨 Emergency Contact</div>
+            <div style={{fontSize:11,fontWeight:800,color:T.red,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>🚨 Emergency Contact</div>
             <Field icon="👤" label="Name"         value={user.emergencyContactName}/>
             <Field icon="🤝" label="Relationship" value={user.emergencyContactRelationship}/>
             <Field icon="📞" label="Phone"         value={user.emergencyContactPhone} href={user.emergencyContactPhone?`tel:${user.emergencyContactPhone}`:null}/>
@@ -2662,7 +2662,7 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
         {/* Allocated apprentices */}
         {allocatedApprentices.length>0&&(
           <Card>
-            <div style={{fontSize:11,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:800,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>
               👷 Allocated Apprentices ({allocatedApprentices.length})
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -2671,7 +2671,7 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
                   background:T.accentL,borderRadius:8}}>
                   <Avatar name={app.name} role="Apprentice" size={32}/>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,fontSize:13}}>{app.name}</div>
+                    <div style={{fontWeight:800,fontSize:13}}>{app.name}</div>
                     <div style={{fontSize:11,color:T.sub}}>{app.trade||"—"}{app.hostBusiness?` · ${app.hostBusiness}`:""}</div>
                   </div>
                 </div>
@@ -2702,7 +2702,7 @@ function CRMUsersPanel({allUsers, navigateTo}) {
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <div style={{width:28,height:28,borderRadius:8,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>{"👥"}</div>
           <div>
-            <div style={{fontWeight:700,fontSize:13}}>KTA Users</div>
+            <div style={{fontWeight:800,fontSize:13}}>KTA Users</div>
             <div style={{fontSize:11,color:T.muted}}>{sorted.length} users</div>
           </div>
         </div>
@@ -2723,8 +2723,8 @@ function CRMUsersPanel({allUsers, navigateTo}) {
               onMouseLeave={e=>e.currentTarget.style.background=T.bg}>
               <Avatar name={u.name} role={u.role} size={28}/>
               <div style={{minWidth:0,flex:1}}>
-                <div style={{fontWeight:600,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name}</div>
-                <div style={{fontSize:10,color:roleColor,fontWeight:600}}>{roleLabel}{u.trade?" - "+u.trade:""}</div>
+                <div style={{fontWeight:800,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name}</div>
+                <div style={{fontSize:10,color:roleColor,fontWeight:800}}>{roleLabel}{u.trade?" - "+u.trade:""}</div>
               </div>
             </div>
           );
@@ -2766,7 +2766,7 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
         onMouseEnter={e=>{if(!editing)e.currentTarget.style.background=T.accentL+"55";}}
         onMouseLeave={e=>{if(!editing)e.currentTarget.style.background="none";}}>
         <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>!editing&&setExpanded(s=>!s)}>
-          <div style={{fontWeight:700,fontSize:13,color:T.ink}}>{c.name}</div>
+          <div style={{fontWeight:800,fontSize:13,color:T.ink}}>{c.name}</div>
           <div style={{fontSize:11,color:T.muted,display:"flex",gap:10,marginTop:1,flexWrap:"wrap"}}>
             {c.email&&<span>✉ {c.email}</span>}
             {c.phone&&<span>📞 {c.phone}</span>}
@@ -2807,7 +2807,7 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10,marginBottom:10}}>
                 {[["name","Name"],["email","Email"],["phone","Phone"],["job_title","Job Title"]].map(([k,lbl])=>(
                   <div key={k}>
-                    <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>{lbl}</div>
+                    <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>{lbl}</div>
                     <input value={form[k]} onChange={e=>sf(k,e.target.value)}
                       style={{width:"100%",fontSize:13,padding:"6px 10px",borderRadius:6,
                         border:`1.5px solid ${T.border}`,background:T.surface,color:T.ink,
@@ -2815,7 +2815,7 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
                   </div>
                 ))}
                 <div>
-                  <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>Status</div>
+                  <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>Status</div>
                   <select value={form.status} onChange={e=>sf("status",e.target.value)}
                     style={{width:"100%",fontSize:13,padding:"6px 10px",borderRadius:6,
                       border:`1.5px solid ${T.border}`,background:T.surface,color:T.ink,fontFamily:"Good Headline Pro,sans-serif"}}>
@@ -2824,7 +2824,7 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
                 </div>
               </div>
               <div style={{marginBottom:10}}>
-                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>Notes</div>
+                <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>Notes</div>
                 <textarea value={form.notes} onChange={e=>sf("notes",e.target.value)} rows={2}
                   style={{width:"100%",fontSize:13,padding:"6px 10px",borderRadius:6,
                     border:`1.5px solid ${T.border}`,background:T.surface,color:T.ink,
@@ -2835,7 +2835,7 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
                 <Btn sm v="ghost" onClick={()=>setEditing(false)}>Cancel</Btn>
                 <button onClick={()=>{setEditing(false);onView();}}
                   style={{marginLeft:"auto",fontSize:12,color:T.accent,background:"none",border:"none",
-                    cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",fontWeight:600,textDecoration:"underline"}}>
+                    cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",fontWeight:800,textDecoration:"underline"}}>
                   Full profile →
                 </button>
               </div>
@@ -2845,7 +2845,7 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
               {c.notes&&<div style={{width:"100%",fontSize:12,color:T.sub,lineHeight:1.5}}>📝 {c.notes}</div>}
               <button onClick={onView}
                 style={{fontSize:12,color:T.accent,background:"none",border:"none",
-                  cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",fontWeight:600,padding:0,textDecoration:"underline"}}>
+                  cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",fontWeight:800,padding:0,textDecoration:"underline"}}>
                 View full profile →
               </button>
             </div>
@@ -2915,7 +2915,7 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
         display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
         <div style={{background:"#fff",borderRadius:14,padding:28,maxWidth:560,width:"100%",
           boxShadow:"0 8px 40px rgba(0,0,0,.18)"}}>
-          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:700,marginBottom:4}}>Merge Duplicates</div>
+          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:800,marginBottom:4}}>Merge Duplicates</div>
           <div style={{fontSize:13,color:T.sub,marginBottom:20}}>
             Select which record becomes the <strong>master</strong>. All contacts/links will be moved to it, missing fields will be filled from the others, then duplicates are deleted.
           </div>
@@ -2929,11 +2929,11 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
                   transition:"all .14s"}}>
                 <div style={{width:36,height:36,borderRadius:"50%",background:masterId===item.id?T.teal:T.border,
                   display:"flex",alignItems:"center",justifyContent:"center",
-                  fontSize:14,fontWeight:700,color:"#fff",flexShrink:0}}>
+                  fontSize:14,fontWeight:800,color:"#fff",flexShrink:0}}>
                   {masterId===item.id?"★":"○"}
                 </div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{item.name}</div>
+                  <div style={{fontWeight:800,fontSize:14,color:T.ink}}>{item.name}</div>
                   <div style={{fontSize:11,color:T.muted,marginTop:2,display:"flex",gap:8,flexWrap:"wrap"}}>
                     {item.email&&<span>✉ {item.email}</span>}
                     {item.phone&&<span>📞 {item.phone}</span>}
@@ -2941,7 +2941,7 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
                     {item.address&&<span>{item.address}</span>}
                   </div>
                 </div>
-                {masterId===item.id&&<span style={{fontSize:11,fontWeight:700,color:T.teal,flexShrink:0}}>MASTER</span>}
+                {masterId===item.id&&<span style={{fontSize:11,fontWeight:800,color:T.teal,flexShrink:0}}>MASTER</span>}
               </button>
             ))}
           </div>
@@ -2965,7 +2965,7 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
           <div style={{width:32,height:32,borderRadius:8,background:T.warnL,display:"flex",
             alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>🔁</div>
           <div>
-            <div style={{fontWeight:700,fontSize:13,color:T.warn}}>
+            <div style={{fontWeight:800,fontSize:13,color:T.warn}}>
               Find Duplicate {type === "contacts" ? "Contacts" : "Companies"}
             </div>
             <div style={{fontSize:11,color:T.muted,marginTop:1}}>
@@ -2987,10 +2987,10 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
         <div style={{marginTop:14}}>
           {/* Match by toggle */}
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
-            <span style={{fontSize:12,color:T.muted,fontWeight:600}}>Match by:</span>
+            <span style={{fontSize:12,color:T.muted,fontWeight:800}}>Match by:</span>
             {["name","email"].map(opt => (
               <button key={opt} onClick={()=>{setMatchBy(opt);setDismissed(new Set());}}
-                style={{padding:"4px 14px",borderRadius:8,fontSize:12,fontWeight:600,
+                style={{padding:"4px 14px",borderRadius:8,fontSize:12,fontWeight:800,
                   cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",
                   background:matchBy===opt?T.warn:T.bg,
                   color:matchBy===opt?"#fff":T.sub,
@@ -3004,7 +3004,7 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
           </div>
 
           {groups.length === 0 ? (
-            <div style={{padding:"20px 0",textAlign:"center",color:T.teal,fontSize:13,fontWeight:600}}>
+            <div style={{padding:"20px 0",textAlign:"center",color:T.teal,fontSize:13,fontWeight:800}}>
               ✓ No duplicates found by {matchBy}
             </div>
           ) : (
@@ -3015,7 +3015,7 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
                   {/* Group header */}
                   <div style={{background:T.warnL,padding:"8px 14px",display:"flex",
                     alignItems:"center",justifyContent:"space-between"}}>
-                    <div style={{fontSize:12,fontWeight:700,color:T.warn}}>
+                    <div style={{fontSize:12,fontWeight:800,color:T.warn}}>
                       {group.length} records · {matchBy==="name"
                         ? `"${group[0].name}"`
                         : `"${group[0].email}"`}
@@ -3034,7 +3034,7 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
                       background:i%2===0?T.surface:T.bg}}>
                       <Avatar name={item.name} role={type==="contacts"?"Apprentice":"Admin"} size={32}/>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:600,fontSize:13,color:T.ink}}>{item.name||"—"}</div>
+                        <div style={{fontWeight:800,fontSize:13,color:T.ink}}>{item.name||"—"}</div>
                         <div style={{fontSize:11,color:T.muted,display:"flex",gap:10,flexWrap:"wrap",marginTop:1}}>
                           {item.email&&<span>✉ {item.email}</span>}
                           {item.phone&&<span>📞 {item.phone}</span>}
@@ -3047,14 +3047,14 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
                         <button onClick={()=>onView(item)}
                           style={{fontSize:11,padding:"4px 10px",borderRadius:6,cursor:"pointer",
                             background:T.accentL,color:T.accent,border:`1px solid ${T.accent}44`,
-                            fontFamily:"Good Headline Pro,sans-serif",fontWeight:600}}>
+                            fontFamily:"Good Headline Pro,sans-serif",fontWeight:800}}>
                           View
                         </button>
                         {canDelete&&onMerge&&(
                           <button onClick={()=>{setMergeGroup(group);setMasterId(item.id);}}
                             style={{fontSize:11,padding:"4px 10px",borderRadius:6,cursor:"pointer",
                               background:T.tealL,color:T.teal,border:`1px solid ${T.teal}44`,
-                              fontFamily:"Good Headline Pro,sans-serif",fontWeight:600}}>
+                              fontFamily:"Good Headline Pro,sans-serif",fontWeight:800}}>
                             🔀 Merge
                           </button>
                         )}
@@ -3065,7 +3065,7 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
                           }}
                             style={{fontSize:11,padding:"4px 10px",borderRadius:6,cursor:"pointer",
                               background:T.redL,color:T.red,border:`1px solid ${T.red}44`,
-                              fontFamily:"Good Headline Pro,sans-serif",fontWeight:600}}>
+                              fontFamily:"Good Headline Pro,sans-serif",fontWeight:800}}>
                             Delete
                           </button>
                         )}
@@ -3114,7 +3114,7 @@ function HubSpotPropertyInspector({ hsToken, hsFetch }) {
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}
         onClick={()=>setShowInspector(s=>!s)}>
         <div>
-          <div style={{fontWeight:700,fontSize:13,color:T.gold}}>🔍 Property Inspector</div>
+          <div style={{fontWeight:800,fontSize:13,color:T.gold}}>🔍 Property Inspector</div>
           <div style={{fontSize:11,color:T.muted,marginTop:2}}>
             Find exact HubSpot property names for licence expiry, emergency contact etc.
           </div>
@@ -3147,7 +3147,7 @@ function HubSpotPropertyInspector({ hsToken, hsFetch }) {
                   <thead>
                     <tr style={{background:T.bg,position:"sticky",top:0}}>
                       {["Internal Name","Label","Sample Value"].map(h=>(
-                        <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:T.muted,
+                        <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:800,color:T.muted,
                           textTransform:"uppercase",letterSpacing:".5px",borderBottom:`1px solid ${T.border}`}}>{h}</th>
                       ))}
                     </tr>
@@ -3390,18 +3390,18 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
     const linkedApp = allUsers && allUsers.find(u=>u.role==="Apprentice"&&u.email&&detailContact.email&&u.email.toLowerCase()===detailContact.email.toLowerCase());
     return (
       <div className="fu">
-        <button onClick={()=>setDetailContact(null)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:T.accent,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"Good Headline Pro,sans-serif"}}>
+        <button onClick={()=>setDetailContact(null)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:T.accent,fontWeight:800,fontSize:13,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"Good Headline Pro,sans-serif"}}>
           ← Back to Contacts
         </button>
         <Card style={{marginBottom:16}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
             <div>
               <div style={{fontWeight:800,fontSize:22,color:T.ink}}>{detailContact.name}</div>
-              {co&&<div style={{fontSize:13,color:T.accent,fontWeight:600,marginTop:2,cursor:"pointer"}} onClick={()=>{setDetailContact(null);setDetailCompany(co);}}>{co.name}</div>}
+              {co&&<div style={{fontSize:13,color:T.accent,fontWeight:800,marginTop:2,cursor:"pointer"}} onClick={()=>{setDetailContact(null);setDetailCompany(co);}}>{co.name}</div>}
               {!co&&detailContact.company&&<div style={{fontSize:13,color:T.sub,marginTop:2}}>{detailContact.company}</div>}
             </div>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <span style={{padding:"4px 12px",borderRadius:20,fontSize:12,fontWeight:700,background:detailContact.status==="Active"?T.accentL:detailContact.status==="Prospect"?T.warnL:T.slateL,color:detailContact.status==="Active"?T.accent:detailContact.status==="Prospect"?T.warn:T.muted}}>{detailContact.status}</span>
+              <span style={{padding:"4px 12px",borderRadius:20,fontSize:12,fontWeight:800,background:detailContact.status==="Active"?T.accentL:detailContact.status==="Prospect"?T.warnL:T.slateL,color:detailContact.status==="Active"?T.accent:detailContact.status==="Prospect"?T.warn:T.muted}}>{detailContact.status}</span>
               {canEdit&&<Btn sm onClick={()=>{startEditC(detailContact);setDetailContact(null);goTab("contacts");}}>✎ Edit</Btn>}
             </div>
           </div>
@@ -3412,11 +3412,11 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           <Card style={{marginBottom:16, border:`1.5px solid ${convertContact?T.accent:T.border}`}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div>
-                <div style={{fontWeight:700,fontSize:13,color:convertContact?T.accent:T.ink}}>👤 Make this contact a system user</div>
+                <div style={{fontWeight:800,fontSize:13,color:convertContact?T.accent:T.ink}}>👤 Make this contact a system user</div>
                 <div style={{fontSize:11,color:T.muted,marginTop:2}}>Adds them to KTA so they can log in</div>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-                <span style={{fontSize:12,fontWeight:700,color:convertContact?T.accent:T.muted}}>{convertContact?"Yes":"No"}</span>
+                <span style={{fontSize:12,fontWeight:800,color:convertContact?T.accent:T.muted}}>{convertContact?"Yes":"No"}</span>
                 <div onClick={()=>{ setConvertContact(convertContact?null:detailContact); setConvertRole("Approver"); setConvertAlloc([]); setConvertDone(false); }}
                   style={{position:"relative",width:52,height:28,borderRadius:14,cursor:"pointer",
                     background:convertContact?T.accent:T.border,transition:"background .2s",flexShrink:0}}>
@@ -3429,18 +3429,18 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
             {convertContact && (
               <div style={{marginTop:16,borderTop:`1px solid ${T.border}`,paddingTop:16}}>
                 {convertDone ? (
-                  <div style={{textAlign:"center",color:T.teal,fontWeight:700,fontSize:14,padding:"8px 0"}}>
+                  <div style={{textAlign:"center",color:T.teal,fontWeight:800,fontSize:14,padding:"8px 0"}}>
                     ✓ User created successfully!
                   </div>
                 ) : (
                   <>
                     {/* Role picker */}
                     <div style={{marginBottom:14}}>
-                      <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Assign Role</div>
+                      <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Assign Role</div>
                       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                         {["Approver","Viewer","Mentor","Admin"].map(r=>(
                           <button key={r} onClick={()=>{setConvertRole(r);setConvertAlloc([]);}}
-                            style={{padding:"6px 16px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",
+                            style={{padding:"6px 16px",borderRadius:8,fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",
                               background:convertRole===r?T.accent:T.bg,
                               color:convertRole===r?"#fff":T.sub,
                               border:`1.5px solid ${convertRole===r?T.accent:T.border}`}}>
@@ -3453,7 +3453,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                     {/* Apprentice allocation — only for Approver/Viewer */}
                     {["Approver","Viewer"].includes(convertRole) && (
                       <div style={{marginBottom:14}}>
-                        <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>
+                        <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>
                           Allocate Apprentices
                         </div>
                         {allUsers.filter(u=>u.role==="Apprentice").length===0
@@ -3467,11 +3467,11 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                                     background:checked?T.accentL:T.bg,border:`1.5px solid ${checked?T.accent:T.border}`}}>
                                   <div style={{width:16,height:16,borderRadius:4,background:checked?T.accent:T.surface,
                                     border:`2px solid ${checked?T.accent:T.border}`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                                    {checked&&<span style={{color:"#fff",fontSize:10,fontWeight:700}}>✓</span>}
+                                    {checked&&<span style={{color:"#fff",fontSize:10,fontWeight:800}}>✓</span>}
                                   </div>
                                   <Avatar name={u.name} role="Apprentice" size={24}/>
                                   <div style={{flex:1,minWidth:0}}>
-                                    <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{u.name}</div>
+                                    <div style={{fontSize:13,fontWeight:800,color:T.ink}}>{u.name}</div>
                                     {u.trade&&<div style={{fontSize:11,color:T.muted}}>{u.trade}</div>}
                                   </div>
                                 </div>
@@ -3503,7 +3503,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         {/* Already a user badge */}
         {isExistingUser(detailContact) && (
           <div style={{marginBottom:16,padding:"10px 14px",borderRadius:8,background:T.tealL,
-            border:`1px solid ${T.teal}44`,fontSize:12,color:T.teal,fontWeight:600}}>
+            border:`1px solid ${T.teal}44`,fontSize:12,color:T.teal,fontWeight:800}}>
             ✓ This contact is already a KTA system user
           </div>
         )}
@@ -3529,9 +3529,9 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
             {label:"📝 Notes",val:detailContact.notes},
           ].filter(f=>f.val).map(f=>(
             <Card key={f.label} style={{padding:"14px 16px"}}>
-              <div style={{fontSize:10,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:6}}>{f.label}</div>
+              <div style={{fontSize:10,fontWeight:800,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:6}}>{f.label}</div>
               {f.href
-                ? <a href={f.href} style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>{f.val}</a>
+                ? <a href={f.href} style={{fontSize:13,color:T.accent,fontWeight:800,textDecoration:"none"}}>{f.val}</a>
                 : <div style={{fontSize:13,color:T.ink,lineHeight:1.5}}>{f.val}</div>}
             </Card>
           ))}
@@ -3539,23 +3539,23 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         {/* Emergency Contact */}
         {(detailContact.emergency_contact_name||detailContact.emergencyContactName)&&(
           <Card style={{marginTop:14,border:`1.5px solid ${T.red}33`,background:T.redL+"44"}}>
-            <div style={{fontSize:11,fontWeight:700,color:T.red,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>🚨 Emergency Contact</div>
+            <div style={{fontSize:11,fontWeight:800,color:T.red,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>🚨 Emergency Contact</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:"8px 20px"}}>
               <div>
-                <div style={{fontSize:10,color:T.muted,fontWeight:600,marginBottom:2}}>Name</div>
-                <div style={{fontSize:13,fontWeight:700,color:T.ink}}>{detailContact.emergency_contact_name||detailContact.emergencyContactName}</div>
+                <div style={{fontSize:10,color:T.muted,fontWeight:800,marginBottom:2}}>Name</div>
+                <div style={{fontSize:13,fontWeight:800,color:T.ink}}>{detailContact.emergency_contact_name||detailContact.emergencyContactName}</div>
               </div>
               {(detailContact.emergency_contact_relationship||detailContact.emergencyContactRelationship)&&(
                 <div>
-                  <div style={{fontSize:10,color:T.muted,fontWeight:600,marginBottom:2}}>Relationship</div>
+                  <div style={{fontSize:10,color:T.muted,fontWeight:800,marginBottom:2}}>Relationship</div>
                   <div style={{fontSize:13,color:T.ink}}>{detailContact.emergency_contact_relationship||detailContact.emergencyContactRelationship}</div>
                 </div>
               )}
               {(detailContact.emergency_contact_phone||detailContact.emergencyContactPhone)&&(
                 <div>
-                  <div style={{fontSize:10,color:T.muted,fontWeight:600,marginBottom:2}}>Phone</div>
+                  <div style={{fontSize:10,color:T.muted,fontWeight:800,marginBottom:2}}>Phone</div>
                   <a href={`tel:${detailContact.emergency_contact_phone||detailContact.emergencyContactPhone}`}
-                    style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>
+                    style={{fontSize:13,color:T.accent,fontWeight:800,textDecoration:"none"}}>
                     {detailContact.emergency_contact_phone||detailContact.emergencyContactPhone}
                   </a>
                 </div>
@@ -3565,11 +3565,11 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         )}
         {linkedApp&&(
           <Card style={{marginTop:14}}>
-            <div style={{fontSize:11,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>👷 KTA Apprentice</div>
+            <div style={{fontSize:11,fontWeight:800,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>👷 KTA Apprentice</div>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <Avatar name={linkedApp.name} role="Apprentice" size={36}/>
               <div>
-                <div style={{fontWeight:700,fontSize:14}}>{linkedApp.name}</div>
+                <div style={{fontWeight:800,fontSize:14}}>{linkedApp.name}</div>
                 <div style={{fontSize:12,color:T.sub}}>{linkedApp.trade} · {linkedApp.hostBusiness}</div>
               </div>
             </div>
@@ -3577,7 +3577,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         )}
         {co&&(
           <Card style={{marginTop:14}}>
-            <div style={{fontSize:11,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>🏢 Company Details</div>
+            <div style={{fontSize:11,fontWeight:800,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>🏢 Company Details</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:"8px 20px"}}>
               {co.phone&&<div><span style={{fontSize:11,color:T.muted}}>Phone: </span><span style={{fontSize:13}}>{co.phone}</span></div>}
               {co.website&&<div><span style={{fontSize:11,color:T.muted}}>Website: </span><a href={co.website.startsWith("http")?co.website:"https://"+co.website} target="_blank" rel="noreferrer" style={{fontSize:13,color:T.accent}}>{co.website}</a></div>}
@@ -3624,7 +3624,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
     return (
       <div className="fu">
         {/* ── Back + header ── */}
-        <button onClick={()=>setDetailCompany(null)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:T.accent,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"Good Headline Pro,sans-serif"}}>
+        <button onClick={()=>setDetailCompany(null)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:T.accent,fontWeight:800,fontSize:13,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"Good Headline Pro,sans-serif"}}>
           ← Back to Companies
         </button>
 
@@ -3637,12 +3637,12 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 {(co.name||"?")[0].toUpperCase()}
               </div>
               <div>
-                <div style={{fontFamily:"Good Headline Pro",fontWeight:700,fontSize:22,color:T.ink}}>{co.name}</div>
+                <div style={{fontFamily:"Good Headline Pro",fontWeight:800,fontSize:22,color:T.ink}}>{co.name}</div>
                 <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
-                  {co.industry&&<span style={{fontSize:12,color:T.sub,fontWeight:700}}>{co.industry}</span>}
+                  {co.industry&&<span style={{fontSize:12,color:T.sub,fontWeight:800}}>{co.industry}</span>}
                   {co.city&&<span style={{fontSize:12,color:T.muted}}>📍 {co.city}{co.country&&co.country!=="New Zealand"?`, ${co.country}`:""}</span>}
-                  {co.isHostBusiness&&<span style={{fontSize:11,fontWeight:700,color:T.teal,background:T.tealL,padding:"2px 10px",borderRadius:20,border:`1px solid ${T.teal}44`}}>🏢 Host Business</span>}
-                  {co.status&&co.status!=="Active"&&<span style={{fontSize:11,fontWeight:700,color:T.warn,background:T.warnL,padding:"2px 10px",borderRadius:20}}>{co.status}</span>}
+                  {co.isHostBusiness&&<span style={{fontSize:11,fontWeight:800,color:T.teal,background:T.tealL,padding:"2px 10px",borderRadius:20,border:`1px solid ${T.teal}44`}}>🏢 Host Business</span>}
+                  {co.status&&co.status!=="Active"&&<span style={{fontSize:11,fontWeight:800,color:T.warn,background:T.warnL,padding:"2px 10px",borderRadius:20}}>{co.status}</span>}
                 </div>
               </div>
             </div>
@@ -3662,23 +3662,23 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               {icon:"🌏",label:"Country",   val:co.country},
             ].filter(f=>f.val).map(f=>(
               <div key={f.label}>
-                <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{f.icon} {f.label}</div>
+                <div style={{fontSize:10,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{f.icon} {f.label}</div>
                 {f.isLink
-                  ? <a href={f.href} target="_blank" rel="noreferrer" style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>{f.val}</a>
+                  ? <a href={f.href} target="_blank" rel="noreferrer" style={{fontSize:13,color:T.accent,fontWeight:800,textDecoration:"none"}}>{f.val}</a>
                   : f.href
-                    ? <a href={f.href} style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>{f.val}</a>
-                    : <div style={{fontSize:13,color:T.ink,fontWeight:700}}>{f.val}</div>
+                    ? <a href={f.href} style={{fontSize:13,color:T.accent,fontWeight:800,textDecoration:"none"}}>{f.val}</a>
+                    : <div style={{fontSize:13,color:T.ink,fontWeight:800}}>{f.val}</div>
                 }
               </div>
             ))}
             {canEdit&&(
               <div>
-                <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:6}}>🏢 Host Business</div>
+                <div style={{fontSize:10,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:6}}>🏢 Host Business</div>
                 <div onClick={toggleHostBusiness} style={{display:"inline-flex",alignItems:"center",gap:8,cursor:"pointer"}}>
                   <div style={{position:"relative",width:44,height:24,borderRadius:12,background:co.isHostBusiness?T.teal:T.border,transition:"background .2s",flexShrink:0}}>
                     <div style={{position:"absolute",top:2,left:co.isHostBusiness?22:2,width:20,height:20,borderRadius:"50%",background:"#fff",boxShadow:"0 1px 4px rgba(0,0,0,.2)",transition:"left .2s"}}/>
                   </div>
-                  <span style={{fontSize:12,fontWeight:700,color:co.isHostBusiness?T.teal:T.muted}}>{co.isHostBusiness?"Yes":"No"}</span>
+                  <span style={{fontSize:12,fontWeight:800,color:co.isHostBusiness?T.teal:T.muted}}>{co.isHostBusiness?"Yes":"No"}</span>
                 </div>
               </div>
             )}
@@ -3686,7 +3686,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
 
           {co.notes&&(
             <div style={{padding:"0 24px 16px"}}>
-              <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:6}}>📝 Notes</div>
+              <div style={{fontSize:10,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:6}}>📝 Notes</div>
               <div style={{fontSize:13,color:T.ink,lineHeight:1.6,background:T.bg,borderRadius:8,padding:"10px 14px",border:`1px solid ${T.border}`}}>{co.notes}</div>
             </div>
           )}
@@ -3700,8 +3700,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
             <div style={{background:"#fff",borderRadius:14,border:`1px solid ${T.border}`,overflow:"hidden"}}>
               <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <div style={{fontWeight:700,fontSize:15,color:T.ink}}>👥 Contacts</div>
-                  {linkedContacts.length>0&&<span style={{fontSize:11,fontWeight:700,color:"#fff",background:T.accent,borderRadius:20,padding:"1px 8px"}}>{linkedContacts.length}</span>}
+                  <div style={{fontWeight:800,fontSize:15,color:T.ink}}>👥 Contacts</div>
+                  {linkedContacts.length>0&&<span style={{fontSize:11,fontWeight:800,color:"#fff",background:T.accent,borderRadius:20,padding:"1px 8px"}}>{linkedContacts.length}</span>}
                 </div>
                 {canEdit&&(
                   <Btn sm onClick={()=>{resetContactForm();setEditCId(null);setCForm(f=>({...f,company:co.name,companyId:co.id}));setShowCF(true);setDetailCompany(null);goTab("contacts");}}>
@@ -3726,7 +3726,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                       onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                       <Avatar name={c.name} role="Approver" size={36}/>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{c.name}</div>
+                        <div style={{fontWeight:800,fontSize:14,color:T.ink}}>{c.name}</div>
                         <div style={{fontSize:11,color:T.muted,marginTop:2,display:"flex",gap:12,flexWrap:"wrap"}}>
                           {(c.job_title||c.jobTitle)&&<span>💼 {c.job_title||c.jobTitle}</span>}
                           {c.email&&<span>✉ {c.email}</span>}
@@ -3763,7 +3763,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
             {/* KTA Apprentices */}
             {allocatedApprentices.length>0&&(
               <div style={{background:"#fff",borderRadius:14,border:`1px solid ${T.border}`,overflow:"hidden"}}>
-                <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,fontWeight:700,fontSize:13,color:T.teal}}>
+                <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,fontWeight:800,fontSize:13,color:T.teal}}>
                   👷 KTA Apprentices ({allocatedApprentices.length})
                 </div>
                 <div style={{padding:"8px 0"}}>
@@ -3771,7 +3771,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                     <div key={app.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px"}}>
                       <Avatar name={app.name} role="Apprentice" size={30}/>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:600,fontSize:13,color:T.ink}}>{app.name}</div>
+                        <div style={{fontWeight:800,fontSize:13,color:T.ink}}>{app.name}</div>
                         <div style={{fontSize:11,color:T.teal}}>{app.trade||"—"}</div>
                       </div>
                     </div>
@@ -3782,7 +3782,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
 
             {/* Quick stats */}
             <div style={{background:"#fff",borderRadius:14,border:`1px solid ${T.border}`,padding:"14px 16px"}}>
-              <div style={{fontWeight:700,fontSize:12,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>Summary</div>
+              <div style={{fontWeight:800,fontSize:12,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>Summary</div>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
                 {[
                   {label:"Contacts",   val:linkedContacts.length,       color:T.accent},
@@ -3791,7 +3791,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 ].map(s=>(
                   <div key={s.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13}}>
                     <span style={{color:T.muted}}>{s.label}</span>
-                    <span style={{fontWeight:700,color:s.color}}>{s.val}</span>
+                    <span style={{fontWeight:800,color:s.color}}>{s.val}</span>
                   </div>
                 ))}
               </div>
@@ -3819,7 +3819,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
       <div style={{background:ROLE_META[role].bg,border:`1.5px solid ${ROLE_META[role].color}44`,
         borderRadius:10,padding:"10px 16px",marginBottom:20,display:"flex",gap:10,alignItems:"center"}}>
         <span style={{fontSize:16}}>{ROLE_META[role].symbol}</span>
-        <span style={{fontWeight:700,color:ROLE_META[role].color,fontSize:13}}>{role} View — </span>
+        <span style={{fontWeight:800,color:ROLE_META[role].color,fontSize:13}}>{role} View — </span>
         <span style={{fontSize:13,color:T.sub}}>{canEdit?"Full CRM access — edit contacts and deals":"Read-only CRM view"}</span>
       </div>
       <div className="stat-grid-4">
@@ -3831,7 +3831,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
       <div style={{display:"flex",gap:8,marginBottom:20}}>
         {["contacts","companies","pipeline","deals","import"].map(t=>(
           <button key={t} onClick={()=>goTab(t)} style={{
-            padding:"7px 16px",borderRadius:8,fontSize:13,fontWeight:600,
+            padding:"7px 16px",borderRadius:8,fontSize:13,fontWeight:800,
             background:tab===t?T.accent:T.surface,color:tab===t?"#fff":T.sub,
             border:`1.5px solid ${tab===t?T.accentD:T.border}`,
             fontFamily:"Good Headline Pro,sans-serif",cursor:"pointer",transition:"all .14s"
@@ -3869,7 +3869,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           {/* ── Step 1: HubSpot lookup (only shown for new contacts) ── */}
           {!editCId&&hsStatus!=="found"&&hsStatus!=="notfound"&&(
             <div style={{marginBottom:16}}>
-              <div style={{fontWeight:700,fontSize:13,color:T.ink,marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
+              <div style={{fontWeight:800,fontSize:13,color:T.ink,marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
                 <span style={{fontSize:16}}>🔍</span> Look up in HubSpot
               </div>
               <div style={{fontSize:12,color:T.sub,marginBottom:10}}>Enter an email or phone number to auto-fill from HubSpot.</div>
@@ -3883,7 +3883,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 />
                 <button onClick={handleHsLookup} disabled={hsStatus==="searching"||!hsEmail.trim()} style={{
                   padding:"9px 18px",background:T.accent,color:"#fff",border:`1.5px solid ${T.accentD}`,
-                  borderRadius:9,fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",
+                  borderRadius:9,fontSize:13,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap",
                   fontFamily:"Good Headline Pro,sans-serif",opacity:(!hsEmail.trim()||hsStatus==="searching")?0.5:1,
                   display:"flex",alignItems:"center",gap:7,transition:"all .15s"
                 }}>
@@ -4005,7 +4005,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         <Card style={{padding:0,overflow:"hidden"}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 140px 160px 100px 60px",
             padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-            fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
+            fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
             <span onClick={()=>setContactSort(s=>s==="az"?"za":"az")}
               style={{cursor:"pointer",userSelect:"none",display:"flex",alignItems:"center",gap:4}}>
               Name <span style={{fontSize:10}}>{contactSort==="az"?"▲":"▼"}</span>
@@ -4035,7 +4035,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 onMouseEnter={e=>e.currentTarget.style.background=T.accentL}
                 onMouseLeave={e=>e.currentTarget.style.background=i%2===0?T.surface:T.bg}>
                 <div>
-                  <div style={{fontWeight:700,fontSize:13,color:T.ink}}>{c.name}</div>
+                  <div style={{fontWeight:800,fontSize:13,color:T.ink}}>{c.name}</div>
                   {c.company&&<div style={{fontSize:11,color:T.muted}}>{c.company}</div>}
                 </div>
                 <div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.email||"—"}</div>
@@ -4100,7 +4100,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               <button onClick={()=>setShowHostsOnly(false)}
                 style={{fontSize:11,padding:"2px 10px",borderRadius:20,background:T.tealL,
                   color:T.teal,border:`1px solid ${T.teal}44`,cursor:"pointer",
-                  fontFamily:"Good Headline Pro,sans-serif",fontWeight:700,display:"flex",alignItems:"center",gap:5}}>
+                  fontFamily:"Good Headline Pro,sans-serif",fontWeight:800,display:"flex",alignItems:"center",gap:5}}>
                 🏢 Host Businesses only &nbsp;✕
               </button>
             )}
@@ -4141,16 +4141,16 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         {showCoForm&&canEdit&&(
           <Card style={{marginBottom:16,border:`1.5px solid ${T.accent}44`}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-              <div style={{fontWeight:700,fontSize:14,color:T.accent}}>{editCoId?"✎ Edit Company":"+ New Company"}</div>
+              <div style={{fontWeight:800,fontSize:14,color:T.accent}}>{editCoId?"✎ Edit Company":"+ New Company"}</div>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <span style={{fontSize:12,fontWeight:600,color:T.sub}}>🏢 Host Business</span>
+                <span style={{fontSize:12,fontWeight:800,color:T.sub}}>🏢 Host Business</span>
                 <div onClick={()=>scf("isHostBusiness",!coForm.isHostBusiness)}
                   style={{position:"relative",width:52,height:28,borderRadius:14,cursor:"pointer",
                     background:coForm.isHostBusiness?T.teal:T.border,transition:"background .2s",flexShrink:0}}>
                   <div style={{position:"absolute",top:3,left:coForm.isHostBusiness?26:3,width:22,height:22,
                     borderRadius:"50%",background:"#fff",boxShadow:"0 1px 4px rgba(0,0,0,.25)",transition:"left .2s"}}/>
                 </div>
-                <span style={{fontSize:12,fontWeight:700,color:coForm.isHostBusiness?T.teal:T.muted,minWidth:24}}>
+                <span style={{fontSize:12,fontWeight:800,color:coForm.isHostBusiness?T.teal:T.muted,minWidth:24}}>
                   {coForm.isHostBusiness?"Yes":"No"}
                 </span>
               </div>
@@ -4197,7 +4197,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           <Card style={{padding:0,overflow:"hidden"}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 120px 150px 150px 60px",
               padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-              fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
+              fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
               <span onClick={()=>setCompanySort(s=>s==="az"?"za":"az")}
                 style={{cursor:"pointer",userSelect:"none",display:"flex",alignItems:"center",gap:4}}>
                 Company <span style={{fontSize:10}}>{companySort==="az"?"▲":"▼"}</span>
@@ -4226,8 +4226,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                     onMouseLeave={e=>e.currentTarget.style.background=i%2===0?T.surface:T.bg}>
                     <div>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <div style={{fontWeight:700,fontSize:13,color:T.ink}}>{co.name}</div>
-                        {co.isHostBusiness&&<span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:10,background:T.tealL,color:T.teal,flexShrink:0}}>Host</span>}
+                        <div style={{fontWeight:800,fontSize:13,color:T.ink}}>{co.name}</div>
+                        {co.isHostBusiness&&<span style={{fontSize:10,fontWeight:800,padding:"2px 7px",borderRadius:10,background:T.tealL,color:T.teal,flexShrink:0}}>Host</span>}
                       </div>
                       {linkedContacts.length>0&&(
                         <div style={{fontSize:11,color:T.muted,marginTop:2}}>
@@ -4279,20 +4279,20 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           {pipeline.map(({stage,color,items,value})=>(
             <div key={stage}>
               <div style={{padding:"8px 11px",borderRadius:"9px 9px 0 0",background:color+"18",borderBottom:`2px solid ${color}`,marginBottom:8}}>
-                <div style={{fontWeight:700,fontSize:12,color}}>{stage}</div>
+                <div style={{fontWeight:800,fontSize:12,color}}>{stage}</div>
                 <div style={{fontSize:11,color:T.muted,marginTop:2}}>{items.length} · ${value.toLocaleString()}</div>
               </div>
               {items.map(d=>(
                 <div key={d.id} style={{background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:9,padding:"10px 12px",marginBottom:8}}>
-                  <div style={{fontWeight:700,fontSize:13}}>{d.title}</div>
+                  <div style={{fontWeight:800,fontSize:13}}>{d.title}</div>
                   {d.contact&&<div style={{color:T.muted,fontSize:11,marginTop:2}}>{d.contact}</div>}
-                  {d.value&&<div style={{color,fontWeight:700,fontSize:14,marginTop:5}}>${parseFloat(d.value).toLocaleString()}</div>}
+                  {d.value&&<div style={{color,fontWeight:800,fontSize:14,marginTop:5}}>${parseFloat(d.value).toLocaleString()}</div>}
                   {canEdit&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:9}}>
                     {STAGES.filter(s=>s!==stage).map(s=>(
                       <button key={s} onClick={()=>moveDeal(d.id,s)} style={{
                         fontSize:9,padding:"2px 6px",borderRadius:4,
                         background:STAGE_C[s]+"22",color:STAGE_C[s],border:"none",
-                        fontWeight:700,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>→{s}</button>
+                        fontWeight:800,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>→{s}</button>
                     ))}
                   </div>}
                 </div>
@@ -4903,47 +4903,47 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           <div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12,marginBottom:12}}>
               <Card style={{border:`1.5px solid ${T.accent}33`}}>
-                <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>🚀 Full Sync</div>
+                <div style={{fontWeight:800,fontSize:13,marginBottom:4}}>🚀 Full Sync</div>
                 <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
                   Deletes all companies <em>and</em> contacts then re-imports everything fresh including links.
                 </div>
-                <Btn sm onClick={fullSync} disabled={hsImporting} style={{background:T.accent,color:"#fff",fontWeight:700,width:"100%"}}>
+                <Btn sm onClick={fullSync} disabled={hsImporting} style={{background:T.accent,color:"#fff",fontWeight:800,width:"100%"}}>
                   {hsImporting?"⏳ Syncing…":"🔄 Full Sync — Companies + Contacts"}
                 </Btn>
               </Card>
               <Card style={{border:`1.5px solid ${T.teal}33`}}>
-                <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>🏢 Add New Companies</div>
+                <div style={{fontWeight:800,fontSize:13,marginBottom:4}}>🏢 Add New Companies</div>
                 <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
                   Adds companies from HubSpot that don't exist here yet. Existing companies are <strong>never deleted or overwritten</strong> — only new ones are added.
                 </div>
-                <Btn sm onClick={syncCompaniesOnly} disabled={hsImporting} style={{background:T.teal,color:"#fff",fontWeight:700,width:"100%"}}>
+                <Btn sm onClick={syncCompaniesOnly} disabled={hsImporting} style={{background:T.teal,color:"#fff",fontWeight:800,width:"100%"}}>
                   {hsImporting?"⏳ Syncing…":"🏢 Add New Companies from HubSpot"}
                 </Btn>
               </Card>
               <Card style={{border:`1.5px solid ${T.blue}33`}}>
-                <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>👥 Add New Contacts</div>
+                <div style={{fontWeight:800,fontSize:13,marginBottom:4}}>👥 Add New Contacts</div>
                 <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
                   Adds contacts from HubSpot that don't exist here yet. Existing contacts are <strong>never deleted or overwritten</strong> — only new ones are added.
                 </div>
-                <Btn sm onClick={syncContactsOnly} disabled={hsImporting} style={{background:T.blue,color:"#fff",fontWeight:700,width:"100%"}}>
+                <Btn sm onClick={syncContactsOnly} disabled={hsImporting} style={{background:T.blue,color:"#fff",fontWeight:800,width:"100%"}}>
                   {hsImporting?"⏳ Syncing…":"👥 Add New Contacts from HubSpot"}
                 </Btn>
               </Card>
               <Card style={{border:`1.5px solid ${T.gold}33`}}>
-                <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>📋 Sync Activity</div>
+                <div style={{fontWeight:800,fontSize:13,marginBottom:4}}>📋 Sync Activity</div>
                 <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
                   Imports all HubSpot activity — notes, calls, meetings, emails and tasks — linked to your contacts and companies. Safe to re-run; duplicates are skipped.
                 </div>
-                <Btn sm onClick={syncActivity} disabled={hsImporting} style={{background:T.gold,color:"#fff",fontWeight:700,width:"100%"}}>
+                <Btn sm onClick={syncActivity} disabled={hsImporting} style={{background:T.gold,color:"#fff",fontWeight:800,width:"100%"}}>
                   {hsImporting?"⏳ Syncing…":"📋 Sync Activity (Notes, Calls, Meetings, Emails, Tasks)"}
                 </Btn>
               </Card>
               <Card style={{border:`1.5px solid ${T.teal}33`,gridColumn:"1 / -1"}}>
-                <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>👤 Sync User Compliance Data</div>
+                <div style={{fontWeight:800,fontSize:13,marginBottom:4}}>👤 Sync User Compliance Data</div>
                 <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
                   Matches HubSpot contacts to KTA users by email and updates their <strong>EW Licence expiry, Site Safe, First Aid, licence numbers and emergency contact</strong> — without touching any other data. Run this whenever compliance data is updated in HubSpot.
                 </div>
-                <Btn sm onClick={syncUsersFromHubSpot} disabled={hsImporting} style={{background:T.teal,color:"#fff",fontWeight:700,width:"100%"}}>
+                <Btn sm onClick={syncUsersFromHubSpot} disabled={hsImporting} style={{background:T.teal,color:"#fff",fontWeight:800,width:"100%"}}>
                   {hsImporting?"⏳ Syncing…":"👤 Sync User Compliance Data from HubSpot"}
                 </Btn>
               </Card>
@@ -4953,7 +4953,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               <input type="password" placeholder="pat-ap1-xxxxxxxx…"
                 value={hsToken} onChange={e=>setHsToken(e.target.value)}
                 style={{width:"100%",fontFamily:"monospace",fontSize:12}}/>
-              {hsMsg&&<div style={{marginTop:10,fontSize:12,fontWeight:600,lineHeight:1.7,
+              {hsMsg&&<div style={{marginTop:10,fontSize:12,fontWeight:800,lineHeight:1.7,
                 color:hsMsg.startsWith("✓")?T.teal:hsMsg.startsWith("Error")?T.red:T.sub}}>{hsMsg}</div>}
             </Card>
 
@@ -4961,7 +4961,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
 
             {canDelete&&(
               <Card style={{border:`1.5px solid ${T.red}44`,marginTop:8}}>
-                <div style={{fontWeight:700,fontSize:13,color:T.red,marginBottom:6}}>⚠ Danger Zone</div>
+                <div style={{fontWeight:800,fontSize:13,color:T.red,marginBottom:6}}>⚠ Danger Zone</div>
                 <div style={{fontSize:12,color:T.sub,marginBottom:12}}>
                   Permanently deletes <strong>all CRM contacts and companies</strong> from the database. This cannot be undone.
                 </div>
@@ -4976,7 +4976,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                     setHsMsg("✓ All contacts and companies deleted.");
                   } catch(e){ setHsMsg("Error: "+e.message); }
                 }} style={{background:T.red,color:"#fff",border:"none",borderRadius:8,
-                  padding:"8px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>
+                  padding:"8px 18px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>
                   🗑 Delete All Contacts &amp; Companies
                 </button>
               </Card>
@@ -5006,7 +5006,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         <Card style={{padding:0,overflow:"hidden"}}>
           <div style={{display:"grid",gridTemplateColumns:"8px 1fr 140px 100px 120px 100px 40px",
             padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-            fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:10}}>
+            fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:10}}>
             <span/><span>Deal</span><span>Contact</span><span style={{textAlign:"right"}}>Value</span>
             <span>Stage</span><span>Close</span><span/>
           </div>
@@ -5016,10 +5016,10 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               padding:"12px 16px",borderBottom:i<deals.length-1?`1px solid ${T.border}44`:"none",
               background:i%2===0?T.surface:T.bg,alignItems:"center",gap:10,animationDelay:`${i*.03}s`}}>
               <div style={{width:8,height:34,borderRadius:3,background:STAGE_C[d.stage]||T.muted}}/>
-              <div><div style={{fontWeight:700,fontSize:13}}>{d.title}</div>
+              <div><div style={{fontWeight:800,fontSize:13}}>{d.title}</div>
                 {d.notes&&<div style={{fontSize:11,color:T.muted,marginTop:1}}>{d.notes}</div>}</div>
               <div style={{fontSize:12,color:T.sub}}>{d.contact||"—"}</div>
-              <div style={{textAlign:"right",fontFamily:"Good Headline Pro",fontWeight:700,fontSize:14,color:STAGE_C[d.stage]||T.muted}}>
+              <div style={{textAlign:"right",fontFamily:"Good Headline Pro",fontWeight:800,fontSize:14,color:STAGE_C[d.stage]||T.muted}}>
                 {d.value?`$${parseFloat(d.value).toLocaleString()}`:"—"}</div>
               <Pill label={d.stage} size="sm" color={STAGE_C[d.stage]||T.muted} bg={(STAGE_C[d.stage]||T.muted)+"1a"}/>
               <div style={{fontSize:11,color:T.muted}}>{d.closeDate?new Date(d.closeDate+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"}):"—"}</div>
@@ -5058,7 +5058,7 @@ function WeeklyHoursList({allUsers, entries}) {
   return (
     <div className="fu">
       <div style={{marginBottom:18}}>
-        <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:700}}>Hours This Week</div>
+        <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:800}}>Hours This Week</div>
         <div style={{fontSize:12,color:T.sub,marginTop:3}}>All timesheet entries from this week, grouped by apprentice.</div>
       </div>
 
@@ -5066,8 +5066,8 @@ function WeeklyHoursList({allUsers, entries}) {
       {weekEntries.length>0 && (
         <Card style={{marginBottom:20,padding:"16px 20px"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-            <div style={{fontSize:13,fontWeight:700}}>All Apprentices — Week Total</div>
-            <div style={{fontFamily:"Good Headline Pro",fontSize:22,fontWeight:700,color:T.accent}}>{globalTotal}h</div>
+            <div style={{fontSize:13,fontWeight:800}}>All Apprentices — Week Total</div>
+            <div style={{fontFamily:"Good Headline Pro",fontSize:22,fontWeight:800,color:T.accent}}>{globalTotal}h</div>
           </div>
           {/* Type breakdown pills */}
           <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
@@ -5078,8 +5078,8 @@ function WeeklyHoursList({allUsers, entries}) {
                   background:m.bg,border:`1px solid ${m.color}44`,
                   borderRadius:8,padding:"5px 10px"}}>
                   <span style={{fontSize:13}}>{m.sym}</span>
-                  <span style={{fontSize:12,color:m.color,fontWeight:600}}>{type}</span>
-                  <span style={{fontSize:13,fontWeight:700,color:m.color,fontFamily:"Good Headline Pro"}}>{hrs.toFixed(1)}h</span>
+                  <span style={{fontSize:12,color:m.color,fontWeight:800}}>{type}</span>
+                  <span style={{fontSize:13,fontWeight:800,color:m.color,fontFamily:"Good Headline Pro"}}>{hrs.toFixed(1)}h</span>
                 </div>
               );
             })}
@@ -5111,10 +5111,10 @@ function WeeklyHoursList({allUsers, entries}) {
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:appEntries.length>0?12:0}}>
               <Avatar name={app.name} role="Apprentice" size={36}/>
               <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:14}}>{app.name}</div>
+                <div style={{fontWeight:800,fontSize:14}}>{app.name}</div>
                 <div style={{fontSize:12,color:T.sub}}>{appEntries.length} entr{appEntries.length===1?"y":"ies"} this week</div>
               </div>
-              <div style={{fontFamily:"Good Headline Pro",fontSize:22,fontWeight:700,color:T.accent}}>{totalHrs.toFixed(1)}h</div>
+              <div style={{fontFamily:"Good Headline Pro",fontSize:22,fontWeight:800,color:T.accent}}>{totalHrs.toFixed(1)}h</div>
             </div>
 
             {appEntries.length===0 && <div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>No entries this week.</div>}
@@ -5129,8 +5129,8 @@ function WeeklyHoursList({allUsers, entries}) {
                       background:m.bg,border:`1px solid ${m.color}33`,
                       borderRadius:6,padding:"3px 8px"}}>
                       <span style={{fontSize:11}}>{m.sym}</span>
-                      <span style={{fontSize:11,color:m.color,fontWeight:600}}>{type}</span>
-                      <span style={{fontSize:12,fontWeight:700,color:m.color}}>{hrs.toFixed(1)}h</span>
+                      <span style={{fontSize:11,color:m.color,fontWeight:800}}>{type}</span>
+                      <span style={{fontSize:12,fontWeight:800,color:m.color}}>{hrs.toFixed(1)}h</span>
                     </div>
                   );
                 })}
@@ -5150,10 +5150,10 @@ function WeeklyHoursList({allUsers, entries}) {
                   <div key={e.id} style={{display:"grid",gridTemplateColumns:"110px 1fr 120px 60px 90px",
                     gap:8,padding:"7px 4px",borderBottom:i<appEntries.length-1?`1px solid ${T.border}44`:"none",
                     alignItems:"center",fontSize:12}}>
-                    <div style={{fontWeight:600}}>{fmtD(e.date)}</div>
+                    <div style={{fontWeight:800}}>{fmtD(e.date)}</div>
                     <div style={{color:e.note?T.ink:T.muted,fontStyle:e.note?"normal":"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.note||"No note"}</div>
                     <TypePill type={e.type} size="sm"/>
-                    <div style={{fontWeight:700,color:TYPE_META[e.type]?.color||T.accent,textAlign:"center"}}>{e.netHours}h</div>
+                    <div style={{fontWeight:800,color:TYPE_META[e.type]?.color||T.accent,textAlign:"center"}}>{e.netHours}h</div>
                     <AppvPill status={e.approval}/>
                   </div>
                 ))}
@@ -5177,7 +5177,7 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
   return (
     <div className="fu">
       <div style={{marginBottom:18}}>
-        <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:700}}>
+        <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:800}}>
           {status==="submitted"?"Pending":status==="approved"?"Submitted — Approved":"Submitted — Not Approved"}
         </div>
         <div style={{fontSize:12,color:T.sub,marginTop:3}}>
@@ -5187,7 +5187,7 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
       {filtered.length===0 && (
         <Card style={{textAlign:"center",padding:"48px 24px"}}>
           <div style={{fontSize:32,marginBottom:8}}>{isPending?"✓":"◈"}</div>
-          <div style={{fontWeight:600,fontSize:15}}>{status==="submitted"?"All caught up!":status==="approved"?"No approved entries yet.":"No declined entries."}</div>
+          <div style={{fontWeight:800,fontSize:15}}>{status==="submitted"?"All caught up!":status==="approved"?"No approved entries yet.":"No declined entries."}</div>
           <div style={{fontSize:12,color:T.sub,marginTop:6}}>{status==="submitted"?"No timesheets are waiting for approval.":""}</div>
         </Card>
       )}
@@ -5199,7 +5199,7 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
               <Avatar name={app.name} role="Apprentice" size={36}/>
               <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:14}}>{app.name}</div>
+                <div style={{fontWeight:800,fontSize:14}}>{app.name}</div>
                 <div style={{fontSize:12,color:T.sub}}>{appEntries.length} {status} entr{appEntries.length===1?"y":"ies"}</div>
               </div>
             </div>
@@ -5209,10 +5209,10 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
                   gridTemplateColumns:isPending?"110px 1fr 120px 60px 80px":"110px 1fr 120px 60px",
                   gap:8,padding:"8px 4px",borderBottom:i<appEntries.length-1?`1px solid ${T.border}44`:"none",
                   alignItems:"center",fontSize:12}}>
-                  <div style={{fontWeight:600}}>{fmtD(e.date)}</div>
+                  <div style={{fontWeight:800}}>{fmtD(e.date)}</div>
                   <div style={{color:e.note?T.ink:T.muted,fontStyle:e.note?"normal":"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.note||"No note"}</div>
                   <TypePill type={e.type} size="sm"/>
-                  <div style={{fontWeight:700,color:TYPE_META[e.type]?.color||T.accent,textAlign:"center"}}>{e.netHours}h</div>
+                  <div style={{fontWeight:800,color:TYPE_META[e.type]?.color||T.accent,textAlign:"center"}}>{e.netHours}h</div>
                   {isPending && (
                     <div style={{display:"flex",gap:4}}>
                       <button onClick={()=>onApprove(e.id)} style={{width:28,height:28,borderRadius:6,fontSize:13,background:T.accentL,color:T.accent,border:`1px solid ${T.accent}44`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} title="Approve">✓</button>
@@ -5357,7 +5357,7 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
 
   return (
     <div>
-      {title && <div style={{fontWeight:700,fontSize:14,color:T.blue,marginBottom:14}}>{title}</div>}
+      {title && <div style={{fontWeight:800,fontSize:14,color:T.blue,marginBottom:14}}>{title}</div>}
       <div style={{display:"none"}} aria-hidden="true">
         <input type="text" name="username" tabIndex={-1}/>
         <input type="email" name="email" tabIndex={-1}/>
@@ -5422,7 +5422,7 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
           </div>
         </div>
         <div style={{gridColumn:"1/-1"}}>
-          <div style={{fontWeight:700,fontSize:12,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>Overtime Settings</div>
+          <div style={{fontWeight:800,fontSize:12,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>Overtime Settings</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
             <div><FL>Overtime Type</FL>
               <select value={form.overtimeType||""} onChange={e=>sf("overtimeType",e.target.value||null)}>
@@ -5459,7 +5459,7 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
             {mentors.map(m=><option key={m.id} value={m.id}>{m.name}{m.role==="Admin"?" (Admin)":""}</option>)}
           </select>
         </div>}
-        {canEditPassword&&<div><FL>New Password <span style={{fontWeight:700,color:T.muted}}>(blank = keep)</span></FL>
+        {canEditPassword&&<div><FL>New Password <span style={{fontWeight:800,color:T.muted}}>(blank = keep)</span></FL>
           <div style={{position:"relative"}}>
             <input type={showPw?"text":"password"} autoComplete="new-password" placeholder="Leave blank to keep"
               value={pwField} onChange={e=>setPwField(e.target.value)} style={{paddingRight:60}}/>
@@ -5600,7 +5600,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
       {/* Header */}
       <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:18}}>
         <div>
-          <div style={{fontFamily:"Good Headline Pro", fontSize:18, fontWeight:700}}>Apprentices</div>
+          <div style={{fontFamily:"Good Headline Pro", fontSize:18, fontWeight:800}}>Apprentices</div>
           <div style={{fontSize:12, color:T.sub, marginTop:3}}>{apprentices.length} apprentice{apprentices.length!==1?"s":""} — click a row to view their timesheet, or expand to manage allocations.</div>
         </div>
         <Btn onClick={()=>{setForm(blank);setEditId(null);setPwField("");setExpandId(null);setFormApproverId("");setFormViewerId("");setShowForm(s=>!s);}}>
@@ -5611,7 +5611,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
       {/* Add form — top of page for new apprentices only */}
       {showForm && !editId && (
         <Card style={{marginBottom:20, border:`1.5px solid ${T.blue}44`}}>
-          <div style={{fontWeight:700, fontSize:14, marginBottom:16, color:T.blue}}>{editId?"✎ Edit Apprentice":"+ New Apprentice"}</div>
+          <div style={{fontWeight:800, fontSize:14, marginBottom:16, color:T.blue}}>{editId?"✎ Edit Apprentice":"+ New Apprentice"}</div>
           {/* Hidden honeypot inputs — absorb Chrome autofill before it hits real fields */}
           <div style={{display:"none"}} aria-hidden="true">
             <input type="text" name="username" tabIndex={-1}/>
@@ -5659,7 +5659,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
             </div>
             {/* ── Overtime Settings ── */}
             <div style={{gridColumn:"1/-1"}}>
-              <div style={{fontWeight:700,fontSize:12,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>
+              <div style={{fontWeight:800,fontSize:12,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>
                 Overtime Settings
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
@@ -5698,21 +5698,21 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
               )}
             </div>
             <div>
-              <FL>Approver <span style={{fontWeight:700,color:T.muted}}>(can approve timesheets)</span></FL>
+              <FL>Approver <span style={{fontWeight:800,color:T.muted}}>(can approve timesheets)</span></FL>
               <select value={formApproverId} onChange={e=>setFormApproverId(e.target.value)}>
                 <option value="">— None —</option>
                 {approvers.map(a=><option key={a.id} value={a.id}>{a.name}{a.role==="Admin"?" (Admin)":""}</option>)}
               </select>
             </div>
             <div>
-              <FL>Viewer <span style={{fontWeight:700,color:T.muted}}>(read-only access)</span></FL>
+              <FL>Viewer <span style={{fontWeight:800,color:T.muted}}>(read-only access)</span></FL>
               <select value={formViewerId} onChange={e=>setFormViewerId(e.target.value)}>
                 <option value="">— None —</option>
                 {viewers.map(v=><option key={v.id} value={v.id}>{v.name}{v.role==="Admin"?" (Admin)":""}</option>)}
               </select>
             </div>
             <div>
-              <FL>Mentor <span style={{fontWeight:700,color:T.muted}}>(assigned KTA mentor)</span></FL>
+              <FL>Mentor <span style={{fontWeight:800,color:T.muted}}>(assigned KTA mentor)</span></FL>
               <select value={formMentorId} onChange={e=>setFormMentorId(e.target.value)}>
                 <option value="">— None —</option>
                 {mentors.map(m=><option key={m.id} value={m.id}>{m.name}{m.role==="Admin"?" (Admin)":""}</option>)}
@@ -5740,7 +5740,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
         <div style={{display:"grid",
           gridTemplateColumns:"36px 1fr 140px 130px 120px 110px 110px 72px",
           padding:"10px 16px", background:T.bg, borderBottom:`1.5px solid ${T.border}`,
-          fontSize:11, fontWeight:600, color:T.muted, textTransform:"uppercase", letterSpacing:".6px", gap:8}}>
+          fontSize:11, fontWeight:800, color:T.muted, textTransform:"uppercase", letterSpacing:".6px", gap:8}}>
           <span/><span>Name</span><span>Email</span><span>Phone</span>
           <span>Trade</span><span>Licence Exp.</span><span>Allocations</span>
           <span style={{textAlign:"right"}}>Actions</span>
@@ -5749,7 +5749,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
         {apprentices.length === 0 && (
           <div style={{padding:"48px 24px", textAlign:"center", color:T.muted}}>
             <div style={{fontSize:32, marginBottom:8}}>◑</div>
-            <div style={{fontWeight:600}}>No apprentices yet</div>
+            <div style={{fontWeight:800}}>No apprentices yet</div>
             <div style={{fontSize:12, marginTop:4}}>Add your first apprentice above.</div>
           </div>
         )}
@@ -5779,7 +5779,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
 
                 {/* Name — click → timesheet */}
                 <div onClick={()=>onViewTimesheet(u.id)} style={{cursor:"pointer"}}>
-                  <div style={{fontWeight:700, fontSize:13, color:T.accent}}>{u.firstName||u.name.split(" ")[0]} <span style={{color:T.sub}}>{u.lastName||u.name.split(" ").slice(1).join(" ")}</span></div>
+                  <div style={{fontWeight:800, fontSize:13, color:T.accent}}>{u.firstName||u.name.split(" ")[0]} <span style={{color:T.sub}}>{u.lastName||u.name.split(" ").slice(1).join(" ")}</span></div>
                 </div>
 
                 <div style={{fontSize:12, color:T.sub, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{u.email||"—"}</div>
@@ -5802,8 +5802,8 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
                     const c = licColour(val);
                     return (
                       <div key={label} style={{display:"flex",alignItems:"center",gap:4}}>
-                        <span style={{fontSize:10,fontWeight:700,color:T.muted,width:22,flexShrink:0}}>{label}</span>
-                        <span style={{fontSize:11,fontWeight:600,color:c}}>
+                        <span style={{fontSize:10,fontWeight:800,color:T.muted,width:22,flexShrink:0}}>{label}</span>
+                        <span style={{fontSize:11,fontWeight:800,color:c}}>
                           {new Date(val+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"})}
                           {c===T.red&&<span style={{marginLeft:3}}>⚠</span>}
                         </span>
@@ -5823,7 +5823,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
                     <div style={{color:viewer?T.teal:T.muted, fontWeight:viewer?600:400, marginTop:2}}>
                       ◆ {viewer?viewer.name.split(" ")[0]:"No viewer"}
                     </div>
-                    {mentor&&<div style={{color:T.accent, fontWeight:600, marginTop:2}}>
+                    {mentor&&<div style={{color:T.accent, fontWeight:800, marginTop:2}}>
                       ✦ {mentor.name.split(" ")[0]}
                     </div>}
                   </div>
@@ -5868,9 +5868,9 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
 
                     {/* Approvers column */}
                     <div>
-                      <div style={{fontSize:12,fontWeight:700,color:T.warn,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
+                      <div style={{fontSize:12,fontWeight:800,color:T.warn,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
                         <span>▲</span> Approvers
-                        <span style={{fontSize:11,fontWeight:700,color:T.sub}}>— can approve / decline this apprentice's timesheets</span>
+                        <span style={{fontSize:11,fontWeight:800,color:T.sub}}>— can approve / decline this apprentice's timesheets</span>
                       </div>
                       {approvers.length===0
                         ? <div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>No Approver accounts exist yet.</div>
@@ -5891,7 +5891,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
                                   {isAllocd?"✓":""}
                                 </div>
                                 <div>
-                                  <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{ap.name}</div>
+                                  <div style={{fontSize:13,fontWeight:800,color:T.ink}}>{ap.name}</div>
                                   <div style={{fontSize:11,color:T.sub}}>{ap.email}</div>
                                 </div>
                               </button>
@@ -5902,9 +5902,9 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
 
                     {/* Viewers column */}
                     <div>
-                      <div style={{fontSize:12,fontWeight:700,color:T.teal,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
+                      <div style={{fontSize:12,fontWeight:800,color:T.teal,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
                         <span>◆</span> Viewers
-                        <span style={{fontSize:11,fontWeight:700,color:T.sub}}>— can view all timesheet stages, read only</span>
+                        <span style={{fontSize:11,fontWeight:800,color:T.sub}}>— can view all timesheet stages, read only</span>
                       </div>
                       {viewers.length===0
                         ? <div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>No Viewer accounts exist yet.</div>
@@ -5925,7 +5925,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
                                   {isAllocd?"✓":""}
                                 </div>
                                 <div>
-                                  <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{vw.name}</div>
+                                  <div style={{fontSize:13,fontWeight:800,color:T.ink}}>{vw.name}</div>
                                   <div style={{fontSize:11,color:T.sub}}>{vw.email}</div>
                                 </div>
                               </button>
@@ -5982,7 +5982,7 @@ function ContactsList() {
     <div className="fu">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18}}>
         <div>
-          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:700}}>Contacts</div>
+          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:800}}>Contacts</div>
           <div style={{fontSize:12,color:T.sub,marginTop:3}}>Business and other contacts — not system users.</div>
         </div>
         <Btn onClick={()=>{setForm(blank);setEditId(null);setShowForm(s=>!s);}}>
@@ -5991,7 +5991,7 @@ function ContactsList() {
       </div>
       {showForm&&(
         <Card style={{marginBottom:20,border:`1.5px solid ${T.slate}44`}}>
-          <div style={{fontWeight:700,fontSize:14,marginBottom:16,color:T.slate}}>{editId?"✎ Edit Contact":"+ New Contact"}</div>
+          <div style={{fontWeight:800,fontSize:14,marginBottom:16,color:T.slate}}>{editId?"✎ Edit Contact":"+ New Contact"}</div>
           <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
             <div><FL req>Name</FL><input placeholder="Jane Smith" value={form.name} onChange={e=>sf("name",e.target.value)}/></div>
             <div><FL>Organisation</FL><input placeholder="Company / Agency" value={form.company} onChange={e=>sf("company",e.target.value)}/></div>
@@ -6013,7 +6013,7 @@ function ContactsList() {
       <Card style={{padding:0,overflow:"hidden"}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 160px 100px 160px 160px 68px",
           padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-          fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
+          fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
           <span>Name</span><span>Organisation</span><span>Type</span><span>Email</span><span>Phone</span><span/>
         </div>
         {items.length===0&&<div style={{padding:"40px",textAlign:"center",color:T.muted}}>No contacts yet.</div>}
@@ -6022,7 +6022,7 @@ function ContactsList() {
             padding:"12px 16px",borderBottom:i<items.length-1?`1px solid ${T.border}44`:"none",
             background:i%2===0?T.surface:T.bg,alignItems:"center",gap:8,animationDelay:`${i*.03}s`}}>
             <div>
-              <div style={{fontWeight:700,fontSize:13}}>{x.name}</div>
+              <div style={{fontWeight:800,fontSize:13}}>{x.name}</div>
               {x.notes&&<div style={{fontSize:11,color:T.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.notes}</div>}
             </div>
             <div style={{fontSize:12,color:T.sub}}>{x.company||"—"}</div>
@@ -6078,7 +6078,7 @@ function HostBusinessList() {
     <div className="fu">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18}}>
         <div>
-          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:700}}>Host Businesses</div>
+          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:800}}>Host Businesses</div>
           <div style={{fontSize:12,color:T.sub,marginTop:3}}>Companies that host apprentices for on-the-job training.</div>
         </div>
         <Btn onClick={()=>{setForm(blank);setEditId(null);setShowForm(s=>!s);}}>
@@ -6087,7 +6087,7 @@ function HostBusinessList() {
       </div>
       {showForm&&(
         <Card style={{marginBottom:20,border:`1.5px solid ${T.teal}44`}}>
-          <div style={{fontWeight:700,fontSize:14,marginBottom:16,color:T.teal}}>{editId?"✎ Edit Host Business":"+ New Host Business"}</div>
+          <div style={{fontWeight:800,fontSize:14,marginBottom:16,color:T.teal}}>{editId?"✎ Edit Host Business":"+ New Host Business"}</div>
           <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
             <div><FL req>Business Name</FL><input placeholder="Acme Constructions" value={form.name} onChange={e=>sf("name",e.target.value)}/></div>
             <div><FL>Industry</FL>
@@ -6116,7 +6116,7 @@ function HostBusinessList() {
       <Card style={{padding:0,overflow:"hidden"}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 120px 140px 140px 60px 80px 68px",
           padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-          fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
+          fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
           <span>Business</span><span>Industry</span><span>Contact</span><span>Email</span><span style={{textAlign:"center"}}>Cap.</span><span>Status</span><span/>
         </div>
         {items.length===0&&<div style={{padding:"40px",textAlign:"center",color:T.muted}}>No host businesses yet.</div>}
@@ -6125,13 +6125,13 @@ function HostBusinessList() {
             padding:"12px 16px",borderBottom:i<items.length-1?`1px solid ${T.border}44`:"none",
             background:i%2===0?T.surface:T.bg,alignItems:"center",gap:8,animationDelay:`${i*.03}s`}}>
             <div>
-              <div style={{fontWeight:700,fontSize:13}}>{x.name}</div>
+              <div style={{fontWeight:800,fontSize:13}}>{x.name}</div>
               {x.notes&&<div style={{fontSize:11,color:T.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.notes}</div>}
             </div>
             <div style={{fontSize:12,color:T.sub}}>{x.industry||"—"}</div>
             <div style={{fontSize:12,color:T.sub}}>{x.contact||"—"}</div>
             <div style={{fontSize:12,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.email||"—"}</div>
-            <div style={{textAlign:"center",fontSize:13,fontWeight:700,color:T.teal}}>{x.capacity||"—"}</div>
+            <div style={{textAlign:"center",fontSize:13,fontWeight:800,color:T.teal}}>{x.capacity||"—"}</div>
             <Pill label={x.status||"Active"} size="sm"
               color={x.status==="Active"?T.accent:x.status==="Pending"?T.warn:T.muted}
               bg={x.status==="Active"?T.accentL:x.status==="Pending"?T.warnL:T.slateL}/>
@@ -6189,7 +6189,7 @@ function TargetDealsList() {
     <div className="fu">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18}}>
         <div>
-          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:700}}>Target Deals</div>
+          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:800}}>Target Deals</div>
           <div style={{fontSize:12,color:T.sub,marginTop:3}}>{items.filter(x=>!["Won","Lost"].includes(x.stage)).length} active deals · pipeline value <strong style={{color:T.accent}}>${totalValue.toLocaleString()}</strong></div>
         </div>
         <Btn onClick={()=>{setForm(blank);setEditId(null);setShowForm(s=>!s);}}>
@@ -6198,7 +6198,7 @@ function TargetDealsList() {
       </div>
       {showForm&&(
         <Card style={{marginBottom:20,border:`1.5px solid ${T.gold}44`}}>
-          <div style={{fontWeight:700,fontSize:14,marginBottom:16,color:T.gold}}>{editId?"✎ Edit Deal":"+ New Deal"}</div>
+          <div style={{fontWeight:800,fontSize:14,marginBottom:16,color:T.gold}}>{editId?"✎ Edit Deal":"+ New Deal"}</div>
           <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
             <div><FL req>Deal Title</FL><input placeholder="e.g. Funding Round 2025" value={form.title} onChange={e=>sf("title",e.target.value)}/></div>
             <div><FL>Contact Person</FL><input placeholder="Name" value={form.contact} onChange={e=>sf("contact",e.target.value)}/></div>
@@ -6226,7 +6226,7 @@ function TargetDealsList() {
       <Card style={{padding:0,overflow:"hidden"}}>
         <div style={{display:"grid",gridTemplateColumns:"8px 1fr 130px 130px 90px 80px 80px 68px",
           padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-          fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
+          fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
           <span/><span>Deal</span><span>Organisation</span><span>Contact</span><span style={{textAlign:"right"}}>Value</span><span>Stage</span><span>Priority</span><span/>
         </div>
         {items.length===0&&<div style={{padding:"40px",textAlign:"center",color:T.muted}}>No deals yet.</div>}
@@ -6239,12 +6239,12 @@ function TargetDealsList() {
             background:i%2===0?T.surface:T.bg,alignItems:"center",gap:8,animationDelay:`${i*.03}s`}}>
             <div style={{width:8,height:36,borderRadius:3,background:DEAL_C[x.stage]||T.muted}}/>
             <div>
-              <div style={{fontWeight:700,fontSize:13}}>{x.title}</div>
+              <div style={{fontWeight:800,fontSize:13}}>{x.title}</div>
               {x.notes&&<div style={{fontSize:11,color:T.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.notes}</div>}
             </div>
             <div style={{fontSize:12,color:T.sub}}>{x.org||"—"}</div>
             <div style={{fontSize:12,color:T.sub}}>{x.contact||"—"}</div>
-            <div style={{textAlign:"right",fontFamily:"Good Headline Pro",fontWeight:700,fontSize:14,color:DEAL_C[x.stage]||T.muted}}>
+            <div style={{textAlign:"right",fontFamily:"Good Headline Pro",fontWeight:800,fontSize:14,color:DEAL_C[x.stage]||T.muted}}>
               {x.value?`$${parseFloat(x.value).toLocaleString()}`:"—"}
             </div>
             <Pill label={x.stage} size="sm" color={DEAL_C[x.stage]||T.muted} bg={(DEAL_C[x.stage]||T.muted)+"1a"}/>
@@ -6411,9 +6411,9 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
         onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
         <Card style={{paddingBlock:18,border:`1.5px solid ${T.blue}44`,height:"100%"}}>
           <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Apprentices</div>
-          <div style={{fontSize:24,fontWeight:700,color:T.blue,fontFamily:"Good Headline Pro"}}>{apprentices.length}</div>
+          <div style={{fontSize:24,fontWeight:800,color:T.blue,fontFamily:"Good Headline Pro"}}>{apprentices.length}</div>
           <div style={{fontSize:11,color:T.sub,marginTop:2}}>active workforce</div>
-          <div style={{fontSize:11,color:T.blue,marginTop:6,fontWeight:600}}>View & manage →</div>
+          <div style={{fontSize:11,color:T.blue,marginTop:6,fontWeight:800}}>View & manage →</div>
         </Card>
       </button>
     ),
@@ -6423,8 +6423,8 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
         <Card style={{paddingBlock:14,border:`1.5px solid ${T.accent}44`,height:"100%"}}>
           <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:6}}>Hours This Week</div>
           <div style={{display:"flex",alignItems:"baseline",gap:4,marginBottom:8}}>
-            <span style={{fontSize:20,fontWeight:700,color:T.accent,fontFamily:"Good Headline Pro"}}>{totalHrsWeek}</span>
-            <span style={{fontSize:13,color:T.sub,fontWeight:600}}>h total</span>
+            <span style={{fontSize:20,fontWeight:800,color:T.accent,fontFamily:"Good Headline Pro"}}>{totalHrsWeek}</span>
+            <span style={{fontSize:13,color:T.sub,fontWeight:800}}>h total</span>
           </div>
           {weekTypeHrs.length>0 ? (
             <div style={{display:"flex",flexDirection:"column",gap:3,marginBottom:8}}>
@@ -6434,8 +6434,8 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
                 return (
                   <div key={type}>
                     <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T.sub,marginBottom:1}}>
-                      <span style={{fontWeight:600,color:meta.color}}>{type}</span>
-                      <span style={{fontWeight:700}}>{hrs.toFixed(1)}h</span>
+                      <span style={{fontWeight:800,color:meta.color}}>{type}</span>
+                      <span style={{fontWeight:800}}>{hrs.toFixed(1)}h</span>
                     </div>
                     <div style={{height:4,borderRadius:99,background:T.bg,overflow:"hidden"}}>
                       <div style={{height:"100%",width:`${pct}%`,borderRadius:99,background:meta.color,opacity:.75,transition:"width .3s"}}/>
@@ -6448,26 +6448,26 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
           ) : (
             <div style={{fontSize:11,color:T.muted,marginBottom:8}}>all apprentices</div>
           )}
-          <div style={{fontSize:11,color:T.accent,fontWeight:600}}>View list →</div>
+          <div style={{fontSize:11,color:T.accent,fontWeight:800}}>View list →</div>
         </Card>
       </button>
     ),
-    submitted: <button onClick={()=>onViewList("submitted")} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalSubmitted>0?T.warn:T.muted}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Pending</div><div style={{fontSize:24,fontWeight:700,color:totalSubmitted>0?T.warn:T.muted,fontFamily:"Good Headline Pro"}}>{totalSubmitted}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>submitted, awaiting review</div><div style={{fontSize:11,color:totalSubmitted>0?T.warn:T.muted,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
-    approved:  <button onClick={()=>onViewList("approved")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${T.teal}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Approved</div><div style={{fontSize:24,fontWeight:700,color:T.teal,fontFamily:"Good Headline Pro"}}>{totalApproved}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>approved by approver</div><div style={{fontSize:11,color:T.teal,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
-    declined:  <button onClick={()=>onViewList("declined")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalNotApproved>0?T.red:T.muted}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Not Approved</div><div style={{fontSize:24,fontWeight:700,color:totalNotApproved>0?T.red:T.muted,fontFamily:"Good Headline Pro"}}>{totalNotApproved}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>declined by approver</div><div style={{fontSize:11,color:totalNotApproved>0?T.red:T.muted,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
+    submitted: <button onClick={()=>onViewList("submitted")} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalSubmitted>0?T.warn:T.muted}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Pending</div><div style={{fontSize:24,fontWeight:800,color:totalSubmitted>0?T.warn:T.muted,fontFamily:"Good Headline Pro"}}>{totalSubmitted}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>submitted, awaiting review</div><div style={{fontSize:11,color:totalSubmitted>0?T.warn:T.muted,marginTop:6,fontWeight:800}}>View list →</div></Card></button>,
+    approved:  <button onClick={()=>onViewList("approved")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${T.teal}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Approved</div><div style={{fontSize:24,fontWeight:800,color:T.teal,fontFamily:"Good Headline Pro"}}>{totalApproved}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>approved by approver</div><div style={{fontSize:11,color:T.teal,marginTop:6,fontWeight:800}}>View list →</div></Card></button>,
+    declined:  <button onClick={()=>onViewList("declined")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalNotApproved>0?T.red:T.muted}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Not Approved</div><div style={{fontSize:24,fontWeight:800,color:totalNotApproved>0?T.red:T.muted,fontFamily:"Good Headline Pro"}}>{totalNotApproved}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>declined by approver</div><div style={{fontSize:11,color:totalNotApproved>0?T.red:T.muted,marginTop:6,fontWeight:800}}>View list →</div></Card></button>,
     timesheets: (
       <button onClick={onViewTimesheets} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
         onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
         <Card style={{paddingBlock:18,border:`1.5px solid ${T.teal}44`,height:"100%"}}>
           <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Timesheets</div>
           <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:2}}>
-            <div style={{fontSize:24,fontWeight:700,color:T.teal,fontFamily:"Good Headline Pro"}}>{activeApps}</div>
+            <div style={{fontSize:24,fontWeight:800,color:T.teal,fontFamily:"Good Headline Pro"}}>{activeApps}</div>
             <div style={{fontSize:11,color:T.muted}}>/ {apprentices.length}</div>
           </div>
           <div style={{fontSize:11,color:T.sub,marginTop:2}}>apprentices with entries</div>
           {pendingCount>0
-            ? <div style={{fontSize:11,color:T.warn,marginTop:6,fontWeight:600}}>⚠ {pendingCount} pending review</div>
-            : <div style={{fontSize:11,color:T.teal,marginTop:6,fontWeight:600}}>View timesheets →</div>
+            ? <div style={{fontSize:11,color:T.warn,marginTop:6,fontWeight:800}}>⚠ {pendingCount} pending review</div>
+            : <div style={{fontSize:11,color:T.teal,marginTop:6,fontWeight:800}}>View timesheets →</div>
           }
         </Card>
       </button>
@@ -6477,15 +6477,15 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
         onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
         <Card style={{paddingBlock:18,border:`1.5px solid ${leaveStats.pending>0||leaveStats.approver_approved>0?T.warn:T.hol}44`,height:"100%"}}>
           <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Leave Requests</div>
-          <div style={{fontSize:24,fontWeight:700,color:leaveStats.pending>0||leaveStats.approver_approved>0?T.warn:T.hol,fontFamily:"Good Headline Pro",marginBottom:4}}>{leaveStats.total}</div>
+          <div style={{fontSize:24,fontWeight:800,color:leaveStats.pending>0||leaveStats.approver_approved>0?T.warn:T.hol,fontFamily:"Good Headline Pro",marginBottom:4}}>{leaveStats.total}</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
-            {leaveStats.pending>0           && <span style={{fontSize:10,fontWeight:700,color:"#b86e1a",background:"#faebd7",borderRadius:99,padding:"2px 7px"}}>{leaveStats.pending} approver</span>}
-            {leaveStats.approver_approved>0 && <span style={{fontSize:10,fontWeight:700,color:"#1b4f8c",background:"#dce8f7",borderRadius:99,padding:"2px 7px"}}>{leaveStats.approver_approved} KTA</span>}
-            {leaveStats.kta_approved>0      && <span style={{fontSize:10,fontWeight:700,color:"#1a6b3a",background:"#d4f0e0",borderRadius:99,padding:"2px 7px"}}>{leaveStats.kta_approved} approved</span>}
-            {leaveStats.declined>0          && <span style={{fontSize:10,fontWeight:700,color:"#bf2b2b",background:"#fde8e8",borderRadius:99,padding:"2px 7px"}}>{leaveStats.declined} declined</span>}
+            {leaveStats.pending>0           && <span style={{fontSize:10,fontWeight:800,color:"#b86e1a",background:"#faebd7",borderRadius:99,padding:"2px 7px"}}>{leaveStats.pending} approver</span>}
+            {leaveStats.approver_approved>0 && <span style={{fontSize:10,fontWeight:800,color:"#1b4f8c",background:"#dce8f7",borderRadius:99,padding:"2px 7px"}}>{leaveStats.approver_approved} KTA</span>}
+            {leaveStats.kta_approved>0      && <span style={{fontSize:10,fontWeight:800,color:"#1a6b3a",background:"#d4f0e0",borderRadius:99,padding:"2px 7px"}}>{leaveStats.kta_approved} approved</span>}
+            {leaveStats.declined>0          && <span style={{fontSize:10,fontWeight:800,color:"#bf2b2b",background:"#fde8e8",borderRadius:99,padding:"2px 7px"}}>{leaveStats.declined} declined</span>}
             {leaveStats.total===0           && <span style={{fontSize:11,color:T.muted}}>no requests</span>}
           </div>
-          <div style={{fontSize:11,color:T.hol,marginTop:6,fontWeight:600}}>View & manage →</div>
+          <div style={{fontSize:11,color:T.hol,marginTop:6,fontWeight:800}}>View & manage →</div>
         </Card>
       </button>
     ),
@@ -6532,7 +6532,7 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
                     <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{label}</div>
                     <div style={{fontSize:28,marginBottom:4,color}}>{icon}</div>
                     <div style={{fontSize:11,color:T.sub}}>{sub}</div>
-                    <div style={{fontSize:11,color,marginTop:6,fontWeight:600}}>View & manage →</div>
+                    <div style={{fontSize:11,color,marginTop:6,fontWeight:800}}>View & manage →</div>
                   </Card>
                 </button>
               </div>
@@ -6588,7 +6588,7 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
         🔔
         {unread>0&&(
           <span style={{position:"absolute",top:0,right:2,background:T.red,color:"#fff",
-            borderRadius:99,fontSize:10,fontWeight:700,padding:"1px 5px",lineHeight:"14px",
+            borderRadius:99,fontSize:10,fontWeight:800,padding:"1px 5px",lineHeight:"14px",
             minWidth:16,textAlign:"center"}}>
             {unread>9?"9+":unread}
           </span>
@@ -6601,10 +6601,10 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
           {/* Header */}
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
             padding:"12px 16px",borderBottom:`1px solid ${T.border}`,background:T.bg}}>
-            <div style={{fontWeight:700,fontSize:13}}>Notifications {unread>0&&<span style={{color:T.red}}>({unread})</span>}</div>
+            <div style={{fontWeight:800,fontSize:13}}>Notifications {unread>0&&<span style={{color:T.red}}>({unread})</span>}</div>
             {unread>0&&(
               <button onClick={onReadAll} style={{fontSize:11,color:T.blue,background:"none",
-                border:"none",cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",fontWeight:600}}>
+                border:"none",cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",fontWeight:800}}>
                 Mark all read
               </button>
             )}
@@ -6632,7 +6632,7 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
                       {n.created_by&&n.type!=="reply"&&(
                         <button onClick={e=>{e.stopPropagation();setReplyId(replyId===n.id?null:n.id);setReplyText("");}}
                           style={{fontSize:11,color:T.teal,background:replyId===n.id?T.tealL:"none",border:"none",cursor:"pointer",
-                            fontFamily:"Good Headline Pro,sans-serif",fontWeight:600,padding:"2px 6px",borderRadius:4}}>
+                            fontFamily:"Good Headline Pro,sans-serif",fontWeight:800,padding:"2px 6px",borderRadius:4}}>
                           ↩ Reply
                         </button>
                       )}
@@ -6661,7 +6661,7 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
                     />
                     <div style={{display:"flex",gap:6,marginTop:6}}>
                       <button onClick={()=>handleReply(n)} disabled={!replyText.trim()} style={{
-                        fontSize:12,fontWeight:600,padding:"6px 14px",borderRadius:6,
+                        fontSize:12,fontWeight:800,padding:"6px 14px",borderRadius:6,
                         background:replyText.trim()?T.teal:"#ccc",color:"#fff",border:"none",
                         cursor:replyText.trim()?"pointer":"default",fontFamily:"Good Headline Pro,sans-serif"}}>
                         Send Reply
@@ -6720,7 +6720,7 @@ const LeaveStatusStepper = ({ status }) => {
                 background: declined && i===0 ? "#fde8e8" : done ? color : "#f0f4f9",
                 border:`2px solid ${declined&&i===0?"#bf2b2b":done?color:"#d0daea"}`,
                 display:"flex",alignItems:"center",justifyContent:"center",
-                fontSize:11,fontWeight:700,color:declined&&i===0?"#bf2b2b":textCol,
+                fontSize:11,fontWeight:800,color:declined&&i===0?"#bf2b2b":textCol,
                 boxShadow:current?"0 0 0 3px "+color+"33":"none",
                 transition:"all .2s",
               }}>
@@ -6748,7 +6748,7 @@ const sendLeaveEmail = async ({ to, toName, subject, html }) => {
 const leaveEmailHtml = (title, body) => `
 <div style="font-family:"Good Headline Pro",sans-serif;max-width:600px;margin:0 auto;background:#f0f4f9;padding:24px">
   <div style="background:#1b4f8c;borderRadius:10px;padding:18px 24px;margin-bottom:0;border-radius:10px 10px 0 0">
-    <div style="color:#fff;font-size:18px;font-weight:700">KTA Leave Request</div>
+    <div style="color:#fff;font-size:18px;font-weight:800">KTA Leave Request</div>
     <div style="color:#dce8f7;font-size:12px;margin-top:4px">Kiwi Trade Apprentices</div>
   </div>
   <div style="background:#fff;padding:24px;border-radius:0 0 10px 10px;border:1px solid #d0daea">
@@ -6761,12 +6761,12 @@ const leaveEmailHtml = (title, body) => `
 
 const leaveDetailTable = (req, apprenticeName, approverName) => `
 <table style="width:100%;border-collapse:collapse;font-size:13px;margin:16px 0">
-  <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:700;width:40%">Apprentice</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${apprenticeName}</td></tr>
-  <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:700">Leave Type</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${req.leave_type}</td></tr>
-  <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:700">From</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${fmtDateNZ(req.date_from)}</td></tr>
-  <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:700">To</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${fmtDateNZ(req.date_to)}</td></tr>
-  <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:700">Approver</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${approverName}</td></tr>
-  ${req.notes ? `<tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:700">Notes</td><td style="padding:8px 12px">${req.notes}</td></tr>` : ""}
+  <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:800;width:40%">Apprentice</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${apprenticeName}</td></tr>
+  <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:800">Leave Type</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${req.leave_type}</td></tr>
+  <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:800">From</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${fmtDateNZ(req.date_from)}</td></tr>
+  <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:800">To</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${fmtDateNZ(req.date_to)}</td></tr>
+  <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:800">Approver</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${approverName}</td></tr>
+  ${req.notes ? `<tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:800">Notes</td><td style="padding:8px 12px">${req.notes}</td></tr>` : ""}
 </table>`;
 
 // Async — call with await, embed result in email HTML
@@ -6775,8 +6775,8 @@ const leaveActionButtons = async (leaveId, actorId, actorRole) => {
   const decUrl = await leaveActionUrl(leaveId, "decline", actorId, actorRole);
   return `
 <div style="margin:24px 0;display:flex;gap:12px;flex-wrap:wrap">
-  <a href="${appUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:8px;padding:12px 28px;font-size:14px;font-weight:700;text-decoration:none;font-family:"Good Headline Pro",Arial,sans-serif">✓ Approve Leave</a>
-  <a href="${decUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:8px;padding:12px 28px;font-size:14px;font-weight:700;text-decoration:none;font-family:"Good Headline Pro",Arial,sans-serif">✕ Decline Leave</a>
+  <a href="${appUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:8px;padding:12px 28px;font-size:14px;font-weight:800;text-decoration:none;font-family:"Good Headline Pro",Arial,sans-serif">✓ Approve Leave</a>
+  <a href="${decUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:8px;padding:12px 28px;font-size:14px;font-weight:800;text-decoration:none;font-family:"Good Headline Pro",Arial,sans-serif">✕ Decline Leave</a>
 </div>
 <p style="font-size:11px;color:#8fa0b8;margin-top:4px">These buttons record your response immediately — no login required. Links expire in 7 days.</p>`;
 };
@@ -6850,7 +6850,7 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
   if(done) return (
     <div style={{textAlign:"center",padding:"32px 16px"}}>
       <div style={{fontSize:36,marginBottom:12}}>✅</div>
-      <div style={{fontWeight:700,fontSize:16,color:T.teal}}>Leave request submitted!</div>
+      <div style={{fontWeight:800,fontSize:16,color:T.teal}}>Leave request submitted!</div>
       <div style={{fontSize:13,color:T.sub,marginTop:6}}>
         {approver?.email ? `An email has been sent to ${approver.name}.` : "No approver email found — please notify your approver directly."}
       </div>
@@ -6863,11 +6863,11 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
         <div style={{background:T.bg,borderRadius:8,padding:"10px 14px"}}>
           <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3}}>Apprentice</div>
-          <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{currentUser.name}</div>
+          <div style={{fontWeight:800,fontSize:14,color:T.ink}}>{currentUser.name}</div>
         </div>
         <div style={{background:T.bg,borderRadius:8,padding:"10px 14px"}}>
           <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3}}>Approver</div>
-          <div style={{fontWeight:700,fontSize:14,color:approver?T.ink:T.warn}}>
+          <div style={{fontWeight:800,fontSize:14,color:approver?T.ink:T.warn}}>
             {approver ? approver.name : "⚠ No approver assigned"}
           </div>
         </div>
@@ -6876,12 +6876,12 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
       {/* Dates */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
         <div>
-          <label style={{fontSize:12,fontWeight:600,color:T.sub,display:"block",marginBottom:5}}>Leave Starting *</label>
+          <label style={{fontSize:12,fontWeight:800,color:T.sub,display:"block",marginBottom:5}}>Leave Starting *</label>
           <input type="date" value={form.dateFrom} onChange={e=>sf("dateFrom",e.target.value)}
             style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,fontFamily:"Good Headline Pro,sans-serif",color:T.ink,outline:"none",boxSizing:"border-box"}}/>
         </div>
         <div>
-          <label style={{fontSize:12,fontWeight:600,color:T.sub,display:"block",marginBottom:5}}>Leave Finishing *</label>
+          <label style={{fontSize:12,fontWeight:800,color:T.sub,display:"block",marginBottom:5}}>Leave Finishing *</label>
           <input type="date" value={form.dateTo} onChange={e=>sf("dateTo",e.target.value)}
             style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,fontFamily:"Good Headline Pro,sans-serif",color:T.ink,outline:"none",boxSizing:"border-box"}}/>
         </div>
@@ -6889,7 +6889,7 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
 
       {/* Leave type */}
       <div style={{marginBottom:14}}>
-        <label style={{fontSize:12,fontWeight:600,color:T.sub,display:"block",marginBottom:5}}>Type of Leave *</label>
+        <label style={{fontSize:12,fontWeight:800,color:T.sub,display:"block",marginBottom:5}}>Type of Leave *</label>
         <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
           {LEAVE_TYPES.map(t=>(
             <button key={t} onClick={()=>sf("leaveType",t)}
@@ -6906,7 +6906,7 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
 
       {/* Notes */}
       <div style={{marginBottom:16}}>
-        <label style={{fontSize:12,fontWeight:600,color:T.sub,display:"block",marginBottom:5}}>Additional Notes</label>
+        <label style={{fontSize:12,fontWeight:800,color:T.sub,display:"block",marginBottom:5}}>Additional Notes</label>
         <textarea value={form.notes} onChange={e=>sf("notes",e.target.value)} rows={3}
           placeholder="Any additional details about your leave request…"
           style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,fontFamily:"Good Headline Pro,sans-serif",color:T.ink,outline:"none",resize:"vertical",boxSizing:"border-box",lineHeight:1.6}}/>
@@ -6957,7 +6957,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
             `Your leave request has been approved by <strong>${currentUser.name}</strong> and forwarded to KTA for final approval.`,
             leaveDetailTable(req, apprentice.name, approver.name) +
             `<div style="background:#d4f0ec;border-radius:8px;padding:12px 16px;margin:14px 0;border-left:4px solid #1a8a7a">
-              <div style="font-weight:700;font-size:12px;color:#1a8a7a;margin-bottom:4px">✓ Stage 1 of 2 Complete</div>
+              <div style="font-weight:800;font-size:12px;color:#1a8a7a;margin-bottom:4px">✓ Stage 1 of 2 Complete</div>
               <div style="font-size:12px;color:#0d1b2e">Approver approved. Awaiting KTA final approval.</div>
             </div>`
           ),
@@ -6993,7 +6993,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
             `Your leave request has been <strong>fully approved by KTA</strong>. Enjoy your time off! 🎉`,
             leaveDetailTable(req, apprentice.name, approver.name) +
             `<div style="background:#dce8f7;border-radius:8px;padding:12px 16px;margin:14px 0;border-left:4px solid #1b4f8c">
-              <div style="font-weight:700;font-size:12px;color:#1b4f8c;margin-bottom:4px">★ Fully Approved</div>
+              <div style="font-weight:800;font-size:12px;color:#1b4f8c;margin-bottom:4px">★ Fully Approved</div>
               <div style="font-size:12px;color:#0d1b2e">Both approver and KTA have approved your leave.</div>
             </div>`
           ),
@@ -7036,7 +7036,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
           `Your leave request for <strong>${req.leave_type}</strong> (${fmtDateNZ(req.date_from)} – ${fmtDateNZ(req.date_to)}) has been <strong>declined</strong> by <strong>${currentUser.name}</strong>.`,
           leaveDetailTable(req, apprentice.name, approver.name) +
           `<div style="background:#fde8e8;border-radius:8px;padding:12px 16px;margin:14px 0;border-left:4px solid #bf2b2b">
-            <div style="font-weight:700;font-size:12px;color:#bf2b2b;margin-bottom:4px">Reason for Decline</div>
+            <div style="font-weight:800;font-size:12px;color:#bf2b2b;margin-bottom:4px">Reason for Decline</div>
             <div style="font-size:12px;color:#0d1b2e">${declineReason.trim()}</div>
           </div>
           <p style="font-size:12px;color:#4a5a72">Please contact <strong>${currentUser.name}</strong> for further information.</p>`
@@ -7051,7 +7051,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
         `A leave request from <strong>${apprentice.name}</strong> has been <strong>declined</strong> by <strong>${currentUser.name}</strong>.`,
         leaveDetailTable(req, apprentice.name, approver.name) +
         `<div style="background:#fde8e8;border-radius:8px;padding:12px 16px;margin:14px 0;border-left:4px solid #bf2b2b">
-          <div style="font-weight:700;font-size:12px;color:#bf2b2b;margin-bottom:4px">Reason for Decline</div>
+          <div style="font-weight:800;font-size:12px;color:#bf2b2b;margin-bottom:4px">Reason for Decline</div>
           <div style="font-size:12px;color:#0d1b2e">${declineReason.trim()}</div>
         </div>
         <p style="font-size:12px;color:#4a5a72">The apprentice has been notified.</p>`
@@ -7080,8 +7080,8 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
         <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
-            <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{apprentice.name}</div>
-            <span style={{background:T.bg,color:T.sub,borderRadius:99,padding:"2px 10px",fontSize:11,fontWeight:600}}>
+            <div style={{fontWeight:800,fontSize:14,color:T.ink}}>{apprentice.name}</div>
+            <span style={{background:T.bg,color:T.sub,borderRadius:99,padding:"2px 10px",fontSize:11,fontWeight:800}}>
               {req.leave_type}
             </span>
           </div>
@@ -7100,13 +7100,13 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
           <div style={{display:"flex",gap:6,flexShrink:0}}>
             {canApprove && (
               <button onClick={approve} disabled={acting}
-                style={{background:T.teal,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",opacity:acting?.6:1}}>
+                style={{background:T.teal,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",opacity:acting?.6:1}}>
                 {acting?"…":"✓ Approve"}
               </button>
             )}
             {canDecline && !acting && (
               <button onClick={()=>{setDeclineMode(true);setDeclineReason("");setReasonErr("");}}
-                style={{background:T.redL,color:T.red,border:`1.5px solid ${T.red}44`,borderRadius:7,padding:"7px 14px",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>
+                style={{background:T.redL,color:T.red,border:`1.5px solid ${T.red}44`,borderRadius:7,padding:"7px 14px",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>
                 ✕ Decline
               </button>
             )}
@@ -7129,14 +7129,14 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
       <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${T.border}`}}>
         <LeaveStatusStepper status={req.status}/>
         {fillMsg && (
-          <div style={{marginTop:6,fontSize:11,color:T.teal,fontWeight:600}}>{fillMsg}</div>
+          <div style={{marginTop:6,fontSize:11,color:T.teal,fontWeight:800}}>{fillMsg}</div>
         )}
       </div>
 
       {/* Inline decline reason form */}
       {declineMode && (
         <div style={{marginTop:12,padding:"12px 14px",background:T.redL,borderRadius:9,border:`1px solid ${T.red}33`}}>
-          <div style={{fontWeight:700,fontSize:12,color:T.red,marginBottom:8}}>✕ Decline — Reason Required</div>
+          <div style={{fontWeight:800,fontSize:12,color:T.red,marginBottom:8}}>✕ Decline — Reason Required</div>
           <textarea
             value={declineReason}
             onChange={e=>{setDeclineReason(e.target.value);setReasonErr("");}}
@@ -7147,7 +7147,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
           {reasonErr && <div style={{fontSize:11,color:T.red,marginBottom:6}}>{reasonErr}</div>}
           <div style={{display:"flex",gap:8,marginTop:6}}>
             <button onClick={submitDecline} disabled={acting}
-              style={{background:T.red,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",opacity:acting?.6:1}}>
+              style={{background:T.red,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",opacity:acting?.6:1}}>
               {acting?"…":"Confirm Decline"}
             </button>
             <button onClick={()=>setDeclineMode(false)} disabled={acting}
@@ -7175,7 +7175,7 @@ function LeaveToggleCard({ currentUser, allUsers }) {
           <div style={{width:36, height:36, borderRadius:10, background:T.accentL,
             display:"flex", alignItems:"center", justifyContent:"center", fontSize:18}}>🏖️</div>
           <div style={{flex:1}}>
-            <div style={{fontWeight:700, fontSize:15}}>Apply for Leave</div>
+            <div style={{fontWeight:800, fontSize:15}}>Apply for Leave</div>
             <div style={{fontSize:12, color:T.sub}}>Submit a leave request to your approver</div>
           </div>
           <div style={{fontSize:13, color:T.muted, marginLeft:"auto"}}>{open ? "▲" : "▼"}</div>
@@ -7195,7 +7195,7 @@ function LeaveToggleCard({ currentUser, allUsers }) {
       {open && submitted && (
         <div style={{marginTop:18, borderTop:`1px solid ${T.border}`, paddingTop:18, textAlign:"center", padding:"24px 16px"}}>
           <div style={{fontSize:32, marginBottom:10}}>✅</div>
-          <div style={{fontWeight:700, color:T.teal, fontSize:15}}>Leave request submitted!</div>
+          <div style={{fontWeight:800, color:T.teal, fontSize:15}}>Leave request submitted!</div>
         </div>
       )}
     </Card>
@@ -7234,7 +7234,7 @@ function LeaveRequestsListPage({ currentUser, allUsers, entries, setEntries }) {
   if(requests.length===0) return (
     <Card style={{textAlign:"center",padding:"52px 24px"}}>
       <div style={{fontSize:36,marginBottom:10}}>🏖️</div>
-      <div style={{fontWeight:600,fontSize:15}}>No leave requests yet</div>
+      <div style={{fontWeight:800,fontSize:15}}>No leave requests yet</div>
       <div style={{fontSize:13,color:T.sub,marginTop:6}}>Approved leave requests will appear here.</div>
     </Card>
   );
@@ -7288,7 +7288,7 @@ function LeaveOverviewCard({ allUsers }) {
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
         <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🏖️</div>
         <div style={{flex:1}}>
-          <div style={{fontFamily:"Good Headline Pro",fontWeight:700,fontSize:16}}>Leave Requests</div>
+          <div style={{fontFamily:"Good Headline Pro",fontWeight:800,fontSize:16}}>Leave Requests</div>
           <div style={{fontSize:12,color:T.sub,marginTop:2}}>{requests.length} request{requests.length!==1?"s":""} — click a row to manage in the panel below</div>
         </div>
         <button onClick={load} title="Refresh" style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:T.muted,padding:4}}>↻</button>
@@ -7298,7 +7298,7 @@ function LeaveOverviewCard({ allUsers }) {
       <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:12}}>
         {Object.entries(STATUS).map(([k,v])=>(
           <span key={k} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,
-            color:v.color,background:v.bg,borderRadius:99,padding:"3px 10px",fontWeight:600,
+            color:v.color,background:v.bg,borderRadius:99,padding:"3px 10px",fontWeight:800,
             border:`1px solid ${v.color}33`}}>
             <span style={{width:7,height:7,borderRadius:"50%",background:v.color,display:"inline-block"}}/>
             {v.label}
@@ -7312,7 +7312,7 @@ function LeaveOverviewCard({ allUsers }) {
           <thead>
             <tr style={{background:T.bg}}>
               {["Apprentice","Leave Type","Start","End","Status"].map(h=>(
-                <th key={h} style={{padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:700,
+                <th key={h} style={{padding:"8px 12px",textAlign:"left",fontSize:10,fontWeight:800,
                   color:T.muted,textTransform:"uppercase",letterSpacing:".6px",
                   borderBottom:`1.5px solid ${T.border}`,whiteSpace:"nowrap"}}>
                   {h}
@@ -7331,7 +7331,7 @@ function LeaveOverviewCard({ allUsers }) {
                   onMouseEnter={e=>e.currentTarget.style.background=s.bg}
                   onMouseLeave={e=>e.currentTarget.style.background=i%2===0?T.surface:T.bg}>
                   {/* Apprentice */}
-                  <td style={{padding:"10px 12px",fontWeight:600,color:T.ink,whiteSpace:"nowrap"}}>
+                  <td style={{padding:"10px 12px",fontWeight:800,color:T.ink,whiteSpace:"nowrap"}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                       <Avatar name={getName(r.apprentice_id)} role="Apprentice" size={26}/>
                       {getName(r.apprentice_id)}
@@ -7347,7 +7347,7 @@ function LeaveOverviewCard({ allUsers }) {
                   <td style={{padding:"10px 12px",whiteSpace:"nowrap"}}>
                     <span style={{display:"inline-flex",alignItems:"center",gap:5,
                       background:s.bg,color:s.color,border:`1px solid ${s.color}44`,
-                      borderRadius:99,padding:"3px 10px",fontSize:11,fontWeight:700}}>
+                      borderRadius:99,padding:"3px 10px",fontSize:11,fontWeight:800}}>
                       <span style={{width:7,height:7,borderRadius:"50%",background:s.color,display:"inline-block"}}/>
                       {s.label}
                     </span>
@@ -7444,7 +7444,7 @@ function LeaveRequestsPanel({ currentUser, allUsers, entries=[], setEntries=null
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
         <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🏖️</div>
         <div style={{flex:1}}>
-          <div style={{fontFamily:"Good Headline Pro",fontWeight:700,fontSize:16}}>Leave Requests</div>
+          <div style={{fontFamily:"Good Headline Pro",fontWeight:800,fontSize:16}}>Leave Requests</div>
           <div style={{fontSize:12,color:T.sub,marginTop:2}}>{isViewer?"View apprentice leave applications":"Review and approve apprentice leave applications"}</div>
         </div>
         <button onClick={load} title="Refresh" style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:T.muted,padding:4}}>↻</button>
@@ -7454,12 +7454,12 @@ function LeaveRequestsPanel({ currentUser, allUsers, entries=[], setEntries=null
         {TAB_CONFIG.map(tc => (
           <button key={tc.id} onClick={()=>setTab(tc.id)}
             style={{padding:"5px 12px",borderRadius:8,border:`1.5px solid ${tab===tc.id?tc.color:T.border}`,
-              cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",fontSize:11,fontWeight:600,
+              cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",fontSize:11,fontWeight:800,
               background:tab===tc.id?tc.color:T.surface,
               color:tab===tc.id?"#fff":tc.list.length>0?tc.color:T.muted,
               transition:"all .12s"}}>
             {tc.label}
-            {tc.list.length>0 && <span style={{marginLeft:5,background:tab===tc.id?"rgba(255,255,255,.25)":tc.color+"22",borderRadius:99,padding:"1px 7px",fontSize:10,fontWeight:700}}>{tc.list.length}</span>}
+            {tc.list.length>0 && <span style={{marginLeft:5,background:tab===tc.id?"rgba(255,255,255,.25)":tc.color+"22",borderRadius:99,padding:"1px 7px",fontSize:10,fontWeight:800}}>{tc.list.length}</span>}
           </button>
         ))}
       </div>
@@ -7500,7 +7500,7 @@ function MyLeaveRequests({ currentUser }) {
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:32,height:32,borderRadius:8,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>📋</div>
-          <div style={{fontWeight:700,fontSize:15}}>My Leave Requests</div>
+          <div style={{fontWeight:800,fontSize:15}}>My Leave Requests</div>
         </div>
         <button onClick={load} title="Refresh" style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:T.muted}}>↻</button>
       </div>
@@ -7515,20 +7515,20 @@ function MyLeaveRequests({ currentUser }) {
             {/* Header row */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap",marginBottom:6}}>
               <div>
-                <div style={{fontWeight:700,fontSize:13,color:T.ink}}>{r.leave_type}</div>
+                <div style={{fontWeight:800,fontSize:13,color:T.ink}}>{r.leave_type}</div>
                 <div style={{fontSize:12,color:T.sub,marginTop:2}}>
                   📅 {fmtDateNZ(r.date_from)} → {fmtDateNZ(r.date_to)}
                 </div>
                 {r.notes && <div style={{fontSize:11,color:T.muted,marginTop:2,fontStyle:"italic"}}>"{r.notes}"</div>}
               </div>
-              <span style={{background:meta.bg,color:meta.color,borderRadius:99,padding:"3px 12px",fontSize:11,fontWeight:700,flexShrink:0,whiteSpace:"nowrap"}}>
+              <span style={{background:meta.bg,color:meta.color,borderRadius:99,padding:"3px 12px",fontSize:11,fontWeight:800,flexShrink:0,whiteSpace:"nowrap"}}>
                 {meta.sym} {meta.label}
               </span>
             </div>
             {/* Decline reason — shown if declined */}
             {r.status==="declined" && r.decline_reason && (
               <div style={{background:T.redL,border:`1px solid ${T.red}22`,borderRadius:7,padding:"7px 10px",fontSize:12,color:T.red,marginBottom:6}}>
-                <span style={{fontWeight:700}}>Reason: </span>{r.decline_reason}
+                <span style={{fontWeight:800}}>Reason: </span>{r.decline_reason}
               </div>
             )}
             {/* Progress stepper */}
@@ -7597,7 +7597,7 @@ function ContactUs({currentUser, allUsers, onSend}) {
         <div style={{width:36,height:36,borderRadius:10,background:T.accentL,
           display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📞</div>
         <div>
-          <div style={{fontWeight:700,fontSize:15}}>Contact Us</div>
+          <div style={{fontWeight:800,fontSize:15}}>Contact Us</div>
           <div style={{fontSize:12,color:T.sub}}>Get in touch with your KTA team</div>
         </div>
       </div>
@@ -7614,11 +7614,11 @@ function ContactUs({currentUser, allUsers, onSend}) {
               display:"flex",alignItems:"center",gap:12}}>
             <div style={{width:44,height:44,borderRadius:99,background:person.color,
               display:"flex",alignItems:"center",justifyContent:"center",
-              color:"#fff",fontWeight:700,fontSize:14,flexShrink:0}}>
+              color:"#fff",fontWeight:800,fontSize:14,flexShrink:0}}>
               {person.avatar}
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{person.name}</div>
+              <div style={{fontWeight:800,fontSize:14,color:T.ink}}>{person.name}</div>
               <div style={{marginTop:3}}><RolePill role={person.role} size="sm"/></div>
             </div>
             {selectedId===person.id
@@ -7632,7 +7632,7 @@ function ContactUs({currentUser, allUsers, onSend}) {
       {/* Contact options */}
       {selected&&!msgMode&&!sent&&(
         <div className="fu" style={{background:T.bg,borderRadius:10,padding:14}}>
-          <div style={{fontSize:12,fontWeight:600,color:T.sub,marginBottom:10,textTransform:"uppercase",letterSpacing:".5px"}}>
+          <div style={{fontSize:12,fontWeight:800,color:T.sub,marginBottom:10,textTransform:"uppercase",letterSpacing:".5px"}}>
             How would you like to reach {selected.name.split(" ")[0]}?
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -7645,7 +7645,7 @@ function ContactUs({currentUser, allUsers, onSend}) {
                 onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
                 <span style={{fontSize:20}}>📱</span>
                 <div>
-                  <div style={{fontSize:13,fontWeight:600}}>Call</div>
+                  <div style={{fontSize:13,fontWeight:800}}>Call</div>
                   <div style={{fontSize:12,color:T.sub}}>{selected.phone}</div>
                 </div>
               </a>
@@ -7659,7 +7659,7 @@ function ContactUs({currentUser, allUsers, onSend}) {
                 onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
                 <span style={{fontSize:20}}>✉️</span>
                 <div>
-                  <div style={{fontSize:13,fontWeight:600}}>Email</div>
+                  <div style={{fontSize:13,fontWeight:800}}>Email</div>
                   <div style={{fontSize:12,color:T.sub}}>{selected.email}</div>
                 </div>
               </a>
@@ -7678,7 +7678,7 @@ function ContactUs({currentUser, allUsers, onSend}) {
               onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
               <span style={{fontSize:20}}>💬</span>
               <div>
-                <div style={{fontSize:13,fontWeight:600}}>Message in App</div>
+                <div style={{fontSize:13,fontWeight:800}}>Message in App</div>
                 <div style={{fontSize:12,color:T.sub}}>Send a message via the KTA app</div>
               </div>
             </button>
@@ -7689,7 +7689,7 @@ function ContactUs({currentUser, allUsers, onSend}) {
       {/* In-app message composer */}
       {selected&&msgMode&&!sent&&(
         <div className="fu" style={{background:T.bg,borderRadius:10,padding:14}}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>
+          <div style={{fontSize:13,fontWeight:800,marginBottom:8}}>
             Message to {selected.name}
           </div>
           <textarea
@@ -7715,7 +7715,7 @@ function ContactUs({currentUser, allUsers, onSend}) {
       {sent&&(
         <div className="fu" style={{background:T.accentL,borderRadius:10,padding:16,textAlign:"center"}}>
           <div style={{fontSize:20,marginBottom:4}}>✓</div>
-          <div style={{fontWeight:700,color:T.accent,fontSize:14}}>Message sent!</div>
+          <div style={{fontWeight:800,color:T.accent,fontSize:14}}>Message sent!</div>
           <div style={{fontSize:12,color:T.sub,marginTop:2}}>{selected?.name} will get back to you soon.</div>
         </div>
       )}
@@ -7857,7 +7857,7 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
           <div style={{display:"flex", alignItems:"center", gap:12}}>
             <div style={{fontSize:20}}>📋</div>
             <div>
-              <div style={{fontWeight:700, fontSize:15, color:"#fff"}}>New Meeting Report</div>
+              <div style={{fontWeight:800, fontSize:15, color:"#fff"}}>New Meeting Report</div>
               <div style={{fontSize:11, color:"rgba(255,255,255,.65)"}}>{apprentice.name}</div>
             </div>
           </div>
@@ -7870,7 +7870,7 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
                 background: showPast ? T.gold : "rgba(255,255,255,.12)",
                 border: `1.5px solid ${showPast ? T.gold : "rgba(255,255,255,.25)"}`,
                 borderRadius:8, padding:"6px 14px", cursor:"pointer",
-                color: showPast ? T.dark : "#fff", fontSize:12, fontWeight:600,
+                color: showPast ? T.dark : "#fff", fontSize:12, fontWeight:800,
                 fontFamily:"Good Headline Pro,sans-serif", transition:"all .15s",
               }}
             >
@@ -7884,7 +7884,7 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
               style={{
                 background:"rgba(255,255,255,.12)", border:"1.5px solid rgba(255,255,255,.25)",
                 borderRadius:8, padding:"6px 12px", cursor:"pointer",
-                color:"#fff", fontSize:13, fontWeight:600,
+                color:"#fff", fontSize:13, fontWeight:800,
                 fontFamily:"Good Headline Pro,sans-serif", transition:"all .15s",
               }}
             >✕ Cancel</button>
@@ -7918,7 +7918,7 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
         }}>
           <div style={{display:"flex", alignItems:"center", gap:8}}>
             <span style={{fontSize:16}}>📁</span>
-            <div style={{fontWeight:700, fontSize:14, color:T.gold}}>Past Reports</div>
+            <div style={{fontWeight:800, fontSize:14, color:T.gold}}>Past Reports</div>
           </div>
           <button onClick={() => setShowPast(false)} style={{
             background:"none", border:"none", cursor:"pointer", fontSize:16, color:T.gold, padding:4,
@@ -7944,7 +7944,7 @@ const ReportTA = ({rows=4, value, onChange, placeholder}) => (
 );
 const ReportSH = ({children, req}) => (
   <div style={{background:"#f5f7fa",border:`1px solid ${T.border}`,borderBottom:"none",
-    padding:"9px 12px",fontWeight:700,fontSize:13,color:T.ink,display:"flex",alignItems:"center",gap:5}}>
+    padding:"9px 12px",fontWeight:800,fontSize:13,color:T.ink,display:"flex",alignItems:"center",gap:5}}>
     {children}{req&&<span style={{color:T.red,fontSize:11,marginLeft:2}}>*</span>}
   </div>
 );
@@ -8075,7 +8075,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
       {/* KTA Header */}
       <div style={{background:T.dark,padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div>
-          <div style={{fontFamily:"Good Headline Pro",fontWeight:700,fontSize:16,color:"#fff"}}>Apprentice Check In Report</div>
+          <div style={{fontFamily:"Good Headline Pro",fontWeight:800,fontSize:16,color:"#fff"}}>Apprentice Check In Report</div>
           <div style={{fontSize:11,color:"#ffffff88",marginTop:2}}>Kiwi Trade Apprentices</div>
         </div>
         <img src={KTA_LOGO} alt="KTA" style={{height:36,objectFit:"contain",filter:"brightness(0) invert(1)"}}
@@ -8085,7 +8085,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
       {/* Top table — Trainee Name / Location / Date */}
       <div style={{border:`1px solid ${T.border}`,borderTop:"none"}}>
         {[
-          {label:"Trainee Name", content:<div style={{padding:"4px 6px",fontSize:13,fontWeight:600}}>{apprentice.name}</div>},
+          {label:"Trainee Name", content:<div style={{padding:"4px 6px",fontSize:13,fontWeight:800}}>{apprentice.name}</div>},
           {label:"Location",     content:<input value={form.location} onChange={e=>sf("location",e.target.value)}
             placeholder="e.g. Worksite, Zoom, Head Office"
             onKeyDown={e=>e.stopPropagation()}
@@ -8095,7 +8095,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
             style={{border:"none",fontSize:13,width:"100%",outline:"none",padding:"6px",fontFamily:"Good Headline Pro,sans-serif",background:"transparent",cursor:"pointer"}}/></div>},
         ].map(({label,content})=>(
           <div key={label} style={{display:"grid",gridTemplateColumns:"160px 1fr",borderBottom:`1px solid ${T.border}`}}>
-            <div style={{padding:"10px 12px",fontWeight:700,fontSize:13,borderRight:`1px solid ${T.border}`,background:"#f5f7fa"}}>{label}</div>
+            <div style={{padding:"10px 12px",fontWeight:800,fontSize:13,borderRight:`1px solid ${T.border}`,background:"#f5f7fa"}}>{label}</div>
             <div>{content}</div>
           </div>
         ))}
@@ -8128,15 +8128,15 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
       {/* Bottom table — Licence Expiry / Next Visit / KTA Rep */}
       <div style={{border:`1px solid ${T.border}`,borderTop:"none"}}>
         {[
-          {label:"Licence Expiry",      content:<div style={{padding:"6px",fontSize:13,fontWeight:600,
+          {label:"Licence Expiry",      content:<div style={{padding:"6px",fontSize:13,fontWeight:800,
             color: apprentice.licenceExpiry && new Date(apprentice.licenceExpiry+"T00:00:00")<new Date() ? T.red : T.ink}}>
             {apprentice.licenceExpiry ? fD(apprentice.licenceExpiry) : "Not set"}</div>},
           {label:"Date of Next Visit",  content:<input type="date" value={form.nextVisitDate} onChange={e=>sf("nextVisitDate",e.target.value)}
             style={{border:"none",fontSize:13,width:"100%",outline:"none",padding:"6px",fontFamily:"Good Headline Pro,sans-serif",background:"transparent"}}/>},
-          {label:"KTA Representative",  content:<div style={{padding:"6px",fontSize:13,fontWeight:600}}>{mentor.name}</div>},
+          {label:"KTA Representative",  content:<div style={{padding:"6px",fontSize:13,fontWeight:800}}>{mentor.name}</div>},
         ].map(({label,content})=>(
           <div key={label} style={{display:"grid",gridTemplateColumns:"180px 1fr",borderBottom:`1px solid ${T.border}`}}>
-            <div style={{padding:"10px 12px",fontWeight:700,fontSize:13,borderRight:`1px solid ${T.border}`,background:"#f5f7fa"}}>{label}</div>
+            <div style={{padding:"10px 12px",fontWeight:800,fontSize:13,borderRight:`1px solid ${T.border}`,background:"#f5f7fa"}}>{label}</div>
             <div>{content}</div>
           </div>
         ))}
@@ -8157,9 +8157,9 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
         </div>
         {/* ── Additional CC recipients ── */}
         <div style={{marginBottom:12}}>
-          <div style={{fontSize:12,fontWeight:700,color:T.sub,marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{fontSize:12,fontWeight:800,color:T.sub,marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <span>➕ Also send to</span>
-            <button onClick={()=>setShowAddEmail(s=>!s)} style={{fontSize:11,padding:"3px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:T.surface,color:T.sub,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",fontWeight:600}}>
+            <button onClick={()=>setShowAddEmail(s=>!s)} style={{fontSize:11,padding:"3px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:T.surface,color:T.sub,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",fontWeight:800}}>
               {showAddEmail?"✕ Close":"+ Add recipient"}
             </button>
           </div>
@@ -8168,9 +8168,9 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
           {ccEmails.length>0&&(
             <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
               {ccEmails.map(r=>(
-                <div key={r.email} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 10px",borderRadius:20,background:T.tealL,border:`1px solid ${T.teal}44`,fontSize:12,fontWeight:600,color:T.teal}}>
+                <div key={r.email} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 10px",borderRadius:20,background:T.tealL,border:`1px solid ${T.teal}44`,fontSize:12,fontWeight:800,color:T.teal}}>
                   <span>{r.name}</span>
-                  <span style={{fontSize:10,fontWeight:700,color:T.muted}}>({r.email})</span>
+                  <span style={{fontSize:10,fontWeight:800,color:T.muted}}>({r.email})</span>
                   <button onClick={()=>removeCc(r.email)} style={{background:"none",border:"none",cursor:"pointer",color:T.teal,fontSize:13,lineHeight:1,padding:0,fontFamily:"Good Headline Pro,sans-serif"}}>✕</button>
                 </div>
               ))}
@@ -8182,7 +8182,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
             <div style={{background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"12px 14px"}}>
               {companyContacts.length>0&&(
                 <div style={{marginBottom:10}}>
-                  <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>
+                  <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>
                     🏢 {apprentice.hostBusiness} Contacts
                   </div>
                   <div style={{display:"flex",flexDirection:"column",gap:4}}>
@@ -8196,12 +8196,12 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
                             background:already?T.tealL:"#fff",cursor:already?"default":"pointer",
                             fontFamily:"Good Headline Pro,sans-serif",textAlign:"left",transition:"all .12s"}}>
                           <div>
-                            <div style={{fontWeight:700,fontSize:13,color:T.ink}}>{c.name}</div>
+                            <div style={{fontWeight:800,fontSize:13,color:T.ink}}>{c.name}</div>
                             <div style={{fontSize:11,color:T.muted}}>{c.email}</div>
                           </div>
                           {already
-                            ? <span style={{fontSize:11,fontWeight:700,color:T.teal}}>✓ Added</span>
-                            : <span style={{fontSize:11,color:T.accent,fontWeight:600}}>+ Add</span>
+                            ? <span style={{fontSize:11,fontWeight:800,color:T.teal}}>✓ Added</span>
+                            : <span style={{fontSize:11,color:T.accent,fontWeight:800}}>+ Add</span>
                           }
                         </button>
                       );
@@ -8211,7 +8211,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
               )}
               {/* Type a new address */}
               <div style={{borderTop:companyContacts.length>0?`1px solid ${T.border}`:"none",paddingTop:companyContacts.length>0?10:0}}>
-                <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>
+                <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>
                   ✉ Enter email manually
                 </div>
                 <div style={{display:"flex",gap:6}}>
@@ -8239,7 +8239,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
           <Btn onClick={handleSave} disabled={saving}>{saving?"Saving…":"💾 Save & Email Report"}</Btn>
           {!emailStatus&&(
             <button onClick={handleSaveDraft} disabled={savingDraft}
-              style={{padding:"9px 18px",borderRadius:9,fontSize:13,fontWeight:600,cursor:"pointer",
+              style={{padding:"9px 18px",borderRadius:9,fontSize:13,fontWeight:800,cursor:"pointer",
                 background:T.surface,color:T.sub,border:`1.5px solid ${T.border}`,
                 fontFamily:"'Good Headline Pro',sans-serif",opacity:savingDraft?.6:1,transition:"all .14s"}}>
               {savingDraft?"Saving…":draftId?"💾 Update Draft":"💾 Save Draft"}
@@ -8275,7 +8275,7 @@ function PastMeetingReports({apprentice, allUsers, canEdit=false}) {
 
   const Section = ({label,value}) => value ? (
     <div style={{marginBottom:10}}>
-      <div style={{fontSize:11,fontWeight:700,color:T.dark,textTransform:"uppercase",
+      <div style={{fontSize:11,fontWeight:800,color:T.dark,textTransform:"uppercase",
         letterSpacing:".6px",marginBottom:3,paddingBottom:3,borderBottom:`1px solid ${T.border}`}}>{label}</div>
       <div style={{fontSize:13,color:T.ink,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{value}</div>
     </div>
@@ -8301,7 +8301,7 @@ function PastMeetingReports({apprentice, allUsers, canEdit=false}) {
                 background:isOpen?"#ffffff20":T.accentL,
                 display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>📋</div>
               <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:14,color:isOpen?"#fff":T.ink}}>
+                <div style={{fontWeight:800,fontSize:14,color:isOpen?"#fff":T.ink}}>
                   {fD(r.date)}{r.location?` — ${r.location}`:""}
                 </div>
                 <div style={{fontSize:12,color:isOpen?"#ffffff88":T.sub,marginTop:1}}>
@@ -8326,8 +8326,8 @@ function PastMeetingReports({apprentice, allUsers, canEdit=false}) {
                     {label:"KTA Representative",  value: mentorUser?.name||"—"},
                   ].map(({label,value})=>(
                     <div key={label}>
-                      <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
-                      <div style={{fontSize:13,fontWeight:600,color:T.ink}}>{value}</div>
+                      <div style={{fontSize:10,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
+                      <div style={{fontSize:13,fontWeight:800,color:T.ink}}>{value}</div>
                     </div>
                   ))}
                 </div>
@@ -8454,18 +8454,18 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
       const orderTableRows = toOrderRows.map(it => {
         const need = parseFloat(it.qtyReq||0) - parseFloat(it.qtyIssued||0);
         return `<tr>
-          <td style="padding:9px 12px;font-weight:600;color:#0d1b2e;border-bottom:1px solid #edf2f7">${it.item}</td>
+          <td style="padding:9px 12px;font-weight:800;color:#0d1b2e;border-bottom:1px solid #edf2f7">${it.item}</td>
           <td style="padding:9px 12px;color:#4a5a72;border-bottom:1px solid #edf2f7">${it.size||"—"}</td>
-          <td style="padding:9px 12px;text-align:center;font-weight:700;font-size:15px;color:#b86e1a;border-bottom:1px solid #edf2f7">${need}</td>
+          <td style="padding:9px 12px;text-align:center;font-weight:800;font-size:15px;color:#b86e1a;border-bottom:1px solid #edf2f7">${need}</td>
           <td style="padding:9px 12px;color:#888;font-style:italic;border-bottom:1px solid #edf2f7">${it.notes||""}</td>
         </tr>`;
       }).join("");
 
       const assignedTableRows = assignedRows.map(it => `<tr>
-          <td style="padding:9px 12px;font-weight:600;color:#0d1b2e;border-bottom:1px solid #edf2f7">${it.item}</td>
+          <td style="padding:9px 12px;font-weight:800;color:#0d1b2e;border-bottom:1px solid #edf2f7">${it.item}</td>
           <td style="padding:9px 12px;color:#4a5a72;border-bottom:1px solid #edf2f7">${it.size||"—"}</td>
-          <td style="padding:9px 12px;text-align:center;font-weight:700;font-size:15px;color:#1a8a7a;border-bottom:1px solid #edf2f7">${it.qtyIssued}</td>
-          <td style="padding:9px 12px;border-bottom:1px solid #edf2f7"><span style="display:inline-block;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:700;background:#d4f0ec;color:#1a8a7a">Yes</span></td>
+          <td style="padding:9px 12px;text-align:center;font-weight:800;font-size:15px;color:#1a8a7a;border-bottom:1px solid #edf2f7">${it.qtyIssued}</td>
+          <td style="padding:9px 12px;border-bottom:1px solid #edf2f7"><span style="display:inline-block;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:800;background:#d4f0ec;color:#1a8a7a">Yes</span></td>
           <td style="padding:9px 12px;color:#888;font-style:italic;border-bottom:1px solid #edf2f7">${it.notes||""}</td>
         </tr>`).join("");
 
@@ -8474,42 +8474,42 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
 <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
   <div style="background:#1b4f8c;padding:20px 28px">
     <div style="font-size:11px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">KTA Workforce Management</div>
-    <div style="font-size:20px;font-weight:700;color:#fff">PPE Request — ${apprentice.name}</div>
+    <div style="font-size:20px;font-weight:800;color:#fff">PPE Request — ${apprentice.name}</div>
     <div style="font-size:12px;color:rgba(255,255,255,.7);margin-top:4px">All items issued new and non-returnable</div>
   </div>
   <table style="width:100%;border-collapse:collapse;background:#f8fafc;border-bottom:2px solid #dce8f7">
     <tr>
       <td style="padding:12px 16px;border-right:1px solid #dce8f7;width:25%">
-        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:600;margin-bottom:3px">Apprentice</div>
-        <div style="font-size:13px;font-weight:700;color:#0d1b2e">${apprentice.name}</div>
+        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:800;margin-bottom:3px">Apprentice</div>
+        <div style="font-size:13px;font-weight:800;color:#0d1b2e">${apprentice.name}</div>
       </td>
       <td style="padding:12px 16px;border-right:1px solid #dce8f7;width:25%">
-        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:600;margin-bottom:3px">Host Business</div>
-        <div style="font-size:13px;font-weight:700;color:#0d1b2e">${apprentice.hostBusiness||"—"}</div>
+        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:800;margin-bottom:3px">Host Business</div>
+        <div style="font-size:13px;font-weight:800;color:#0d1b2e">${apprentice.hostBusiness||"—"}</div>
       </td>
       <td style="padding:12px 16px;border-right:1px solid #dce8f7;width:25%">
-        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:600;margin-bottom:3px">Trade</div>
-        <div style="font-size:13px;font-weight:700;color:#0d1b2e">${apprentice.trade||"—"}</div>
+        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:800;margin-bottom:3px">Trade</div>
+        <div style="font-size:13px;font-weight:800;color:#0d1b2e">${apprentice.trade||"—"}</div>
       </td>
       <td style="padding:12px 16px;width:25%">
-        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:600;margin-bottom:3px">KTA Staff</div>
-        <div style="font-size:13px;font-weight:700;color:#0d1b2e">${mentor?.name||"—"}</div>
+        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:800;margin-bottom:3px">KTA Staff</div>
+        <div style="font-size:13px;font-weight:800;color:#0d1b2e">${mentor?.name||"—"}</div>
       </td>
     </tr>
     <tr style="border-top:1px solid #dce8f7">
       <td style="padding:10px 16px;border-right:1px solid #dce8f7">
-        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:600;margin-bottom:3px">Date Requested</div>
+        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:800;margin-bottom:3px">Date Requested</div>
         <div style="font-size:13px;color:#0d1b2e">${fmtD(dateRequested)}</div>
       </td>
       <td colspan="3" style="padding:10px 16px">
-        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:600;margin-bottom:3px">Date Issued</div>
+        <div style="font-size:10px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:800;margin-bottom:3px">Date Issued</div>
         <div style="font-size:13px;color:#0d1b2e">${dateIssued?fmtD(dateIssued):"Not yet issued"}</div>
       </td>
     </tr>
   </table>
   ${toOrderRows.length > 0 ? `
   <div style="padding:20px 28px 10px">
-    <div style="font-size:16px;font-weight:700;color:#b86e1a;margin-bottom:2px">📦 Need to Order</div>
+    <div style="font-size:16px;font-weight:800;color:#b86e1a;margin-bottom:2px">📦 Need to Order</div>
     <div style="font-size:11px;color:#888">Qty to order = Qty requested − Qty issued</div>
   </div>
   <table style="width:100%;border-collapse:collapse;font-size:13px">
@@ -8523,7 +8523,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
   </table>` : ""}
   ${assignedRows.length > 0 ? `
   <div style="padding:20px 28px 10px;margin-top:${toOrderRows.length > 0 ? "16px" : "0"}">
-    <div style="font-size:16px;font-weight:700;color:#1a8a7a;margin-bottom:2px">✅ PPE Assigned</div>
+    <div style="font-size:16px;font-weight:800;color:#1a8a7a;margin-bottom:2px">✅ PPE Assigned</div>
     <div style="font-size:11px;color:#888">Items physically issued to ${apprentice.name} at time of request</div>
   </div>
   <table style="width:100%;border-collapse:collapse;font-size:13px">
@@ -8578,7 +8578,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
         <Card style={{border:`1.5px solid ${T.teal}44`,marginBottom:16,padding:0,overflow:"hidden"}}>
           {/* Header */}
           <div style={{background:T.teal,padding:"12px 16px"}}>
-            <div style={{fontWeight:700,fontSize:14,color:"#fff"}}>PPE Request — {apprentice.name}</div>
+            <div style={{fontWeight:800,fontSize:14,color:"#fff"}}>PPE Request — {apprentice.name}</div>
             <div style={{fontSize:12,color:"rgba(255,255,255,.8)",marginTop:2}}>All items issued new and non-returnable</div>
           </div>
 
@@ -8586,11 +8586,11 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:12,padding:"14px 16px",background:T.bg,borderBottom:`1px solid ${T.border}`}}>
             <div>
               <FL>Apprentice</FL>
-              <div style={{fontSize:13,fontWeight:600,color:T.ink,padding:"6px 10px",background:T.surface,borderRadius:7,border:`1px solid ${T.border}`}}>{apprentice.name}</div>
+              <div style={{fontSize:13,fontWeight:800,color:T.ink,padding:"6px 10px",background:T.surface,borderRadius:7,border:`1px solid ${T.border}`}}>{apprentice.name}</div>
             </div>
             <div>
               <FL>KTA Staff</FL>
-              <div style={{fontSize:13,fontWeight:600,color:T.ink,padding:"6px 10px",background:T.surface,borderRadius:7,border:`1px solid ${T.border}`}}>{mentor?.name||"—"}</div>
+              <div style={{fontSize:13,fontWeight:800,color:T.ink,padding:"6px 10px",background:T.surface,borderRadius:7,border:`1px solid ${T.border}`}}>{mentor?.name||"—"}</div>
             </div>
             <div>
               <FL req>Date Requested</FL>
@@ -8608,14 +8608,14 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
               <thead>
                 <tr style={{background:T.accentL}}>
                   {["PPE Item","Size / Spec","Qty Requested","Qty Issued","Notes","Approved"].map(h=>(
-                    <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:11,color:T.accent,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                    <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:800,fontSize:11,color:T.accent,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {PPE_CATALOGUE.map((cat,i)=>(
                   <tr key={i} style={{background:i%2===0?T.surface:T.bg}}>
-                    <td style={{padding:"6px 10px",fontWeight:600,color:T.ink,whiteSpace:"nowrap",borderBottom:`1px solid ${T.border}44`}}>{cat.item}</td>
+                    <td style={{padding:"6px 10px",fontWeight:800,color:T.ink,whiteSpace:"nowrap",borderBottom:`1px solid ${T.border}44`}}>{cat.item}</td>
                     <td style={{padding:"4px 6px",borderBottom:`1px solid ${T.border}44`}}>
                       {cat.sizes.length>0
                         ? <select value={rows[i].size} onChange={e=>sr(i,"size",e.target.value)} style={{fontSize:11,padding:"3px 6px",minWidth:90}}>
@@ -8667,8 +8667,8 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,padding:"0 16px 16px"}}>
             {[{label:"Apprentice Signature", name:apprentice.name},{label:"KTA Staff Signature", name:mentor?.name||""}].map(({label,name})=>(
               <div key={label} style={{border:`1px solid ${T.border}`,borderRadius:8,padding:"10px 14px",background:T.surface}}>
-                <div style={{fontSize:11,fontWeight:600,color:T.muted,marginBottom:6}}>{label}</div>
-                <div style={{fontSize:13,fontWeight:600,color:T.ink,marginBottom:12}}>{name}</div>
+                <div style={{fontSize:11,fontWeight:800,color:T.muted,marginBottom:6}}>{label}</div>
+                <div style={{fontSize:13,fontWeight:800,color:T.ink,marginBottom:12}}>{name}</div>
                 <div style={{borderBottom:`2px solid ${T.border}`,marginBottom:4,height:28}}/>
                 <div style={{fontSize:10,color:T.muted}}>Signature</div>
               </div>
@@ -8688,7 +8688,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
       )}
       {requests.length>0&&(
         <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
-          <div style={{padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px"}}>
+          <div style={{padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px"}}>
             Past Requests
           </div>
           {requests.map((r,i)=>{
@@ -8701,18 +8701,18 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                   style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",
                     background:r.completed?T.tealL:isOpen?T.accentL:i%2===0?T.surface:T.bg,transition:"background .15s"}}>
                   <div style={{flex:1,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                    <span style={{fontWeight:600,fontSize:13,color:T.ink}}>Requested {fmtDate(r.date_requested)}</span>
+                    <span style={{fontWeight:800,fontSize:13,color:T.ink}}>Requested {fmtDate(r.date_requested)}</span>
                     {r.date_issued&&<span style={{fontSize:12,color:T.teal}}>· Issued {fmtDate(r.date_issued)}</span>}
                     <span style={{fontSize:12,color:T.muted}}>· {items.filter(it=>parseFloat(it.qtyReq||0)>0).length} item{items.filter(it=>parseFloat(it.qtyReq||0)>0).length!==1?"s":""}</span>
                     {r.completed
-                      ? <span style={{padding:"2px 10px",borderRadius:99,fontSize:11,fontWeight:700,background:T.tealL,color:T.teal,border:`1px solid ${T.teal}44`}}>✓ Completed</span>
+                      ? <span style={{padding:"2px 10px",borderRadius:99,fontSize:11,fontWeight:800,background:T.tealL,color:T.teal,border:`1px solid ${T.teal}44`}}>✓ Completed</span>
                       : items.some(it=>it.approved==="Pending"&&parseFloat(it.qtyReq||0)>0)
-                        ? <span style={{padding:"2px 10px",borderRadius:99,fontSize:11,fontWeight:700,background:T.goldL,color:T.gold,border:`1px solid ${T.gold}44`}}>⏳ Pending Items</span>
+                        ? <span style={{padding:"2px 10px",borderRadius:99,fontSize:11,fontWeight:800,background:T.goldL,color:T.gold,border:`1px solid ${T.gold}44`}}>⏳ Pending Items</span>
                         : null}
                   </div>
                   <div style={{fontSize:12,color:T.muted,whiteSpace:"nowrap"}}>{r.staff_name||"—"}</div>
                   {canEdit&&!r.completed&&<button onClick={e=>{e.stopPropagation();startEditReq(r);}}
-                    style={{padding:"3px 9px",borderRadius:5,background:"none",border:`1px solid ${T.accent}44`,color:T.accent,cursor:"pointer",fontSize:11,fontWeight:600}}
+                    style={{padding:"3px 9px",borderRadius:5,background:"none",border:`1px solid ${T.accent}44`,color:T.accent,cursor:"pointer",fontSize:11,fontWeight:800}}
                     onMouseEnter={e=>{e.currentTarget.style.background=T.accentL;}}
                     onMouseLeave={e=>{e.currentTarget.style.background="none";}}>✎ Edit</button>}
                   {canEdit&&<button onClick={e=>{e.stopPropagation();handleDelete(r.id);}}
@@ -8738,14 +8738,14 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                             <thead>
                               <tr style={{background:T.accentL}}>
                                 {["PPE Item","Size","Qty Req","Qty Issued","Notes","Approved"].map(h=>(
-                                  <th key={h} style={{padding:"6px 8px",textAlign:"left",fontWeight:700,fontSize:11,color:T.accent,borderBottom:`1px solid ${T.border}`}}>{h}</th>
+                                  <th key={h} style={{padding:"6px 8px",textAlign:"left",fontWeight:800,fontSize:11,color:T.accent,borderBottom:`1px solid ${T.border}`}}>{h}</th>
                                 ))}
                               </tr>
                             </thead>
                             <tbody>
                               {editRows.filter(it=>parseFloat(it.qtyReq||0)>0||it.approved).map((it,j)=>(
                                 <tr key={j} style={{background:j%2===0?T.surface:T.bg}}>
-                                  <td style={{padding:"5px 8px",fontWeight:600,whiteSpace:"nowrap"}}>{it.item}</td>
+                                  <td style={{padding:"5px 8px",fontWeight:800,whiteSpace:"nowrap"}}>{it.item}</td>
                                   <td style={{padding:"5px 8px",color:T.sub}}>{it.size||"—"}</td>
                                   <td style={{padding:"5px 8px",textAlign:"center"}}>{it.qtyReq||"—"}</td>
                                   <td style={{padding:"4px 6px"}}>
@@ -8765,7 +8765,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                                       style={{fontSize:11,padding:"3px 6px",
                                         background:it.approved==="Yes"?T.tealL:it.approved==="Pending"?T.goldL:it.approved==="No"?T.redL:"",
                                         color:it.approved==="Yes"?T.teal:it.approved==="Pending"?T.gold:it.approved==="No"?T.red:T.ink,
-                                        fontWeight:600,borderRadius:5}}>
+                                        fontWeight:800,borderRadius:5}}>
                                       <option value="">—</option>
                                       <option value="Yes">Yes</option>
                                       <option value="Pending">Pending</option>
@@ -8778,7 +8778,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                           </table>
                         </div>
                         {editRows.filter(it=>parseFloat(it.qtyReq||0)>0).every(it=>it.approved==="Yes")&&(
-                          <div style={{marginTop:10,padding:"8px 12px",background:T.tealL,borderRadius:7,fontSize:12,color:T.teal,fontWeight:600}}>
+                          <div style={{marginTop:10,padding:"8px 12px",background:T.tealL,borderRadius:7,fontSize:12,color:T.teal,fontWeight:800}}>
                             ✓ All items issued — saving will mark this request as Completed
                           </div>
                         )}
@@ -8796,19 +8796,19 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                         <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,marginTop:10}}>
                           <thead>
                             <tr>{["Item","Size","Qty Req","Qty Issued","Notes","Approved"].map(h=>(
-                              <th key={h} style={{padding:"6px 8px",textAlign:"left",fontWeight:600,color:T.sub,borderBottom:`1px solid ${T.border}`,fontSize:11}}>{h}</th>
+                              <th key={h} style={{padding:"6px 8px",textAlign:"left",fontWeight:800,color:T.sub,borderBottom:`1px solid ${T.border}`,fontSize:11}}>{h}</th>
                             ))}</tr>
                           </thead>
                           <tbody>
                             {items.filter(it=>parseFloat(it.qtyReq||0)>0||it.approved).map((it,j)=>(
                               <tr key={j} style={{background:j%2===0?"rgba(255,255,255,.6)":"transparent"}}>
-                                <td style={{padding:"5px 8px",fontWeight:600}}>{it.item}</td>
+                                <td style={{padding:"5px 8px",fontWeight:800}}>{it.item}</td>
                                 <td style={{padding:"5px 8px",color:T.sub}}>{it.size||"—"}</td>
                                 <td style={{padding:"5px 8px",textAlign:"center"}}>{it.qtyReq||"—"}</td>
-                                <td style={{padding:"5px 8px",textAlign:"center",color:T.teal,fontWeight:600}}>{it.qtyIssued||"—"}</td>
+                                <td style={{padding:"5px 8px",textAlign:"center",color:T.teal,fontWeight:800}}>{it.qtyIssued||"—"}</td>
                                 <td style={{padding:"5px 8px",color:T.muted,fontStyle:"italic"}}>{it.notes||""}</td>
                                 <td style={{padding:"5px 8px"}}>{it.approved
-                                  ? <span style={{padding:"2px 8px",borderRadius:99,fontSize:11,fontWeight:700,
+                                  ? <span style={{padding:"2px 8px",borderRadius:99,fontSize:11,fontWeight:800,
                                       background:it.approved==="Yes"?T.tealL:it.approved==="No"?T.redL:T.goldL,
                                       color:it.approved==="Yes"?T.teal:it.approved==="No"?T.red:T.gold}}>{it.approved}</span>
                                   : "—"}
@@ -8949,7 +8949,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
       <button onClick={onBack} style={{
         display:"inline-flex",alignItems:"center",gap:6,background:"none",border:"none",
         color:T.sub,fontSize:13,fontFamily:"Good Headline Pro,sans-serif",cursor:"pointer",
-        marginBottom:16,padding:0,fontWeight:700}}
+        marginBottom:16,padding:0,fontWeight:800}}
         onMouseEnter={e=>e.currentTarget.style.color=T.ink}
         onMouseLeave={e=>e.currentTarget.style.color=T.sub}>
         ← {isAdmin?"Back to Dashboard":"Back to My Apprentices"}
@@ -8961,11 +8961,11 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
           paddingBottom:16,borderBottom:`1px solid ${T.border}`}}>
           <div style={{width:54,height:54,borderRadius:"50%",flexShrink:0,
             background:T.dark,display:"flex",alignItems:"center",justifyContent:"center",
-            fontSize:22,fontWeight:700,color:"#fff",fontFamily:"Good Headline Pro"}}>
+            fontSize:22,fontWeight:800,color:"#fff",fontFamily:"Good Headline Pro"}}>
             {apprentice.name?.[0]?.toUpperCase()||"?"}
           </div>
           <div style={{flex:1}}>
-            <div style={{fontFamily:"Good Headline Pro",fontSize:22,fontWeight:700,color:T.ink}}>{apprentice.name}</div>
+            <div style={{fontFamily:"Good Headline Pro",fontSize:22,fontWeight:800,color:T.ink}}>{apprentice.name}</div>
             <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>
               <RolePill role="Apprentice" size="sm"/>
               {approver&&<Pill label={`Approver: ${approver.name}`} size="sm" color={T.warn} bg={T.warnL}/>}
@@ -8983,10 +8983,10 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             return (
               <div style={{background:licBg,borderRadius:10,padding:"10px 14px",border:`1px solid ${borderCol}`}}>
                 {/* Trade row */}
-                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:2}}>🔧 Trade</div>
-                <div style={{fontSize:13,fontWeight:700,color:T.accent,marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${T.border}44`}}>{apprentice.trade||"Not set"}</div>
+                <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:2}}>🔧 Trade</div>
+                <div style={{fontSize:13,fontWeight:800,color:T.accent,marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${T.border}44`}}>{apprentice.trade||"Not set"}</div>
                 {/* Licence expiry row */}
-                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>📄 Licence Expiry</span>
                   {canEditExpiry&&editingExpiry!=="licence"&&<button onClick={()=>{setEditingExpiry("licence");setExpiryVal(apprentice.licenceExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.accent,padding:0,fontFamily:"Good Headline Pro,sans-serif"}}>✏️</button>}
                 </div>
@@ -8996,9 +8996,9 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     <button onClick={()=>saveExpiry("licence",expiryVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
                     <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>✕</button>
                   </div>
-                ):<div style={{fontSize:13,fontWeight:700,color:c,marginBottom:8}}>{licVal}</div>}
+                ):<div style={{fontSize:13,fontWeight:800,color:c,marginBottom:8}}>{licVal}</div>}
                 {/* Licence number row */}
-                <div style={{fontSize:10,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{fontSize:10,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>Licence #</span>
                   {canEditExpiry&&editingExpiry!=="licenceNum"&&<button onClick={()=>{setEditingExpiry("licenceNum");setLicNumVal(apprentice.licenceNumber||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:T.accent,padding:0,fontFamily:"Good Headline Pro,sans-serif"}}>✏️</button>}
                 </div>
@@ -9009,14 +9009,14 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     <button onClick={()=>saveExpiry("licenceNum",licNumVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
                     <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>✕</button>
                   </div>
-                ):<div style={{fontSize:12,fontWeight:600,color:apprentice.licenceNumber?T.ink:T.muted,fontStyle:apprentice.licenceNumber?"normal":"italic"}}>{apprentice.licenceNumber||"Not set"}</div>}
+                ):<div style={{fontSize:12,fontWeight:800,color:apprentice.licenceNumber?T.ink:T.muted,fontStyle:apprentice.licenceNumber?"normal":"italic"}}>{apprentice.licenceNumber||"Not set"}</div>}
               </div>
             );
           })()}
           {/* Last Mentor Visit — static */}
           <div style={{background:T.tealL,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`}}>
-            <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>📅 Last Mentor Visit</div>
-            <div style={{fontSize:13,fontWeight:700,color:T.teal}}>{loadingVisit?"…":lastVisit?fmtDate(lastVisit):"No visits yet"}</div>
+            <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>📅 Last Mentor Visit</div>
+            <div style={{fontSize:13,fontWeight:800,color:T.teal}}>{loadingVisit?"…":lastVisit?fmtDate(lastVisit):"No visits yet"}</div>
           </div>
           {/* Site Safe Expiry — editable */}
           {(()=>{
@@ -9025,7 +9025,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             const val=apprentice.siteSafeExpiry?(d!==null?`${fmtDate(apprentice.siteSafeExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:fmtDate(apprentice.siteSafeExpiry)):"Not set";
             return (
               <div style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${editingExpiry==="siteSafe"||editingExpiry==="siteSafeNum"?T.teal:T.border}`,position:"relative"}}>
-                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>🦺 Site Safe Expiry</span>
                   {canEditExpiry&&editingExpiry!=="siteSafe"&&<button onClick={()=>{setEditingExpiry("siteSafe");setExpiryVal(apprentice.siteSafeExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.accent,padding:0,fontFamily:"Good Headline Pro,sans-serif"}}>✏️</button>}
                 </div>
@@ -9035,10 +9035,10 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     <button onClick={()=>saveExpiry("siteSafe",expiryVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
                     <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>✕</button>
                   </div>
-                ):<div style={{fontSize:13,fontWeight:700,color:c}}>{val}</div>}
+                ):<div style={{fontSize:13,fontWeight:800,color:c}}>{val}</div>}
                 {/* Site Safe Number */}
                 <div style={{marginTop:8,paddingTop:8,borderTop:`1px solid ${T.border}44`}}>
-                  <div style={{fontSize:10,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <div style={{fontSize:10,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                     <span>Site Safe #</span>
                     {canEditExpiry&&editingExpiry!=="siteSafeNum"&&<button onClick={()=>{setEditingExpiry("siteSafeNum");setSiteSafeNumVal(apprentice.siteSafeNumber||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:T.teal,padding:0,fontFamily:"Good Headline Pro,sans-serif"}}>✏️</button>}
                   </div>
@@ -9049,7 +9049,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                       <button onClick={()=>saveExpiry("siteSafeNum",siteSafeNumVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.teal,color:"#fff",border:"none",cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
                       <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>✕</button>
                     </div>
-                  ):<div style={{fontSize:12,fontWeight:600,color:apprentice.siteSafeNumber?T.ink:T.muted,fontStyle:apprentice.siteSafeNumber?"normal":"italic"}}>{apprentice.siteSafeNumber||"Not set"}</div>}
+                  ):<div style={{fontSize:12,fontWeight:800,color:apprentice.siteSafeNumber?T.ink:T.muted,fontStyle:apprentice.siteSafeNumber?"normal":"italic"}}>{apprentice.siteSafeNumber||"Not set"}</div>}
                 </div>
               </div>
             );
@@ -9061,7 +9061,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             const val=apprentice.firstAidExpiry?(d!==null?`${fmtDate(apprentice.firstAidExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:fmtDate(apprentice.firstAidExpiry)):"Not set";
             return (
               <div style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${editingExpiry==="firstAid"?T.teal:T.border}`,position:"relative"}}>
-                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>🩹 First Aid Expiry</span>
                   {canEditExpiry&&editingExpiry!=="firstAid"&&<button onClick={()=>{setEditingExpiry("firstAid");setExpiryVal(apprentice.firstAidExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.accent,padding:0,fontFamily:"Good Headline Pro,sans-serif"}}>✏️</button>}
                 </div>
@@ -9071,14 +9071,14 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     <button onClick={()=>saveExpiry("firstAid",expiryVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
                     <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>✕</button>
                   </div>
-                ):<div style={{fontSize:13,fontWeight:700,color:c}}>{val}</div>}
+                ):<div style={{fontSize:13,fontWeight:800,color:c}}>{val}</div>}
               </div>
             );
           })()}
           {/* Host Business — editable for Admin/Mentor */}
           <div style={{background:T.slateL,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-              <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px"}}>🏢 Host Business</div>
+              <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".6px"}}>🏢 Host Business</div>
               {canEditExpiry&&!editingHostBiz&&(
                 <button onClick={()=>{setEditingHostBiz(true);setHostBizVal(apprentice.hostBusiness||"");}}
                   style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.slate,padding:0,fontFamily:"Good Headline Pro,sans-serif"}}>✏️</button>
@@ -9119,13 +9119,13 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               </div>
             ):( 
               <div>
-                <div style={{fontSize:13,fontWeight:700,color:T.slate}}>{apprentice.hostBusiness||"Not set"}</div>
+                <div style={{fontSize:13,fontWeight:800,color:T.slate}}>{apprentice.hostBusiness||"Not set"}</div>
                 {(approver||allocatedViewer)&&apprentice.hostBusiness&&(
                   <div style={{display:"flex",flexDirection:"column",gap:4,marginTop:8}}>
                     {approver&&(
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        <span style={{fontSize:10,fontWeight:700,color:T.warn,textTransform:"uppercase",letterSpacing:".5px",minWidth:52}}>Approver</span>
-                        <span style={{fontSize:12,fontWeight:600,color:T.ink,background:T.warnL,
+                        <span style={{fontSize:10,fontWeight:800,color:T.warn,textTransform:"uppercase",letterSpacing:".5px",minWidth:52}}>Approver</span>
+                        <span style={{fontSize:12,fontWeight:800,color:T.ink,background:T.warnL,
                           padding:"2px 8px",borderRadius:10,border:`1px solid ${T.warn}33`}}>
                           {approver.name}
                         </span>
@@ -9133,8 +9133,8 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     )}
                     {allocatedViewer&&(
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        <span style={{fontSize:10,fontWeight:700,color:T.blue,textTransform:"uppercase",letterSpacing:".5px",minWidth:52}}>Viewer</span>
-                        <span style={{fontSize:12,fontWeight:600,color:T.ink,background:T.blueL,
+                        <span style={{fontSize:10,fontWeight:800,color:T.blue,textTransform:"uppercase",letterSpacing:".5px",minWidth:52}}>Viewer</span>
+                        <span style={{fontSize:12,fontWeight:800,color:T.ink,background:T.blueL,
                           padding:"2px 8px",borderRadius:10,border:`1px solid ${T.blue}33`}}>
                           {allocatedViewer.name}
                         </span>
@@ -9148,9 +9148,9 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
           {/* Reports Go To */}
           {(apprentice.reportsEmail || isAdmin) && (
             <div style={{background:T.accentL,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.accent}33`,marginTop:10}}>
-              <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>📧 Reports Go To</div>
+              <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>📧 Reports Go To</div>
               {apprentice.reportsEmail
-                ? <div style={{fontSize:13,fontWeight:600,color:T.accent}}>{apprentice.reportsEmail}</div>
+                ? <div style={{fontSize:13,fontWeight:800,color:T.accent}}>{apprentice.reportsEmail}</div>
                 : <div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>Not set — reports go to approver</div>
               }
             </div>
@@ -9169,7 +9169,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
                     <div style={{width:28,height:28,borderRadius:7,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>📋</div>
                     <div style={{minWidth:0}}>
-                      <div style={{fontWeight:700, fontSize:12, color:showMeetingForm?T.accent:T.ink}}>New Report</div>
+                      <div style={{fontWeight:800, fontSize:12, color:showMeetingForm?T.accent:T.ink}}>New Report</div>
                       <div style={{fontSize:10, color:T.sub, marginTop:1}}>Record a visit</div>
                     </div>
                     <div style={{marginLeft:"auto", fontSize:11, color:T.muted}}>↗</div>
@@ -9180,7 +9180,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
                     <div style={{width:28,height:28,borderRadius:7,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>📁</div>
                     <div style={{minWidth:0}}>
-                      <div style={{fontWeight:700, fontSize:12, color:showPastReports?T.gold:T.ink}}>Past Reports</div>
+                      <div style={{fontWeight:800, fontSize:12, color:showPastReports?T.gold:T.ink}}>Past Reports</div>
                       <div style={{fontSize:10, color:T.sub, marginTop:1}}>Visit history</div>
                     </div>
                     <div style={{marginLeft:"auto", fontSize:11, color:T.muted}}>{showPastReports?"▲":"▼"}</div>
@@ -9191,7 +9191,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
                     <div style={{width:28,height:28,borderRadius:7,background:T.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>🦺</div>
                     <div style={{minWidth:0}}>
-                      <div style={{fontWeight:700, fontSize:12, color:showPPE?T.teal:T.ink}}>PPE</div>
+                      <div style={{fontWeight:800, fontSize:12, color:showPPE?T.teal:T.ink}}>PPE</div>
                       <div style={{fontSize:10, color:T.sub, marginTop:1}}>Equipment issued</div>
                     </div>
                     <div style={{marginLeft:"auto", fontSize:11, color:T.muted}}>{showPPE?"▲":"▼"}</div>
@@ -9202,7 +9202,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
                     <div style={{width:28,height:28,borderRadius:7,background:T.slateL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>📬</div>
                     <div style={{minWidth:0}}>
-                      <div style={{fontWeight:700, fontSize:12, color:showActivity?T.slate:T.ink}}>Activity</div>
+                      <div style={{fontWeight:800, fontSize:12, color:showActivity?T.slate:T.ink}}>Activity</div>
                       <div style={{fontSize:10, color:T.sub, marginTop:1}}>Emails & notes</div>
                     </div>
                     <div style={{marginLeft:"auto", fontSize:11, color:T.muted}}>{showActivity?"▲":"▼"}</div>
@@ -9248,7 +9248,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               };
               const inp = (field, label, type="text", opts=null) => (
                 <div key={field} style={{display:"flex",flexDirection:"column",gap:4}}>
-                  <label style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px"}}>{label}</label>
+                  <label style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px"}}>{label}</label>
                   {opts ? (
                     <select value={pdForm[field]} onChange={e=>setPdForm(p=>({...p,[field]:e.target.value}))}
                       style={{fontSize:13,padding:"7px 10px",borderRadius:7,border:`1.5px solid ${T.border}`,
@@ -9269,7 +9269,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   borderBottom:`1px solid ${T.border}`}}>
                   <span style={{fontSize:15,marginTop:1,width:20,textAlign:"center",flexShrink:0}}>{icon}</span>
                   <div style={{flex:1}}>
-                    <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
+                    <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
                     <div style={{fontSize:13,color:value?T.ink:T.muted,fontStyle:value?"normal":"italic"}}>{value||"Not set"}</div>
                   </div>
                 </div>
@@ -9279,7 +9279,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                 <Card style={{marginBottom:16,cursor:pdEdit?"default":"pointer"}}
                   onClick={()=>{ if(!pdEdit) setShowPersonal(s=>!s); }}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{fontWeight:800,fontSize:14,display:"flex",alignItems:"center",gap:8}}>
                       <span>👤</span> Personal Details
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:8}} onClick={e=>e.stopPropagation()}>
@@ -9297,7 +9297,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                           });
                           setPdEdit(true);
                         }} style={{fontSize:12,color:T.accent,background:T.accentL,border:"none",
-                          borderRadius:6,padding:"4px 12px",cursor:"pointer",fontWeight:600,fontFamily:"Good Headline Pro,sans-serif"}}>
+                          borderRadius:6,padding:"4px 12px",cursor:"pointer",fontWeight:800,fontFamily:"Good Headline Pro,sans-serif"}}>
                           ✏ Edit
                         </button>
                       )}
@@ -9321,7 +9321,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                             {inp("hostBusiness","Host Business")}
                           </div>
                           <div style={{borderTop:`1px solid ${T.border}`,paddingTop:12,marginBottom:12}}>
-                            <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:10}}>📍 Address</div>
+                            <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:10}}>📍 Address</div>
                             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12}}>
                               {inp("address","Street Address")}
                               {inp("addressLine2","Address Line 2")}
@@ -9331,7 +9331,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                             </div>
                           </div>
                           <div style={{borderTop:`1px solid ${T.border}`,paddingTop:12,marginBottom:12}}>
-                            <div style={{fontSize:11,fontWeight:600,color:T.red,textTransform:"uppercase",letterSpacing:".5px",marginBottom:10}}>🚨 Emergency Contact</div>
+                            <div style={{fontSize:11,fontWeight:800,color:T.red,textTransform:"uppercase",letterSpacing:".5px",marginBottom:10}}>🚨 Emergency Contact</div>
                             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12}}>
                               {inp("emergencyContactName","Name")}
                               {inp("emergencyContactPhone","Phone","tel")}
@@ -9341,7 +9341,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                           <div style={{display:"flex",gap:8}}>
                             <button onClick={savePd} disabled={pdSaving}
                               style={{background:T.accent,color:"#fff",border:"none",borderRadius:8,
-                                padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>
+                                padding:"8px 20px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>
                               {pdSaving?"Saving…":"💾 Save"}
                             </button>
                             <button onClick={()=>setPdEdit(false)} disabled={pdSaving}
@@ -9364,7 +9364,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                           <div style={{display:"flex",alignItems:"flex-start",gap:10,paddingTop:9}}>
                             <span style={{fontSize:15,marginTop:1,width:20,textAlign:"center",flexShrink:0}}>📍</span>
                             <div>
-                              <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>Address</div>
+                              <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>Address</div>
                               <div style={{fontSize:13,color:addrDisplay?T.ink:T.muted,fontStyle:addrDisplay?"normal":"italic",lineHeight:1.6}}>
                                 {addrDisplay||"Not set"}
                               </div>
@@ -9373,26 +9373,26 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                           {(apprentice.emergencyContactName||apprentice.emergencyContactPhone)&&(
                             <div style={{marginTop:12,padding:"10px 14px",borderRadius:8,
                               background:T.redL+"66",border:`1px solid ${T.red}33`}}>
-                              <div style={{fontSize:11,fontWeight:700,color:T.red,textTransform:"uppercase",
+                              <div style={{fontSize:11,fontWeight:800,color:T.red,textTransform:"uppercase",
                                 letterSpacing:".5px",marginBottom:8}}>🚨 Emergency Contact</div>
                               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:"6px 16px"}}>
                                 {apprentice.emergencyContactName&&(
                                   <div>
-                                    <div style={{fontSize:10,color:T.muted,fontWeight:600,marginBottom:1}}>Name</div>
-                                    <div style={{fontSize:13,fontWeight:700,color:T.ink}}>{apprentice.emergencyContactName}</div>
+                                    <div style={{fontSize:10,color:T.muted,fontWeight:800,marginBottom:1}}>Name</div>
+                                    <div style={{fontSize:13,fontWeight:800,color:T.ink}}>{apprentice.emergencyContactName}</div>
                                   </div>
                                 )}
                                 {apprentice.emergencyContactRelationship&&(
                                   <div>
-                                    <div style={{fontSize:10,color:T.muted,fontWeight:600,marginBottom:1}}>Relationship</div>
+                                    <div style={{fontSize:10,color:T.muted,fontWeight:800,marginBottom:1}}>Relationship</div>
                                     <div style={{fontSize:13,color:T.ink}}>{apprentice.emergencyContactRelationship}</div>
                                   </div>
                                 )}
                                 {apprentice.emergencyContactPhone&&(
                                   <div>
-                                    <div style={{fontSize:10,color:T.muted,fontWeight:600,marginBottom:1}}>Phone</div>
+                                    <div style={{fontSize:10,color:T.muted,fontWeight:800,marginBottom:1}}>Phone</div>
                                     <a href={`tel:${apprentice.emergencyContactPhone}`}
-                                      style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>
+                                      style={{fontSize:13,color:T.accent,fontWeight:800,textDecoration:"none"}}>
                                       {apprentice.emergencyContactPhone}
                                     </a>
                                   </div>
@@ -9418,7 +9418,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
             <div style={{width:32,height:32,borderRadius:8,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>🎯</div>
             <div>
-              <div style={{fontWeight:700,fontSize:14}}>Goals from Last Meeting</div>
+              <div style={{fontWeight:800,fontSize:14}}>Goals from Last Meeting</div>
               {lastReport&&<div style={{fontSize:11,color:T.sub}}>{fmtDate(lastReport.date)}</div>}
             </div>
           </div>
@@ -9429,7 +9429,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
           {lastReport?.rating&&(
             <div style={{marginTop:10,display:"inline-flex",alignItems:"center",gap:6,
               background:ratingColor(lastReport.rating)+"15",borderRadius:6,padding:"3px 10px"}}>
-              <span style={{fontSize:12,fontWeight:700,color:ratingColor(lastReport.rating)}}>{lastReport.rating}</span>
+              <span style={{fontSize:12,fontWeight:800,color:ratingColor(lastReport.rating)}}>{lastReport.rating}</span>
             </div>
           )}
         </Card>
@@ -9440,7 +9440,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
               <div style={{width:32,height:32,borderRadius:8,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>📌</div>
               <div>
-                <div style={{fontWeight:700,fontSize:14}}>Goals from Previous Meeting</div>
+                <div style={{fontWeight:800,fontSize:14}}>Goals from Previous Meeting</div>
                 <div style={{fontSize:11,color:T.sub}}>{fmtDate(prevReport.date)}</div>
               </div>
             </div>
@@ -9451,7 +9451,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             {prevReport.rating&&(
               <div style={{marginTop:10,display:"inline-flex",alignItems:"center",gap:6,
                 background:ratingColor(prevReport.rating)+"15",borderRadius:6,padding:"3px 10px"}}>
-                <span style={{fontSize:12,fontWeight:700,color:ratingColor(prevReport.rating)}}>{prevReport.rating}</span>
+                <span style={{fontSize:12,fontWeight:800,color:ratingColor(prevReport.rating)}}>{prevReport.rating}</span>
               </div>
             )}
           </Card>
@@ -9466,7 +9466,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
             <div style={{width:36,height:36,borderRadius:10,background:T.blueL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>⏱</div>
             <div>
-              <div style={{fontWeight:700,fontSize:15}}>Timesheet Summary</div>
+              <div style={{fontWeight:800,fontSize:15}}>Timesheet Summary</div>
               <div style={{fontSize:12,color:T.sub}}>All entries for {apprentice.name}</div>
             </div>
           </div>
@@ -9479,8 +9479,8 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               {label:"Declined",        value: appEntries.filter(e=>e.approval==="declined").length,         color:T.red},
             ].map(({label,value,color})=>(
               <div key={label} style={{background:T.bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`,textAlign:"center"}}>
-                <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>{label}</div>
-                <div style={{fontSize:20,fontWeight:700,color,fontFamily:"Good Headline Pro"}}>{value}</div>
+                <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>{label}</div>
+                <div style={{fontSize:20,fontWeight:800,color,fontFamily:"Good Headline Pro"}}>{value}</div>
               </div>
             ))}
           </div>
@@ -9489,7 +9489,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
               <div style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 70px 90px",
                 padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
-                fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
+                fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
                 <span>Date</span><span>Type / Note</span><span style={{textAlign:"center"}}>Hours</span><span>Status</span><span>Start–End</span>
               </div>
               {appEntries.slice(0,20).map((e,i)=>{
@@ -9500,12 +9500,12 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     padding:"9px 14px",gap:8,alignItems:"center",fontSize:13,
                     borderBottom:i<Math.min(appEntries.length,20)-1?`1px solid ${T.border}44`:"none",
                     background:i%2===0?T.surface:T.bg}}>
-                    <div style={{fontWeight:600,fontSize:12}}>{fmtD(e.date)}</div>
+                    <div style={{fontWeight:800,fontSize:12}}>{fmtD(e.date)}</div>
                     <div>
                       <Pill label={e.type} size="sm" color={tm.color} bg={tm.bg}/>
                       {e.note&&<div style={{fontSize:11,color:T.muted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.note}</div>}
                     </div>
-                    <div style={{textAlign:"center",fontWeight:700,color:T.accent}}>{e.netHours}h</div>
+                    <div style={{textAlign:"center",fontWeight:800,color:T.accent}}>{e.netHours}h</div>
                     <Pill label={am.label} size="sm" color={am.color} bg={am.bg}/>
                     <div style={{fontSize:11,color:T.sub}}>{e.start}–{e.end}</div>
                   </div>
@@ -9526,7 +9526,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                 <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
                   <div style={{width:36,height:36,borderRadius:10,background:T.holL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🏖</div>
                   <div style={{flex:1}}>
-                    <div style={{fontWeight:700,fontSize:15}}>Leave Requests</div>
+                    <div style={{fontWeight:800,fontSize:15}}>Leave Requests</div>
                     <div style={{fontSize:12,color:T.sub}}>All leave for {apprentice.name}</div>
                   </div>
                   <button onClick={()=>{
@@ -9559,7 +9559,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                           borderBottom:i<advLeave.length-1?`1px solid ${T.border}44`:"none",
                           background:i%2===0?T.surface:T.bg}}>
                           <div>
-                            <div style={{fontWeight:600,fontSize:13,color:T.ink}}>{r.leave_type}</div>
+                            <div style={{fontWeight:800,fontSize:13,color:T.ink}}>{r.leave_type}</div>
                             {r.notes&&<div style={{fontSize:11,color:T.muted,marginTop:2,fontStyle:"italic"}}>{r.notes}</div>}
                           </div>
                           <div style={{fontSize:12,color:T.sub}}>
@@ -9567,7 +9567,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                           <div style={{fontSize:11,color:T.muted}}>{fmtD(r.created_at?.slice(0,10))}</div>
                           <div>
                             <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 10px",
-                              borderRadius:99,fontSize:11,fontWeight:700,
+                              borderRadius:99,fontSize:11,fontWeight:800,
                               background:statusMeta.bg,color:statusMeta.color}}>
                               {statusMeta.icon} {statusMeta.label}
                             </span>
@@ -9613,7 +9613,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               <div style={{display:"flex",alignItems:"center",gap:10}}>
                 <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📋</div>
                 <div>
-                  <div style={{fontWeight:700,fontSize:15}}>New Meeting Report</div>
+                  <div style={{fontWeight:800,fontSize:15}}>New Meeting Report</div>
                   <div style={{fontSize:12,color:T.sub}}>Record a visit or check-in with {apprentice.name}</div>
                 </div>
               </div>
@@ -9624,7 +9624,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
               <div style={{width:36,height:36,borderRadius:10,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📁</div>
               <div>
-                <div style={{fontWeight:700,fontSize:15}}>Past Meeting Reports</div>
+                <div style={{fontWeight:800,fontSize:15}}>Past Meeting Reports</div>
                 <div style={{fontSize:12,color:T.sub}}>History of all visits with {apprentice.name}</div>
               </div>
             </div>
@@ -9634,7 +9634,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
               <div style={{width:36,height:36,borderRadius:10,background:T.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🦺</div>
               <div>
-                <div style={{fontWeight:700,fontSize:15}}>PPE Allocation</div>
+                <div style={{fontWeight:800,fontSize:15}}>PPE Allocation</div>
                 <div style={{fontSize:12,color:T.sub}}>Personal protective equipment issued to {apprentice.name}</div>
               </div>
             </div>
@@ -9725,7 +9725,7 @@ function MentorDashboard({currentUser, allUsers}) {
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
             <div style={{width:38,height:38,borderRadius:11,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>👷</div>
             <div>
-              <div style={{fontWeight:700,fontSize:16}}>My Apprentices</div>
+              <div style={{fontWeight:800,fontSize:16}}>My Apprentices</div>
               <div style={{fontSize:12,color:T.sub}}>{myApprentices.length} apprentice{myApprentices.length!==1?"s":""} allocated to you</div>
             </div>
           </div>
@@ -9748,7 +9748,7 @@ function MentorDashboard({currentUser, allUsers}) {
                 onMouseLeave={e=>e.currentTarget.style.background="none"}>
                 <Avatar name={app.name} role="Apprentice" size={42}/>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:700,fontSize:14,color:T.accent}}>{app.name}</div>
+                  <div style={{fontWeight:800,fontSize:14,color:T.accent}}>{app.name}</div>
                   <div style={{fontSize:12,color:T.sub,marginTop:1,display:"flex",gap:10,flexWrap:"wrap"}}>
                     {app.trade&&<span>🔧 {app.trade}</span>}
                     {app.hostBusiness&&<span>🏢 {app.hostBusiness}</span>}
@@ -9765,7 +9765,7 @@ function MentorDashboard({currentUser, allUsers}) {
                 </div>
                 <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
                   {licWarn&&(
-                    <div style={{fontSize:11,fontWeight:700,color:licDays<0?T.red:licDays<=7?T.red:T.warn,
+                    <div style={{fontSize:11,fontWeight:800,color:licDays<0?T.red:licDays<=7?T.red:T.warn,
                       background:licDays<=7?T.redL:T.warnL,borderRadius:6,padding:"2px 8px"}}>
                       {licDays<0?"Licence expired":licDays===0?"Expires today":`Licence: ${licDays}d`}
                     </div>
@@ -9784,13 +9784,13 @@ function MentorDashboard({currentUser, allUsers}) {
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
             <div style={{width:38,height:38,borderRadius:11,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📂</div>
             <div>
-              <div style={{fontWeight:700,fontSize:16}}>Resources</div>
+              <div style={{fontWeight:800,fontSize:16}}>Resources</div>
               <div style={{fontSize:12,color:T.sub}}>Guides, templates, and reference materials</div>
             </div>
           </div>
           <div style={{background:T.bg,borderRadius:10,padding:"14px 16px",border:`1px dashed ${T.border}`,textAlign:"center"}}>
             <div style={{fontSize:28,marginBottom:8}}>📁</div>
-            <div style={{fontWeight:600,fontSize:14,color:T.sub,marginBottom:4}}>Resource Folder Coming Soon</div>
+            <div style={{fontWeight:800,fontSize:14,color:T.sub,marginBottom:4}}>Resource Folder Coming Soon</div>
             <div style={{fontSize:12,color:T.muted,lineHeight:1.6}}>
               This section will link to shared files, templates, and training resources.<br/>
               Contact your Admin to set up the resource folder.
@@ -9804,7 +9804,7 @@ function MentorDashboard({currentUser, allUsers}) {
   return (
     <div className="fu">
       <div style={{marginBottom:20}}>
-        <h1 style={{fontFamily:"Good Headline Pro",fontSize:26,fontWeight:700,letterSpacing:"-.4px",marginBottom:4}}>
+        <h1 style={{fontFamily:"Good Headline Pro",fontSize:26,fontWeight:800,letterSpacing:"-.4px",marginBottom:4}}>
           Welcome, {currentUser.name.split(" ")[0]}
         </h1>
         <p style={{fontSize:13,color:T.sub}}>Your apprentice overview and mentor tools</p>
@@ -9847,7 +9847,7 @@ function PinPromptModal({ title, onConfirm, onCancel }) {
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:T.surface,borderRadius:16,padding:"28px 28px 24px",maxWidth:320,width:"100%",border:`1.5px solid ${T.border}`,boxShadow:"0 8px 32px rgba(0,0,0,.18)"}}>
-        <div style={{fontWeight:700,fontSize:16,marginBottom:6}}>🔒 {title}</div>
+        <div style={{fontWeight:800,fontSize:16,marginBottom:6}}>🔒 {title}</div>
         <div style={{fontSize:13,color:T.sub,marginBottom:18}}>Enter your 4-digit PIN to continue.</div>
         <input
           type="password"
@@ -9863,7 +9863,7 @@ function PinPromptModal({ title, onConfirm, onCancel }) {
         {err&&<div style={{color:T.red,fontSize:12,marginBottom:8,textAlign:"center"}}>{err}</div>}
         <div style={{display:"flex",gap:8,marginTop:8}}>
           <button onClick={onCancel} style={{flex:1,padding:"10px",borderRadius:8,border:`1.5px solid ${T.border}`,background:"none",cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",fontSize:13}}>Cancel</button>
-          <button onClick={submit} disabled={checking} style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:T.accent,color:"#fff",cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",fontSize:13,fontWeight:700}}>
+          <button onClick={submit} disabled={checking} style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:T.accent,color:"#fff",cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",fontSize:13,fontWeight:800}}>
             {checking?"…":"Confirm"}
           </button>
         </div>
@@ -9937,7 +9937,7 @@ function BroadcastComposer({users, currentUser, onSend, onClose}) {
       display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
       <Card style={{width:"100%",maxWidth:480,padding:28}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:700}}><span style={{display:"flex",alignItems:"center",gap:8}}><BatSignal size={22}/> Contact Via App</span></div>
+          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:800}}><span style={{display:"flex",alignItems:"center",gap:8}}><BatSignal size={22}/> Contact Via App</span></div>
           <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,
             color:T.muted,cursor:"pointer"}}>✕</button>
         </div>
@@ -10060,7 +10060,7 @@ function ApprenticeConversation({apprentice, allUsers, currentUser, canManageMes
         <div style={{width:34,height:34,borderRadius:10,background:T.accentL,
           display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>💬</div>
         <div>
-          <div style={{fontWeight:700,fontSize:14}}>Conversation</div>
+          <div style={{fontWeight:800,fontSize:14}}>Conversation</div>
           <div style={{fontSize:12,color:T.sub}}>
             Permanent message history with {apprentice.name}
             {canManageMessages&&<span style={{marginLeft:8,fontSize:11,color:T.muted}}>(hover a message to delete)</span>}
@@ -10080,7 +10080,7 @@ function ApprenticeConversation({apprentice, allUsers, currentUser, canManageMes
         <div key={day} style={{marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
             <div style={{flex:1,height:1,background:T.border}}/>
-            <div style={{fontSize:11,color:T.muted,fontWeight:600,whiteSpace:"nowrap"}}>{fmtDay(day)}</div>
+            <div style={{fontSize:11,color:T.muted,fontWeight:800,whiteSpace:"nowrap"}}>{fmtDay(day)}</div>
             <div style={{flex:1,height:1,background:T.border}}/>
           </div>
           {dayMsgs.map(m=>{
@@ -10103,7 +10103,7 @@ function ApprenticeConversation({apprentice, allUsers, currentUser, canManageMes
                       position:"absolute",top:-8,right:-8,width:20,height:20,borderRadius:"50%",
                       background:T.red,color:"#fff",border:"none",cursor:"pointer",
                       fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",
-                      lineHeight:1,fontWeight:700}}>✕</button>
+                      lineHeight:1,fontWeight:800}}>✕</button>
                   )}
                 </div>
                 <div style={{fontSize:10,color:T.muted,marginTop:3,display:"flex",gap:6}}>
@@ -10312,7 +10312,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
 
   const TabBtn = ({id,label,count}) => (
     <button onClick={()=>setTab(id)} style={{
-      padding:"8px 16px",borderRadius:8,fontSize:13,fontWeight:600,
+      padding:"8px 16px",borderRadius:8,fontSize:13,fontWeight:800,
       background: tab===id ? xeroBlue : T.bg,
       color: tab===id ? "#fff" : T.sub,
       border: tab===id ? `1.5px solid ${xeroBlueDark}` : `1.5px solid ${T.border}`,
@@ -10322,7 +10322,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
       {count!==undefined&&<span style={{
         background: tab===id?"#ffffff33":T.border,
         color: tab===id?"#fff":T.sub,
-        borderRadius:99,padding:"1px 7px",fontSize:11,fontWeight:700}}>{count}</span>}
+        borderRadius:99,padding:"1px 7px",fontSize:11,fontWeight:800}}>{count}</span>}
     </button>
   );
 
@@ -10336,19 +10336,19 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
           display:"flex",alignItems:"center",justifyContent:"center",
           fontSize:28,fontWeight:900,color:xeroBlue,fontFamily:"Georgia,serif",flexShrink:0}}>𝕏</div>
         <div>
-          <div style={{fontFamily:"Good Headline Pro",fontSize:20,fontWeight:700,color:T.ink}}>Xero Payroll Integration</div>
+          <div style={{fontFamily:"Good Headline Pro",fontSize:20,fontWeight:800,color:T.ink}}>Xero Payroll Integration</div>
           <div style={{fontSize:13,color:T.sub,marginTop:2}}>
             Submit approved timesheets to Xero Payroll NZ · Admin Level 1 only
           </div>
         </div>
         <div style={{marginLeft:"auto",display:"flex",gap:8,flexWrap:"wrap"}}>
           <div style={{textAlign:"center",padding:"8px 16px",background:T.accentL,borderRadius:8}}>
-            <div style={{fontSize:20,fontWeight:700,color:T.accent,fontFamily:"Good Headline Pro"}}>{pendingXero.length}</div>
-            <div style={{fontSize:11,color:T.sub,fontWeight:600}}>Awaiting Xero</div>
+            <div style={{fontSize:20,fontWeight:800,color:T.accent,fontFamily:"Good Headline Pro"}}>{pendingXero.length}</div>
+            <div style={{fontSize:11,color:T.sub,fontWeight:800}}>Awaiting Xero</div>
           </div>
           <div style={{textAlign:"center",padding:"8px 16px",background:"#e6f7fd",borderRadius:8}}>
-            <div style={{fontSize:20,fontWeight:700,color:xeroBlue,fontFamily:"Good Headline Pro"}}>{submittedXero.length}</div>
-            <div style={{fontSize:11,color:T.sub,fontWeight:600}}>Submitted</div>
+            <div style={{fontSize:20,fontWeight:800,color:xeroBlue,fontFamily:"Good Headline Pro"}}>{submittedXero.length}</div>
+            <div style={{fontSize:11,color:T.sub,fontWeight:800}}>Submitted</div>
           </div>
         </div>
       </div>
@@ -10369,7 +10369,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
             padding:"14px 18px",marginBottom:20,display:"flex",alignItems:"center",gap:10}}>
             <span style={{fontSize:20}}>✓</span>
             <div>
-              <div style={{fontWeight:700,fontSize:13,color:T.teal}}>Xero Custom Connection</div>
+              <div style={{fontWeight:800,fontSize:13,color:T.teal}}>Xero Custom Connection</div>
               <div style={{fontSize:12,color:T.sub,marginTop:2}}>
                 Using client credentials — no OAuth flow required. Save your Edge Function URL and Tenant ID below, then load earnings rates.
               </div>
@@ -10377,7 +10377,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
           </div>
 
           <Card style={{marginBottom:16}}>
-            <div style={{fontWeight:700,fontSize:15,marginBottom:16,color:T.ink}}>Connection Settings</div>
+            <div style={{fontWeight:800,fontSize:15,marginBottom:16,color:T.ink}}>Connection Settings</div>
             <div style={{marginBottom:12}}>
               <FL>Supabase Edge Function URL</FL>
               <input value={settings.edgeFunctionUrl||""} onChange={e=>ss("edgeFunctionUrl",e.target.value)}
@@ -10391,7 +10391,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
               <div style={{fontSize:11,color:T.muted,marginTop:3}}>Found in Xero under My Xero → Connections, or via GET /connections</div>
             </div>
 
-            <div style={{fontWeight:700,fontSize:14,marginBottom:12,marginTop:4,color:T.ink,borderTop:`1px solid ${T.border}`,paddingTop:16}}>
+            <div style={{fontWeight:800,fontSize:14,marginBottom:12,marginTop:4,color:T.ink,borderTop:`1px solid ${T.border}`,paddingTop:16}}>
               Payroll Mapping
             </div>
             <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
@@ -10418,7 +10418,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
                 }catch(e){ alert("Failed: "+e.message); }
               }}>🔄 Load from Xero</Btn>
               {(xeroRates.length>0||xeroLeaveTypes.length>0||xeroReimbursements.length>0)&&(
-                <span style={{fontSize:12,color:T.teal,fontWeight:600}}>
+                <span style={{fontSize:12,color:T.teal,fontWeight:800}}>
                   ✓ {xeroRates.length} rates · {xeroLeaveTypes.length} leave · {xeroReimbursements.length} reimbursements
                 </span>
               )}
@@ -10431,12 +10431,12 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
               return (
                 <div key={type} style={{display:"grid",gridTemplateColumns:"180px 1fr 28px",gap:8,alignItems:"center",marginBottom:6}}>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{fontSize:11,padding:"1px 6px",borderRadius:4,fontWeight:600,
+                    <span style={{fontSize:11,padding:"1px 6px",borderRadius:4,fontWeight:800,
                       background:isLeaveType?T.tealL:T.accentL,
                       color:isLeaveType?T.teal:T.accent}}>
                       {isLeaveType?"Leave":"Pay"}
                     </span>
-                    <span style={{fontSize:13,fontWeight:600,color:T.ink}}>{type}</span>
+                    <span style={{fontSize:13,fontWeight:800,color:T.ink}}>{type}</span>
                   </div>
                   {hasOptions ? (
                     <select value={val}
@@ -10468,10 +10468,10 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
             })}
 
             <div style={{marginTop:16,padding:"14px 16px",background:T.warnL,borderRadius:8,border:`1px solid ${T.warn}44`,marginBottom:12}}>
-              <div style={{fontWeight:700,fontSize:13,color:T.warn,marginBottom:8}}>🔧 Tool Allowance Reimbursement</div>
+              <div style={{fontWeight:800,fontSize:13,color:T.warn,marginBottom:8}}>🔧 Tool Allowance Reimbursement</div>
               <div style={{fontSize:12,color:T.sub,marginBottom:10,lineHeight:1.5}}>Automatically submits Tool Allowance = (Normal Hours + Overtime) × /bin/zsh.50 per hour when you submit a timesheet to Xero. Paste the Xero Reimbursement ID for Tool Allowance below.</div>
               <div style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:8,alignItems:"center"}}>
-                <span style={{fontSize:13,fontWeight:600,color:T.ink}}>Tool Allowance ID</span>
+                <span style={{fontSize:13,fontWeight:800,color:T.ink}}>Tool Allowance ID</span>
                 {xeroReimbursements.length>0
                   ? <select value={settings.toolAllowanceReimbursementId||""} onChange={e=>ss("toolAllowanceReimbursementId",e.target.value)}
                       style={{fontSize:12,padding:"6px 8px",border:`1px solid ${settings.toolAllowanceReimbursementId?T.teal:T.border}`,borderRadius:6,background:"#fff",flex:1}}>
@@ -10485,7 +10485,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
             </div>
             <div style={{marginTop:4}}>
               {saved
-                ? <div style={{display:"inline-flex",alignItems:"center",gap:6,color:T.teal,fontWeight:600,fontSize:13}}>✓ Settings saved</div>
+                ? <div style={{display:"inline-flex",alignItems:"center",gap:6,color:T.teal,fontWeight:800,fontSize:13}}>✓ Settings saved</div>
                 : <Btn onClick={saveSettings}>Save Settings</Btn>
               }
             </div>
@@ -10493,7 +10493,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
 
           {/* Edge function download */}
           <Card>
-            <div style={{fontWeight:700,fontSize:15,marginBottom:12,color:T.ink}}>📦 Supabase Edge Function</div>
+            <div style={{fontWeight:800,fontSize:15,marginBottom:12,color:T.ink}}>📦 Supabase Edge Function</div>
             <div style={{fontSize:13,color:T.sub,marginBottom:12,lineHeight:1.6}}>
               Deploy this function to Supabase to act as your Xero API proxy. It securely holds your Xero OAuth token and handles token refresh.
             </div>
@@ -10635,7 +10635,7 @@ serve(async (req) => {
               }catch(e){ alert("Failed: "+e.message); }
             }}>🔄 Load Employees from Xero</Btn>
             {xeroEmployees.length>0&&(
-              <span style={{fontSize:12,color:T.teal,fontWeight:600}}>
+              <span style={{fontSize:12,color:T.teal,fontWeight:800}}>
                 ✓ {xeroEmployees.length} Xero employees loaded
               </span>
             )}
@@ -10661,16 +10661,16 @@ serve(async (req) => {
 
             return (
               <div style={{marginBottom:24}}>
-                <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>⬇ Import / Merge from Xero</div>
+                <div style={{fontWeight:800,fontSize:14,marginBottom:4}}>⬇ Import / Merge from Xero</div>
                 <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
                   These Xero employees are not yet linked to KTA.
-                  {mergeCount>0 && <> <span style={{color:T.teal,fontWeight:600}}>{mergeCount} email match{mergeCount>1?"es":""}</span> found — merging will link their Xero ID and fill any missing fields.</>}
-                  {importCount>0 && <> <span style={{color:xeroBlue,fontWeight:600}}>{importCount} new</span> will be created as Apprentices.</>}
+                  {mergeCount>0 && <> <span style={{color:T.teal,fontWeight:800}}>{mergeCount} email match{mergeCount>1?"es":""}</span> found — merging will link their Xero ID and fill any missing fields.</>}
+                  {importCount>0 && <> <span style={{color:xeroBlue,fontWeight:800}}>{importCount} new</span> will be created as Apprentices.</>}
                 </div>
                 <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 110px",
                     padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
-                    fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:10}}>
+                    fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:10}}>
                     <span>Xero Employee</span><span>Email</span><span>KTA Match</span><span></span>
                   </div>
                   {withMatch.map(({xe,match},i)=>(
@@ -10678,11 +10678,11 @@ serve(async (req) => {
                       padding:"10px 14px",gap:10,alignItems:"center",fontSize:13,
                       borderBottom:i<withMatch.length-1?`1px solid ${T.border}44`:"none",
                       background:match?`${T.tealL}55`:i%2===0?T.surface:T.bg}}>
-                      <div style={{fontWeight:600}}>{xe.firstName||xe.FirstName} {xe.lastName||xe.LastName}</div>
+                      <div style={{fontWeight:800}}>{xe.firstName||xe.FirstName} {xe.lastName||xe.LastName}</div>
                       <div style={{fontSize:11,color:T.sub,wordBreak:"break-all"}}>{xe.Email||<span style={{color:T.muted}}>—</span>}</div>
                       <div style={{fontSize:11}}>
                         {match
-                          ? <span style={{color:T.teal,fontWeight:600,display:"flex",alignItems:"center",gap:4}}>
+                          ? <span style={{color:T.teal,fontWeight:800,display:"flex",alignItems:"center",gap:4}}>
                               <span style={{width:6,height:6,borderRadius:"50%",background:T.teal,display:"inline-block"}}/>
                               {match.name}
                             </span>
@@ -10756,7 +10756,7 @@ serve(async (req) => {
                             showToast(`✓ ${xeFirst} ${xeLast} imported as Apprentice`);
                           }
                         } catch(e) { alert((match?"Merge":"Import")+" failed: "+e.message); }
-                      }} style={{fontSize:12,padding:"5px 10px",borderRadius:6,fontWeight:600,
+                      }} style={{fontSize:12,padding:"5px 10px",borderRadius:6,fontWeight:800,
                         background: match ? T.teal : xeroBlue,
                         color:"#fff",
                         border:`1px solid ${match ? T.teal : xeroBlueDark}`,
@@ -10797,14 +10797,14 @@ serve(async (req) => {
 
             if(!syncItems.length) return (
               <div style={{marginBottom:24,padding:"10px 14px",background:T.tealL,borderRadius:8,
-                fontSize:12,color:T.teal,fontWeight:600}}>
+                fontSize:12,color:T.teal,fontWeight:800}}>
                 ✓ All linked apprentices are up to date with Xero data.
               </div>
             );
 
             return (
               <div style={{marginBottom:24}}>
-                <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>🔄 Xero Data Available to Fill</div>
+                <div style={{fontWeight:800,fontSize:14,marginBottom:4}}>🔄 Xero Data Available to Fill</div>
                 <div style={{fontSize:12,color:T.sub,marginBottom:12,lineHeight:1.6}}>
                   These linked apprentices have <strong>blank fields</strong> that Xero can fill in.
                   Existing KTA data is never overwritten — only blank fields are filled.
@@ -10812,7 +10812,7 @@ serve(async (req) => {
                 <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
                   <div style={{display:"grid",gridTemplateColumns:"160px 1fr 120px",
                     padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
-                    fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:10}}>
+                    fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:10}}>
                     <span>Apprentice</span><span>Missing Fields Xero Can Fill</span><span></span>
                   </div>
                   {syncItems.map(({a,xe,missing},i)=>(
@@ -10820,11 +10820,11 @@ serve(async (req) => {
                       padding:"10px 14px",gap:10,alignItems:"center",
                       borderBottom:i<syncItems.length-1?`1px solid ${T.border}44`:"none",
                       background:i%2===0?T.surface:T.bg}}>
-                      <div style={{fontWeight:700,fontSize:13}}>{a.name}</div>
+                      <div style={{fontWeight:800,fontSize:13}}>{a.name}</div>
                       <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
                         {missing.map(m=>(
                           <span key={m.field} style={{fontSize:11,background:T.accentL,color:T.accent,
-                            borderRadius:5,padding:"2px 7px",fontWeight:600}}>
+                            borderRadius:5,padding:"2px 7px",fontWeight:800}}>
                             {m.label}: {m.value}
                           </span>
                         ))}
@@ -10841,7 +10841,7 @@ serve(async (req) => {
                           onImportUser({...a, ...stateUpdates});
                           showToast(`✓ Filled ${missing.length} fields for ${a.name}`);
                         } catch(e){ alert("Sync failed: "+e.message); }
-                      }} style={{fontSize:12,padding:"6px 12px",borderRadius:7,fontWeight:600,
+                      }} style={{fontSize:12,padding:"6px 12px",borderRadius:7,fontWeight:800,
                         background:T.teal,color:"#fff",border:`1px solid ${T.teal}`,
                         cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",whiteSpace:"nowrap"}}>
                         ✓ Fill {missing.length} field{missing.length>1?"s":""}
@@ -10861,7 +10861,7 @@ serve(async (req) => {
                           onImportUser({...a, ...stateUpdates});
                         }
                         showToast(`✓ Synced Xero data for ${syncItems.length} apprentices`);
-                      }} style={{fontSize:12,padding:"6px 14px",borderRadius:7,fontWeight:700,
+                      }} style={{fontSize:12,padding:"6px 14px",borderRadius:7,fontWeight:800,
                         background:T.accent,color:"#fff",border:"none",
                         cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>
                         ⬇ Fill All Missing Fields
@@ -10874,14 +10874,14 @@ serve(async (req) => {
           })()}
 
           {/* ── Section 2: Link existing KTA apprentices to Xero ── */}
-          <div style={{fontWeight:700,fontSize:14,marginBottom:6}}>🔗 Link Existing Apprentices</div>
+          <div style={{fontWeight:800,fontSize:14,marginBottom:6}}>🔗 Link Existing Apprentices</div>
           <div style={{fontSize:12,color:T.sub,marginBottom:12}}>
             Match each KTA apprentice to their Xero payroll record.
           </div>
           <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 120px",
               padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
-              fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:10}}>
+              fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:10}}>
               <span>KTA Apprentice</span><span>Xero Employee</span><span>Status</span>
             </div>
             {apprentices.map((a,i)=>(
@@ -10890,7 +10890,7 @@ serve(async (req) => {
                 borderBottom:i<apprentices.length-1?`1px solid ${T.border}44`:"none",
                 background:i%2===0?T.surface:T.bg}}>
                 <div>
-                  <div style={{fontWeight:700}}>{a.name}</div>
+                  <div style={{fontWeight:800}}>{a.name}</div>
                   <div style={{fontSize:11,color:T.sub}}>{a.trade||"No trade set"}</div>
                 </div>
                 {xeroEmployees.length > 0 ? (
@@ -10917,7 +10917,7 @@ serve(async (req) => {
                 )}
                 <div style={{display:"flex",gap:6,alignItems:"center"}}>
                   {savingMap[a.id]==="saved"
-                    ? <span style={{fontSize:12,color:T.teal,fontWeight:600}}>✓ Saved</span>
+                    ? <span style={{fontSize:12,color:T.teal,fontWeight:800}}>✓ Saved</span>
                     : (
                       <button onClick={async()=>{
                         const newId = empMap[a.id];
@@ -10934,7 +10934,7 @@ serve(async (req) => {
                           color: empMap[a.id]!==undefined ? "#fff" : T.muted,
                           border:`1px solid ${empMap[a.id]!==undefined?xeroBlueDark:T.border}`,
                           cursor: empMap[a.id]!==undefined ? "pointer" : "default",
-                          fontFamily:"Good Headline Pro,sans-serif",fontWeight:600}}>
+                          fontFamily:"Good Headline Pro,sans-serif",fontWeight:800}}>
                         {savingMap[a.id]==="saving"?"…":"Save"}
                       </button>
                     )
@@ -10988,7 +10988,7 @@ serve(async (req) => {
                       }
                       setSubmittingAll(false);
                     }}
-                    style={{fontSize:13,fontWeight:700,padding:"8px 18px",borderRadius:8,
+                    style={{fontSize:13,fontWeight:800,padding:"8px 18px",borderRadius:8,
                       background: submittingAll?"#e6f7fd":xeroBlue,
                       color: submittingAll?xeroBlueDark:"#fff",
                       border:`1.5px solid ${xeroBlueDark}`,
@@ -11004,7 +11004,7 @@ serve(async (req) => {
                 <Card style={{padding:0,overflow:"hidden"}}>
                   <div style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 90px 80px 90px",
                     padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
-                    fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
+                    fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
                     <span>Date</span><span>Apprentice</span><span style={{textAlign:"center"}}>Hours</span>
                     <span>Type</span><span>Status</span><span style={{textAlign:"right"}}>Action</span>
                   </div>
@@ -11019,13 +11019,13 @@ serve(async (req) => {
                         padding:"10px 14px",gap:8,alignItems:"center",fontSize:13,
                         borderBottom:i<pendingXero.length-1?`1px solid ${T.border}44`:"none",
                         background:i%2===0?T.surface:T.bg}}>
-                        <div style={{fontWeight:600,fontSize:12}}>{fD(e.date)}</div>
+                        <div style={{fontWeight:800,fontSize:12}}>{fD(e.date)}</div>
                         <div>
-                          <div style={{fontWeight:700,fontSize:13}}>{app?.name||"Unknown"}</div>
+                          <div style={{fontWeight:800,fontSize:13}}>{app?.name||"Unknown"}</div>
                           {!hasXeroId&&<div style={{fontSize:11,color:T.warn}}>⚠ No Xero ID</div>}
                           {!hasRate&&<div style={{fontSize:11,color:T.warn}}>⚠ Rate not mapped</div>}
                         </div>
-                        <div style={{textAlign:"center",fontWeight:700,color:T.accent,fontFamily:"Good Headline Pro"}}>{e.netHours}h</div>
+                        <div style={{textAlign:"center",fontWeight:800,color:T.accent,fontFamily:"Good Headline Pro"}}>{e.netHours}h</div>
                         <Pill label={e.type} size="sm" color={tm.color} bg={tm.bg}/>
                         <div>
                           {e.xeroStatus==="submitting"
@@ -11049,7 +11049,7 @@ serve(async (req) => {
                                 onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"error",xeroError:res.error}:x));
                               }
                             }}
-                            style={{fontSize:12,fontWeight:700,padding:"4px 12px",borderRadius:7,
+                            style={{fontSize:12,fontWeight:800,padding:"4px 12px",borderRadius:7,
                               background: canSubmit?"#e6f7fd":T.bg,
                               color: canSubmit?xeroBlueDark:T.muted,
                               border:`1.5px solid ${canSubmit?xeroBlue:T.border}`,
@@ -11076,7 +11076,7 @@ serve(async (req) => {
             : <>
                 <div style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 90px 1fr",
                   padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
-                  fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
+                  fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
                   <span>Date</span><span>Apprentice</span><span style={{textAlign:"center"}}>Hours</span>
                   <span>Type</span><span>Xero Timesheet ID</span>
                 </div>
@@ -11088,9 +11088,9 @@ serve(async (req) => {
                       padding:"10px 14px",gap:8,alignItems:"center",fontSize:13,
                       borderBottom:i<submittedXero.length-1?`1px solid ${T.border}44`:"none",
                       background:i%2===0?T.surface:T.bg}}>
-                      <div style={{fontWeight:600,fontSize:12}}>{fD(e.date)}</div>
-                      <div style={{fontWeight:700}}>{app?.name||"Unknown"}</div>
-                      <div style={{textAlign:"center",fontWeight:700,color:T.accent,fontFamily:"Good Headline Pro"}}>{e.netHours}h</div>
+                      <div style={{fontWeight:800,fontSize:12}}>{fD(e.date)}</div>
+                      <div style={{fontWeight:800}}>{app?.name||"Unknown"}</div>
+                      <div style={{textAlign:"center",fontWeight:800,color:T.accent,fontFamily:"Good Headline Pro"}}>{e.netHours}h</div>
                       <Pill label={e.type} size="sm" color={tm.color} bg={tm.bg}/>
                       <div style={{fontSize:11,color:xeroBlue,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                         {e.xeroTimesheetId||"—"}
@@ -11353,7 +11353,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
       {pinPrompt==="asklock"&&pendingNote&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <div style={{background:T.surface,borderRadius:16,padding:"28px 28px 24px",maxWidth:340,width:"100%",border:`1.5px solid ${T.border}`}}>
-            <div style={{fontWeight:700,fontSize:16,marginBottom:8}}>Save Note</div>
+            <div style={{fontWeight:800,fontSize:16,marginBottom:8}}>Save Note</div>
             <div style={{fontSize:13,color:T.sub,marginBottom:20}}>Would you like to lock this note with your PIN? Locked notes are only visible to you.</div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>commitNote({...pendingNote,is_locked:false})}
@@ -11361,7 +11361,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                 💾 Save unlocked
               </button>
               <button onClick={()=>{ setPinPrompt("lockpin"); }}
-                style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:T.accent,color:"#fff",cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",fontSize:13,fontWeight:700}}>
+                style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:T.accent,color:"#fff",cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",fontSize:13,fontWeight:800}}>
                 🔒 Lock with PIN
               </button>
             </div>
@@ -11391,7 +11391,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
           <div style={{width:32,height:32,borderRadius:8,background:"#f0f7ff",
             display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>✉</div>
           <div>
-            <div style={{fontWeight:700,fontSize:14,color:T.ink}}>Activity & Email Timeline</div>
+            <div style={{fontWeight:800,fontSize:14,color:T.ink}}>Activity & Email Timeline</div>
             <div style={{fontSize:11,color:T.sub}}>{personEmail||"No email set"}</div>
           </div>
         </div>
@@ -11437,7 +11437,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
       {addingNote&&(
         <div style={{background:T.goldL,border:`1.5px solid ${T.gold}44`,borderRadius:10,
           padding:14,marginBottom:14}}>
-          <div style={{fontWeight:600,fontSize:13,marginBottom:8,color:T.gold}}>
+          <div style={{fontWeight:800,fontSize:13,marginBottom:8,color:T.gold}}>
             {activityType==="Phone Call"?"📞":activityType==="Email"?"✉":activityType==="Text Message"?"💬":activityType==="In Person Meeting"?"🤝":"📝"} Log {activityType||"Activity Note"}
           </div>
           <NoteTextarea
@@ -11471,7 +11471,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
       {/* Live emails from M365 (unpinned) */}
       {proxyOk&&emails.length>0&&(
         <div style={{marginBottom:16}}>
-          <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",
+          <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",
             letterSpacing:".6px",marginBottom:8}}>
             📬 Emails from Microsoft 365 — {emails.length} found
           </div>
@@ -11488,12 +11488,12 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                     borderBottom:isOpen?`1px solid ${T.border}`:"none"}}>
                   <div style={{width:6,height:6,borderRadius:"50%",background:dm.color,flexShrink:0}}/>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:600,fontSize:13,color:T.ink,
+                    <div style={{fontWeight:800,fontSize:13,color:T.ink,
                       overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                       {em.subject||"(no subject)"}
                     </div>
                     <div style={{fontSize:11,color:T.sub,marginTop:1}}>
-                      <span style={{color:dm.color,fontWeight:600}}>{dm.label}</span>
+                      <span style={{color:dm.color,fontWeight:800}}>{dm.label}</span>
                       {" · "}{em.from||em.to||""}
                       {" · "}{fmtTs(em.date)}
                     </div>
@@ -11503,13 +11503,13 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                       <button onClick={e=>{e.stopPropagation();pinEmail(em);}}
                         disabled={pinning[em.id]}
                         title="Pin to activity log"
-                        style={{fontSize:11,fontWeight:600,padding:"3px 9px",borderRadius:6,
+                        style={{fontSize:11,fontWeight:800,padding:"3px 9px",borderRadius:6,
                           background:T.accentL,color:T.accent,border:`1px solid ${T.accent}44`,
                           cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif"}}>
                         {pinning[em.id]?"…":"📌 Pin"}
                       </button>
                     )}
-                    {isPinned&&<span style={{fontSize:11,color:T.teal,fontWeight:600}}>✓ Pinned</span>}
+                    {isPinned&&<span style={{fontSize:11,color:T.teal,fontWeight:800}}>✓ Pinned</span>}
                     <span style={{fontSize:11,color:T.muted}}>{isOpen?"▲":"▼"}</span>
                   </div>
                 </div>
@@ -11538,7 +11538,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
           </div>
         : (
           <div>
-            <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",
+            <div style={{fontSize:11,fontWeight:800,color:T.muted,textTransform:"uppercase",
               letterSpacing:".6px",marginBottom:8}}>Activity Log</div>
             {timeline.map((item,i)=>{
               if(item._src==="extra") {
@@ -11550,7 +11550,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                       borderRadius:8,padding:"10px 13px"}}>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
                         <span style={{fontSize:13}}>📋</span>
-                        <span style={{fontWeight:600,fontSize:13,color:T.blue}}>{item.label||"Meeting Report"}</span>
+                        <span style={{fontWeight:800,fontSize:13,color:T.blue}}>{item.label||"Meeting Report"}</span>
                         <span style={{fontSize:11,color:T.sub,marginLeft:"auto"}}>{fmtTs(item.created_at||item.date)}</span>
                       </div>
                       {item.detail&&<div style={{fontSize:12,color:T.ink,lineHeight:1.6}}>{item.detail}</div>}
@@ -11567,10 +11567,10 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                     <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:3,flexWrap:"wrap"}}>
-                          <span style={{fontSize:11,fontWeight:700,color:dm.color,
+                          <span style={{fontSize:11,fontWeight:800,color:dm.color,
                             background:"#ffffff55",borderRadius:4,padding:"1px 6px",
                             border:`1px solid ${dm.color}33`}}>{dm.label}</span>
-                          <span style={{fontWeight:600,fontSize:13,color:T.ink,
+                          <span style={{fontWeight:800,fontSize:13,color:T.ink,
                             overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                             {item.subject||"Note"}
                           </span>
@@ -11598,7 +11598,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                             {item.body}
                             {item.is_locked&&isNoteVisible(item)&&(
                               <span style={{display:"inline-flex",alignItems:"center",gap:4,marginLeft:8,
-                                fontSize:11,color:T.teal,fontWeight:600}}>
+                                fontSize:11,color:T.teal,fontWeight:800}}>
                                 🔓 Unlocked this session
                               </span>
                             )}
@@ -11692,7 +11692,7 @@ function EmailsModule({allUsers, currentUser}) {
 
   const TabBtn = ({id,label,icon}) => (
     <button onClick={()=>setTab(id)} style={{
-      padding:"8px 18px",borderRadius:8,fontSize:13,fontWeight:700,
+      padding:"8px 18px",borderRadius:8,fontSize:13,fontWeight:800,
       background: tab===id ? T.accent : T.bg,
       color: tab===id ? "#fff" : T.sub,
       border:`1.5px solid ${tab===id?T.accentD:T.border}`,
@@ -11713,7 +11713,7 @@ function EmailsModule({allUsers, currentUser}) {
         <div style={{width:48,height:48,borderRadius:12,background:T.accentL,
           display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>✉</div>
         <div style={{flex:1}}>
-          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:700,color:T.ink}}>
+          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:800,color:T.ink}}>
             Email Tracking
           </div>
           <div style={{fontSize:13,color:T.sub,marginTop:2}}>
@@ -11722,8 +11722,8 @@ function EmailsModule({allUsers, currentUser}) {
         </div>
         <div style={{display:"flex",gap:8}}>
           <div style={{textAlign:"center",padding:"8px 14px",background:T.accentL,borderRadius:8}}>
-            <div style={{fontSize:18,fontWeight:700,color:T.accent,fontFamily:"Good Headline Pro"}}>{emails.length}</div>
-            <div style={{fontSize:10,color:T.sub,fontWeight:600,textTransform:"uppercase"}}>Emails</div>
+            <div style={{fontSize:18,fontWeight:800,color:T.accent,fontFamily:"Good Headline Pro"}}>{emails.length}</div>
+            <div style={{fontSize:10,color:T.sub,fontWeight:800,textTransform:"uppercase"}}>Emails</div>
           </div>
         </div>
       </div>
@@ -11739,7 +11739,7 @@ function EmailsModule({allUsers, currentUser}) {
       {tab==="setup"&&(
         <div>
           <Card style={{marginBottom:16}}>
-            <div style={{fontWeight:700,fontSize:15,marginBottom:14}}>Microsoft 365 Connection</div>
+            <div style={{fontWeight:800,fontSize:15,marginBottom:14}}>Microsoft 365 Connection</div>
 
             <div style={{background:T.accentL,border:`1px solid ${T.accent}33`,borderRadius:8,
               padding:"12px 16px",marginBottom:16,fontSize:13,color:T.ink,lineHeight:1.7}}>
@@ -11763,13 +11763,13 @@ function EmailsModule({allUsers, currentUser}) {
             </div>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
               <Btn onClick={saveProxyUrl}>Save URL</Btn>
-              {savedUrl&&<span style={{fontSize:12,color:T.teal,fontWeight:600}}>✓ Saved</span>}
+              {savedUrl&&<span style={{fontSize:12,color:T.teal,fontWeight:800}}>✓ Saved</span>}
               {proxyConfigured&&<Btn v="ghost" sm onClick={()=>loadEmails("inbox")}>Test Connection</Btn>}
             </div>
           </Card>
 
           <Card>
-            <div style={{fontWeight:700,fontSize:15,marginBottom:12}}>📦 Supabase Edge Function</div>
+            <div style={{fontWeight:800,fontSize:15,marginBottom:12}}>📦 Supabase Edge Function</div>
             <div style={{fontSize:13,color:T.sub,marginBottom:14,lineHeight:1.6}}>
               Download and deploy this Edge Function to Supabase. It handles M365 OAuth token refresh and proxies Microsoft Graph API calls.
             </div>
@@ -11881,7 +11881,7 @@ serve(async (req) => {
             <Card>
               <div style={{textAlign:"center",padding:"32px 0",color:T.muted}}>
                 <div style={{fontSize:32,marginBottom:12}}>✉</div>
-                <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>Email proxy not configured</div>
+                <div style={{fontWeight:800,fontSize:15,marginBottom:6}}>Email proxy not configured</div>
                 <div style={{fontSize:13}}>Go to the Setup tab to connect Microsoft 365.</div>
               </div>
             </Card>
@@ -11923,7 +11923,7 @@ serve(async (req) => {
                                   {matched&&(
                                     <RolePill role={matched.role} size="sm"/>
                                   )}
-                                  <span style={{fontSize:11,padding:"1px 7px",borderRadius:4,fontWeight:600,
+                                  <span style={{fontSize:11,padding:"1px 7px",borderRadius:4,fontWeight:800,
                                     background:em.direction==="outbound"?T.accentL:T.tealL,
                                     color:em.direction==="outbound"?T.accent:T.teal}}>
                                     {em.direction==="outbound"?"↑ Sent":"↓ Received"}
@@ -12235,7 +12235,7 @@ export default function App() {
         background:`linear-gradient(135deg,${T.dark},${T.dark2},#2060a0)`}}>
         <div style={{textAlign:"center",color:"#fff"}}>
           <img src={KTA_LOGO} alt="KTA" style={{height:60,objectFit:"contain",filter:"brightness(0) invert(1)",marginBottom:20}} onError={e=>{e.target.style.display="none";}}/>
-          <div style={{fontFamily:"Good Headline Pro",fontSize:20,fontWeight:700,marginBottom:8}}>Kiwi Trade Apprentices</div>
+          <div style={{fontFamily:"Good Headline Pro",fontSize:20,fontWeight:800,marginBottom:8}}>Kiwi Trade Apprentices</div>
           <div style={{fontSize:13,color:"#ffffff66"}}>Connecting to database…</div>
           {dbError&&<div style={{fontSize:12,color:"#ff8888",marginTop:12,maxWidth:300}}>⚠ {dbError}</div>}
         </div>
@@ -12265,7 +12265,7 @@ export default function App() {
                 display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,margin:"0 auto 16px"}}>
                 🔔
               </div>
-              <h2 style={{fontFamily:"Good Headline Pro",fontSize:22,fontWeight:700,color:T.ink,marginBottom:8}}>
+              <h2 style={{fontFamily:"Good Headline Pro",fontSize:22,fontWeight:800,color:T.ink,marginBottom:8}}>
                 You have unread notifications
               </h2>
               <p style={{fontSize:13,color:T.sub,lineHeight:1.6}}>
@@ -12287,7 +12287,7 @@ export default function App() {
                     <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
                       <span style={{fontSize:16,color:typeColors[n.type]||T.sub,flexShrink:0,marginTop:1,display:"flex",alignItems:"center"}}>{n.type==="broadcast"?<BatSignal size={15}/>:(typeIcons[n.type]||"◈")}</span>
                       <div style={{flex:1}}>
-                        <div style={{fontWeight:700,fontSize:13,marginBottom:2}}>{n.title}</div>
+                        <div style={{fontWeight:800,fontSize:13,marginBottom:2}}>{n.title}</div>
                         <div style={{fontSize:12,color:T.sub,lineHeight:1.5}}>{n.message}</div>
                       </div>
                       <button onClick={()=>{
@@ -12295,7 +12295,7 @@ export default function App() {
                         setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
                       }} style={{
                         background:T.accentL,border:`1px solid ${T.accent}44`,color:T.accent,
-                        borderRadius:6,padding:"4px 12px",fontSize:12,fontWeight:600,
+                        borderRadius:6,padding:"4px 12px",fontSize:12,fontWeight:800,
                         cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",flexShrink:0
                       }}>✓ Read</button>
                     </div>
@@ -12367,7 +12367,7 @@ export default function App() {
                   <button key={n.id}
                     onClick={()=>{navigateTo(n.id);setViewingAppId(null);setShowAppList(false);}}
                     style={{
-                      padding:"8px 18px",borderRadius:9,fontSize:13,fontWeight:700,
+                      padding:"8px 18px",borderRadius:9,fontSize:13,fontWeight:800,
                       letterSpacing:"-.1px",
                       background: isActive ? "#ffffff" : "#ffffff15",
                       color: isActive ? T.dark : "#ffffffcc",
@@ -12424,7 +12424,7 @@ export default function App() {
               <button onClick={()=>{setShowBroadcast(s=>!s);setShowNotifs(false);}}
                 title="Contact Via App"
                 style={{background:showBroadcast?"#ffffff30":"#ffffff18",border:"1.5px solid #ffffff28",color:"#fff",
-                  borderRadius:9,padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer",
+                  borderRadius:9,padding:"7px 14px",fontSize:12,fontWeight:800,cursor:"pointer",
                   display:"flex",alignItems:"center",gap:6,transition:"all .14s",
                   fontFamily:"Good Headline Pro,sans-serif",letterSpacing:"-.1px"}}
                 onMouseEnter={e=>{e.currentTarget.style.background="#ffffff30";}}
@@ -12438,7 +12438,7 @@ export default function App() {
                 style={{background: module==="xero"?"#13b5ea22":"#ffffff18",
                   border: module==="xero"?"1.5px solid #13b5ea88":"1.5px solid #ffffff28",
                   color: module==="xero"?"#13b5ea":"#ffffffcc",
-                  borderRadius:9,padding:"7px 12px",fontSize:12,fontWeight:700,
+                  borderRadius:9,padding:"7px 12px",fontSize:12,fontWeight:800,
                   cursor:"pointer",fontFamily:"Good Headline Pro,sans-serif",
                   display:"flex",alignItems:"center",gap:5,transition:"all .14s"}}
                 onMouseEnter={e=>{e.currentTarget.style.background="#13b5ea22";e.currentTarget.style.color="#13b5ea";}}
@@ -12447,13 +12447,13 @@ export default function App() {
               </button>
             )}
             <div className="desktop-user-name" style={{textAlign:"right",marginLeft:4}}>
-              <div style={{fontSize:13,fontWeight:700,color:"#fff",letterSpacing:"-.1px"}}>{currentUser.name}</div>
+              <div style={{fontSize:13,fontWeight:800,color:"#fff",letterSpacing:"-.1px"}}>{currentUser.name}</div>
               <div style={{marginTop:2}}><RolePill role={role} adminLevel={role==="Admin"?(currentUser?.adminLevel||1):null} size="sm"/></div>
             </div>
             <Avatar name={currentUser.name} role={role} size={34}/>
             <button className="desktop-signout" onClick={handleLogout}
               style={{background:"#ffffff15",border:"1.5px solid #ffffff28",borderRadius:9,
-                padding:"8px 14px",fontSize:12,color:"#ffffffbb",fontWeight:700,
+                padding:"8px 14px",fontSize:12,color:"#ffffffbb",fontWeight:800,
                 fontFamily:"Good Headline Pro,sans-serif",cursor:"pointer",letterSpacing:"-.1px",transition:"all .14s"}}
               onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
               onMouseLeave={e=>{e.currentTarget.style.background="#ffffff15";e.currentTarget.style.color="#ffffffbb";e.currentTarget.style.borderColor="#ffffff28";}}>
@@ -12504,7 +12504,7 @@ export default function App() {
                   display:"inline-flex",alignItems:"center",gap:6,
                   background:"none",border:"none",color:T.sub,fontSize:13,
                   fontFamily:"Good Headline Pro,sans-serif",cursor:"pointer",marginBottom:10,padding:0,
-                  fontWeight:700
+                  fontWeight:800
                 }}
                   onMouseEnter={e=>e.currentTarget.style.color=T.ink}
                   onMouseLeave={e=>e.currentTarget.style.color=T.sub}>
@@ -12513,7 +12513,7 @@ export default function App() {
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
                   <Avatar name={viewingApp.name} role="Apprentice" size={40}/>
                   <div>
-                    <h1 style={{fontFamily:"Good Headline Pro",fontSize:24,fontWeight:700,letterSpacing:"-.4px"}}>
+                    <h1 style={{fontFamily:"Good Headline Pro",fontSize:24,fontWeight:800,letterSpacing:"-.4px"}}>
                       {viewingApp.name}
                     </h1>
 
@@ -12526,13 +12526,13 @@ export default function App() {
                   display:"inline-flex",alignItems:"center",gap:6,
                   background:"none",border:"none",color:T.sub,fontSize:13,
                   fontFamily:"Good Headline Pro,sans-serif",cursor:"pointer",marginBottom:10,padding:0,
-                  fontWeight:700
+                  fontWeight:800
                 }}
                   onMouseEnter={e=>e.currentTarget.style.color=T.ink}
                   onMouseLeave={e=>e.currentTarget.style.color=T.sub}>
                   ← Back to Dashboard
                 </button>
-                <h1 style={{fontFamily:"Good Headline Pro",fontSize:26,fontWeight:700,letterSpacing:"-.4px"}}>
+                <h1 style={{fontFamily:"Good Headline Pro",fontSize:26,fontWeight:800,letterSpacing:"-.4px"}}>
                   {showAppList==="apprentices"?"Apprentices"
                   :showAppList==="hours"?"Hours This Week"
                   :showAppList==="submitted"?"Pending"
@@ -12557,7 +12557,7 @@ export default function App() {
               </div>
             ) : (
               <div>
-                <h1 style={{fontFamily:"Good Headline Pro",fontSize:26,fontWeight:700,letterSpacing:"-.4px"}}>
+                <h1 style={{fontFamily:"Good Headline Pro",fontSize:26,fontWeight:800,letterSpacing:"-.4px"}}>
                   {activeMod==="dashboard"?"Dashboard":activeMod==="timesheet"?"Timesheet":activeMod==="crm"?"CRM":activeMod==="mentor"?"My Apprentices":"User Management"}
                 </h1>
                 <p style={{fontSize:13,color:T.sub,marginTop:4}}>
@@ -12711,7 +12711,7 @@ export default function App() {
       {appToast&&(
         <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",
           background:appToast.ok?"#1a8a7a":"#bf2b2b",color:"#fff",
-          padding:"10px 20px",borderRadius:10,fontWeight:600,fontSize:13,
+          padding:"10px 20px",borderRadius:10,fontWeight:800,fontSize:13,
           boxShadow:"0 4px 16px #0004",zIndex:9999,fontFamily:"Good Headline Pro,sans-serif",
           animation:"fadeIn .2s"}}>
           {appToast.msg}
