@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.15
+// KTA Workforce Management — v2.7.16
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.15
+          v2.7.16
         </div>
       </div>
     </div>
@@ -1991,7 +1991,7 @@ function UserManagement({users, setUsers, currentUser}) {
 
   const blank={name:"",role:"Apprentice",email:"",phone:"",password:"",allocatedTo:[],
     address:"",suburb:"",city:"",postcode:"",approverUserId:null,viewerUserId:null,secondaryRole:null,adminLevel:1,
-    hostBusiness:"",overtimeType:null,overtimeThreshold:"",overtimeRateId:""};
+    hostBusiness:"",overtimeType:null,overtimeThreshold:"",overtimeRateId:"",reportsEmail:""};
   const [form,setForm]=useState(blank);
   const [showForm,setShowForm]=useState(false);
   const [editId,setEditId]=useState(null);
@@ -2054,7 +2054,7 @@ function UserManagement({users, setUsers, currentUser}) {
       approverUserId:u.approverUserId||null,viewerUserId:u.viewerUserId||null,
       secondaryRole:u.secondaryRole||null,adminLevel:u.adminLevel||1,
       hostBusiness:u.hostBusiness||"",overtimeType:u.overtimeType||null,
-      overtimeThreshold:u.overtimeThreshold||"",overtimeRateId:u.overtimeRateId||""});
+      overtimeThreshold:u.overtimeThreshold||"",overtimeRateId:u.overtimeRateId||"",reportsEmail:u.reportsEmail||""});
     setPwField(""); setEditId(u.id); setShowForm(true);
     if(u.role==="Apprentice") {
       // Prefer the value stored directly on the apprentice record (new approach)
@@ -2311,6 +2311,11 @@ function UserManagement({users, setUsers, currentUser}) {
                     <input placeholder="Xero earnings rate UUID" value={form.overtimeRateId||""} onChange={e=>sf("overtimeRateId",e.target.value)}/>
                     <div style={{fontSize:10,color:T.muted,marginTop:2}}>Find in Xero → Payroll → Pay Items</div>
                   </div>}
+                </div>
+                <div style={{marginTop:12}}>
+                  <FL>Reports Go To (email)</FL>
+                  <input type="email" placeholder="e.g. manager@company.co.nz" value={form.reportsEmail||""} onChange={e=>sf("reportsEmail",e.target.value)}/>
+                  <div style={{fontSize:10,color:T.muted,marginTop:2}}>Visit reports will be emailed here instead of to the approver. Leave blank to use approver.</div>
                 </div>
                 {form.overtimeType&&(
                   <div style={{marginTop:8,padding:"8px 12px",background:T.accentL,borderRadius:7,fontSize:12,color:T.accent}}>
@@ -5015,7 +5020,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
   const viewers     = allUsers.filter(u => u.role === "Viewer"   || u.role === "Admin");
   const mentors     = allUsers.filter(u => u.role === "Mentor"   || u.role === "Admin");
 
-  const blank = {firstName:"", lastName:"", email:"", phone:"", trade:"", licenceExpiry:"", siteSafeExpiry:"", firstAidExpiry:"", hostBusiness:"", role:"Apprentice", allocatedTo:[], password:"", overtimeType:null, overtimeThreshold:"", overtimeRateId:""};
+  const blank = {firstName:"", lastName:"", email:"", phone:"", trade:"", licenceExpiry:"", siteSafeExpiry:"", firstAidExpiry:"", hostBusiness:"", role:"Apprentice", allocatedTo:[], password:"", overtimeType:null, overtimeThreshold:"", overtimeRateId:"", reportsEmail:""};
   const [form, setForm]         = useState(blank);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId]     = useState(null);
@@ -5099,6 +5104,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
       trade: u.trade||"", licenceExpiry: u.licenceExpiry||"", siteSafeExpiry: u.siteSafeExpiry||"", firstAidExpiry: u.firstAidExpiry||"", hostBusiness: u.hostBusiness||"",
       role:"Apprentice", allocatedTo:[], password:u.password,
       overtimeType: u.overtimeType||null, overtimeThreshold: u.overtimeThreshold||"", overtimeRateId: u.overtimeRateId||"",
+      reportsEmail: u.reportsEmail||"",
     });
     // Pre-select from approverUserId/viewerUserId/mentorUserId (new) or fall back to allocatedTo (legacy)
     const curApprover = u.approverUserId || allUsers.find(x=>(x.role==="Approver"||x.role==="Admin")&&(x.allocatedTo||[]).includes(u.id))?.id || "";
@@ -5209,6 +5215,13 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
                     onChange={e=>sf("overtimeRateId",e.target.value)}/>
                   <div style={{fontSize:10,color:T.muted,marginTop:2}}>Find in Xero → Payroll → Pay Items</div>
                 </div>}
+              </div>
+              <div style={{marginTop:12}}>
+                <FL>Reports Go To (email)</FL>
+                <input type="email" placeholder="e.g. manager@company.co.nz"
+                  value={form.reportsEmail||""}
+                  onChange={e=>sf("reportsEmail",e.target.value)}/>
+                <div style={{fontSize:10,color:T.muted,marginTop:2}}>Visit reports emailed here + apprentice. Leave blank to use approver.</div>
               </div>
               {form.overtimeType&&(
                 <div style={{marginTop:8,padding:"8px 12px",background:T.accentL,borderRadius:7,fontSize:12,color:T.accent}}>
@@ -7373,9 +7386,14 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver) => {
     `kta.org.nz`,
   ].join("\n");
 
+  // Use reportsEmail if set, otherwise fall back to approver
+  const reportRecipient = apprentice.reportsEmail
+    ? { email: apprentice.reportsEmail, name: "KTA Reports" }
+    : (approver ? { email: approver.email, name: approver.name } : null);
+
   const recipients = [
     { email: apprentice.email, name: apprentice.name },
-    approver ? { email: approver.email, name: approver.name } : null,
+    reportRecipient,
   ].filter(r => r && r.email && r.email.trim());
 
   if(recipients.length === 0) {
@@ -7689,8 +7707,12 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
           background:T.accentL,borderRadius:7,border:`1px solid ${T.accent}33`}}>
           📧 On save this report will be emailed to:
           <strong> {apprentice.name}</strong>{apprentice.email?` (${apprentice.email})`:` — ⚠ no email set`}
-          {approver&&<>, <strong>{approver.name}</strong>{approver.email?` (${approver.email})`:` — ⚠ no email set`}</>}
-          {!approver&&<span style={{color:T.warn}}> — ⚠ no approver linked to this apprentice</span>}
+          {apprentice.reportsEmail
+            ? <>, <strong>{apprentice.reportsEmail}</strong> (Reports Go To)</>
+            : approver
+              ? <>, <strong>{approver.name}</strong>{approver.email?` (${approver.email})`:` — ⚠ no email set`}</>
+              : <span style={{color:T.warn}}> — ⚠ no approver linked to this apprentice</span>
+          }
         </div>
         {emailStatus==="sending"&&<div style={{background:T.warnL,border:`1px solid ${T.warn}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:12,color:T.warn}}>⏳ Sending emails…</div>}
         {emailStatus==="sent"&&<div style={{background:T.tealL,border:`1px solid ${T.teal}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:12,color:T.teal}}>✓ Saved and emailed!</div>}
@@ -8597,6 +8619,16 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               </div>
             )}
           </div>
+          {/* Reports Go To */}
+          {(apprentice.reportsEmail || isAdmin) && (
+            <div style={{background:T.accentL,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.accent}33`,marginTop:10}}>
+              <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>📧 Reports Go To</div>
+              {apprentice.reportsEmail
+                ? <div style={{fontSize:13,fontWeight:600,color:T.accent}}>{apprentice.reportsEmail}</div>
+                : <div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>Not set — reports go to approver</div>
+              }
+            </div>
+          )}
         </div>
       </Card>
 
