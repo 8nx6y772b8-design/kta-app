@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.23
+// KTA Workforce Management — v2.7.24
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.23
+          v2.7.24
         </div>
       </div>
     </div>
@@ -3567,7 +3567,9 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
       if(!c.companyId && c.company) {
         const cn = (c.company||"").toLowerCase().trim();
         const coN = (co.name||"").toLowerCase().trim();
-        return cn===coN || cn.includes(coN) || coN.includes(cn);
+        // Only fuzzy match if both strings are meaningful (>2 chars) to avoid false positives
+        if(!cn || !coN || coN.length < 3) return false;
+        return cn===coN || (coN.length >= 5 && cn.includes(coN)) || (cn.length >= 5 && coN.includes(cn));
       }
       return false;
     });
