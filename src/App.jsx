@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.17
+// KTA Workforce Management — v2.7.18
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.17
+          v2.7.18
         </div>
       </div>
     </div>
@@ -5422,6 +5422,13 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
                         })():<input placeholder="e.g. Sparks Electrical Ltd" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>}
                       </div>
                       <div style={{gridColumn:"1/-1"}}>
+                        <FL>Reports Go To (email)</FL>
+                        <input type="email" placeholder="e.g. manager@company.co.nz"
+                          value={form.reportsEmail||""}
+                          onChange={e=>sf("reportsEmail",e.target.value)}/>
+                        <div style={{fontSize:10,color:T.muted,marginTop:2}}>Visit reports emailed here + apprentice. Leave blank to use approver.</div>
+                      </div>
+                      <div style={{gridColumn:"1/-1"}}>
                         <div style={{fontWeight:700,fontSize:12,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>Overtime Settings</div>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
                           <div><FL>Overtime Type</FL>
@@ -5432,7 +5439,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
                             </select>
                           </div>
                           {form.overtimeType&&<div><FL>Threshold Hours</FL>
-                            <input type="number" min="1" max="24" step="0.5" placeholder={form.overtimeType==="daily"?"e.g. 8":"e.g. 40"} value={form.overtimeThreshold} onChange={e=>sf("overtimeThreshold",parseFloat(e.target.value)||"")}/>
+                            <input type="number" min="1" max={form.overtimeType==="weekly"?"168":"24"} step="0.5" placeholder={form.overtimeType==="daily"?"e.g. 8":"e.g. 40"} value={form.overtimeThreshold} onChange={e=>sf("overtimeThreshold",parseFloat(e.target.value)||"")}/>
                           </div>}
                           {form.overtimeType&&<div><FL>Xero Overtime Rate ID</FL>
                             <input placeholder="Xero earnings rate UUID" value={form.overtimeRateId||""} onChange={e=>sf("overtimeRateId",e.target.value)}/>
