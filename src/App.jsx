@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.47
+// KTA Workforce Management — v2.7.48
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -935,7 +935,7 @@ const Btn = ({children,onClick,v="primary",sm=false,disabled=false,full=false,st
       ...vs[v]||vs.primary,borderRadius:8,
       padding:sm?"5px 12px":"9px 16px",fontSize:sm?12:13,fontWeight:700,
       display:"inline-flex",alignItems:"center",justifyContent:"center",gap:5,
-      opacity:disabled?.45:1,width:full?"100%":undefined,...sx
+      opacity:disabled?0.45:1,width:full?"100%":undefined,...sx
     }}
       onMouseEnter={e=>{if(!disabled)e.currentTarget.style.filter="brightness(.93)";}}
       onMouseLeave={e=>{e.currentTarget.style.filter="none";}}>
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:15,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.47
+          v2.7.48
         </div>
       </div>
     </div>
@@ -2162,7 +2162,7 @@ function UserManagement({users, setUsers, currentUser}) {
                           background:locked?T.bg:(form.adminLevel||1)===lvl?T.accentL:T.surface,
                           color:locked?T.muted:(form.adminLevel||1)===lvl?T.accent:T.sub,
                           cursor:locked?"not-allowed":"pointer",textAlign:"left",
-                          fontFamily:"DM Sans,sans-serif",transition:"all .15s",opacity:locked?.5:1}}>
+                          fontFamily:"DM Sans,sans-serif",transition:"all .15s",opacity:locked?0.5:1}}>
                         <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}>
                           <span style={{fontSize:20}}>{lvl===1?"★":"☆"}</span>
                           <span>Admin Level {lvl}{locked?" (requires Admin 1)":""}</span>
@@ -4057,7 +4057,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                           background:"transparent",color:isApp?T.border:T.muted,
                           border:`1px solid ${isApp?T.border:T.border}`,
                           display:"flex",alignItems:"center",justifyContent:"center",
-                          cursor:isApp?"not-allowed":"pointer",opacity:isApp?.4:1}}
+                          cursor:isApp?"not-allowed":"pointer",opacity:isApp?0.4:1}}
                         onMouseEnter={e=>{if(!isApp){e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}}
                         onMouseLeave={e=>{if(!isApp){e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}}>✕</button>
                     );
@@ -7089,7 +7089,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
           <div style={{display:"flex",gap:6,flexShrink:0}}>
             {canApprove && (
               <button onClick={approve} disabled={acting}
-                style={{background:T.teal,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"DM Sans,sans-serif",opacity:acting?.6:1}}>
+                style={{background:T.teal,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"DM Sans,sans-serif",opacity:acting?0.6:1}}>
                 {acting?"…":"✓ Approve"}
               </button>
             )}
@@ -7136,7 +7136,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
           {reasonErr && <div style={{fontSize:14,color:T.red,marginBottom:6}}>{reasonErr}</div>}
           <div style={{display:"flex",gap:8,marginTop:6}}>
             <button onClick={submitDecline} disabled={acting}
-              style={{background:T.red,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"DM Sans,sans-serif",opacity:acting?.6:1}}>
+              style={{background:T.red,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"DM Sans,sans-serif",opacity:acting?0.6:1}}>
               {acting?"…":"Confirm Decline"}
             </button>
             <button onClick={()=>setDeclineMode(false)} disabled={acting}
@@ -8230,7 +8230,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
             <button onClick={handleSaveDraft} disabled={savingDraft}
               style={{padding:"9px 18px",borderRadius:9,fontSize:16,fontWeight:700,cursor:"pointer",
                 background:T.surface,color:T.sub,border:`1.5px solid ${T.border}`,
-                fontFamily:"DM Sans,sans-serif",opacity:savingDraft?.6:1,transition:"all .14s"}}>
+                fontFamily:"DM Sans,sans-serif",opacity:savingDraft?0.6:1,transition:"all .14s"}}>
               {savingDraft?"Saving…":draftId?"💾 Update Draft":"💾 Save Draft"}
             </button>
           )}
@@ -8837,6 +8837,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   const [advLeave, setAdvLeave]               = useState([]);
   const [advLeaveLoading, setAdvLeaveLoading] = useState(true);
   const [pdEdit, setPdEdit]                   = useState(false);
+  const [showEditForm, setShowEditForm]       = useState(false);
   const [pdSaving, setPdSaving]               = useState(false);
   const [pdForm, setPdForm]                   = useState({
     email:"", phone:"", startDate:"", dateOfBirth:"",
@@ -8954,7 +8955,15 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             {apprentice.name?.[0]?.toUpperCase()||"?"}
           </div>
           <div style={{flex:1}}>
-            <div style={{fontFamily:"DM Sans",fontSize:28,fontWeight:700,color:T.ink}}>{apprentice.name}</div>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{fontFamily:"DM Sans",fontSize:28,fontWeight:700,color:T.ink}}>{apprentice.name}</div>
+              {canEditExpiry&&<button onClick={()=>setShowEditForm(true)}
+                style={{background:T.accentL,border:`1px solid ${T.accent}44`,borderRadius:7,
+                  padding:"4px 10px",fontSize:14,fontWeight:700,color:T.accent,cursor:"pointer",
+                  fontFamily:"DM Sans,sans-serif",display:"flex",alignItems:"center",gap:4}}>
+                ✏️ Edit
+              </button>}
+            </div>
             <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>
               <RolePill role="Apprentice" size="sm"/>
               {approver&&<Pill label={`Approver: ${approver.name}`} size="sm" color={T.warn} bg={T.warnL}/>}
@@ -9577,6 +9586,29 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
         );
         return null;
       })}
+
+      {/* Edit apprentice modal */}
+      {showEditForm && createPortal(
+        <div style={{position:"fixed",inset:0,zIndex:3000,background:"rgba(13,27,46,0.55)",
+          display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"40px 20px",overflowY:"auto"}}>
+          <div style={{background:"#fff",borderRadius:14,padding:24,maxWidth:760,width:"100%",
+            boxShadow:"0 8px 40px rgba(0,0,0,.18)"}}>
+            <ApprenticeEditForm
+              user={apprentice}
+              allUsers={allUsers}
+              viewer={viewer}
+              title={`✎ Editing — ${apprentice.name}`}
+              onSave={(updated) => {
+                setApprentice(updated);
+                if(onUserUpdated) onUserUpdated(updated);
+                setShowEditForm(false);
+              }}
+              onCancel={()=>setShowEditForm(false)}
+            />
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Report modal — top-level fixed overlay for both admin and mentor */}
       {showMeetingForm && isAdmin && (
@@ -11470,7 +11502,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
             const dm = dirMeta(em.direction);
             return (
               <div key={em.id} style={{border:`1.5px solid ${T.border}`,borderRadius:10,
-                marginBottom:6,overflow:"hidden",opacity:isPinned?.7:1}}>
+                marginBottom:6,overflow:"hidden",opacity:isPinned?0.7:1}}>
                 <div onClick={()=>setExpanded(x=>({...x,[em.id]:!x[em.id]}))}
                   style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",
                     cursor:"pointer",background:isOpen?T.bg:T.surface,
