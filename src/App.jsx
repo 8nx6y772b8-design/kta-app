@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.36
+// KTA Workforce Management — v2.7.38
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -688,7 +688,7 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
         to: approver.email,
         subject: `Timesheet submitted — ${apprentice.name} (${fmtH(totalHrs)})`,
         html: `
-<div style="font-family:DM Sans,Arial,sans-serif;max-width:620px;margin:0 auto;background:#f0f4f9;padding:24px">
+<div style="font-family:"Good Headline Pro",Arial,sans-serif;max-width:620px;margin:0 auto;background:#f0f4f9;padding:24px">
   <div style="background:#1b4f8c;border-radius:10px 10px 0 0;padding:18px 24px">
     <div style="color:#fff;font-size:18px;font-weight:700">Timesheet Submitted</div>
     <div style="color:#dce8f7;font-size:12px;margin-top:4px">Kiwi Trade Apprentices · ${apprentice.name}</div>
@@ -758,14 +758,25 @@ const notifyApprentice = async (apprentice, approver, entries, approved) => {
 // GLOBAL STYLES
 // ─────────────────────────────────────────────────────────────────────────────
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Italic.ttf') format('truetype'); font-weight:400; font-style:italic; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Light.ttf') format('truetype'); font-weight:300; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-LightItalic.ttf') format('truetype'); font-weight:300; font-style:italic; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-News.ttf') format('truetype'); font-weight:450; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-NewsItalic.ttf') format('truetype'); font-weight:450; font-style:italic; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Medium.ttf') format('truetype'); font-weight:500; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-MediumItalic.ttf') format('truetype'); font-weight:500; font-style:italic; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Bold.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-BoldItalic.ttf') format('truetype'); font-weight:700; font-style:italic; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Black.ttf') format('truetype'); font-weight:900; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-BlackItalic.ttf') format('truetype'); font-weight:900; font-style:italic; font-display:swap; }
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-  html,body{background:${T.bg};font-family:"DM Sans",sans-serif;color:${T.ink};font-size:14px;-webkit-tap-highlight-color:transparent;}
+  html,body{background:${T.bg};font-family:"Good Headline Pro",sans-serif;color:${T.ink};font-size:14px;-webkit-tap-highlight-color:transparent;}
   ::-webkit-scrollbar{width:5px;height:5px;}
   ::-webkit-scrollbar-track{background:${T.border};}
   ::-webkit-scrollbar-thumb{background:${T.muted};border-radius:3px;}
   select,input,textarea{
-    font-family:"DM Sans",sans-serif;background:${T.surface};
+    font-family:"Good Headline Pro",sans-serif;background:${T.surface};
     border:1.5px solid ${T.border};color:${T.ink};border-radius:9px;
     padding:9px 12px;font-size:16px;outline:none;width:100%;
     transition:border-color .15s,box-shadow .15s;
@@ -778,7 +789,7 @@ const CSS = `
   select option{background:white;}
   input:focus,select:focus,textarea:focus{border-color:${T.accent};box-shadow:0 0 0 3px ${T.accentL};}
   input[type=date]{cursor:pointer;} input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer;width:20px;height:20px;} .ts-date-input::-webkit-calendar-picker-indicator{opacity:0;position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;cursor:pointer;}
-  button{cursor:pointer;font-family:"DM Sans",sans-serif;border:none;transition:all .14s;}
+  button{cursor:pointer;font-family:"Good Headline Pro",sans-serif;border:none;transition:all .14s;}
   textarea{resize:vertical;min-height:64px;line-height:1.55;font-size:16px;}
 
   @keyframes fadeUp  {from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
@@ -800,7 +811,7 @@ const CSS = `
   .login-input-wrap input{padding:13px 16px 13px 44px;background:#f9f8f5;border:1.5px solid ${T.border};font-size:16px;border-radius:10px;}
   .login-input-wrap input:focus{background:white;}
   .login-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:16px;color:${T.muted};pointer-events:none;}
-  .pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:${T.muted};cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;font-family:"DM Sans",sans-serif;}
+  .pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:${T.muted};cursor:pointer;font-size:13px;padding:2px 6px;border-radius:4px;font-family:"Good Headline Pro",sans-serif;}
   .pw-toggle:hover{color:${T.sub};}
 
   /* App shell */
@@ -843,7 +854,7 @@ const CSS = `
     .bottom-nav-btn{
       flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
       gap:2px;background:none;border:none;padding:4px 2px;cursor:pointer;
-      font-family:"DM Sans",sans-serif;transition:all .14s;min-height:52px;
+      font-family:"Good Headline Pro",sans-serif;transition:all .14s;min-height:52px;
     }
     .bottom-nav-icon{font-size:22px;line-height:1;display:block;}
     .bottom-nav-label{font-size:10px;font-weight:600;letter-spacing:.2px;display:block;}
@@ -952,7 +963,7 @@ const Card = ({children,style:sx={},onClick}) => (
 const StatCard = ({label,value,sub,color=T.accent}) => (
   <Card style={{paddingBlock:18}}>
     <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{label}</div>
-    <div style={{fontSize:24,fontWeight:700,color,fontFamily:"'Libre Baskerville'"}}>{value}</div>
+    <div style={{fontSize:24,fontWeight:700,color,fontFamily:"Good Headline Pro"}}>{value}</div>
     {sub&&<div style={{fontSize:11,color:T.sub,marginTop:2}}>{sub}</div>}
   </Card>
 );
@@ -1040,7 +1051,7 @@ function LoginScreen({users, onLogin}) {
           </div>
 
           {/* Tagline */}
-          <h1 style={{fontFamily:"'Libre Baskerville'",fontSize:36,fontWeight:700,color:"#fff",lineHeight:1.25,marginBottom:20,letterSpacing:"-.5px"}}>
+          <h1 style={{fontFamily:"Good Headline Pro",fontSize:36,fontWeight:700,color:"#fff",lineHeight:1.25,marginBottom:20,letterSpacing:"-.5px"}}>
             Timesheet management, approvals, and CRM
           </h1>
           <p style={{fontSize:16,color:"#ffffffaa",lineHeight:1.7}}>
@@ -1052,7 +1063,7 @@ function LoginScreen({users, onLogin}) {
       {/* RIGHT — login form */}
       <div className="login-right">
         <div style={{marginBottom:36}}>
-          <h2 style={{fontFamily:"'Libre Baskerville'",fontSize:26,fontWeight:700,color:T.ink,marginBottom:8}}>
+          <h2 style={{fontFamily:"Good Headline Pro",fontSize:26,fontWeight:700,color:T.ink,marginBottom:8}}>
             Welcome back
           </h2>
           <p style={{fontSize:13,color:T.sub}}>Sign in to your account to continue.</p>
@@ -1106,7 +1117,7 @@ function LoginScreen({users, onLogin}) {
             border:`1.5px solid ${T.accentD}`,
             borderRadius:10,fontSize:15,fontWeight:700,
             display:"flex",alignItems:"center",justifyContent:"center",gap:10,
-            cursor:loading?"default":"pointer",fontFamily:"DM Sans,sans-serif",transition:"all .15s"
+            cursor:loading?"default":"pointer",fontFamily:""Good Headline Pro",sans-serif",transition:"all .15s"
           }}>
             {loading
               ? <><span style={{width:16,height:16,border:`2px solid ${T.accent}`,borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin .7s linear infinite"}}/>Signing in…</>
@@ -1120,7 +1131,7 @@ function LoginScreen({users, onLogin}) {
           {!forgotMode ? (
             <button onClick={()=>{setForgotMode(true);setErr("");setForgotMsg("");}} style={{
               background:"none",border:"none",color:T.accent,fontSize:13,
-              fontWeight:600,cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+              fontWeight:600,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",
               padding:0,display:"block",margin:"0 auto"
             }}>Forgot your password?</button>
           ) : (
@@ -1147,21 +1158,21 @@ function LoginScreen({users, onLogin}) {
                 <button onClick={sendReset} disabled={forgotSending} style={{
                   flex:1,padding:"10px",background:T.accent,color:"#fff",
                   border:`1.5px solid ${T.accentD}`,borderRadius:9,fontSize:13,fontWeight:700,
-                  cursor:forgotSending?"default":"pointer",fontFamily:"DM Sans,sans-serif",
+                  cursor:forgotSending?"default":"pointer",fontFamily:""Good Headline Pro",sans-serif",
                   opacity:forgotSending?0.6:1,transition:"all .15s"
                 }}>{forgotSending?"Sending…":"Send Reset Link"}</button>
                 <button onClick={()=>{setForgotMode(false);setForgotEmail("");setForgotMsg("");}} style={{
                   padding:"10px 16px",background:"none",color:T.sub,
                   border:`1.5px solid ${T.border}`,borderRadius:9,fontSize:13,fontWeight:600,
-                  cursor:"pointer",fontFamily:"DM Sans,sans-serif"
+                  cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"
                 }}>Cancel</button>
               </div>
             </div>
           )}
         </div>
         {/* Version */}
-        <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.36
+        <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:""Good Headline Pro",sans-serif",letterSpacing:".5px"}}>
+          v2.7.38
         </div>
       </div>
     </div>
@@ -1227,7 +1238,7 @@ function EntryForm({onSave,onCancel,initial=null,minDate=null,maxDate=null,usedD
           <div style={{fontSize:11,color:T.sub,fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>Net Hours</div>
           <div style={{fontSize:11,color:T.muted,marginTop:1}}>{gross>0?`${f.start}–${f.end} minus ${f.breakMins}m`:"—"}</div>
         </div>
-        <div style={{fontFamily:"'Libre Baskerville'",fontSize:26,fontWeight:700,color:netH>0?T.accent:T.red}}>
+        <div style={{fontFamily:"Good Headline Pro",fontSize:26,fontWeight:700,color:netH>0?T.accent:T.red}}>
           {netH>0?`${netH}h`:"—"}
         </div>
       </div>
@@ -1279,9 +1290,9 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
           }
         }
         return (<>
-          <div style={{textAlign:"center",fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:14,color:"#1b4f8c"}}>{normalH}h</div>
-          <div style={{textAlign:"center",fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:14,color:overtimeH>0?"#b86e1a":T.muted}}>{overtimeH>0?`${overtimeH}h`:"—"}</div>
-          <div style={{textAlign:"center",fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:14,color:TYPE_META[entry.type]?.color||T.accent}}>{entry.netHours}h</div>
+          <div style={{textAlign:"center",fontFamily:"Good Headline Pro",fontWeight:700,fontSize:14,color:"#1b4f8c"}}>{normalH}h</div>
+          <div style={{textAlign:"center",fontFamily:"Good Headline Pro",fontWeight:700,fontSize:14,color:overtimeH>0?"#b86e1a":T.muted}}>{overtimeH>0?`${overtimeH}h`:"—"}</div>
+          <div style={{textAlign:"center",fontFamily:"Good Headline Pro",fontWeight:700,fontSize:14,color:TYPE_META[entry.type]?.color||T.accent}}>{entry.netHours}h</div>
         </>);
       })()}
       <div style={{textAlign:"center",fontSize:11,color:T.sub}}>{entry.breakMins>0?`${entry.breakMins}m`:"—"}</div>
@@ -1637,7 +1648,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                               padding:"12px 14px",borderRadius:10,textAlign:"left",cursor:"pointer",
                               border:`2px solid ${selected?T.accent:T.border}`,
                               background:selected?T.accentL:T.surface,
-                              fontFamily:"DM Sans,sans-serif",transition:"all .14s"}}>
+                              fontFamily:""Good Headline Pro",sans-serif",transition:"all .14s"}}>
                               <div style={{fontWeight:700,fontSize:14,color:selected?T.accent:T.ink}}>
                                 Week ending {label}
                               </div>
@@ -1651,7 +1662,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                           padding:"12px 14px",borderRadius:10,textAlign:"left",cursor:"pointer",
                           border:`2px solid ${weekPickerSelected==="all"?T.blue:T.border}`,
                           background:weekPickerSelected==="all"?T.blueL:T.surface,
-                          fontFamily:"DM Sans,sans-serif",transition:"all .14s"}}>
+                          fontFamily:""Good Headline Pro",sans-serif",transition:"all .14s"}}>
                           <div style={{fontWeight:700,fontSize:14,color:weekPickerSelected==="all"?T.blue:T.ink}}>
                             Submit all weeks at once
                           </div>
@@ -1767,7 +1778,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                         }} style={{
                           padding:"9px 16px",borderRadius:8,fontSize:13,fontWeight:700,
                           background:T.accent,color:"#fff",border:"none",
-                          cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                          cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",
                           display:"flex",alignItems:"center",gap:7,transition:"opacity .14s"}}
                           onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
                           onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
@@ -1783,7 +1794,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                       }} style={{
                         padding:"9px 16px",borderRadius:8,fontSize:13,fontWeight:700,
                         background:T.accentD,color:"#fff",border:"none",
-                        cursor:"pointer",fontFamily:"DM Sans,sans-serif",transition:"opacity .14s"}}
+                        cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",transition:"opacity .14s"}}
                         onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
                         onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
                         ✓✓ Approve all pending
@@ -1819,7 +1830,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                     overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12}}>{e.note||"No note"}</div>
                   <TypePill type={e.type} size="sm"/>
                   <div style={{textAlign:"center",fontWeight:700,color:TYPE_META[e.type]?.color||T.accent,
-                    fontFamily:"'Libre Baskerville'",fontSize:14}}>{e.netHours}h</div>
+                    fontFamily:"Good Headline Pro",fontSize:14}}>{e.netHours}h</div>
                   <div style={{textAlign:"center",fontSize:11,color:T.muted,fontFamily:"monospace"}}>{e.start}–{e.end}</div>
                   <div style={{textAlign:"center",fontSize:11,color:T.sub}}>{e.breakMins>0?`${e.breakMins}m`:"—"}</div>
                   <div style={{display:"flex",gap:4,alignItems:"center"}}>
@@ -2162,7 +2173,7 @@ function UserManagement({users, setUsers, currentUser}) {
                           background:locked?T.bg:(form.adminLevel||1)===lvl?T.accentL:T.surface,
                           color:locked?T.muted:(form.adminLevel||1)===lvl?T.accent:T.sub,
                           cursor:locked?"not-allowed":"pointer",textAlign:"left",
-                          fontFamily:"DM Sans,sans-serif",transition:"all .15s",opacity:locked?.5:1}}>
+                          fontFamily:""Good Headline Pro",sans-serif",transition:"all .15s",opacity:locked?.5:1}}>
                         <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}>
                           <span style={{fontSize:16}}>{lvl===1?"★":"☆"}</span>
                           <span>Admin Level {lvl}{locked?" (requires Admin 1)":""}</span>
@@ -2214,7 +2225,7 @@ function UserManagement({users, setUsers, currentUser}) {
                 <button onClick={()=>setShowPw(s=>!s)} type="button" style={{
                   position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",
                   background:"none",border:"none",color:T.muted,cursor:"pointer",
-                  fontSize:12,fontFamily:"DM Sans,sans-serif"}}>
+                  fontSize:12,fontFamily:""Good Headline Pro",sans-serif"}}>
                   {showPw?"Hide":"Show"}
                 </button>
               </div>
@@ -2268,7 +2279,7 @@ function UserManagement({users, setUsers, currentUser}) {
                               <button onClick={()=>toggleAlloc(id)} style={{
                                 background:"none",border:"none",color:T.accent,
                                 cursor:"pointer",padding:0,fontSize:13,lineHeight:1,
-                                fontFamily:"DM Sans,sans-serif"}}>×</button>
+                                fontFamily:""Good Headline Pro",sans-serif"}}>×</button>
                             </div>
                           );
                         })}
@@ -2410,7 +2421,7 @@ function UserManagement({users, setUsers, currentUser}) {
                   border:`1.5px solid ${active?T.accent:T.border}`,
                   background:active?T.accentL:T.surface,
                   color:active?T.accent:T.sub,
-                  cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                  cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",
                   display:"flex",alignItems:"center",gap:6,transition:"all .15s"}}>
                   {g.label}
                   <span style={{fontSize:11,fontWeight:700,padding:"1px 7px",borderRadius:99,
@@ -2554,7 +2565,7 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
     <div className="fu">
       {/* Back */}
       <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",
-        color:T.accent,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"DM Sans,sans-serif"}}>
+        color:T.accent,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:16,padding:0,fontFamily:""Good Headline Pro",sans-serif"}}>
         ← Back to Users
       </button>
 
@@ -2696,7 +2707,7 @@ function CRMUsersPanel({allUsers, navigateTo}) {
           </div>
         </div>
         <div style={{display:"flex",gap:6}}>
-          {sorted.length>6&&<button onClick={()=>setOpen(p=>!p)} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,padding:"3px 9px",fontSize:11,color:T.muted,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{open?"Less":"All "+sorted.length}</button>}
+          {sorted.length>6&&<button onClick={()=>setOpen(p=>!p)} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,padding:"3px 9px",fontSize:11,color:T.muted,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>{open?"Less":"All "+sorted.length}</button>}
           <Btn sm onClick={()=>navigateTo("users")}>Open Users</Btn>
         </div>
       </div>
@@ -2800,14 +2811,14 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
                     <input value={form[k]} onChange={e=>sf(k,e.target.value)}
                       style={{width:"100%",fontSize:13,padding:"6px 10px",borderRadius:6,
                         border:`1.5px solid ${T.border}`,background:T.surface,color:T.ink,
-                        fontFamily:"DM Sans,sans-serif",boxSizing:"border-box"}}/>
+                        fontFamily:""Good Headline Pro",sans-serif",boxSizing:"border-box"}}/>
                   </div>
                 ))}
                 <div>
                   <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>Status</div>
                   <select value={form.status} onChange={e=>sf("status",e.target.value)}
                     style={{width:"100%",fontSize:13,padding:"6px 10px",borderRadius:6,
-                      border:`1.5px solid ${T.border}`,background:T.surface,color:T.ink,fontFamily:"DM Sans,sans-serif"}}>
+                      border:`1.5px solid ${T.border}`,background:T.surface,color:T.ink,fontFamily:""Good Headline Pro",sans-serif"}}>
                     {["Active","Prospect","Inactive"].map(s=><option key={s}>{s}</option>)}
                   </select>
                 </div>
@@ -2817,14 +2828,14 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
                 <textarea value={form.notes} onChange={e=>sf("notes",e.target.value)} rows={2}
                   style={{width:"100%",fontSize:13,padding:"6px 10px",borderRadius:6,
                     border:`1.5px solid ${T.border}`,background:T.surface,color:T.ink,
-                    fontFamily:"DM Sans,sans-serif",resize:"vertical",boxSizing:"border-box"}}/>
+                    fontFamily:""Good Headline Pro",sans-serif",resize:"vertical",boxSizing:"border-box"}}/>
               </div>
               <div style={{display:"flex",gap:8}}>
                 <Btn sm onClick={save} disabled={saving}>{saving?"Saving…":"💾 Save"}</Btn>
                 <Btn sm v="ghost" onClick={()=>setEditing(false)}>Cancel</Btn>
                 <button onClick={()=>{setEditing(false);onView();}}
                   style={{marginLeft:"auto",fontSize:12,color:T.accent,background:"none",border:"none",
-                    cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:600,textDecoration:"underline"}}>
+                    cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",fontWeight:600,textDecoration:"underline"}}>
                   Full profile →
                 </button>
               </div>
@@ -2834,7 +2845,7 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
               {c.notes&&<div style={{width:"100%",fontSize:12,color:T.sub,lineHeight:1.5}}>📝 {c.notes}</div>}
               <button onClick={onView}
                 style={{fontSize:12,color:T.accent,background:"none",border:"none",
-                  cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:600,padding:0,textDecoration:"underline"}}>
+                  cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",fontWeight:600,padding:0,textDecoration:"underline"}}>
                 View full profile →
               </button>
             </div>
@@ -2904,7 +2915,7 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
         display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
         <div style={{background:"#fff",borderRadius:14,padding:28,maxWidth:560,width:"100%",
           boxShadow:"0 8px 40px rgba(0,0,0,.18)"}}>
-          <div style={{fontFamily:"'Libre Baskerville'",fontSize:18,fontWeight:700,marginBottom:4}}>Merge Duplicates</div>
+          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:700,marginBottom:4}}>Merge Duplicates</div>
           <div style={{fontSize:13,color:T.sub,marginBottom:20}}>
             Select which record becomes the <strong>master</strong>. All contacts/links will be moved to it, missing fields will be filled from the others, then duplicates are deleted.
           </div>
@@ -2912,7 +2923,7 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
             {mergeGroup.map(item=>(
               <button key={item.id} onClick={()=>setMasterId(item.id)}
                 style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",
-                  borderRadius:10,cursor:"pointer",textAlign:"left",fontFamily:"DM Sans,sans-serif",
+                  borderRadius:10,cursor:"pointer",textAlign:"left",fontFamily:""Good Headline Pro",sans-serif",
                   background:masterId===item.id?T.tealL:T.surface,
                   border:`2px solid ${masterId===item.id?T.teal:T.border}`,
                   transition:"all .14s"}}>
@@ -2980,7 +2991,7 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
             {["name","email"].map(opt => (
               <button key={opt} onClick={()=>{setMatchBy(opt);setDismissed(new Set());}}
                 style={{padding:"4px 14px",borderRadius:8,fontSize:12,fontWeight:600,
-                  cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                  cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",
                   background:matchBy===opt?T.warn:T.bg,
                   color:matchBy===opt?"#fff":T.sub,
                   border:`1.5px solid ${matchBy===opt?T.warn:T.border}`}}>
@@ -3011,7 +3022,7 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
                     </div>
                     <button onClick={()=>dismiss(group)}
                       style={{fontSize:11,color:T.muted,background:"none",border:"none",
-                        cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                        cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>
                       Dismiss ✕
                     </button>
                   </div>
@@ -3036,14 +3047,14 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
                         <button onClick={()=>onView(item)}
                           style={{fontSize:11,padding:"4px 10px",borderRadius:6,cursor:"pointer",
                             background:T.accentL,color:T.accent,border:`1px solid ${T.accent}44`,
-                            fontFamily:"DM Sans,sans-serif",fontWeight:600}}>
+                            fontFamily:""Good Headline Pro",sans-serif",fontWeight:600}}>
                           View
                         </button>
                         {canDelete&&onMerge&&(
                           <button onClick={()=>{setMergeGroup(group);setMasterId(item.id);}}
                             style={{fontSize:11,padding:"4px 10px",borderRadius:6,cursor:"pointer",
                               background:T.tealL,color:T.teal,border:`1px solid ${T.teal}44`,
-                              fontFamily:"DM Sans,sans-serif",fontWeight:600}}>
+                              fontFamily:""Good Headline Pro",sans-serif",fontWeight:600}}>
                             🔀 Merge
                           </button>
                         )}
@@ -3054,7 +3065,7 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
                           }}
                             style={{fontSize:11,padding:"4px 10px",borderRadius:6,cursor:"pointer",
                               background:T.redL,color:T.red,border:`1px solid ${T.red}44`,
-                              fontFamily:"DM Sans,sans-serif",fontWeight:600}}>
+                              fontFamily:""Good Headline Pro",sans-serif",fontWeight:600}}>
                             Delete
                           </button>
                         )}
@@ -3379,7 +3390,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
     const linkedApp = allUsers && allUsers.find(u=>u.role==="Apprentice"&&u.email&&detailContact.email&&u.email.toLowerCase()===detailContact.email.toLowerCase());
     return (
       <div className="fu">
-        <button onClick={()=>setDetailContact(null)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:T.accent,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"DM Sans,sans-serif"}}>
+        <button onClick={()=>setDetailContact(null)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:T.accent,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:16,padding:0,fontFamily:""Good Headline Pro",sans-serif"}}>
           ← Back to Contacts
         </button>
         <Card style={{marginBottom:16}}>
@@ -3429,7 +3440,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                         {["Approver","Viewer","Mentor","Admin"].map(r=>(
                           <button key={r} onClick={()=>{setConvertRole(r);setConvertAlloc([]);}}
-                            style={{padding:"6px 16px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                            style={{padding:"6px 16px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",
                               background:convertRole===r?T.accent:T.bg,
                               color:convertRole===r?"#fff":T.sub,
                               border:`1.5px solid ${convertRole===r?T.accent:T.border}`}}>
@@ -3613,7 +3624,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
     return (
       <div className="fu">
         {/* ── Back + header ── */}
-        <button onClick={()=>setDetailCompany(null)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:T.accent,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"DM Sans,sans-serif"}}>
+        <button onClick={()=>setDetailCompany(null)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:T.accent,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:16,padding:0,fontFamily:""Good Headline Pro",sans-serif"}}>
           ← Back to Companies
         </button>
 
@@ -3626,7 +3637,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 {(co.name||"?")[0].toUpperCase()}
               </div>
               <div>
-                <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:22,color:T.ink}}>{co.name}</div>
+                <div style={{fontFamily:"Good Headline Pro",fontWeight:700,fontSize:22,color:T.ink}}>{co.name}</div>
                 <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
                   {co.industry&&<span style={{fontSize:12,color:T.sub,fontWeight:500}}>{co.industry}</span>}
                   {co.city&&<span style={{fontSize:12,color:T.muted}}>📍 {co.city}{co.country&&co.country!=="New Zealand"?`, ${co.country}`:""}</span>}
@@ -3823,7 +3834,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
             padding:"7px 16px",borderRadius:8,fontSize:13,fontWeight:600,
             background:tab===t?T.accent:T.surface,color:tab===t?"#fff":T.sub,
             border:`1.5px solid ${tab===t?T.accentD:T.border}`,
-            fontFamily:"DM Sans,sans-serif",cursor:"pointer",transition:"all .14s"
+            fontFamily:""Good Headline Pro",sans-serif",cursor:"pointer",transition:"all .14s"
           }}>{t.charAt(0).toUpperCase()+t.slice(1)}</button>
         ))}
       </div>
@@ -3873,7 +3884,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 <button onClick={handleHsLookup} disabled={hsStatus==="searching"||!hsEmail.trim()} style={{
                   padding:"9px 18px",background:T.accent,color:"#fff",border:`1.5px solid ${T.accentD}`,
                   borderRadius:9,fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",
-                  fontFamily:"DM Sans,sans-serif",opacity:(!hsEmail.trim()||hsStatus==="searching")?0.5:1,
+                  fontFamily:""Good Headline Pro",sans-serif",opacity:(!hsEmail.trim()||hsStatus==="searching")?0.5:1,
                   display:"flex",alignItems:"center",gap:7,transition:"all .15s"
                 }}>
                   {hsStatus==="searching"
@@ -3885,7 +3896,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               <div style={{marginTop:10,textAlign:"right"}}>
                 <button onClick={()=>setHsStatus("notfound")} style={{
                   background:"none",border:"none",color:T.muted,fontSize:12,
-                  cursor:"pointer",fontFamily:"DM Sans,sans-serif",textDecoration:"underline"
+                  cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",textDecoration:"underline"
                 }}>Skip — enter manually</button>
               </div>
             </div>
@@ -3901,7 +3912,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 <span style={{color:T.sub,marginLeft:8}}>Fields auto-filled — review and save.</span>
               </div>
               <button onClick={()=>{setHsStatus(null);setHsSource(false);resetContactForm();}} style={{
-                background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:13,fontFamily:"DM Sans,sans-serif"
+                background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:13,fontFamily:""Good Headline Pro",sans-serif"
               }}>✕ Clear</button>
             </div>
           )}
@@ -3911,7 +3922,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               <span>⚠</span>
               <span style={{color:T.warn,flex:1}}>Not found in HubSpot — fill in manually below.</span>
               <button onClick={()=>{setHsStatus(null);setHsEmail("");}} style={{
-                background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:13,fontFamily:"DM Sans,sans-serif"
+                background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:13,fontFamily:""Good Headline Pro",sans-serif"
               }}>← Try again</button>
             </div>
           )}
@@ -4089,7 +4100,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               <button onClick={()=>setShowHostsOnly(false)}
                 style={{fontSize:11,padding:"2px 10px",borderRadius:20,background:T.tealL,
                   color:T.teal,border:`1px solid ${T.teal}44`,cursor:"pointer",
-                  fontFamily:"DM Sans,sans-serif",fontWeight:700,display:"flex",alignItems:"center",gap:5}}>
+                  fontFamily:""Good Headline Pro",sans-serif",fontWeight:700,display:"flex",alignItems:"center",gap:5}}>
                 🏢 Host Businesses only &nbsp;✕
               </button>
             )}
@@ -4281,7 +4292,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                       <button key={s} onClick={()=>moveDeal(d.id,s)} style={{
                         fontSize:9,padding:"2px 6px",borderRadius:4,
                         background:STAGE_C[s]+"22",color:STAGE_C[s],border:"none",
-                        fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>→{s}</button>
+                        fontWeight:700,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>→{s}</button>
                     ))}
                   </div>}
                 </div>
@@ -4965,7 +4976,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                     setHsMsg("✓ All contacts and companies deleted.");
                   } catch(e){ setHsMsg("Error: "+e.message); }
                 }} style={{background:T.red,color:"#fff",border:"none",borderRadius:8,
-                  padding:"8px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                  padding:"8px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>
                   🗑 Delete All Contacts &amp; Companies
                 </button>
               </Card>
@@ -5008,7 +5019,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               <div><div style={{fontWeight:700,fontSize:13}}>{d.title}</div>
                 {d.notes&&<div style={{fontSize:11,color:T.muted,marginTop:1}}>{d.notes}</div>}</div>
               <div style={{fontSize:12,color:T.sub}}>{d.contact||"—"}</div>
-              <div style={{textAlign:"right",fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:14,color:STAGE_C[d.stage]||T.muted}}>
+              <div style={{textAlign:"right",fontFamily:"Good Headline Pro",fontWeight:700,fontSize:14,color:STAGE_C[d.stage]||T.muted}}>
                 {d.value?`$${parseFloat(d.value).toLocaleString()}`:"—"}</div>
               <Pill label={d.stage} size="sm" color={STAGE_C[d.stage]||T.muted} bg={(STAGE_C[d.stage]||T.muted)+"1a"}/>
               <div style={{fontSize:11,color:T.muted}}>{d.closeDate?new Date(d.closeDate+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"}):"—"}</div>
@@ -5047,7 +5058,7 @@ function WeeklyHoursList({allUsers, entries}) {
   return (
     <div className="fu">
       <div style={{marginBottom:18}}>
-        <div style={{fontFamily:"'Libre Baskerville'",fontSize:18,fontWeight:700}}>Hours This Week</div>
+        <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:700}}>Hours This Week</div>
         <div style={{fontSize:12,color:T.sub,marginTop:3}}>All timesheet entries from this week, grouped by apprentice.</div>
       </div>
 
@@ -5056,7 +5067,7 @@ function WeeklyHoursList({allUsers, entries}) {
         <Card style={{marginBottom:20,padding:"16px 20px"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
             <div style={{fontSize:13,fontWeight:700}}>All Apprentices — Week Total</div>
-            <div style={{fontFamily:"'Libre Baskerville'",fontSize:22,fontWeight:700,color:T.accent}}>{globalTotal}h</div>
+            <div style={{fontFamily:"Good Headline Pro",fontSize:22,fontWeight:700,color:T.accent}}>{globalTotal}h</div>
           </div>
           {/* Type breakdown pills */}
           <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
@@ -5068,7 +5079,7 @@ function WeeklyHoursList({allUsers, entries}) {
                   borderRadius:8,padding:"5px 10px"}}>
                   <span style={{fontSize:13}}>{m.sym}</span>
                   <span style={{fontSize:12,color:m.color,fontWeight:600}}>{type}</span>
-                  <span style={{fontSize:13,fontWeight:700,color:m.color,fontFamily:"'Libre Baskerville'"}}>{hrs.toFixed(1)}h</span>
+                  <span style={{fontSize:13,fontWeight:700,color:m.color,fontFamily:"Good Headline Pro"}}>{hrs.toFixed(1)}h</span>
                 </div>
               );
             })}
@@ -5103,7 +5114,7 @@ function WeeklyHoursList({allUsers, entries}) {
                 <div style={{fontWeight:700,fontSize:14}}>{app.name}</div>
                 <div style={{fontSize:12,color:T.sub}}>{appEntries.length} entr{appEntries.length===1?"y":"ies"} this week</div>
               </div>
-              <div style={{fontFamily:"'Libre Baskerville'",fontSize:22,fontWeight:700,color:T.accent}}>{totalHrs.toFixed(1)}h</div>
+              <div style={{fontFamily:"Good Headline Pro",fontSize:22,fontWeight:700,color:T.accent}}>{totalHrs.toFixed(1)}h</div>
             </div>
 
             {appEntries.length===0 && <div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>No entries this week.</div>}
@@ -5166,7 +5177,7 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
   return (
     <div className="fu">
       <div style={{marginBottom:18}}>
-        <div style={{fontFamily:"'Libre Baskerville'",fontSize:18,fontWeight:700}}>
+        <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:700}}>
           {status==="submitted"?"Pending":status==="approved"?"Submitted — Approved":"Submitted — Not Approved"}
         </div>
         <div style={{fontSize:12,color:T.sub,marginTop:3}}>
@@ -5259,14 +5270,16 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
   const [companyContacts, setCompanyContacts] = useState([]);
   useEffect(()=>{
-    const biz = form.hostBusiness;
-    if(!biz) { setCompanyContacts([]); return; }
+    const biz = (form.hostBusiness||"").toLowerCase().trim();
+    if(!biz || biz.length < 3) { setCompanyContacts([]); return; }
     loadTable('crm_contacts').then(rows=>{
-      const matched = rows.filter(r=>r.email&&r.name&&(
-        (r.company||"").toLowerCase().trim()===(biz||"").toLowerCase().trim() ||
-        (r.company||"").toLowerCase().includes((biz||"").toLowerCase()) ||
-        (biz||"").toLowerCase().includes((r.company||"").toLowerCase())
-      ));
+      const matched = rows.filter(r=>{
+        if(!r.email||!r.name) return false;
+        const rc = (r.company||"").toLowerCase().trim();
+        if(!rc || rc.length < 3) return false;
+        // Exact match only — no partial/includes to avoid false positives
+        return rc === biz;
+      });
       setCompanyContacts(matched.map(r=>({id:r.id,name:r.name,email:r.email,jobTitle:r.job_title||""})));
     }).catch(()=>{});
   },[form.hostBusiness]);
@@ -5561,7 +5574,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
       {/* Header */}
       <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:18}}>
         <div>
-          <div style={{fontFamily:"'Libre Baskerville'", fontSize:18, fontWeight:700}}>Apprentices</div>
+          <div style={{fontFamily:"Good Headline Pro", fontSize:18, fontWeight:700}}>Apprentices</div>
           <div style={{fontSize:12, color:T.sub, marginTop:3}}>{apprentices.length} apprentice{apprentices.length!==1?"s":""} — click a row to view their timesheet, or expand to manage allocations.</div>
         </div>
         <Btn onClick={()=>{setForm(blank);setEditId(null);setPwField("");setExpandId(null);setFormApproverId("");setFormViewerId("");setShowForm(s=>!s);}}>
@@ -5684,7 +5697,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
               <div style={{position:"relative"}}>
                 <input type={showPw?"text":"password"} autoComplete="new-password" placeholder={editId?"Leave blank to keep":"Set password"}
                   value={pwField} onChange={e=>setPwField(e.target.value)} style={{paddingRight:60}}/>
-                <button onClick={()=>setShowPw(s=>!s)} type="button" style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:12,fontFamily:"DM Sans,sans-serif"}}>{showPw?"Hide":"Show"}</button>
+                <button onClick={()=>setShowPw(s=>!s)} type="button" style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:12,fontFamily:""Good Headline Pro",sans-serif"}}>{showPw?"Hide":"Show"}</button>
               </div>
               {!editId && <div style={{fontSize:11,color:T.muted,marginTop:3}}>Required for new users</div>}
             </div>
@@ -5943,7 +5956,7 @@ function ContactsList() {
     <div className="fu">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18}}>
         <div>
-          <div style={{fontFamily:"'Libre Baskerville'",fontSize:18,fontWeight:700}}>Contacts</div>
+          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:700}}>Contacts</div>
           <div style={{fontSize:12,color:T.sub,marginTop:3}}>Business and other contacts — not system users.</div>
         </div>
         <Btn onClick={()=>{setForm(blank);setEditId(null);setShowForm(s=>!s);}}>
@@ -6039,7 +6052,7 @@ function HostBusinessList() {
     <div className="fu">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18}}>
         <div>
-          <div style={{fontFamily:"'Libre Baskerville'",fontSize:18,fontWeight:700}}>Host Businesses</div>
+          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:700}}>Host Businesses</div>
           <div style={{fontSize:12,color:T.sub,marginTop:3}}>Companies that host apprentices for on-the-job training.</div>
         </div>
         <Btn onClick={()=>{setForm(blank);setEditId(null);setShowForm(s=>!s);}}>
@@ -6150,7 +6163,7 @@ function TargetDealsList() {
     <div className="fu">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18}}>
         <div>
-          <div style={{fontFamily:"'Libre Baskerville'",fontSize:18,fontWeight:700}}>Target Deals</div>
+          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:700}}>Target Deals</div>
           <div style={{fontSize:12,color:T.sub,marginTop:3}}>{items.filter(x=>!["Won","Lost"].includes(x.stage)).length} active deals · pipeline value <strong style={{color:T.accent}}>${totalValue.toLocaleString()}</strong></div>
         </div>
         <Btn onClick={()=>{setForm(blank);setEditId(null);setShowForm(s=>!s);}}>
@@ -6205,7 +6218,7 @@ function TargetDealsList() {
             </div>
             <div style={{fontSize:12,color:T.sub}}>{x.org||"—"}</div>
             <div style={{fontSize:12,color:T.sub}}>{x.contact||"—"}</div>
-            <div style={{textAlign:"right",fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:14,color:DEAL_C[x.stage]||T.muted}}>
+            <div style={{textAlign:"right",fontFamily:"Good Headline Pro",fontWeight:700,fontSize:14,color:DEAL_C[x.stage]||T.muted}}>
               {x.value?`$${parseFloat(x.value).toLocaleString()}`:"—"}
             </div>
             <Pill label={x.stage} size="sm" color={DEAL_C[x.stage]||T.muted} bg={(DEAL_C[x.stage]||T.muted)+"1a"}/>
@@ -6372,7 +6385,7 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
         onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
         <Card style={{paddingBlock:18,border:`1.5px solid ${T.blue}44`,height:"100%"}}>
           <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Apprentices</div>
-          <div style={{fontSize:24,fontWeight:700,color:T.blue,fontFamily:"'Libre Baskerville'"}}>{apprentices.length}</div>
+          <div style={{fontSize:24,fontWeight:700,color:T.blue,fontFamily:"Good Headline Pro"}}>{apprentices.length}</div>
           <div style={{fontSize:11,color:T.sub,marginTop:2}}>active workforce</div>
           <div style={{fontSize:11,color:T.blue,marginTop:6,fontWeight:600}}>View & manage →</div>
         </Card>
@@ -6384,7 +6397,7 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
         <Card style={{paddingBlock:14,border:`1.5px solid ${T.accent}44`,height:"100%"}}>
           <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:6}}>Hours This Week</div>
           <div style={{display:"flex",alignItems:"baseline",gap:4,marginBottom:8}}>
-            <span style={{fontSize:20,fontWeight:700,color:T.accent,fontFamily:"'Libre Baskerville'"}}>{totalHrsWeek}</span>
+            <span style={{fontSize:20,fontWeight:700,color:T.accent,fontFamily:"Good Headline Pro"}}>{totalHrsWeek}</span>
             <span style={{fontSize:13,color:T.sub,fontWeight:600}}>h total</span>
           </div>
           {weekTypeHrs.length>0 ? (
@@ -6413,16 +6426,16 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
         </Card>
       </button>
     ),
-    submitted: <button onClick={()=>onViewList("submitted")} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalSubmitted>0?T.warn:T.muted}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Pending</div><div style={{fontSize:24,fontWeight:700,color:totalSubmitted>0?T.warn:T.muted,fontFamily:"'Libre Baskerville'"}}>{totalSubmitted}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>submitted, awaiting review</div><div style={{fontSize:11,color:totalSubmitted>0?T.warn:T.muted,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
-    approved:  <button onClick={()=>onViewList("approved")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${T.teal}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Approved</div><div style={{fontSize:24,fontWeight:700,color:T.teal,fontFamily:"'Libre Baskerville'"}}>{totalApproved}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>approved by approver</div><div style={{fontSize:11,color:T.teal,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
-    declined:  <button onClick={()=>onViewList("declined")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalNotApproved>0?T.red:T.muted}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Not Approved</div><div style={{fontSize:24,fontWeight:700,color:totalNotApproved>0?T.red:T.muted,fontFamily:"'Libre Baskerville'"}}>{totalNotApproved}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>declined by approver</div><div style={{fontSize:11,color:totalNotApproved>0?T.red:T.muted,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
+    submitted: <button onClick={()=>onViewList("submitted")} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalSubmitted>0?T.warn:T.muted}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Pending</div><div style={{fontSize:24,fontWeight:700,color:totalSubmitted>0?T.warn:T.muted,fontFamily:"Good Headline Pro"}}>{totalSubmitted}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>submitted, awaiting review</div><div style={{fontSize:11,color:totalSubmitted>0?T.warn:T.muted,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
+    approved:  <button onClick={()=>onViewList("approved")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${T.teal}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Approved</div><div style={{fontSize:24,fontWeight:700,color:T.teal,fontFamily:"Good Headline Pro"}}>{totalApproved}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>approved by approver</div><div style={{fontSize:11,color:T.teal,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
+    declined:  <button onClick={()=>onViewList("declined")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalNotApproved>0?T.red:T.muted}44`,height:"100%"}}><div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Not Approved</div><div style={{fontSize:24,fontWeight:700,color:totalNotApproved>0?T.red:T.muted,fontFamily:"Good Headline Pro"}}>{totalNotApproved}</div><div style={{fontSize:11,color:T.sub,marginTop:2}}>declined by approver</div><div style={{fontSize:11,color:totalNotApproved>0?T.red:T.muted,marginTop:6,fontWeight:600}}>View list →</div></Card></button>,
     timesheets: (
       <button onClick={onViewTimesheets} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
         onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
         <Card style={{paddingBlock:18,border:`1.5px solid ${T.teal}44`,height:"100%"}}>
           <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Timesheets</div>
           <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:2}}>
-            <div style={{fontSize:24,fontWeight:700,color:T.teal,fontFamily:"'Libre Baskerville'"}}>{activeApps}</div>
+            <div style={{fontSize:24,fontWeight:700,color:T.teal,fontFamily:"Good Headline Pro"}}>{activeApps}</div>
             <div style={{fontSize:11,color:T.muted}}>/ {apprentices.length}</div>
           </div>
           <div style={{fontSize:11,color:T.sub,marginTop:2}}>apprentices with entries</div>
@@ -6438,7 +6451,7 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
         onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
         <Card style={{paddingBlock:18,border:`1.5px solid ${leaveStats.pending>0||leaveStats.approver_approved>0?T.warn:T.hol}44`,height:"100%"}}>
           <div style={{fontSize:11,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Leave Requests</div>
-          <div style={{fontSize:24,fontWeight:700,color:leaveStats.pending>0||leaveStats.approver_approved>0?T.warn:T.hol,fontFamily:"'Libre Baskerville'",marginBottom:4}}>{leaveStats.total}</div>
+          <div style={{fontSize:24,fontWeight:700,color:leaveStats.pending>0||leaveStats.approver_approved>0?T.warn:T.hol,fontFamily:"Good Headline Pro",marginBottom:4}}>{leaveStats.total}</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
             {leaveStats.pending>0           && <span style={{fontSize:10,fontWeight:700,color:"#b86e1a",background:"#faebd7",borderRadius:99,padding:"2px 7px"}}>{leaveStats.pending} approver</span>}
             {leaveStats.approver_approved>0 && <span style={{fontSize:10,fontWeight:700,color:"#1b4f8c",background:"#dce8f7",borderRadius:99,padding:"2px 7px"}}>{leaveStats.approver_approved} KTA</span>}
@@ -6565,7 +6578,7 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
             <div style={{fontWeight:700,fontSize:13}}>Notifications {unread>0&&<span style={{color:T.red}}>({unread})</span>}</div>
             {unread>0&&(
               <button onClick={onReadAll} style={{fontSize:11,color:T.blue,background:"none",
-                border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:600}}>
+                border:"none",cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",fontWeight:600}}>
                 Mark all read
               </button>
             )}
@@ -6593,7 +6606,7 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
                       {n.created_by&&n.type!=="reply"&&(
                         <button onClick={e=>{e.stopPropagation();setReplyId(replyId===n.id?null:n.id);setReplyText("");}}
                           style={{fontSize:11,color:T.teal,background:replyId===n.id?T.tealL:"none",border:"none",cursor:"pointer",
-                            fontFamily:"DM Sans,sans-serif",fontWeight:600,padding:"2px 6px",borderRadius:4}}>
+                            fontFamily:""Good Headline Pro",sans-serif",fontWeight:600,padding:"2px 6px",borderRadius:4}}>
                           ↩ Reply
                         </button>
                       )}
@@ -6615,7 +6628,7 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
                       onChange={e=>setReplyText(e.target.value)}
                       rows={2}
                       style={{width:"100%",fontSize:13,padding:"8px 10px",borderRadius:7,
-                        border:`1.5px solid ${T.teal}66`,fontFamily:"DM Sans,sans-serif",
+                        border:`1.5px solid ${T.teal}66`,fontFamily:""Good Headline Pro",sans-serif",
                         background:T.bg,resize:"none",outline:"none",color:T.ink,boxSizing:"border-box"}}
                       onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();handleReply(n);}}}
                       autoFocus
@@ -6624,13 +6637,13 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
                       <button onClick={()=>handleReply(n)} disabled={!replyText.trim()} style={{
                         fontSize:12,fontWeight:600,padding:"6px 14px",borderRadius:6,
                         background:replyText.trim()?T.teal:"#ccc",color:"#fff",border:"none",
-                        cursor:replyText.trim()?"pointer":"default",fontFamily:"DM Sans,sans-serif"}}>
+                        cursor:replyText.trim()?"pointer":"default",fontFamily:""Good Headline Pro",sans-serif"}}>
                         Send Reply
                       </button>
                       <button onClick={()=>setReplyId(null)} style={{
                         fontSize:12,padding:"6px 10px",borderRadius:6,background:"none",
                         border:`1px solid ${T.border}`,color:T.sub,cursor:"pointer",
-                        fontFamily:"DM Sans,sans-serif"}}>
+                        fontFamily:""Good Headline Pro",sans-serif"}}>
                         Cancel
                       </button>
                     </div>
@@ -6707,7 +6720,7 @@ const sendLeaveEmail = async ({ to, toName, subject, html }) => {
 };
 
 const leaveEmailHtml = (title, body) => `
-<div style="font-family:DM Sans,sans-serif;max-width:600px;margin:0 auto;background:#f0f4f9;padding:24px">
+<div style="font-family:"Good Headline Pro",sans-serif;max-width:600px;margin:0 auto;background:#f0f4f9;padding:24px">
   <div style="background:#1b4f8c;borderRadius:10px;padding:18px 24px;margin-bottom:0;border-radius:10px 10px 0 0">
     <div style="color:#fff;font-size:18px;font-weight:700">KTA Leave Request</div>
     <div style="color:#dce8f7;font-size:12px;margin-top:4px">Kiwi Trade Apprentices</div>
@@ -6736,8 +6749,8 @@ const leaveActionButtons = async (leaveId, actorId, actorRole) => {
   const decUrl = await leaveActionUrl(leaveId, "decline", actorId, actorRole);
   return `
 <div style="margin:24px 0;display:flex;gap:12px;flex-wrap:wrap">
-  <a href="${appUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:8px;padding:12px 28px;font-size:14px;font-weight:700;text-decoration:none;font-family:DM Sans,Arial,sans-serif">✓ Approve Leave</a>
-  <a href="${decUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:8px;padding:12px 28px;font-size:14px;font-weight:700;text-decoration:none;font-family:DM Sans,Arial,sans-serif">✕ Decline Leave</a>
+  <a href="${appUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:8px;padding:12px 28px;font-size:14px;font-weight:700;text-decoration:none;font-family:"Good Headline Pro",Arial,sans-serif">✓ Approve Leave</a>
+  <a href="${decUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:8px;padding:12px 28px;font-size:14px;font-weight:700;text-decoration:none;font-family:"Good Headline Pro",Arial,sans-serif">✕ Decline Leave</a>
 </div>
 <p style="font-size:11px;color:#8fa0b8;margin-top:4px">These buttons record your response immediately — no login required. Links expire in 7 days.</p>`;
 };
@@ -6839,12 +6852,12 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
         <div>
           <label style={{fontSize:12,fontWeight:600,color:T.sub,display:"block",marginBottom:5}}>Leave Starting *</label>
           <input type="date" value={form.dateFrom} onChange={e=>sf("dateFrom",e.target.value)}
-            style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,fontFamily:"DM Sans,sans-serif",color:T.ink,outline:"none",boxSizing:"border-box"}}/>
+            style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,fontFamily:""Good Headline Pro",sans-serif",color:T.ink,outline:"none",boxSizing:"border-box"}}/>
         </div>
         <div>
           <label style={{fontSize:12,fontWeight:600,color:T.sub,display:"block",marginBottom:5}}>Leave Finishing *</label>
           <input type="date" value={form.dateTo} onChange={e=>sf("dateTo",e.target.value)}
-            style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,fontFamily:"DM Sans,sans-serif",color:T.ink,outline:"none",boxSizing:"border-box"}}/>
+            style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,fontFamily:""Good Headline Pro",sans-serif",color:T.ink,outline:"none",boxSizing:"border-box"}}/>
         </div>
       </div>
 
@@ -6858,7 +6871,7 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
                 background:form.leaveType===t?T.accentL:T.surface,
                 color:form.leaveType===t?T.accent:T.ink,
                 fontWeight:form.leaveType===t?700:400,
-                fontSize:12,cursor:"pointer",fontFamily:"DM Sans,sans-serif",transition:"all .12s"}}>
+                fontSize:12,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",transition:"all .12s"}}>
               {t}
             </button>
           ))}
@@ -6870,7 +6883,7 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
         <label style={{fontSize:12,fontWeight:600,color:T.sub,display:"block",marginBottom:5}}>Additional Notes</label>
         <textarea value={form.notes} onChange={e=>sf("notes",e.target.value)} rows={3}
           placeholder="Any additional details about your leave request…"
-          style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,fontFamily:"DM Sans,sans-serif",color:T.ink,outline:"none",resize:"vertical",boxSizing:"border-box",lineHeight:1.6}}/>
+          style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,fontFamily:""Good Headline Pro",sans-serif",color:T.ink,outline:"none",resize:"vertical",boxSizing:"border-box",lineHeight:1.6}}/>
       </div>
 
       {error && <div style={{background:T.redL,border:`1px solid ${T.red}33`,borderRadius:7,padding:"8px 12px",fontSize:12,color:T.red,marginBottom:12}}>{error}</div>}
@@ -7061,13 +7074,13 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
           <div style={{display:"flex",gap:6,flexShrink:0}}>
             {canApprove && (
               <button onClick={approve} disabled={acting}
-                style={{background:T.teal,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"DM Sans,sans-serif",opacity:acting?.6:1}}>
+                style={{background:T.teal,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",opacity:acting?.6:1}}>
                 {acting?"…":"✓ Approve"}
               </button>
             )}
             {canDecline && !acting && (
               <button onClick={()=>{setDeclineMode(true);setDeclineReason("");setReasonErr("");}}
-                style={{background:T.redL,color:T.red,border:`1.5px solid ${T.red}44`,borderRadius:7,padding:"7px 14px",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                style={{background:T.redL,color:T.red,border:`1.5px solid ${T.red}44`,borderRadius:7,padding:"7px 14px",fontWeight:600,fontSize:12,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>
                 ✕ Decline
               </button>
             )}
@@ -7103,16 +7116,16 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
             onChange={e=>{setDeclineReason(e.target.value);setReasonErr("");}}
             placeholder="Enter reason for declining this leave request…"
             rows={2}
-            style={{width:"100%",border:`1.5px solid ${reasonErr?T.red:T.border}`,borderRadius:7,padding:"8px 10px",fontSize:12,fontFamily:"DM Sans,sans-serif",resize:"vertical",boxSizing:"border-box",color:T.ink}}
+            style={{width:"100%",border:`1.5px solid ${reasonErr?T.red:T.border}`,borderRadius:7,padding:"8px 10px",fontSize:12,fontFamily:""Good Headline Pro",sans-serif",resize:"vertical",boxSizing:"border-box",color:T.ink}}
           />
           {reasonErr && <div style={{fontSize:11,color:T.red,marginBottom:6}}>{reasonErr}</div>}
           <div style={{display:"flex",gap:8,marginTop:6}}>
             <button onClick={submitDecline} disabled={acting}
-              style={{background:T.red,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"DM Sans,sans-serif",opacity:acting?.6:1}}>
+              style={{background:T.red,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",opacity:acting?.6:1}}>
               {acting?"…":"Confirm Decline"}
             </button>
             <button onClick={()=>setDeclineMode(false)} disabled={acting}
-              style={{background:T.bg,color:T.sub,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 14px",fontSize:12,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+              style={{background:T.bg,color:T.sub,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 14px",fontSize:12,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>
               Cancel
             </button>
           </div>
@@ -7131,7 +7144,7 @@ function LeaveToggleCard({ currentUser, allUsers }) {
     <Card style={{marginTop:20, border:`1.5px solid ${T.border}`}} className="fu">
       {/* Header row — always visible, matches ContactUs style */}
       <button onClick={()=>{ setOpen(s=>!s); setSubmitted(false); }}
-        style={{width:"100%", background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif"}}>
+        style={{width:"100%", background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"left", fontFamily:""Good Headline Pro",sans-serif"}}>
         <div style={{display:"flex", alignItems:"center", gap:10}}>
           <div style={{width:36, height:36, borderRadius:10, background:T.accentL,
             display:"flex", alignItems:"center", justifyContent:"center", fontSize:18}}>🏖️</div>
@@ -7249,7 +7262,7 @@ function LeaveOverviewCard({ allUsers }) {
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
         <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🏖️</div>
         <div style={{flex:1}}>
-          <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:16}}>Leave Requests</div>
+          <div style={{fontFamily:"Good Headline Pro",fontWeight:700,fontSize:16}}>Leave Requests</div>
           <div style={{fontSize:12,color:T.sub,marginTop:2}}>{requests.length} request{requests.length!==1?"s":""} — click a row to manage in the panel below</div>
         </div>
         <button onClick={load} title="Refresh" style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:T.muted,padding:4}}>↻</button>
@@ -7405,7 +7418,7 @@ function LeaveRequestsPanel({ currentUser, allUsers, entries=[], setEntries=null
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
         <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🏖️</div>
         <div style={{flex:1}}>
-          <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:16}}>Leave Requests</div>
+          <div style={{fontFamily:"Good Headline Pro",fontWeight:700,fontSize:16}}>Leave Requests</div>
           <div style={{fontSize:12,color:T.sub,marginTop:2}}>{isViewer?"View apprentice leave applications":"Review and approve apprentice leave applications"}</div>
         </div>
         <button onClick={load} title="Refresh" style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:T.muted,padding:4}}>↻</button>
@@ -7415,7 +7428,7 @@ function LeaveRequestsPanel({ currentUser, allUsers, entries=[], setEntries=null
         {TAB_CONFIG.map(tc => (
           <button key={tc.id} onClick={()=>setTab(tc.id)}
             style={{padding:"5px 12px",borderRadius:8,border:`1.5px solid ${tab===tc.id?tc.color:T.border}`,
-              cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:11,fontWeight:600,
+              cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",fontSize:11,fontWeight:600,
               background:tab===tc.id?tc.color:T.surface,
               color:tab===tc.id?"#fff":tc.list.length>0?tc.color:T.muted,
               transition:"all .12s"}}>
@@ -7571,7 +7584,7 @@ function ContactUs({currentUser, allUsers, onSend}) {
             style={{padding:"12px 14px",borderRadius:12,textAlign:"left",cursor:"pointer",
               border:`2px solid ${selectedId===person.id?person.color:T.border}`,
               background:selectedId===person.id?person.color+"11":T.surface,
-              transition:"all .15s",fontFamily:"DM Sans,sans-serif",width:"100%",
+              transition:"all .15s",fontFamily:""Good Headline Pro",sans-serif",width:"100%",
               display:"flex",alignItems:"center",gap:12}}>
             <div style={{width:44,height:44,borderRadius:99,background:person.color,
               display:"flex",alignItems:"center",justifyContent:"center",
@@ -7633,7 +7646,7 @@ function ContactUs({currentUser, allUsers, onSend}) {
             <button onClick={()=>setMsgMode(true)}
               style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",
                 borderRadius:9,background:T.surface,border:`1.5px solid ${T.border}`,
-                textAlign:"left",cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                textAlign:"left",cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",
                 color:T.ink,transition:"all .14s",width:"100%"}}
               onMouseEnter={e=>e.currentTarget.style.borderColor=selected.color}
               onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
@@ -7659,7 +7672,7 @@ function ContactUs({currentUser, allUsers, onSend}) {
             onChange={e=>setMsgText(e.target.value)}
             rows={4}
             style={{width:"100%",fontSize:13,padding:"10px 12px",borderRadius:8,
-              border:`1.5px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",
+              border:`1.5px solid ${T.border}`,fontFamily:""Good Headline Pro",sans-serif",
               background:T.surface,resize:"none",color:T.ink,outline:"none",
               boxSizing:"border-box"}}
           />
@@ -7832,7 +7845,7 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
                 border: `1.5px solid ${showPast ? T.gold : "rgba(255,255,255,.25)"}`,
                 borderRadius:8, padding:"6px 14px", cursor:"pointer",
                 color: showPast ? T.dark : "#fff", fontSize:12, fontWeight:600,
-                fontFamily:"DM Sans,sans-serif", transition:"all .15s",
+                fontFamily:""Good Headline Pro",sans-serif", transition:"all .15s",
               }}
             >
               <span>📁</span>
@@ -7846,7 +7859,7 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
                 background:"rgba(255,255,255,.12)", border:"1.5px solid rgba(255,255,255,.25)",
                 borderRadius:8, padding:"6px 12px", cursor:"pointer",
                 color:"#fff", fontSize:13, fontWeight:600,
-                fontFamily:"DM Sans,sans-serif", transition:"all .15s",
+                fontFamily:""Good Headline Pro",sans-serif", transition:"all .15s",
               }}
             >✕ Cancel</button>
           </div>
@@ -7900,7 +7913,7 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
 const ReportTA = ({rows=4, value, onChange, placeholder}) => (
   <textarea rows={rows} value={value} onChange={onChange} placeholder={placeholder||""}
     style={{width:"100%",fontSize:13,padding:"10px 12px",border:`1px solid ${T.border}`,
-      borderTop:"none",borderRadius:0,fontFamily:"DM Sans,sans-serif",background:"#fff",
+      borderTop:"none",borderRadius:0,fontFamily:""Good Headline Pro",sans-serif",background:"#fff",
       resize:"vertical",color:T.ink,outline:"none",boxSizing:"border-box",minHeight:90}}/>
 );
 const ReportSH = ({children, req}) => (
@@ -8012,7 +8025,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
       {/* KTA Header */}
       <div style={{background:T.dark,padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div>
-          <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:16,color:"#fff"}}>Apprentice Check In Report</div>
+          <div style={{fontFamily:"Good Headline Pro",fontWeight:700,fontSize:16,color:"#fff"}}>Apprentice Check In Report</div>
           <div style={{fontSize:11,color:"#ffffff88",marginTop:2}}>Kiwi Trade Apprentices</div>
         </div>
         <img src={KTA_LOGO} alt="KTA" style={{height:36,objectFit:"contain",filter:"brightness(0) invert(1)"}}
@@ -8026,10 +8039,10 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
           {label:"Location",     content:<input value={form.location} onChange={e=>sf("location",e.target.value)}
             placeholder="e.g. Worksite, Zoom, Head Office"
             onKeyDown={e=>e.stopPropagation()}
-            style={{border:"none",fontSize:13,width:"100%",outline:"none",padding:"6px",fontFamily:"DM Sans,sans-serif",background:"transparent"}}/>},
+            style={{border:"none",fontSize:13,width:"100%",outline:"none",padding:"6px",fontFamily:""Good Headline Pro",sans-serif",background:"transparent"}}/>},
           {label:"Date",         content:<div style={{position:"relative"}}><input type="date" value={form.date} onChange={e=>sf("date",e.target.value)}
             className="ts-date-input"
-            style={{border:"none",fontSize:13,width:"100%",outline:"none",padding:"6px",fontFamily:"DM Sans,sans-serif",background:"transparent",cursor:"pointer"}}/></div>},
+            style={{border:"none",fontSize:13,width:"100%",outline:"none",padding:"6px",fontFamily:""Good Headline Pro",sans-serif",background:"transparent",cursor:"pointer"}}/></div>},
         ].map(({label,content})=>(
           <div key={label} style={{display:"grid",gridTemplateColumns:"160px 1fr",borderBottom:`1px solid ${T.border}`}}>
             <div style={{padding:"10px 12px",fontWeight:700,fontSize:13,borderRight:`1px solid ${T.border}`,background:"#f5f7fa"}}>{label}</div>
@@ -8069,7 +8082,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
             color: apprentice.licenceExpiry && new Date(apprentice.licenceExpiry+"T00:00:00")<new Date() ? T.red : T.ink}}>
             {apprentice.licenceExpiry ? fD(apprentice.licenceExpiry) : "Not set"}</div>},
           {label:"Date of Next Visit",  content:<input type="date" value={form.nextVisitDate} onChange={e=>sf("nextVisitDate",e.target.value)}
-            style={{border:"none",fontSize:13,width:"100%",outline:"none",padding:"6px",fontFamily:"DM Sans,sans-serif",background:"transparent"}}/>},
+            style={{border:"none",fontSize:13,width:"100%",outline:"none",padding:"6px",fontFamily:""Good Headline Pro",sans-serif",background:"transparent"}}/>},
           {label:"KTA Representative",  content:<div style={{padding:"6px",fontSize:13,fontWeight:600}}>{mentor.name}</div>},
         ].map(({label,content})=>(
           <div key={label} style={{display:"grid",gridTemplateColumns:"180px 1fr",borderBottom:`1px solid ${T.border}`}}>
@@ -8096,7 +8109,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
         <div style={{marginBottom:12}}>
           <div style={{fontSize:12,fontWeight:700,color:T.sub,marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <span>➕ Also send to</span>
-            <button onClick={()=>setShowAddEmail(s=>!s)} style={{fontSize:11,padding:"3px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:T.surface,color:T.sub,cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:600}}>
+            <button onClick={()=>setShowAddEmail(s=>!s)} style={{fontSize:11,padding:"3px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:T.surface,color:T.sub,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",fontWeight:600}}>
               {showAddEmail?"✕ Close":"+ Add recipient"}
             </button>
           </div>
@@ -8108,7 +8121,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
                 <div key={r.email} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 10px",borderRadius:20,background:T.tealL,border:`1px solid ${T.teal}44`,fontSize:12,fontWeight:600,color:T.teal}}>
                   <span>{r.name}</span>
                   <span style={{fontSize:10,fontWeight:400,color:T.muted}}>({r.email})</span>
-                  <button onClick={()=>removeCc(r.email)} style={{background:"none",border:"none",cursor:"pointer",color:T.teal,fontSize:13,lineHeight:1,padding:0,fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                  <button onClick={()=>removeCc(r.email)} style={{background:"none",border:"none",cursor:"pointer",color:T.teal,fontSize:13,lineHeight:1,padding:0,fontFamily:""Good Headline Pro",sans-serif"}}>✕</button>
                 </div>
               ))}
             </div>
@@ -8131,7 +8144,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
                           style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",
                             borderRadius:8,border:`1.5px solid ${already?T.teal:T.border}`,
                             background:already?T.tealL:"#fff",cursor:already?"default":"pointer",
-                            fontFamily:"DM Sans,sans-serif",textAlign:"left",transition:"all .12s"}}>
+                            fontFamily:""Good Headline Pro",sans-serif",textAlign:"left",transition:"all .12s"}}>
                           <div>
                             <div style={{fontWeight:700,fontSize:13,color:T.ink}}>{c.name}</div>
                             <div style={{fontSize:11,color:T.muted}}>{c.email}</div>
@@ -8264,7 +8277,7 @@ function PastMeetingReports({apprentice, allUsers, canEdit=false}) {
                   <button onClick={()=>handleDelete(r.id)} style={{
                     marginTop:12,fontSize:12,color:T.red,background:"none",
                     border:`1px solid ${T.red}44`,borderRadius:6,padding:"4px 12px",
-                    cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>🗑 Delete Report</button>
+                    cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>🗑 Delete Report</button>
                 )}
               </div>
             )}
@@ -8877,7 +8890,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
     <div className="fu">
       <button onClick={onBack} style={{
         display:"inline-flex",alignItems:"center",gap:6,background:"none",border:"none",
-        color:T.sub,fontSize:13,fontFamily:"DM Sans,sans-serif",cursor:"pointer",
+        color:T.sub,fontSize:13,fontFamily:""Good Headline Pro",sans-serif",cursor:"pointer",
         marginBottom:16,padding:0,fontWeight:500}}
         onMouseEnter={e=>e.currentTarget.style.color=T.ink}
         onMouseLeave={e=>e.currentTarget.style.color=T.sub}>
@@ -8890,11 +8903,11 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
           paddingBottom:16,borderBottom:`1px solid ${T.border}`}}>
           <div style={{width:54,height:54,borderRadius:"50%",flexShrink:0,
             background:T.dark,display:"flex",alignItems:"center",justifyContent:"center",
-            fontSize:22,fontWeight:700,color:"#fff",fontFamily:"'Libre Baskerville'"}}>
+            fontSize:22,fontWeight:700,color:"#fff",fontFamily:"Good Headline Pro"}}>
             {apprentice.name?.[0]?.toUpperCase()||"?"}
           </div>
           <div style={{flex:1}}>
-            <div style={{fontFamily:"'Libre Baskerville'",fontSize:22,fontWeight:700,color:T.ink}}>{apprentice.name}</div>
+            <div style={{fontFamily:"Good Headline Pro",fontSize:22,fontWeight:700,color:T.ink}}>{apprentice.name}</div>
             <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>
               <RolePill role="Apprentice" size="sm"/>
               {approver&&<Pill label={`Approver: ${approver.name}`} size="sm" color={T.warn} bg={T.warnL}/>}
@@ -8917,26 +8930,26 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                 {/* Licence expiry row */}
                 <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>📄 Licence Expiry</span>
-                  {canEditExpiry&&editingExpiry!=="licence"&&<button onClick={()=>{setEditingExpiry("licence");setExpiryVal(apprentice.licenceExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
+                  {canEditExpiry&&editingExpiry!=="licence"&&<button onClick={()=>{setEditingExpiry("licence");setExpiryVal(apprentice.licenceExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.accent,padding:0,fontFamily:""Good Headline Pro",sans-serif"}}>✏️</button>}
                 </div>
                 {editingExpiry==="licence"?(
                   <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
-                    <input type="date" value={expiryVal} onChange={e=>setExpiryVal(e.target.value)} style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif"}}/>
-                    <button onClick={()=>saveExpiry("licence",expiryVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
-                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                    <input type="date" value={expiryVal} onChange={e=>setExpiryVal(e.target.value)} style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:""Good Headline Pro",sans-serif"}}/>
+                    <button onClick={()=>saveExpiry("licence",expiryVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>{savingExpiry?"…":"Save"}</button>
+                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>✕</button>
                   </div>
                 ):<div style={{fontSize:13,fontWeight:700,color:c,marginBottom:8}}>{licVal}</div>}
                 {/* Licence number row */}
                 <div style={{fontSize:10,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>Licence #</span>
-                  {canEditExpiry&&editingExpiry!=="licenceNum"&&<button onClick={()=>{setEditingExpiry("licenceNum");setLicNumVal(apprentice.licenceNumber||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
+                  {canEditExpiry&&editingExpiry!=="licenceNum"&&<button onClick={()=>{setEditingExpiry("licenceNum");setLicNumVal(apprentice.licenceNumber||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:T.accent,padding:0,fontFamily:""Good Headline Pro",sans-serif"}}>✏️</button>}
                 </div>
                 {editingExpiry==="licenceNum"?(
                   <div style={{display:"flex",gap:4,alignItems:"center"}}>
                     <input value={licNumVal} onChange={e=>setLicNumVal(e.target.value)} placeholder="e.g. LBP123456"
-                      style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",flex:1}}/>
-                    <button onClick={()=>saveExpiry("licenceNum",licNumVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
-                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                      style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:""Good Headline Pro",sans-serif",flex:1}}/>
+                    <button onClick={()=>saveExpiry("licenceNum",licNumVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>{savingExpiry?"…":"Save"}</button>
+                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>✕</button>
                   </div>
                 ):<div style={{fontSize:12,fontWeight:600,color:apprentice.licenceNumber?T.ink:T.muted,fontStyle:apprentice.licenceNumber?"normal":"italic"}}>{apprentice.licenceNumber||"Not set"}</div>}
               </div>
@@ -8956,27 +8969,27 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               <div style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${editingExpiry==="siteSafe"||editingExpiry==="siteSafeNum"?T.teal:T.border}`,position:"relative"}}>
                 <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>🦺 Site Safe Expiry</span>
-                  {canEditExpiry&&editingExpiry!=="siteSafe"&&<button onClick={()=>{setEditingExpiry("siteSafe");setExpiryVal(apprentice.siteSafeExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
+                  {canEditExpiry&&editingExpiry!=="siteSafe"&&<button onClick={()=>{setEditingExpiry("siteSafe");setExpiryVal(apprentice.siteSafeExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.accent,padding:0,fontFamily:""Good Headline Pro",sans-serif"}}>✏️</button>}
                 </div>
                 {editingExpiry==="siteSafe"?(
                   <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
-                    <input type="date" value={expiryVal} onChange={e=>setExpiryVal(e.target.value)} style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif"}}/>
-                    <button onClick={()=>saveExpiry("siteSafe",expiryVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
-                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                    <input type="date" value={expiryVal} onChange={e=>setExpiryVal(e.target.value)} style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:""Good Headline Pro",sans-serif"}}/>
+                    <button onClick={()=>saveExpiry("siteSafe",expiryVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>{savingExpiry?"…":"Save"}</button>
+                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>✕</button>
                   </div>
                 ):<div style={{fontSize:13,fontWeight:700,color:c}}>{val}</div>}
                 {/* Site Safe Number */}
                 <div style={{marginTop:8,paddingTop:8,borderTop:`1px solid ${T.border}44`}}>
                   <div style={{fontSize:10,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                     <span>Site Safe #</span>
-                    {canEditExpiry&&editingExpiry!=="siteSafeNum"&&<button onClick={()=>{setEditingExpiry("siteSafeNum");setSiteSafeNumVal(apprentice.siteSafeNumber||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:T.teal,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
+                    {canEditExpiry&&editingExpiry!=="siteSafeNum"&&<button onClick={()=>{setEditingExpiry("siteSafeNum");setSiteSafeNumVal(apprentice.siteSafeNumber||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:10,color:T.teal,padding:0,fontFamily:""Good Headline Pro",sans-serif"}}>✏️</button>}
                   </div>
                   {editingExpiry==="siteSafeNum"?(
                     <div style={{display:"flex",gap:4,alignItems:"center"}}>
                       <input value={siteSafeNumVal} onChange={e=>setSiteSafeNumVal(e.target.value)} placeholder="e.g. SS789012"
-                        style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",flex:1}}/>
-                      <button onClick={()=>saveExpiry("siteSafeNum",siteSafeNumVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.teal,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
-                      <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                        style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:""Good Headline Pro",sans-serif",flex:1}}/>
+                      <button onClick={()=>saveExpiry("siteSafeNum",siteSafeNumVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.teal,color:"#fff",border:"none",cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>{savingExpiry?"…":"Save"}</button>
+                      <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>✕</button>
                     </div>
                   ):<div style={{fontSize:12,fontWeight:600,color:apprentice.siteSafeNumber?T.ink:T.muted,fontStyle:apprentice.siteSafeNumber?"normal":"italic"}}>{apprentice.siteSafeNumber||"Not set"}</div>}
                 </div>
@@ -8992,13 +9005,13 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               <div style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${editingExpiry==="firstAid"?T.teal:T.border}`,position:"relative"}}>
                 <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>🩹 First Aid Expiry</span>
-                  {canEditExpiry&&editingExpiry!=="firstAid"&&<button onClick={()=>{setEditingExpiry("firstAid");setExpiryVal(apprentice.firstAidExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
+                  {canEditExpiry&&editingExpiry!=="firstAid"&&<button onClick={()=>{setEditingExpiry("firstAid");setExpiryVal(apprentice.firstAidExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.accent,padding:0,fontFamily:""Good Headline Pro",sans-serif"}}>✏️</button>}
                 </div>
                 {editingExpiry==="firstAid"?(
                   <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
-                    <input type="date" value={expiryVal} onChange={e=>setExpiryVal(e.target.value)} style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif"}}/>
-                    <button onClick={()=>saveExpiry("firstAid",expiryVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
-                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                    <input type="date" value={expiryVal} onChange={e=>setExpiryVal(e.target.value)} style={{fontSize:12,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:""Good Headline Pro",sans-serif"}}/>
+                    <button onClick={()=>saveExpiry("firstAid",expiryVal)} disabled={savingExpiry} style={{fontSize:11,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>{savingExpiry?"…":"Save"}</button>
+                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:11,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>✕</button>
                   </div>
                 ):<div style={{fontSize:13,fontWeight:700,color:c}}>{val}</div>}
               </div>
@@ -9010,7 +9023,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".6px"}}>🏢 Host Business</div>
               {canEditExpiry&&!editingHostBiz&&(
                 <button onClick={()=>{setEditingHostBiz(true);setHostBizVal(apprentice.hostBusiness||"");}}
-                  style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.slate,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>
+                  style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.slate,padding:0,fontFamily:""Good Headline Pro",sans-serif"}}>✏️</button>
               )}
             </div>
             {editingHostBiz?(
@@ -9021,7 +9034,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   const otherOnes = hostCosAdv.filter(c=>!c.isHostBusiness);
                   return(<div style={{flex:1,display:"flex",flexDirection:"column",gap:4}}>
                     <select value={listed?hostBizVal:"__custom__"} onChange={e=>{if(e.target.value!=="__custom__")setHostBizVal(e.target.value);}}
-                      style={{fontSize:12,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",width:"100%"}}>
+                      style={{fontSize:12,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:""Good Headline Pro",sans-serif",width:"100%"}}>
                       <option value="">— Select host business —</option>
                       {hostOnes.length>0&&<optgroup label="🏢 Host Businesses">
                         {hostOnes.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
@@ -9033,18 +9046,18 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     </select>
                     {!listed&&<input value={hostBizVal} onChange={e=>setHostBizVal(e.target.value)}
                       placeholder="Type host business name…"
-                      style={{fontSize:12,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",width:"100%"}}/>}
+                      style={{fontSize:12,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:""Good Headline Pro",sans-serif",width:"100%"}}/>}
                     {listed&&!hostCosAdv.find(c=>c.name===hostBizVal)?.isHostBusiness&&hostBizVal&&(
                       <div style={{fontSize:11,color:T.teal}}>✓ Will be flagged as a Host Business in CRM on save</div>
                     )}
                   </div>);
                 })():<input value={hostBizVal} onChange={e=>setHostBizVal(e.target.value)}
                   placeholder="e.g. Sparks Electrical Ltd"
-                  style={{fontSize:12,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",flex:1}}/>}
+                  style={{fontSize:12,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:""Good Headline Pro",sans-serif",flex:1}}/>}
                 <button onClick={saveHostBiz} disabled={savingHostBiz}
-                  style={{fontSize:11,padding:"4px 8px",borderRadius:5,background:T.slate,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingHostBiz?"…":"Save"}</button>
+                  style={{fontSize:11,padding:"4px 8px",borderRadius:5,background:T.slate,color:"#fff",border:"none",cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>{savingHostBiz?"…":"Save"}</button>
                 <button onClick={()=>setEditingHostBiz(false)}
-                  style={{fontSize:11,padding:"4px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                  style={{fontSize:11,padding:"4px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>✕</button>
               </div>
             ):( 
               <div>
@@ -9094,7 +9107,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             {isAdmin ? (
               <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:12}}>
                 <button onClick={()=>{setShowMeetingForm(s=>!s); setShowPastReports(false); setShowPPE(false); setShowActivity(false);}}
-                  style={{width:"100%", background:showMeetingForm?T.accentL:T.surface, border:`1.5px solid ${showMeetingForm?T.accent:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+                  style={{width:"100%", background:showMeetingForm?T.accentL:T.surface, border:`1.5px solid ${showMeetingForm?T.accent:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:""Good Headline Pro",sans-serif", transition:"all .15s"}}>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
                     <div style={{width:28,height:28,borderRadius:7,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>📋</div>
                     <div style={{minWidth:0}}>
@@ -9105,7 +9118,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   </div>
                 </button>
                 <button onClick={()=>{setShowPastReports(s=>!s); setShowMeetingForm(false); setShowPPE(false); setShowActivity(false);}}
-                  style={{width:"100%", background:showPastReports?T.goldL:T.surface, border:`1.5px solid ${showPastReports?T.gold:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+                  style={{width:"100%", background:showPastReports?T.goldL:T.surface, border:`1.5px solid ${showPastReports?T.gold:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:""Good Headline Pro",sans-serif", transition:"all .15s"}}>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
                     <div style={{width:28,height:28,borderRadius:7,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>📁</div>
                     <div style={{minWidth:0}}>
@@ -9116,7 +9129,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   </div>
                 </button>
                 <button onClick={()=>{setShowPPE(s=>!s); setShowMeetingForm(false); setShowPastReports(false); setShowActivity(false);}}
-                  style={{width:"100%", background:showPPE?T.tealL:T.surface, border:`1.5px solid ${showPPE?T.teal:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+                  style={{width:"100%", background:showPPE?T.tealL:T.surface, border:`1.5px solid ${showPPE?T.teal:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:""Good Headline Pro",sans-serif", transition:"all .15s"}}>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
                     <div style={{width:28,height:28,borderRadius:7,background:T.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>🦺</div>
                     <div style={{minWidth:0}}>
@@ -9127,7 +9140,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   </div>
                 </button>
                 <button onClick={()=>{setShowActivity(s=>!s); setShowMeetingForm(false); setShowPastReports(false); setShowPPE(false);}}
-                  style={{width:"100%", background:showActivity?T.slateL:T.surface, border:`1.5px solid ${showActivity?T.slate:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+                  style={{width:"100%", background:showActivity?T.slateL:T.surface, border:`1.5px solid ${showActivity?T.slate:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:""Good Headline Pro",sans-serif", transition:"all .15s"}}>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
                     <div style={{width:28,height:28,borderRadius:7,background:T.slateL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>📬</div>
                     <div style={{minWidth:0}}>
@@ -9181,7 +9194,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   {opts ? (
                     <select value={pdForm[field]} onChange={e=>setPdForm(p=>({...p,[field]:e.target.value}))}
                       style={{fontSize:13,padding:"7px 10px",borderRadius:7,border:`1.5px solid ${T.border}`,
-                        background:T.surface,color:T.ink,fontFamily:"DM Sans,sans-serif"}}>
+                        background:T.surface,color:T.ink,fontFamily:""Good Headline Pro",sans-serif"}}>
                       <option value="">Not set</option>
                       {opts.map(o=><option key={o} value={o}>{o}</option>)}
                     </select>
@@ -9189,7 +9202,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     <input type={type} value={pdForm[field]}
                       onChange={e=>setPdForm(p=>({...p,[field]:e.target.value}))}
                       style={{fontSize:13,padding:"7px 10px",borderRadius:7,border:`1.5px solid ${T.border}`,
-                        background:T.surface,color:T.ink,fontFamily:"DM Sans,sans-serif"}}/>
+                        background:T.surface,color:T.ink,fontFamily:""Good Headline Pro",sans-serif"}}/>
                   )}
                 </div>
               );
@@ -9226,7 +9239,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                           });
                           setPdEdit(true);
                         }} style={{fontSize:12,color:T.accent,background:T.accentL,border:"none",
-                          borderRadius:6,padding:"4px 12px",cursor:"pointer",fontWeight:600,fontFamily:"DM Sans,sans-serif"}}>
+                          borderRadius:6,padding:"4px 12px",cursor:"pointer",fontWeight:600,fontFamily:""Good Headline Pro",sans-serif"}}>
                           ✏ Edit
                         </button>
                       )}
@@ -9270,12 +9283,12 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                           <div style={{display:"flex",gap:8}}>
                             <button onClick={savePd} disabled={pdSaving}
                               style={{background:T.accent,color:"#fff",border:"none",borderRadius:8,
-                                padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                                padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>
                               {pdSaving?"Saving…":"💾 Save"}
                             </button>
                             <button onClick={()=>setPdEdit(false)} disabled={pdSaving}
                               style={{background:T.bg,color:T.sub,border:`1.5px solid ${T.border}`,borderRadius:8,
-                                padding:"8px 16px",fontSize:13,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                                padding:"8px 16px",fontSize:13,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>
                               Cancel
                             </button>
                           </div>
@@ -9409,7 +9422,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             ].map(({label,value,color})=>(
               <div key={label} style={{background:T.bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`,textAlign:"center"}}>
                 <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>{label}</div>
-                <div style={{fontSize:20,fontWeight:700,color,fontFamily:"'Libre Baskerville'"}}>{value}</div>
+                <div style={{fontSize:20,fontWeight:700,color,fontFamily:"Good Headline Pro"}}>{value}</div>
               </div>
             ))}
           </div>
@@ -9465,7 +9478,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                         .sort((a,b)=>b.created_at.localeCompare(a.created_at)));
                     }).catch(()=>{}).finally(()=>setAdvLeaveLoading(false));
                   }} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 10px",
-                    fontSize:11,color:T.muted,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}
+                    fontSize:11,color:T.muted,cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}
                     title="Refresh leave data">↻ Refresh</button>
                 </div>
                 {advLeaveLoading ? (
@@ -9733,7 +9746,7 @@ function MentorDashboard({currentUser, allUsers}) {
   return (
     <div className="fu">
       <div style={{marginBottom:20}}>
-        <h1 style={{fontFamily:"'Libre Baskerville'",fontSize:26,fontWeight:700,letterSpacing:"-.4px",marginBottom:4}}>
+        <h1 style={{fontFamily:"Good Headline Pro",fontSize:26,fontWeight:700,letterSpacing:"-.4px",marginBottom:4}}>
           Welcome, {currentUser.name.split(" ")[0]}
         </h1>
         <p style={{fontSize:13,color:T.sub}}>Your apprentice overview and mentor tools</p>
@@ -9791,8 +9804,8 @@ function PinPromptModal({ title, onConfirm, onCancel }) {
         />
         {err&&<div style={{color:T.red,fontSize:12,marginBottom:8,textAlign:"center"}}>{err}</div>}
         <div style={{display:"flex",gap:8,marginTop:8}}>
-          <button onClick={onCancel} style={{flex:1,padding:"10px",borderRadius:8,border:`1.5px solid ${T.border}`,background:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:13}}>Cancel</button>
-          <button onClick={submit} disabled={checking} style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:T.accent,color:"#fff",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:13,fontWeight:700}}>
+          <button onClick={onCancel} style={{flex:1,padding:"10px",borderRadius:8,border:`1.5px solid ${T.border}`,background:"none",cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",fontSize:13}}>Cancel</button>
+          <button onClick={submit} disabled={checking} style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:T.accent,color:"#fff",cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",fontSize:13,fontWeight:700}}>
             {checking?"…":"Confirm"}
           </button>
         </div>
@@ -9866,7 +9879,7 @@ function BroadcastComposer({users, currentUser, onSend, onClose}) {
       display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
       <Card style={{width:"100%",maxWidth:480,padding:28}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-          <div style={{fontFamily:"'Libre Baskerville'",fontSize:18,fontWeight:700}}><span style={{display:"flex",alignItems:"center",gap:8}}><BatSignal size={22}/> Contact Via App</span></div>
+          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:700}}><span style={{display:"flex",alignItems:"center",gap:8}}><BatSignal size={22}/> Contact Via App</span></div>
           <button onClick={onClose} style={{background:"none",border:"none",fontSize:20,
             color:T.muted,cursor:"pointer"}}>✕</button>
         </div>
@@ -9896,7 +9909,7 @@ function BroadcastComposer({users, currentUser, onSend, onClose}) {
           <FL req>Message</FL>
           <textarea placeholder="Write your message here…" value={message} onChange={e=>setMessage(e.target.value)}
             rows={4} style={{width:"100%",resize:"vertical",padding:"9px 12px",
-              border:`1.5px solid ${T.border}`,borderRadius:8,fontFamily:"DM Sans,sans-serif",
+              border:`1.5px solid ${T.border}`,borderRadius:8,fontFamily:""Good Headline Pro",sans-serif",
               fontSize:13,background:T.bg,color:T.ink,boxSizing:"border-box"}}/>
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -10053,7 +10066,7 @@ function ApprenticeConversation({apprentice, allUsers, currentUser, canManageMes
           onChange={e=>setMsgText(e.target.value)}
           rows={2}
           style={{width:"100%",fontSize:13,padding:"9px 12px",borderRadius:8,
-            border:`1.5px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",
+            border:`1.5px solid ${T.border}`,fontFamily:""Good Headline Pro",sans-serif",
             background:T.surface,resize:"none",color:T.ink,outline:"none",boxSizing:"border-box"}}
           onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();handleSend();}}}
         />
@@ -10245,7 +10258,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
       background: tab===id ? xeroBlue : T.bg,
       color: tab===id ? "#fff" : T.sub,
       border: tab===id ? `1.5px solid ${xeroBlueDark}` : `1.5px solid ${T.border}`,
-      cursor:"pointer",fontFamily:"DM Sans,sans-serif",display:"flex",alignItems:"center",gap:6,
+      cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",display:"flex",alignItems:"center",gap:6,
       transition:"all .14s"}}>
       {label}
       {count!==undefined&&<span style={{
@@ -10265,18 +10278,18 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
           display:"flex",alignItems:"center",justifyContent:"center",
           fontSize:28,fontWeight:900,color:xeroBlue,fontFamily:"Georgia,serif",flexShrink:0}}>𝕏</div>
         <div>
-          <div style={{fontFamily:"'Libre Baskerville'",fontSize:20,fontWeight:700,color:T.ink}}>Xero Payroll Integration</div>
+          <div style={{fontFamily:"Good Headline Pro",fontSize:20,fontWeight:700,color:T.ink}}>Xero Payroll Integration</div>
           <div style={{fontSize:13,color:T.sub,marginTop:2}}>
             Submit approved timesheets to Xero Payroll NZ · Admin Level 1 only
           </div>
         </div>
         <div style={{marginLeft:"auto",display:"flex",gap:8,flexWrap:"wrap"}}>
           <div style={{textAlign:"center",padding:"8px 16px",background:T.accentL,borderRadius:8}}>
-            <div style={{fontSize:20,fontWeight:700,color:T.accent,fontFamily:"'Libre Baskerville'"}}>{pendingXero.length}</div>
+            <div style={{fontSize:20,fontWeight:700,color:T.accent,fontFamily:"Good Headline Pro"}}>{pendingXero.length}</div>
             <div style={{fontSize:11,color:T.sub,fontWeight:600}}>Awaiting Xero</div>
           </div>
           <div style={{textAlign:"center",padding:"8px 16px",background:"#e6f7fd",borderRadius:8}}>
-            <div style={{fontSize:20,fontWeight:700,color:xeroBlue,fontFamily:"'Libre Baskerville'"}}>{submittedXero.length}</div>
+            <div style={{fontSize:20,fontWeight:700,color:xeroBlue,fontFamily:"Good Headline Pro"}}>{submittedXero.length}</div>
             <div style={{fontSize:11,color:T.sub,fontWeight:600}}>Submitted</div>
           </div>
         </div>
@@ -10689,7 +10702,7 @@ serve(async (req) => {
                         background: match ? T.teal : xeroBlue,
                         color:"#fff",
                         border:`1px solid ${match ? T.teal : xeroBlueDark}`,
-                        cursor:"pointer",fontFamily:"DM Sans,sans-serif",whiteSpace:"nowrap"}}>
+                        cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",whiteSpace:"nowrap"}}>
                         {match ? "🔗 Merge" : "⬇ Import"}
                       </button>
                     </div>
@@ -10772,7 +10785,7 @@ serve(async (req) => {
                         } catch(e){ alert("Sync failed: "+e.message); }
                       }} style={{fontSize:12,padding:"6px 12px",borderRadius:7,fontWeight:600,
                         background:T.teal,color:"#fff",border:`1px solid ${T.teal}`,
-                        cursor:"pointer",fontFamily:"DM Sans,sans-serif",whiteSpace:"nowrap"}}>
+                        cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",whiteSpace:"nowrap"}}>
                         ✓ Fill {missing.length} field{missing.length>1?"s":""}
                       </button>
                     </div>
@@ -10792,7 +10805,7 @@ serve(async (req) => {
                         showToast(`✓ Synced Xero data for ${syncItems.length} apprentices`);
                       }} style={{fontSize:12,padding:"6px 14px",borderRadius:7,fontWeight:700,
                         background:T.accent,color:"#fff",border:"none",
-                        cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                        cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>
                         ⬇ Fill All Missing Fields
                       </button>
                     </div>
@@ -10863,7 +10876,7 @@ serve(async (req) => {
                           color: empMap[a.id]!==undefined ? "#fff" : T.muted,
                           border:`1px solid ${empMap[a.id]!==undefined?xeroBlueDark:T.border}`,
                           cursor: empMap[a.id]!==undefined ? "pointer" : "default",
-                          fontFamily:"DM Sans,sans-serif",fontWeight:600}}>
+                          fontFamily:""Good Headline Pro",sans-serif",fontWeight:600}}>
                         {savingMap[a.id]==="saving"?"…":"Save"}
                       </button>
                     )
@@ -10921,7 +10934,7 @@ serve(async (req) => {
                       background: submittingAll?"#e6f7fd":xeroBlue,
                       color: submittingAll?xeroBlueDark:"#fff",
                       border:`1.5px solid ${xeroBlueDark}`,
-                      cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                      cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",
                       display:"flex",alignItems:"center",gap:6,
                       opacity: submittingAll?0.7:1}}>
                     {submittingAll
@@ -10954,7 +10967,7 @@ serve(async (req) => {
                           {!hasXeroId&&<div style={{fontSize:11,color:T.warn}}>⚠ No Xero ID</div>}
                           {!hasRate&&<div style={{fontSize:11,color:T.warn}}>⚠ Rate not mapped</div>}
                         </div>
-                        <div style={{textAlign:"center",fontWeight:700,color:T.accent,fontFamily:"'Libre Baskerville'"}}>{e.netHours}h</div>
+                        <div style={{textAlign:"center",fontWeight:700,color:T.accent,fontFamily:"Good Headline Pro"}}>{e.netHours}h</div>
                         <Pill label={e.type} size="sm" color={tm.color} bg={tm.bg}/>
                         <div>
                           {e.xeroStatus==="submitting"
@@ -10983,7 +10996,7 @@ serve(async (req) => {
                               color: canSubmit?xeroBlueDark:T.muted,
                               border:`1.5px solid ${canSubmit?xeroBlue:T.border}`,
                               cursor: canSubmit?"pointer":"not-allowed",
-                              fontFamily:"DM Sans,sans-serif"}}>
+                              fontFamily:""Good Headline Pro",sans-serif"}}>
                             𝕏 Submit
                           </button>
                         </div>
@@ -11019,7 +11032,7 @@ serve(async (req) => {
                       background:i%2===0?T.surface:T.bg}}>
                       <div style={{fontWeight:600,fontSize:12}}>{fD(e.date)}</div>
                       <div style={{fontWeight:700}}>{app?.name||"Unknown"}</div>
-                      <div style={{textAlign:"center",fontWeight:700,color:T.accent,fontFamily:"'Libre Baskerville'"}}>{e.netHours}h</div>
+                      <div style={{textAlign:"center",fontWeight:700,color:T.accent,fontFamily:"Good Headline Pro"}}>{e.netHours}h</div>
                       <Pill label={e.type} size="sm" color={tm.color} bg={tm.bg}/>
                       <div style={{fontSize:11,color:xeroBlue,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                         {e.xeroTimesheetId||"—"}
@@ -11082,7 +11095,7 @@ const NoteTextarea = ({value, onChange, placeholder}) => (
   <textarea value={value} onChange={onChange} placeholder={placeholder}
     rows={3}
     style={{width:"100%",fontSize:13,padding:"10px 12px",border:`1.5px solid ${T.border}`,
-      borderRadius:8,fontFamily:"DM Sans,sans-serif",background:"#fff",resize:"vertical",
+      borderRadius:8,fontFamily:""Good Headline Pro",sans-serif",background:"#fff",resize:"vertical",
       color:T.ink,outline:"none",boxSizing:"border-box",minHeight:72}}/>
 );
 
@@ -11286,11 +11299,11 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
             <div style={{fontSize:13,color:T.sub,marginBottom:20}}>Would you like to lock this note with your PIN? Locked notes are only visible to you.</div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>commitNote({...pendingNote,is_locked:false})}
-                style={{flex:1,padding:"10px",borderRadius:8,border:`1.5px solid ${T.border}`,background:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:13}}>
+                style={{flex:1,padding:"10px",borderRadius:8,border:`1.5px solid ${T.border}`,background:"none",cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",fontSize:13}}>
                 💾 Save unlocked
               </button>
               <button onClick={()=>{ setPinPrompt("lockpin"); }}
-                style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:T.accent,color:"#fff",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:13,fontWeight:700}}>
+                style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:T.accent,color:"#fff",cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",fontSize:13,fontWeight:700}}>
                 🔒 Lock with PIN
               </button>
             </div>
@@ -11344,7 +11357,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                       onClick={()=>{setActivityType(label);setAddingNote(true);}}
                       style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"9px 14px",
                         background:"none",border:"none",cursor:"pointer",fontSize:13,
-                        color:T.ink,fontFamily:"DM Sans,sans-serif",textAlign:"left"}}
+                        color:T.ink,fontFamily:""Good Headline Pro",sans-serif",textAlign:"left"}}
                       onMouseEnter={e=>e.currentTarget.style.background=T.accentL}
                       onMouseLeave={e=>e.currentTarget.style.background="none"}>
                       <span style={{fontSize:15}}>{icon}</span>{label}
@@ -11434,7 +11447,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                         title="Pin to activity log"
                         style={{fontSize:11,fontWeight:600,padding:"3px 9px",borderRadius:6,
                           background:T.accentL,color:T.accent,border:`1px solid ${T.accent}44`,
-                          cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                          cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"}}>
                         {pinning[em.id]?"…":"📌 Pin"}
                       </button>
                     )}
@@ -11517,7 +11530,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                               <button onClick={()=>setPinPrompt(item.id)}
                                 style={{marginLeft:"auto",background:"none",border:`1px solid ${T.border}`,
                                   borderRadius:6,padding:"3px 9px",fontSize:11,cursor:"pointer",
-                                  color:T.accent,fontFamily:"DM Sans,sans-serif"}}>
+                                  color:T.accent,fontFamily:""Good Headline Pro",sans-serif"}}>
                                 🔓 Unlock
                               </button>
                             )}
@@ -11539,7 +11552,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                             <button onClick={()=>toggleLock(item)}
                               style={{background:"none",border:`1px solid ${T.border}`,borderRadius:5,
                                 padding:"1px 7px",fontSize:10,cursor:"pointer",
-                                color:item.is_locked?T.warn:T.muted,fontFamily:"DM Sans,sans-serif"}}>
+                                color:item.is_locked?T.warn:T.muted,fontFamily:""Good Headline Pro",sans-serif"}}>
                               {item.is_locked?"🔒 Locked":"🔓 Lock"}
                             </button>
                           )}
@@ -11625,7 +11638,7 @@ function EmailsModule({allUsers, currentUser}) {
       background: tab===id ? T.accent : T.bg,
       color: tab===id ? "#fff" : T.sub,
       border:`1.5px solid ${tab===id?T.accentD:T.border}`,
-      cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+      cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",
       display:"flex",alignItems:"center",gap:6,transition:"all .14s"}}>
       <span>{icon}</span>{label}
     </button>
@@ -11642,7 +11655,7 @@ function EmailsModule({allUsers, currentUser}) {
         <div style={{width:48,height:48,borderRadius:12,background:T.accentL,
           display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>✉</div>
         <div style={{flex:1}}>
-          <div style={{fontFamily:"'Libre Baskerville'",fontSize:18,fontWeight:700,color:T.ink}}>
+          <div style={{fontFamily:"Good Headline Pro",fontSize:18,fontWeight:700,color:T.ink}}>
             Email Tracking
           </div>
           <div style={{fontSize:13,color:T.sub,marginTop:2}}>
@@ -11651,7 +11664,7 @@ function EmailsModule({allUsers, currentUser}) {
         </div>
         <div style={{display:"flex",gap:8}}>
           <div style={{textAlign:"center",padding:"8px 14px",background:T.accentL,borderRadius:8}}>
-            <div style={{fontSize:18,fontWeight:700,color:T.accent,fontFamily:"'Libre Baskerville'"}}>{emails.length}</div>
+            <div style={{fontSize:18,fontWeight:700,color:T.accent,fontFamily:"Good Headline Pro"}}>{emails.length}</div>
             <div style={{fontSize:10,color:T.sub,fontWeight:600,textTransform:"uppercase"}}>Emails</div>
           </div>
         </div>
@@ -12164,7 +12177,7 @@ export default function App() {
         background:`linear-gradient(135deg,${T.dark},${T.dark2},#2060a0)`}}>
         <div style={{textAlign:"center",color:"#fff"}}>
           <img src={KTA_LOGO} alt="KTA" style={{height:60,objectFit:"contain",filter:"brightness(0) invert(1)",marginBottom:20}} onError={e=>{e.target.style.display="none";}}/>
-          <div style={{fontFamily:"'Libre Baskerville'",fontSize:20,fontWeight:700,marginBottom:8}}>Kiwi Trade Apprentices</div>
+          <div style={{fontFamily:"Good Headline Pro",fontSize:20,fontWeight:700,marginBottom:8}}>Kiwi Trade Apprentices</div>
           <div style={{fontSize:13,color:"#ffffff66"}}>Connecting to database…</div>
           {dbError&&<div style={{fontSize:12,color:"#ff8888",marginTop:12,maxWidth:300}}>⚠ {dbError}</div>}
         </div>
@@ -12194,7 +12207,7 @@ export default function App() {
                 display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,margin:"0 auto 16px"}}>
                 🔔
               </div>
-              <h2 style={{fontFamily:"'Libre Baskerville'",fontSize:22,fontWeight:700,color:T.ink,marginBottom:8}}>
+              <h2 style={{fontFamily:"Good Headline Pro",fontSize:22,fontWeight:700,color:T.ink,marginBottom:8}}>
                 You have unread notifications
               </h2>
               <p style={{fontSize:13,color:T.sub,lineHeight:1.6}}>
@@ -12225,7 +12238,7 @@ export default function App() {
                       }} style={{
                         background:T.accentL,border:`1px solid ${T.accent}44`,color:T.accent,
                         borderRadius:6,padding:"4px 12px",fontSize:12,fontWeight:600,
-                        cursor:"pointer",fontFamily:"DM Sans,sans-serif",flexShrink:0
+                        cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",flexShrink:0
                       }}>✓ Read</button>
                     </div>
                   </div>
@@ -12241,7 +12254,7 @@ export default function App() {
             <div style={{textAlign:"center",marginTop:12}}>
               <button onClick={handleLogout} style={{
                 background:"none",border:"none",color:T.muted,fontSize:12,
-                cursor:"pointer",fontFamily:"DM Sans,sans-serif"
+                cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif"
               }}>Sign out</button>
             </div>
           </div>
@@ -12301,7 +12314,7 @@ export default function App() {
                       background: isActive ? "#ffffff" : "#ffffff15",
                       color: isActive ? T.dark : "#ffffffcc",
                       border: isActive ? `1.5px solid #ffffff44` : "1.5px solid #ffffff18",
-                      fontFamily:"DM Sans,sans-serif",cursor:"pointer",
+                      fontFamily:""Good Headline Pro",sans-serif",cursor:"pointer",
                       transition:"all .14s",
                       boxShadow: isActive ? "0 2px 8px #00000022" : "none",
                       display:"flex",alignItems:"center",gap:6,
@@ -12355,7 +12368,7 @@ export default function App() {
                 style={{background:showBroadcast?"#ffffff30":"#ffffff18",border:"1.5px solid #ffffff28",color:"#fff",
                   borderRadius:9,padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer",
                   display:"flex",alignItems:"center",gap:6,transition:"all .14s",
-                  fontFamily:"DM Sans,sans-serif",letterSpacing:"-.1px"}}
+                  fontFamily:""Good Headline Pro",sans-serif",letterSpacing:"-.1px"}}
                 onMouseEnter={e=>{e.currentTarget.style.background="#ffffff30";}}
                 onMouseLeave={e=>{if(!showBroadcast)e.currentTarget.style.background="#ffffff18";}}>
                 <span style={{fontSize:14}}>✉</span> Notifications
@@ -12368,7 +12381,7 @@ export default function App() {
                   border: module==="xero"?"1.5px solid #13b5ea88":"1.5px solid #ffffff28",
                   color: module==="xero"?"#13b5ea":"#ffffffcc",
                   borderRadius:9,padding:"7px 12px",fontSize:12,fontWeight:700,
-                  cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                  cursor:"pointer",fontFamily:""Good Headline Pro",sans-serif",
                   display:"flex",alignItems:"center",gap:5,transition:"all .14s"}}
                 onMouseEnter={e=>{e.currentTarget.style.background="#13b5ea22";e.currentTarget.style.color="#13b5ea";}}
                 onMouseLeave={e=>{if(module!=="xero"){e.currentTarget.style.background="#ffffff18";e.currentTarget.style.color="#ffffffcc";}}}>
@@ -12383,7 +12396,7 @@ export default function App() {
             <button className="desktop-signout" onClick={handleLogout}
               style={{background:"#ffffff15",border:"1.5px solid #ffffff28",borderRadius:9,
                 padding:"8px 14px",fontSize:12,color:"#ffffffbb",fontWeight:700,
-                fontFamily:"DM Sans,sans-serif",cursor:"pointer",letterSpacing:"-.1px",transition:"all .14s"}}
+                fontFamily:""Good Headline Pro",sans-serif",cursor:"pointer",letterSpacing:"-.1px",transition:"all .14s"}}
               onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
               onMouseLeave={e=>{e.currentTarget.style.background="#ffffff15";e.currentTarget.style.color="#ffffffbb";e.currentTarget.style.borderColor="#ffffff28";}}>
               ⏏ Sign out
@@ -12432,7 +12445,7 @@ export default function App() {
                 <button onClick={()=>setViewingAppId(null)} style={{
                   display:"inline-flex",alignItems:"center",gap:6,
                   background:"none",border:"none",color:T.sub,fontSize:13,
-                  fontFamily:"DM Sans,sans-serif",cursor:"pointer",marginBottom:10,padding:0,
+                  fontFamily:""Good Headline Pro",sans-serif",cursor:"pointer",marginBottom:10,padding:0,
                   fontWeight:500
                 }}
                   onMouseEnter={e=>e.currentTarget.style.color=T.ink}
@@ -12442,7 +12455,7 @@ export default function App() {
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
                   <Avatar name={viewingApp.name} role="Apprentice" size={40}/>
                   <div>
-                    <h1 style={{fontFamily:"'Libre Baskerville'",fontSize:24,fontWeight:700,letterSpacing:"-.4px"}}>
+                    <h1 style={{fontFamily:"Good Headline Pro",fontSize:24,fontWeight:700,letterSpacing:"-.4px"}}>
                       {viewingApp.name}
                     </h1>
 
@@ -12454,14 +12467,14 @@ export default function App() {
                 <button onClick={()=>setShowAppList(false)} style={{
                   display:"inline-flex",alignItems:"center",gap:6,
                   background:"none",border:"none",color:T.sub,fontSize:13,
-                  fontFamily:"DM Sans,sans-serif",cursor:"pointer",marginBottom:10,padding:0,
+                  fontFamily:""Good Headline Pro",sans-serif",cursor:"pointer",marginBottom:10,padding:0,
                   fontWeight:500
                 }}
                   onMouseEnter={e=>e.currentTarget.style.color=T.ink}
                   onMouseLeave={e=>e.currentTarget.style.color=T.sub}>
                   ← Back to Dashboard
                 </button>
-                <h1 style={{fontFamily:"'Libre Baskerville'",fontSize:26,fontWeight:700,letterSpacing:"-.4px"}}>
+                <h1 style={{fontFamily:"Good Headline Pro",fontSize:26,fontWeight:700,letterSpacing:"-.4px"}}>
                   {showAppList==="apprentices"?"Apprentices"
                   :showAppList==="hours"?"Hours This Week"
                   :showAppList==="submitted"?"Pending"
@@ -12486,7 +12499,7 @@ export default function App() {
               </div>
             ) : (
               <div>
-                <h1 style={{fontFamily:"'Libre Baskerville'",fontSize:26,fontWeight:700,letterSpacing:"-.4px"}}>
+                <h1 style={{fontFamily:"Good Headline Pro",fontSize:26,fontWeight:700,letterSpacing:"-.4px"}}>
                   {activeMod==="dashboard"?"Dashboard":activeMod==="timesheet"?"Timesheet":activeMod==="crm"?"CRM":activeMod==="mentor"?"My Apprentices":"User Management"}
                 </h1>
                 <p style={{fontSize:13,color:T.sub,marginTop:4}}>
@@ -12641,7 +12654,7 @@ export default function App() {
         <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",
           background:appToast.ok?"#1a8a7a":"#bf2b2b",color:"#fff",
           padding:"10px 20px",borderRadius:10,fontWeight:600,fontSize:13,
-          boxShadow:"0 4px 16px #0004",zIndex:9999,fontFamily:"DM Sans,sans-serif",
+          boxShadow:"0 4px 16px #0004",zIndex:9999,fontFamily:""Good Headline Pro",sans-serif",
           animation:"fadeIn .2s"}}>
           {appToast.msg}
         </div>
