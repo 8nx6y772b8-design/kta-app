@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.19
+// KTA Workforce Management — v2.7.20
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.19
+          v2.7.20
         </div>
       </div>
     </div>
@@ -2712,6 +2712,13 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
     job_title:c.job_title||c.jobTitle||"", status:c.status||"Active", notes:c.notes||"",
   });
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+  const isAdminL1 = viewer?.role==="Admin" && (viewer?.adminLevel||1)===1;
+  const isAdmin   = viewer?.role==="Admin";
+  const isMentor  = viewer?.role==="Mentor";
+  // Mentors can edit core fields but not password or Xero settings
+  const canEditPassword = isAdminL1 || isAdmin;
+  const canEditXero     = isAdminL1;
+  const canEditAllocs   = isAdminL1 || isAdmin;
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -5015,7 +5022,7 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
 // APPRENTICE LIST
 // ─────────────────────────────────────────────────────────────────────────────
 // ── Shared Apprentice Edit Form — used by UserManagement, ApprenticeList, ApprenticeDetailView ──
-function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null}) {
+function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewer=null}) {
   const TRADES = ["Electrical Apprentice","Electrical","Plumbing & Gasfitting","Plumbing","Gasfitting","Drain Laying","Roofing","Carpentry","Joinery","Painting & Decorating","Mechanical Engineering","Refrigeration & Air Conditioning","Bricklaying","Plastering","Tiling","Other"];
   const approvers = allUsers.filter(u=>u.role==="Approver"||u.role==="Admin").sort((a,b)=>a.name.localeCompare(b.name));
   const viewers   = allUsers.filter(u=>u.role==="Viewer"  ||u.role==="Admin").sort((a,b)=>a.name.localeCompare(b.name));
@@ -5051,6 +5058,13 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null}) {
   const [saving,     setSaving]     = useState(false);
 
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+  const isAdminL1 = viewer?.role==="Admin" && (viewer?.adminLevel||1)===1;
+  const isAdmin   = viewer?.role==="Admin";
+  const isMentor  = viewer?.role==="Mentor";
+  // Mentors can edit core fields but not password or Xero settings
+  const canEditPassword = isAdminL1 || isAdmin;
+  const canEditXero     = isAdminL1;
+  const canEditAllocs   = isAdminL1 || isAdmin;
 
   const handleSave = async () => {
     if(!form.firstName.trim()||!form.lastName.trim()||!form.email.trim()) {
@@ -5146,30 +5160,30 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null}) {
                 placeholder={form.overtimeType==="daily"?"e.g. 8":"e.g. 40"}
                 value={form.overtimeThreshold} onChange={e=>sf("overtimeThreshold",parseFloat(e.target.value)||"")}/>
             </div>}
-            {form.overtimeType&&<div><FL>Xero Overtime Rate ID</FL>
+            {form.overtimeType&&canEditXero&&<div><FL>Xero Overtime Rate ID</FL>
               <input placeholder="Xero earnings rate UUID" value={form.overtimeRateId||""} onChange={e=>sf("overtimeRateId",e.target.value)}/>
             </div>}
           </div>
         </div>
-        <div><FL>Approver</FL>
+        {canEditAllocs&&<div><FL>Approver</FL>
           <select value={approverId} onChange={e=>setApproverId(e.target.value)}>
             <option value="">— None —</option>
             {approvers.map(a=><option key={a.id} value={a.id}>{a.name}{a.role==="Admin"?" (Admin)":""}</option>)}
           </select>
-        </div>
-        <div><FL>Viewer</FL>
+        </div>}
+        {canEditAllocs&&<div><FL>Viewer</FL>
           <select value={viewerId} onChange={e=>setViewerId(e.target.value)}>
             <option value="">— None —</option>
             {viewers.map(v=><option key={v.id} value={v.id}>{v.name}{v.role==="Admin"?" (Admin)":""}</option>)}
           </select>
-        </div>
-        <div><FL>Mentor</FL>
+        </div>}
+        {canEditAllocs&&<div><FL>Mentor</FL>
           <select value={mentorId} onChange={e=>setMentorId(e.target.value)}>
             <option value="">— None —</option>
             {mentors.map(m=><option key={m.id} value={m.id}>{m.name}{m.role==="Admin"?" (Admin)":""}</option>)}
           </select>
-        </div>
-        <div><FL>New Password <span style={{fontWeight:400,color:T.muted}}>(blank = keep)</span></FL>
+        </div>}
+        {canEditPassword&&<div><FL>New Password <span style={{fontWeight:400,color:T.muted}}>(blank = keep)</span></FL>
           <div style={{position:"relative"}}>
             <input type={showPw?"text":"password"} autoComplete="new-password" placeholder="Leave blank to keep"
               value={pwField} onChange={e=>setPwField(e.target.value)} style={{paddingRight:60}}/>
@@ -5179,7 +5193,7 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null}) {
               {showPw?"Hide":"Show"}
             </button>
           </div>
-        </div>
+        </div>}
       </div>
       <div style={{display:"flex",gap:8}}>
         <Btn onClick={handleSave} disabled={saving}>{saving?"Saving…":"Update Apprentice"}</Btn>
@@ -5206,6 +5220,13 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
   const [formViewerId,   setFormViewerId]   = useState("");
   const [formMentorId,   setFormMentorId]   = useState("");
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+  const isAdminL1 = viewer?.role==="Admin" && (viewer?.adminLevel||1)===1;
+  const isAdmin   = viewer?.role==="Admin";
+  const isMentor  = viewer?.role==="Mentor";
+  // Mentors can edit core fields but not password or Xero settings
+  const canEditPassword = isAdminL1 || isAdmin;
+  const canEditXero     = isAdminL1;
+  const canEditAllocs   = isAdminL1 || isAdmin;
   const [hostCos, setHostCos] = useState([]);
   useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCos(rows.map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>a.name.localeCompare(b.name)))).catch(()=>{}); },[]);
 
@@ -6509,6 +6530,13 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
   const [done, setDone]       = useState(false);
   const [error, setError]     = useState("");
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+  const isAdminL1 = viewer?.role==="Admin" && (viewer?.adminLevel||1)===1;
+  const isAdmin   = viewer?.role==="Admin";
+  const isMentor  = viewer?.role==="Mentor";
+  // Mentors can edit core fields but not password or Xero settings
+  const canEditPassword = isAdminL1 || isAdmin;
+  const canEditXero     = isAdminL1;
+  const canEditAllocs   = isAdminL1 || isAdmin;
 
   const handleSubmit = async () => {
     if(!form.dateFrom || !form.dateTo) { setError("Please select start and end dates."); return; }
@@ -7672,6 +7700,13 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
   const [emailStatus, setEmailStatus] = useState(null);
   const [prevGoalsSource, setPrevGoalsSource] = useState(null);
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+  const isAdminL1 = viewer?.role==="Admin" && (viewer?.adminLevel||1)===1;
+  const isAdmin   = viewer?.role==="Admin";
+  const isMentor  = viewer?.role==="Mentor";
+  // Mentors can edit core fields but not password or Xero settings
+  const canEditPassword = isAdminL1 || isAdmin;
+  const canEditXero     = isAdminL1;
+  const canEditAllocs   = isAdminL1 || isAdmin;
   const fD = (iso) => { if(!iso) return "—"; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
 
   // On mount: fetch the most recent past report and pre-fill Previous Goals from its goals_this_meeting
@@ -9178,6 +9213,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             <ApprenticeEditForm
               user={apprentice}
               allUsers={allUsers}
+              viewer={viewer}
               title={`✎ Editing — ${apprentice.name}`}
               onSave={(updated) => {
                 setApprentice(updated);
