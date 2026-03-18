@@ -3610,8 +3610,6 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
       setDetailCompany(updated);
     };
 
-    const [addingContact, setAddingContact] = React.useState(false);
-
     return (
       <div className="fu">
         {/* ── Back + header ── */}
