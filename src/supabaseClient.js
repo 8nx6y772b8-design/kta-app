@@ -44,6 +44,7 @@ export const rowToUser = (r) => ({
   emergencyContactRelationship: r.emergency_contact_relationship || '',
   licenceNumber:     r.licence_number    || '',
   siteSafeNumber:    r.site_safe_number  || '',
+  reportsEmail:      r.reports_email     || '',
 });
 
 export const userToRow = (u) => ({
@@ -83,6 +84,7 @@ export const userToRow = (u) => ({
   emergency_contact_relationship: u.emergencyContactRelationship || null,
   licence_number:     u.licenceNumber     || null,
   site_safe_number:   u.siteSafeNumber    || null,
+  reports_email:      u.reportsEmail      || null,
 });
 
 export const rowToEntry = (r) => ({
