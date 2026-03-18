@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.49
+// KTA Workforce Management — v2.7.50
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -332,7 +332,7 @@ const generateReportPDF = (report, apprentice, mentor) => {
     ["Host Business",      apprentice.hostBusiness || "Not specified"],
     ["Location",           report.location || "Not specified"],
     ["Date of Visit",      fD(report.date)],
-    ["KTA Representative", mentor.name],
+    ["KTA Representative", mentor?.name||"—"],
     ["Licence Expiry",     apprentice.licenceExpiry ? fD(apprentice.licenceExpiry) : "Not set"],
     ["Next Visit",         fD(report.next_visit_date)],
   ];
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:13,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.49
+          v2.7.50
         </div>
       </div>
     </div>
@@ -5279,32 +5279,6 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
   const canEditXero     = isAdminL1;
   const canEditAllocs   = isAdminL1 || isAdmin;
 
-  const handleSaveDraft = async () => {
-    setSavingDraft(true);
-    const id = draftId || uid();
-    const report = {
-      id, apprentice_id: apprentice.id, mentor_id: mentor?.id || null,
-      date: form.date, location: form.location.trim(),
-      off_job_progress:   form.offJobProgress.trim(),
-      on_job_progress:    form.onJobProgress.trim(),
-      previous_goals:     form.previousGoals.trim(),
-      goals_this_meeting: form.goalsNextVisit.trim(),
-      comments_feedback:  form.commentsFeedback.trim(),
-      next_visit_date:    form.nextVisitDate || null,
-      status:             'draft',
-      created_at:         new Date().toISOString(),
-    };
-    try {
-      await upsertRow('meeting_reports', report);
-      setDraftId(id);
-      setDraftSaved(true);
-      setTimeout(() => setDraftSaved(false), 2500);
-    } catch(e) {
-      alert('Draft save failed: ' + e.message);
-    }
-    setSavingDraft(false);
-  };
-
   const handleSave = async () => {
     if(!form.firstName.trim()||!form.lastName.trim()||!form.email.trim()) {
       alert("First name, last name and email are required."); return;
@@ -5813,7 +5787,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
                       ◆ {viewer?viewer.name.split(" ")[0]:"No viewer"}
                     </div>
                     {mentor&&<div style={{color:T.accent, fontWeight:700, marginTop:2}}>
-                      ✦ {mentor.name.split(" ")[0]}
+                      ✦ {mentor?.name?.split(" ")[0]||""}
                     </div>}
                   </div>
                   <div style={{fontSize:11,color:T.blue,marginTop:3}}>{isExpanded?"▲ collapse":"✎ manage"}</div>
@@ -7730,7 +7704,7 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver, ccEm
     `Trade:              ${apprentice.trade||"Not specified"}`,
     `Location:           ${report.location||"Not specified"}`,
     `Date:               ${fD(report.date)}`,
-    `KTA Representative: ${mentor.name}`,
+    `KTA Representative: ${mentor?.name||"—"}`,
     `Licence Expiry:     ${apprentice.licenceExpiry ? fD(apprentice.licenceExpiry) : "Not set"}`,
     `Date of Next Visit: ${fD(report.next_visit_date)}`,
     ``,
@@ -8020,6 +7994,32 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
     }).catch(() => {});
   }, [apprentice.id]);
 
+  const handleSaveDraft = async () => {
+    setSavingDraft(true);
+    const id = draftId || uid();
+    const report = {
+      id, apprentice_id: apprentice.id, mentor_id: mentor?.id || null,
+      date: form.date, location: form.location.trim(),
+      off_job_progress:   form.offJobProgress.trim(),
+      on_job_progress:    form.onJobProgress.trim(),
+      previous_goals:     form.previousGoals.trim(),
+      goals_this_meeting: form.goalsNextVisit.trim(),
+      comments_feedback:  form.commentsFeedback.trim(),
+      next_visit_date:    form.nextVisitDate || null,
+      status:             'draft',
+      created_at:         new Date().toISOString(),
+    };
+    try {
+      await upsertRow('meeting_reports', report);
+      setDraftId(id);
+      setDraftSaved(true);
+      setTimeout(() => setDraftSaved(false), 2500);
+    } catch(e) {
+      alert('Draft save failed: ' + e.message);
+    }
+    setSavingDraft(false);
+  };
+
   const handleSave = async () => {
     if(!form.commentsFeedback.trim() && !form.onJobProgress.trim()) {
       alert("Please fill in at least On Job Progress or Comments & Feedback."); return;
@@ -8122,7 +8122,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
             {apprentice.licenceExpiry ? fD(apprentice.licenceExpiry) : "Not set"}</div>},
           {label:"Date of Next Visit",  content:<input type="date" value={form.nextVisitDate} onChange={e=>sf("nextVisitDate",e.target.value)}
             style={{border:"none",fontSize:14,width:"100%",outline:"none",padding:"6px",fontFamily:"DM Sans,sans-serif",background:"transparent"}}/>},
-          {label:"KTA Representative",  content:<div style={{padding:"6px",fontSize:14,fontWeight:700}}>{mentor.name}</div>},
+          {label:"KTA Representative",  content:<div style={{padding:"6px",fontSize:14,fontWeight:700}}>{mentor?.name||"—"}</div>},
         ].map(({label,content})=>(
           <div key={label} style={{display:"grid",gridTemplateColumns:"180px 1fr",borderBottom:`1px solid ${T.border}`}}>
             <div style={{padding:"10px 12px",fontWeight:700,fontSize:14,borderRight:`1px solid ${T.border}`,background:"#f5f7fa"}}>{label}</div>
