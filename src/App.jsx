@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.16
+// KTA Workforce Management — v2.7.17
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.16
+          v2.7.17
         </div>
       </div>
     </div>
@@ -5184,6 +5184,14 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
                 </div>);
               })():<input placeholder="e.g. Sparks Electrical Ltd" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>}
             </div>
+            {/* ── Reports Email ── */}
+            <div style={{gridColumn:"1/-1"}}>
+              <FL>Reports Go To (email)</FL>
+              <input type="email" placeholder="e.g. manager@company.co.nz"
+                value={form.reportsEmail||""}
+                onChange={e=>sf("reportsEmail",e.target.value)}/>
+              <div style={{fontSize:10,color:T.muted,marginTop:2}}>Visit reports emailed here + apprentice. Leave blank to use approver.</div>
+            </div>
             {/* ── Overtime Settings ── */}
             <div style={{gridColumn:"1/-1"}}>
               <div style={{fontWeight:700,fontSize:12,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>
@@ -5200,7 +5208,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
                 </div>
                 {form.overtimeType&&<div>
                   <FL>Threshold Hours</FL>
-                  <input type="number" min="1" max="24" step="0.5"
+                  <input type="number" min="1" max={form.overtimeType==="weekly"?"168":"24"} step="0.5"
                     placeholder={form.overtimeType==="daily"?"e.g. 8":"e.g. 40"}
                     value={form.overtimeThreshold}
                     onChange={e=>sf("overtimeThreshold",parseFloat(e.target.value)||"")}/>
@@ -5215,13 +5223,6 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
                     onChange={e=>sf("overtimeRateId",e.target.value)}/>
                   <div style={{fontSize:10,color:T.muted,marginTop:2}}>Find in Xero → Payroll → Pay Items</div>
                 </div>}
-              </div>
-              <div style={{marginTop:12}}>
-                <FL>Reports Go To (email)</FL>
-                <input type="email" placeholder="e.g. manager@company.co.nz"
-                  value={form.reportsEmail||""}
-                  onChange={e=>sf("reportsEmail",e.target.value)}/>
-                <div style={{fontSize:10,color:T.muted,marginTop:2}}>Visit reports emailed here + apprentice. Leave blank to use approver.</div>
               </div>
               {form.overtimeType&&(
                 <div style={{marginTop:8,padding:"8px 12px",background:T.accentL,borderRadius:7,fontSize:12,color:T.accent}}>
