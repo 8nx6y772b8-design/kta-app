@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.18
+// KTA Workforce Management — v2.7.19
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.18
+          v2.7.19
         </div>
       </div>
     </div>
@@ -5014,6 +5014,181 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
 // ─────────────────────────────────────────────────────────────────────────────
 // APPRENTICE LIST
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Shared Apprentice Edit Form — used by UserManagement, ApprenticeList, ApprenticeDetailView ──
+function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null}) {
+  const TRADES = ["Electrical Apprentice","Electrical","Plumbing & Gasfitting","Plumbing","Gasfitting","Drain Laying","Roofing","Carpentry","Joinery","Painting & Decorating","Mechanical Engineering","Refrigeration & Air Conditioning","Bricklaying","Plastering","Tiling","Other"];
+  const approvers = allUsers.filter(u=>u.role==="Approver"||u.role==="Admin").sort((a,b)=>a.name.localeCompare(b.name));
+  const viewers   = allUsers.filter(u=>u.role==="Viewer"  ||u.role==="Admin").sort((a,b)=>a.name.localeCompare(b.name));
+  const mentors   = allUsers.filter(u=>u.role==="Mentor"  ||u.role==="Admin").sort((a,b)=>a.name.localeCompare(b.name));
+  const [hostCos, setHostCos] = useState([]);
+  useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCos(rows.map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>a.name.localeCompare(b.name)))).catch(()=>{}); },[]);
+
+  const nameParts = (user.name||"").split(" ");
+  const [form, setForm] = useState({
+    firstName:         user.firstName  || nameParts[0] || "",
+    lastName:          user.lastName   || nameParts.slice(1).join(" ") || "",
+    email:             user.email      || "",
+    phone:             user.phone      || "",
+    trade:             user.trade      || "",
+    licenceExpiry:     user.licenceExpiry    || "",
+    siteSafeExpiry:    user.siteSafeExpiry   || "",
+    firstAidExpiry:    user.firstAidExpiry   || "",
+    hostBusiness:      user.hostBusiness     || "",
+    reportsEmail:      user.reportsEmail     || "",
+    overtimeType:      user.overtimeType     || null,
+    overtimeThreshold: user.overtimeThreshold|| "",
+    overtimeRateId:    user.overtimeRateId   || "",
+  });
+  const [approverId, setApproverId] = useState(
+    user.approverUserId || allUsers.find(x=>(x.role==="Approver"||x.role==="Admin")&&(x.allocatedTo||[]).includes(user.id))?.id || ""
+  );
+  const [viewerId,   setViewerId]   = useState(
+    user.viewerUserId   || allUsers.find(x=>(x.role==="Viewer"  ||x.role==="Admin")&&(x.allocatedTo||[]).includes(user.id))?.id || ""
+  );
+  const [mentorId,   setMentorId]   = useState(user.mentorUserId || "");
+  const [pwField,    setPwField]    = useState("");
+  const [showPw,     setShowPw]     = useState(false);
+  const [saving,     setSaving]     = useState(false);
+
+  const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  const handleSave = async () => {
+    if(!form.firstName.trim()||!form.lastName.trim()||!form.email.trim()) {
+      alert("First name, last name and email are required."); return;
+    }
+    setSaving(true);
+    const updated = {
+      ...user,
+      name:              `${form.firstName.trim()} ${form.lastName.trim()}`,
+      firstName:         form.firstName.trim(),
+      lastName:          form.lastName.trim(),
+      email:             form.email.trim(),
+      phone:             form.phone.trim(),
+      trade:             form.trade,
+      licenceExpiry:     form.licenceExpiry  || null,
+      siteSafeExpiry:    form.siteSafeExpiry || null,
+      firstAidExpiry:    form.firstAidExpiry || null,
+      hostBusiness:      form.hostBusiness,
+      reportsEmail:      form.reportsEmail.trim() || null,
+      overtimeType:      form.overtimeType   || null,
+      overtimeThreshold: form.overtimeThreshold || null,
+      overtimeRateId:    form.overtimeRateId || null,
+      approverUserId:    approverId || null,
+      viewerUserId:      viewerId   || null,
+      mentorUserId:      mentorId   || null,
+      ...(pwField.trim() ? {password: hashPw(pwField.trim())} : {}),
+    };
+    try {
+      await upsertUser(updated);
+      onSave(updated);
+    } catch(e) {
+      alert("Save failed: "+e.message);
+    }
+    setSaving(false);
+  };
+
+  const listed = hostCos.some(c=>c.name===(form.hostBusiness||""));
+  const hostOnes  = hostCos.filter(c=>c.isHostBusiness);
+  const otherOnes = hostCos.filter(c=>!c.isHostBusiness);
+
+  return (
+    <div>
+      {title && <div style={{fontWeight:700,fontSize:14,color:T.blue,marginBottom:14}}>{title}</div>}
+      <div style={{display:"none"}} aria-hidden="true">
+        <input type="text" name="username" tabIndex={-1}/>
+        <input type="email" name="email" tabIndex={-1}/>
+        <input type="password" name="password" tabIndex={-1}/>
+      </div>
+      <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
+        <div><FL req>First Name</FL><input autoComplete="nope" placeholder="Jamie" value={form.firstName} onChange={e=>sf("firstName",e.target.value)}/></div>
+        <div><FL req>Last Name</FL><input autoComplete="nope" placeholder="Smith" value={form.lastName} onChange={e=>sf("lastName",e.target.value)}/></div>
+        <div><FL req>Email</FL><input autoComplete="nope" type="text" placeholder="jamie@work.com" value={form.email} onChange={e=>sf("email",e.target.value)}/></div>
+        <div><FL>Phone</FL><input autoComplete="nope" type="text" placeholder="+64 2x xxx xxxx" value={form.phone} onChange={e=>sf("phone",e.target.value)}/></div>
+        <div><FL>Trade</FL>
+          <select value={form.trade} onChange={e=>sf("trade",e.target.value)}>
+            <option value="">Select trade…</option>
+            {TRADES.map(t=><option key={t}>{t}</option>)}
+          </select>
+        </div>
+        <div><FL>Licence Expiry</FL><input type="date" value={form.licenceExpiry} onChange={e=>sf("licenceExpiry",e.target.value)}/></div>
+        <div><FL>Site Safe Expiry</FL><input type="date" value={form.siteSafeExpiry||""} onChange={e=>sf("siteSafeExpiry",e.target.value)}/></div>
+        <div><FL>First Aid Expiry</FL><input type="date" value={form.firstAidExpiry||""} onChange={e=>sf("firstAidExpiry",e.target.value)}/></div>
+        <div><FL>Host Business</FL>
+          {hostCos.length>0?(
+            <div>
+              <select value={listed?(form.hostBusiness||""):"__custom__"} onChange={e=>{if(e.target.value!=="__custom__")sf("hostBusiness",e.target.value);}}>
+                <option value="">— Select host business —</option>
+                {hostOnes.length>0&&<optgroup label="🏢 Host Businesses">{hostOnes.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</optgroup>}
+                {otherOnes.length>0&&<optgroup label="All Companies">{otherOnes.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</optgroup>}
+                <option value="__custom__">Other (type below)…</option>
+              </select>
+              {!listed&&<input style={{marginTop:6}} placeholder="Type host business name…" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>}
+            </div>
+          ):<input placeholder="e.g. Sparks Electrical Ltd" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>}
+        </div>
+        <div style={{gridColumn:"1/-1"}}>
+          <FL>Reports Go To (email)</FL>
+          <input type="email" placeholder="e.g. manager@company.co.nz" value={form.reportsEmail||""} onChange={e=>sf("reportsEmail",e.target.value)}/>
+          <div style={{fontSize:10,color:T.muted,marginTop:2}}>Visit reports emailed here + apprentice. Leave blank to use approver.</div>
+        </div>
+        <div style={{gridColumn:"1/-1"}}>
+          <div style={{fontWeight:700,fontSize:12,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>Overtime Settings</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+            <div><FL>Overtime Type</FL>
+              <select value={form.overtimeType||""} onChange={e=>sf("overtimeType",e.target.value||null)}>
+                <option value="">— No overtime —</option>
+                <option value="daily">Daily threshold</option>
+                <option value="weekly">Weekly threshold</option>
+              </select>
+            </div>
+            {form.overtimeType&&<div><FL>Threshold Hours</FL>
+              <input type="number" min="1" max={form.overtimeType==="weekly"?"168":"24"} step="0.5"
+                placeholder={form.overtimeType==="daily"?"e.g. 8":"e.g. 40"}
+                value={form.overtimeThreshold} onChange={e=>sf("overtimeThreshold",parseFloat(e.target.value)||"")}/>
+            </div>}
+            {form.overtimeType&&<div><FL>Xero Overtime Rate ID</FL>
+              <input placeholder="Xero earnings rate UUID" value={form.overtimeRateId||""} onChange={e=>sf("overtimeRateId",e.target.value)}/>
+            </div>}
+          </div>
+        </div>
+        <div><FL>Approver</FL>
+          <select value={approverId} onChange={e=>setApproverId(e.target.value)}>
+            <option value="">— None —</option>
+            {approvers.map(a=><option key={a.id} value={a.id}>{a.name}{a.role==="Admin"?" (Admin)":""}</option>)}
+          </select>
+        </div>
+        <div><FL>Viewer</FL>
+          <select value={viewerId} onChange={e=>setViewerId(e.target.value)}>
+            <option value="">— None —</option>
+            {viewers.map(v=><option key={v.id} value={v.id}>{v.name}{v.role==="Admin"?" (Admin)":""}</option>)}
+          </select>
+        </div>
+        <div><FL>Mentor</FL>
+          <select value={mentorId} onChange={e=>setMentorId(e.target.value)}>
+            <option value="">— None —</option>
+            {mentors.map(m=><option key={m.id} value={m.id}>{m.name}{m.role==="Admin"?" (Admin)":""}</option>)}
+          </select>
+        </div>
+        <div><FL>New Password <span style={{fontWeight:400,color:T.muted}}>(blank = keep)</span></FL>
+          <div style={{position:"relative"}}>
+            <input type={showPw?"text":"password"} autoComplete="new-password" placeholder="Leave blank to keep"
+              value={pwField} onChange={e=>setPwField(e.target.value)} style={{paddingRight:60}}/>
+            <button onClick={()=>setShowPw(s=>!s)} type="button"
+              style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",
+                background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:12}}>
+              {showPw?"Hide":"Show"}
+            </button>
+          </div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <Btn onClick={handleSave} disabled={saving}>{saving?"Saving…":"Update Apprentice"}</Btn>
+        <Btn v="ghost" onClick={onCancel}>Cancel</Btn>
+      </div>
+    </div>
+  );
+}
+
 function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
   const apprentices = [...allUsers.filter(u => u.role === "Apprentice")].sort((a,b)=>a.name.localeCompare(b.name));
   const approvers   = allUsers.filter(u => u.role === "Approver" || u.role === "Admin");
@@ -5382,104 +5557,18 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
                   borderBottom:i<apprentices.length-1?`1px solid ${T.border}44`:"none",
                   borderTop:`1.5px solid ${editId===u.id?T.blue+"44":T.border+"44"}`}}>
                 {editId===u.id ? (
-                  /* ── INLINE EDIT FORM ── */
+                  /* ── INLINE EDIT FORM — uses shared ApprenticeEditForm ── */
                   <div style={{padding:"16px 20px 20px"}}>
-                    <div style={{fontWeight:700,fontSize:14,color:T.blue,marginBottom:14}}>✎ Editing — {u.name}</div>
-                    <div style={{display:"none"}} aria-hidden="true">
-                      <input type="text" name="username" tabIndex={-1}/>
-                      <input type="email" name="email" tabIndex={-1}/>
-                      <input type="tel" name="phone" tabIndex={-1}/>
-                      <input type="password" name="password" tabIndex={-1}/>
-                    </div>
-                    <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
-                      <div><FL req>First Name</FL><input autoComplete="nope" name="kta-firstname2" placeholder="Jamie" value={form.firstName} onChange={e=>sf("firstName",e.target.value)}/></div>
-                      <div><FL req>Last Name</FL><input autoComplete="nope" name="kta-lastname2" placeholder="Smith" value={form.lastName} onChange={e=>sf("lastName",e.target.value)}/></div>
-                      <div><FL req>Email</FL><input autoComplete="nope" name="kta-email2" type="text" placeholder="jamie@work.com" value={form.email} onChange={e=>sf("email",e.target.value)}/></div>
-                      <div><FL>Phone</FL><input autoComplete="nope" name="kta-phone2" type="text" placeholder="+64 2x xxx xxxx" value={form.phone} onChange={e=>sf("phone",e.target.value)}/></div>
-                      <div><FL>Trade</FL>
-                        <select value={form.trade} onChange={e=>sf("trade",e.target.value)}>
-                          <option value="">Select trade…</option>
-                          {TRADES.map(t=><option key={t}>{t}</option>)}
-                        </select>
-                      </div>
-                      <div><FL>Licence Expiry</FL><input type="date" value={form.licenceExpiry} onChange={e=>sf("licenceExpiry",e.target.value)}/></div>
-                      <div><FL>Site Safe Expiry</FL><input type="date" value={form.siteSafeExpiry||""} onChange={e=>sf("siteSafeExpiry",e.target.value)}/></div>
-                      <div><FL>First Aid Expiry</FL><input type="date" value={form.firstAidExpiry||""} onChange={e=>sf("firstAidExpiry",e.target.value)}/></div>
-                      <div><FL>Host Business</FL>
-                        {hostCos.length>0?(()=>{
-                          const listed=hostCos.some(c=>c.name===(form.hostBusiness||""));
-                          const hostOnes=hostCos.filter(c=>c.isHostBusiness);
-                          const otherOnes=hostCos.filter(c=>!c.isHostBusiness);
-                          return(<div>
-                            <select value={listed?(form.hostBusiness||""):"__custom__"} onChange={e=>{if(e.target.value!=="__custom__")sf("hostBusiness",e.target.value);}}>
-                              <option value="">— Select host business —</option>
-                              {hostOnes.length>0&&<optgroup label="🏢 Host Businesses">{hostOnes.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</optgroup>}
-                              {otherOnes.length>0&&<optgroup label="All Companies">{otherOnes.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</optgroup>}
-                              <option value="__custom__">Other (type below)…</option>
-                            </select>
-                            {!listed&&<input style={{marginTop:6}} placeholder="Type host business name…" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>}
-                          </div>);
-                        })():<input placeholder="e.g. Sparks Electrical Ltd" value={form.hostBusiness||""} onChange={e=>sf("hostBusiness",e.target.value)}/>}
-                      </div>
-                      <div style={{gridColumn:"1/-1"}}>
-                        <FL>Reports Go To (email)</FL>
-                        <input type="email" placeholder="e.g. manager@company.co.nz"
-                          value={form.reportsEmail||""}
-                          onChange={e=>sf("reportsEmail",e.target.value)}/>
-                        <div style={{fontSize:10,color:T.muted,marginTop:2}}>Visit reports emailed here + apprentice. Leave blank to use approver.</div>
-                      </div>
-                      <div style={{gridColumn:"1/-1"}}>
-                        <div style={{fontWeight:700,fontSize:12,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>Overtime Settings</div>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
-                          <div><FL>Overtime Type</FL>
-                            <select value={form.overtimeType||""} onChange={e=>sf("overtimeType",e.target.value||null)}>
-                              <option value="">— No overtime —</option>
-                              <option value="daily">Daily threshold</option>
-                              <option value="weekly">Weekly threshold</option>
-                            </select>
-                          </div>
-                          {form.overtimeType&&<div><FL>Threshold Hours</FL>
-                            <input type="number" min="1" max={form.overtimeType==="weekly"?"168":"24"} step="0.5" placeholder={form.overtimeType==="daily"?"e.g. 8":"e.g. 40"} value={form.overtimeThreshold} onChange={e=>sf("overtimeThreshold",parseFloat(e.target.value)||"")}/>
-                          </div>}
-                          {form.overtimeType&&<div><FL>Xero Overtime Rate ID</FL>
-                            <input placeholder="Xero earnings rate UUID" value={form.overtimeRateId||""} onChange={e=>sf("overtimeRateId",e.target.value)}/>
-                          </div>}
-                        </div>
-                      </div>
-                      <div>
-                        <FL>Approver</FL>
-                        <select value={formApproverId} onChange={e=>setFormApproverId(e.target.value)}>
-                          <option value="">— None —</option>
-                          {approvers.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <FL>Viewer</FL>
-                        <select value={formViewerId} onChange={e=>setFormViewerId(e.target.value)}>
-                          <option value="">— None —</option>
-                          {viewers.map(v=><option key={v.id} value={v.id}>{v.name}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <FL>Mentor</FL>
-                        <select value={formMentorId} onChange={e=>setFormMentorId(e.target.value)}>
-                          <option value="">— None —</option>
-                          {mentors.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
-                        </select>
-                      </div>
-                      <div><FL>New Password <span style={{fontWeight:400,color:T.muted}}>(blank = keep)</span></FL>
-                        <div style={{position:"relative"}}>
-                          <input type={showPw?"text":"password"} autoComplete="new-password" placeholder="Leave blank to keep" value={pwField} onChange={e=>setPwField(e.target.value)} style={{paddingRight:60}}/>
-                          <button onClick={()=>setShowPw(s=>!s)} type="button" style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:12}}>
-                            {showPw?"Hide":"Show"}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{display:"flex",gap:8}}>
-                      <Btn onClick={submit}>Update Apprentice</Btn>
-                      <Btn v="ghost" onClick={()=>{setEditId(null);setExpandId(null);setFormApproverId("");setFormViewerId("");setFormMentorId("");}}>Cancel</Btn>
-                    </div>
+                    <ApprenticeEditForm
+                      user={u}
+                      allUsers={allUsers}
+                      title={`✎ Editing — ${u.name}`}
+                      onSave={(updated) => {
+                        setUsers(prev=>prev.map(x=>x.id===updated.id?updated:x));
+                        setEditId(null); setExpandId(null);
+                      }}
+                      onCancel={()=>{setEditId(null);setExpandId(null);}}
+                    />
                   </div>
                 ) : (
                 /* ── ALLOCATION PANEL ── */
@@ -8330,6 +8419,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   const [advLeave, setAdvLeave]               = useState([]);
   const [advLeaveLoading, setAdvLeaveLoading] = useState(true);
   const [pdEdit, setPdEdit]                   = useState(false);
+  const [showEditForm, setShowEditForm]       = useState(false);
   const [pdSaving, setPdSaving]               = useState(false);
   const [pdForm, setPdForm]                   = useState({
     email:"", phone:"", startDate:"", dateOfBirth:"",
@@ -8447,7 +8537,15 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             {apprentice.name?.[0]?.toUpperCase()||"?"}
           </div>
           <div style={{flex:1}}>
-            <div style={{fontFamily:"'Libre Baskerville'",fontSize:22,fontWeight:700,color:T.ink}}>{apprentice.name}</div>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{fontFamily:"'Libre Baskerville'",fontSize:22,fontWeight:700,color:T.ink}}>{apprentice.name}</div>
+              {canEditExpiry&&<button onClick={()=>setShowEditForm(true)}
+                style={{background:T.accentL,border:`1px solid ${T.accent}44`,borderRadius:7,
+                  padding:"4px 10px",fontSize:11,fontWeight:600,color:T.accent,cursor:"pointer",
+                  fontFamily:"DM Sans,sans-serif",display:"flex",alignItems:"center",gap:4}}>
+                ✏️ Edit
+              </button>}
+            </div>
             <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>
               <RolePill role="Apprentice" size="sm"/>
               {approver&&<Pill label={`Approver: ${approver.name}`} size="sm" color={T.warn} bg={T.warnL}/>}
@@ -9070,6 +9168,28 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
         );
         return null;
       })}
+
+      {/* Edit apprentice modal */}
+      {showEditForm && createPortal(
+        <div style={{position:"fixed",inset:0,zIndex:3000,background:"rgba(13,27,46,0.55)",
+          display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"40px 20px",overflowY:"auto"}}>
+          <div style={{background:"#fff",borderRadius:14,padding:24,maxWidth:760,width:"100%",
+            boxShadow:"0 8px 40px rgba(0,0,0,.18)"}}>
+            <ApprenticeEditForm
+              user={apprentice}
+              allUsers={allUsers}
+              title={`✎ Editing — ${apprentice.name}`}
+              onSave={(updated) => {
+                setApprentice(updated);
+                if(onUserUpdated) onUserUpdated(updated);
+                setShowEditForm(false);
+              }}
+              onCancel={()=>setShowEditForm(false)}
+            />
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Report modal — top-level fixed overlay for both admin and mentor */}
       {showMeetingForm && isAdmin && (
