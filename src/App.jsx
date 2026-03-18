@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.56
+// KTA Workforce Management — v2.7.57
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:13,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.56
+          v2.7.57
         </div>
       </div>
     </div>
@@ -1969,28 +1969,37 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
 function useSort(defaultField="name", defaultDir="asc") {
   const [sortField, setSortField] = useState(defaultField);
   const [sortDir,   setSortDir]   = useState(defaultDir);
-  const toggle = (field) => {
-    if(sortField===field) setSortDir(d=>d==="asc"?"desc":"asc");
-    else { setSortField(field); setSortDir("asc"); }
-  };
-  const sortFn = (a,b) => {
+
+  const toggle = React.useCallback((field) => {
+    setSortField(prev => {
+      if(prev === field) { setSortDir(d => d==="asc" ? "desc" : "asc"); return prev; }
+      setSortDir("asc"); return field;
+    });
+  }, []);
+
+  const sortFn = React.useCallback((a,b) => {
     const av = (a[sortField]||"").toString().toLowerCase();
     const bv = (b[sortField]||"").toString().toLowerCase();
     return sortDir==="asc" ? av.localeCompare(bv) : bv.localeCompare(av);
-  };
-  const ColHeader = ({field, children, style={}}) => {
+  }, [sortField, sortDir]);
+
+  // Stable ColHeader — use a data-field attr + event delegation to avoid recreating component
+  const SortColHeader = React.useCallback(({field, children, style={}}) => {
     const active = sortField===field;
     return (
       <span onClick={()=>toggle(field)}
-        style={{cursor:"pointer",userSelect:"none",display:"inline-flex",alignItems:"center",gap:2,...style}}>
+        style={{cursor:"pointer",userSelect:"none",display:"inline-flex",alignItems:"center",gap:2,
+          whiteSpace:"nowrap",...style}}>
         {children}
-        <span style={{marginLeft:3,fontSize:10,opacity:active?1:0.3}}>
-          {active ? (sortDir==="asc"?"▲":"▼") : "▲"}
+        <span style={{marginLeft:3,fontSize:10,color:"inherit",
+          opacity:active?1:0.35,fontWeight:active?700:400}}>
+          {active ? (sortDir==="asc" ? "▲" : "▼") : "▲"}
         </span>
       </span>
     );
-  };
-  return {sortField, sortDir, toggle, sortFn, ColHeader};
+  }, [sortField, sortDir, toggle]);
+
+  return {sortField, sortDir, toggle, sortFn, ColHeader: SortColHeader};
 }
 
 function UserManagement({users, setUsers, currentUser}) {
