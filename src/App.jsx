@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.38
+// KTA Workforce Management — v2.7.39
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1172,7 +1172,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:""Good Headline Pro",sans-serif",letterSpacing:".5px"}}>
-          v2.7.38
+          v2.7.39
         </div>
       </div>
     </div>
@@ -5290,6 +5290,32 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
   const canEditXero     = isAdminL1;
   const canEditAllocs   = isAdminL1 || isAdmin;
 
+  const handleSaveDraft = async () => {
+    setSavingDraft(true);
+    const id = draftId || uid();
+    const report = {
+      id, apprentice_id: apprentice.id, mentor_id: mentor?.id || null,
+      date: form.date, location: form.location.trim(),
+      off_job_progress:   form.offJobProgress.trim(),
+      on_job_progress:    form.onJobProgress.trim(),
+      previous_goals:     form.previousGoals.trim(),
+      goals_this_meeting: form.goalsNextVisit.trim(),
+      comments_feedback:  form.commentsFeedback.trim(),
+      next_visit_date:    form.nextVisitDate || null,
+      status:             'draft',
+      created_at:         new Date().toISOString(),
+    };
+    try {
+      await upsertRow('meeting_reports', report);
+      setDraftId(id);
+      setDraftSaved(true);
+      setTimeout(() => setDraftSaved(false), 2500);
+    } catch(e) {
+      alert('Draft save failed: ' + e.message);
+    }
+    setSavingDraft(false);
+  };
+
   const handleSave = async () => {
     if(!form.firstName.trim()||!form.lastName.trim()||!form.email.trim()) {
       alert("First name, last name and email are required."); return;
@@ -7944,6 +7970,9 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
   const [showAddEmail, setShowAddEmail] = useState(false);
   const [customEmail, setCustomEmail]   = useState("");
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+  const [draftId, setDraftId]         = useState(null);   // id of existing draft if found
+  const [draftSaved, setDraftSaved]   = useState(false);  // flash confirmation
+  const [savingDraft, setSavingDraft] = useState(false);
 
   // Load contacts for the apprentice's host business
   useEffect(()=>{
@@ -7968,11 +7997,31 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
 
   const fD = (iso) => { if(!iso) return "—"; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
 
-  // On mount: fetch the most recent past report and pre-fill Previous Goals from its goals_this_meeting
+  // On mount: load any existing draft, then pre-fill previousGoals from last completed report
   useEffect(() => {
     loadTable('meeting_reports').then(reports => {
-      const past = (reports || [])
-        .filter(r => r.apprentice_id === apprentice.id && r.goals_this_meeting?.trim())
+      const all = reports || [];
+      // Check for draft first
+      const draft = all
+        .filter(r => r.apprentice_id === apprentice.id && r.status === 'draft')
+        .sort((a,b) => (b.created_at||"").localeCompare(a.created_at||""))[0];
+      if(draft) {
+        setDraftId(draft.id);
+        setForm({
+          date:             draft.date || new Date().toISOString().slice(0,10),
+          location:         draft.location || "",
+          offJobProgress:   draft.off_job_progress || "",
+          onJobProgress:    draft.on_job_progress || "",
+          previousGoals:    draft.previous_goals || "",
+          goalsNextVisit:   draft.goals_this_meeting || "",
+          commentsFeedback: draft.comments_feedback || "",
+          nextVisitDate:    draft.next_visit_date || "",
+        });
+        return; // don't overwrite draft with auto-fill
+      }
+      // No draft — pre-fill Previous Goals from last completed report
+      const past = all
+        .filter(r => r.apprentice_id === apprentice.id && r.goals_this_meeting?.trim() && r.status !== 'draft')
         .sort((a,b) => (b.date||b.created_at||"").localeCompare(a.date||a.created_at||""));
       if(past.length > 0) {
         const last = past[0];
@@ -7988,7 +8037,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
     }
     setSaving(true);
     const report = {
-      id: uid(), apprentice_id: apprentice.id, mentor_id: mentor.id,
+      id: draftId || uid(), apprentice_id: apprentice.id, mentor_id: mentor?.id || null,
       date: form.date, location: form.location.trim(),
       off_job_progress:  form.offJobProgress.trim(),
       on_job_progress:   form.onJobProgress.trim(),
@@ -7996,6 +8045,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
       goals_this_meeting: form.goalsNextVisit.trim(),
       comments_feedback: form.commentsFeedback.trim(),
       next_visit_date:   form.nextVisitDate || null,
+      status:            'complete',
       created_at:        new Date().toISOString(),
     };
     try {
@@ -8185,8 +8235,16 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
         {emailStatus==="sending"&&<div style={{background:T.warnL,border:`1px solid ${T.warn}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:12,color:T.warn}}>⏳ Sending emails…</div>}
         {emailStatus==="sent"&&<div style={{background:T.tealL,border:`1px solid ${T.teal}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:12,color:T.teal}}>✓ Saved and emailed!</div>}
         {emailStatus==="error"&&<div style={{background:T.redL,border:`1px solid ${T.red}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:12,color:T.red}}>⚠ Report saved but email failed — check Edge Function deployment.</div>}
-        <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
           <Btn onClick={handleSave} disabled={saving}>{saving?"Saving…":"💾 Save & Email Report"}</Btn>
+          {!emailStatus&&(
+            <button onClick={handleSaveDraft} disabled={savingDraft}
+              style={{padding:"9px 18px",borderRadius:9,fontSize:13,fontWeight:600,cursor:"pointer",
+                background:T.surface,color:T.sub,border:`1.5px solid ${T.border}`,
+                fontFamily:"'Good Headline Pro',sans-serif",opacity:savingDraft?.6:1,transition:"all .14s"}}>
+              {savingDraft?"Saving…":draftId?"💾 Update Draft":"💾 Save Draft"}
+            </button>
+          )}
           <Btn v="ghost" onClick={onCancel}>Cancel</Btn>
         </div>
       </div>
@@ -8202,7 +8260,7 @@ function PastMeetingReports({apprentice, allUsers, canEdit=false}) {
 
   useEffect(()=>{
     loadTable('meeting_reports')
-      .then(rows=>setReports(rows.filter(r=>r.apprentice_id===apprentice.id).sort((a,b)=>b.date.localeCompare(a.date))))
+      .then(rows=>setReports(rows.filter(r=>r.apprentice_id===apprentice.id && r.status!=='draft').sort((a,b)=>(b.date||"").localeCompare(a.date||""))))
       .catch(()=>setReports([]))
       .finally(()=>setLoading(false));
   },[apprentice.id]);
