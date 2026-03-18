@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.45
+// KTA Workforce Management — v2.7.46
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.45
+          v2.7.46
         </div>
       </div>
     </div>
@@ -12341,11 +12341,14 @@ export default function App() {
         <header style={{background:T.dark,height:66,padding:"0 20px",
           display:"flex",alignItems:"center",justifyContent:"space-between",
           position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px #00000033"}}>
-          <div style={{display:"flex",alignItems:"center",gap:16}}>
+          {/* Centred logo */}
+          <div style={{position:"absolute",left:"50%",transform:"translateX(-50%)",zIndex:1,pointerEvents:"none"}}>
             <img src={KTA_LOGO} alt="KTA"
               style={{height:44,objectFit:"contain",filter:"brightness(0) invert(1)",flexShrink:0}}
               onError={e=>{e.target.style.display="none";}}
             />
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:16}}>
             <div style={{width:1,height:28,background:"#ffffff25",flexShrink:0}} className="desktop-nav"/>
             <nav className="desktop-nav" style={{gap:6}}>
               {navItems.map(n=>{
