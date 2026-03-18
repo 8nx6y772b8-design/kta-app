@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.52
+// KTA Workforce Management — v2.7.53
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:13,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.52
+          v2.7.53
         </div>
       </div>
     </div>
@@ -1965,6 +1965,33 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
 // ─────────────────────────────────────────────────────────────────────────────
 // USER MANAGEMENT
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Reusable sort hook ────────────────────────────────────────────────────────
+function useSort(defaultField="name", defaultDir="asc") {
+  const [sortField, setSortField] = useState(defaultField);
+  const [sortDir,   setSortDir]   = useState(defaultDir);
+  const toggle = (field) => {
+    if(sortField===field) setSortDir(d=>d==="asc"?"desc":"asc");
+    else { setSortField(field); setSortDir("asc"); }
+  };
+  const sortFn = (a,b) => {
+    const av = (a[sortField]||"").toString().toLowerCase();
+    const bv = (b[sortField]||"").toString().toLowerCase();
+    return sortDir==="asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+  };
+  const SortIcon = ({field}) => (
+    <span style={{marginLeft:3,fontSize:10,opacity:sortField===field?1:0.3}}>
+      {sortField===field ? (sortDir==="asc"?"▲":"▼") : "▲"}
+    </span>
+  );
+  const ColHeader = ({field, children, style={}}) => (
+    <span onClick={()=>toggle(field)}
+      style={{cursor:"pointer",userSelect:"none",display:"inline-flex",alignItems:"center",gap:2,...style}}>
+      {children}<SortIcon field={field}/>
+    </span>
+  );
+  return {sortField, sortDir, toggle, sortFn, ColHeader};
+}
+
 function UserManagement({users, setUsers, currentUser}) {
   const myLevel = currentUser?.adminLevel || 1;
   const [viewingUser, setViewingUser] = useState(null); // full-page user detail
@@ -6279,33 +6306,6 @@ function TargetDealsList() {
 // ─────────────────────────────────────────────────────────────────────────────
 // DRAGGABLE CARD ORDER — persists per user in localStorage
 // ─────────────────────────────────────────────────────────────────────────────
-// ── Reusable sort hook ────────────────────────────────────────────────────────
-function useSort(defaultField="name", defaultDir="asc") {
-  const [sortField, setSortField] = useState(defaultField);
-  const [sortDir,   setSortDir]   = useState(defaultDir);
-  const toggle = (field) => {
-    if(sortField===field) setSortDir(d=>d==="asc"?"desc":"asc");
-    else { setSortField(field); setSortDir("asc"); }
-  };
-  const sortFn = (a,b) => {
-    const av = (a[sortField]||"").toString().toLowerCase();
-    const bv = (b[sortField]||"").toString().toLowerCase();
-    return sortDir==="asc" ? av.localeCompare(bv) : bv.localeCompare(av);
-  };
-  const SortIcon = ({field}) => (
-    <span style={{marginLeft:3,fontSize:10,opacity:sortField===field?1:0.3}}>
-      {sortField===field ? (sortDir==="asc"?"▲":"▼") : "▲"}
-    </span>
-  );
-  const ColHeader = ({field, children, style={}}) => (
-    <span onClick={()=>toggle(field)}
-      style={{cursor:"pointer",userSelect:"none",display:"inline-flex",alignItems:"center",gap:2,...style}}>
-      {children}<SortIcon field={field}/>
-    </span>
-  );
-  return {sortField, sortDir, toggle, sortFn, ColHeader};
-}
-
 function useDraggableOrder(userId, defaultOrder) {
   const key = `kta_card_order_${userId}`;
   const [order, setOrder] = useState(() => {
