@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.34
+// KTA Workforce Management — v2.7.35
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.34
+          v2.7.35
         </div>
       </div>
     </div>
@@ -5229,6 +5229,19 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
   const mentors   = allUsers.filter(u=>u.role==="Mentor"  ||u.role==="Admin").sort((a,b)=>(a.name||"").localeCompare(b.name||""));
   const [hostCos, setHostCos] = useState([]);
   useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCos(rows.filter(r=>r.name).map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")))).catch(()=>{}); },[]);
+  const [companyContacts, setCompanyContacts] = useState([]);
+  useEffect(()=>{
+    const biz = form.hostBusiness;
+    if(!biz) { setCompanyContacts([]); return; }
+    loadTable('crm_contacts').then(rows=>{
+      const matched = rows.filter(r=>r.email&&r.name&&(
+        (r.company||"").toLowerCase().trim()===(biz||"").toLowerCase().trim() ||
+        (r.company||"").toLowerCase().includes((biz||"").toLowerCase()) ||
+        (biz||"").toLowerCase().includes((r.company||"").toLowerCase())
+      ));
+      setCompanyContacts(matched.map(r=>({id:r.id,name:r.name,email:r.email,jobTitle:r.job_title||""})));
+    }).catch(()=>{});
+  },[form.hostBusiness]);
 
   const nameParts = (user.name||"").split(" ");
   const [form, setForm] = useState({
@@ -5341,8 +5354,34 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
         </div>
         <div style={{gridColumn:"1/-1"}}>
           <FL>Reports Go To (email)</FL>
-          <input type="email" placeholder="e.g. manager@company.co.nz" value={form.reportsEmail||""} onChange={e=>sf("reportsEmail",e.target.value)}/>
-          <div style={{fontSize:10,color:T.muted,marginTop:2}}>Visit reports emailed here + apprentice. Leave blank to use approver.</div>
+          {companyContacts.length>0?(
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <select
+                value={companyContacts.some(c=>c.email===form.reportsEmail)?(form.reportsEmail||"__custom__"):(form.reportsEmail?"__custom__":"__none__")}
+                onChange={e=>{
+                  if(e.target.value==="__none__") sf("reportsEmail","");
+                  else if(e.target.value!=="__custom__") sf("reportsEmail",e.target.value);
+                }}>
+                <option value="__none__">— Leave blank (use approver) —</option>
+                {companyContacts.map(c=>(
+                  <option key={c.id} value={c.email}>{c.name}{c.jobTitle?` · ${c.jobTitle}`:""} — {c.email}</option>
+                ))}
+                <option value="__custom__">Other (type below)…</option>
+              </select>
+              {form.reportsEmail&&!companyContacts.some(c=>c.email===form.reportsEmail)&&(
+                <input type="email" placeholder="e.g. manager@company.co.nz"
+                  value={form.reportsEmail||""} onChange={e=>sf("reportsEmail",e.target.value)}/>
+              )}
+            </div>
+          ):(
+            <input type="email" placeholder="e.g. manager@company.co.nz"
+              value={form.reportsEmail||""} onChange={e=>sf("reportsEmail",e.target.value)}/>
+          )}
+          <div style={{fontSize:10,color:T.muted,marginTop:2}}>
+            {companyContacts.length>0
+              ? `${companyContacts.length} contact${companyContacts.length!==1?"s":""} from ${form.hostBusiness||"host business"} — or type any email`
+              : "Visit reports emailed here + apprentice. Leave blank to use approver."}
+          </div>
         </div>
         <div style={{gridColumn:"1/-1"}}>
           <div style={{fontWeight:700,fontSize:12,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>Overtime Settings</div>
