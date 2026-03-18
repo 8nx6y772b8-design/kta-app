@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.25
+// KTA Workforce Management — v2.7.26
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.25
+          v2.7.26
         </div>
       </div>
     </div>
@@ -5201,7 +5201,7 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
       siteSafeExpiry:    form.siteSafeExpiry || null,
       firstAidExpiry:    form.firstAidExpiry || null,
       hostBusiness:      form.hostBusiness,
-      reportsEmail:      form.reportsEmail.trim() || null,
+      reportsEmail:      (form.reportsEmail||'').trim() || null,
       overtimeType:      form.overtimeType   || null,
       overtimeThreshold: form.overtimeThreshold || null,
       overtimeRateId:    form.overtimeRateId || null,
@@ -5338,13 +5338,6 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
   const [formViewerId,   setFormViewerId]   = useState("");
   const [formMentorId,   setFormMentorId]   = useState("");
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
-  const isAdminL1 = viewer?.role==="Admin" && (viewer?.adminLevel||1)===1;
-  const isAdmin   = viewer?.role==="Admin";
-  const isMentor  = viewer?.role==="Mentor";
-  // Mentors can edit core fields but not password or Xero settings
-  const canEditPassword = isAdminL1 || isAdmin;
-  const canEditXero     = isAdminL1;
-  const canEditAllocs   = isAdminL1 || isAdmin;
   const [hostCos, setHostCos] = useState([]);
   useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCos(rows.filter(r=>r.name).map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")))).catch(()=>{}); },[]);
 
@@ -8572,7 +8565,6 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   const [advLeave, setAdvLeave]               = useState([]);
   const [advLeaveLoading, setAdvLeaveLoading] = useState(true);
   const [pdEdit, setPdEdit]                   = useState(false);
-  const [showEditForm, setShowEditForm]       = useState(false);
   const [pdSaving, setPdSaving]               = useState(false);
   const [pdForm, setPdForm]                   = useState({
     email:"", phone:"", startDate:"", dateOfBirth:"",
@@ -8690,15 +8682,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             {apprentice.name?.[0]?.toUpperCase()||"?"}
           </div>
           <div style={{flex:1}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <div style={{fontFamily:"'Libre Baskerville'",fontSize:22,fontWeight:700,color:T.ink}}>{apprentice.name}</div>
-              {canEditExpiry&&<button onClick={()=>setShowEditForm(true)}
-                style={{background:T.accentL,border:`1px solid ${T.accent}44`,borderRadius:7,
-                  padding:"4px 10px",fontSize:11,fontWeight:600,color:T.accent,cursor:"pointer",
-                  fontFamily:"DM Sans,sans-serif",display:"flex",alignItems:"center",gap:4}}>
-                ✏️ Edit
-              </button>}
-            </div>
+            <div style={{fontFamily:"'Libre Baskerville'",fontSize:22,fontWeight:700,color:T.ink}}>{apprentice.name}</div>
             <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>
               <RolePill role="Apprentice" size="sm"/>
               {approver&&<Pill label={`Approver: ${approver.name}`} size="sm" color={T.warn} bg={T.warnL}/>}
@@ -9321,29 +9305,6 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
         );
         return null;
       })}
-
-      {/* Edit apprentice modal */}
-      {showEditForm && createPortal(
-        <div style={{position:"fixed",inset:0,zIndex:3000,background:"rgba(13,27,46,0.55)",
-          display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"40px 20px",overflowY:"auto"}}>
-          <div style={{background:"#fff",borderRadius:14,padding:24,maxWidth:760,width:"100%",
-            boxShadow:"0 8px 40px rgba(0,0,0,.18)"}}>
-            <ApprenticeEditForm
-              user={apprentice}
-              allUsers={allUsers}
-              viewer={viewer}
-              title={`✎ Editing — ${apprentice.name}`}
-              onSave={(updated) => {
-                setApprentice(updated);
-                if(onUserUpdated) onUserUpdated(updated);
-                setShowEditForm(false);
-              }}
-              onCancel={()=>setShowEditForm(false)}
-            />
-          </div>
-        </div>,
-        document.body
-      )}
 
       {/* Report modal — top-level fixed overlay for both admin and mentor */}
       {showMeetingForm && isAdmin && (
