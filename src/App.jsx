@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.54
+// KTA Workforce Management — v2.7.56
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:13,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.54
+          v2.7.56
         </div>
       </div>
     </div>
@@ -1978,17 +1978,18 @@ function useSort(defaultField="name", defaultDir="asc") {
     const bv = (b[sortField]||"").toString().toLowerCase();
     return sortDir==="asc" ? av.localeCompare(bv) : bv.localeCompare(av);
   };
-  const SortIcon = ({field}) => (
-    <span style={{marginLeft:3,fontSize:10,opacity:sortField===field?1:0.3}}>
-      {sortField===field ? (sortDir==="asc"?"▲":"▼") : "▲"}
-    </span>
-  );
-  const ColHeader = ({field, children, style={}}) => (
-    <span onClick={()=>toggle(field)}
-      style={{cursor:"pointer",userSelect:"none",display:"inline-flex",alignItems:"center",gap:2,...style}}>
-      {children}<SortIcon field={field}/>
-    </span>
-  );
+  const ColHeader = ({field, children, style={}}) => {
+    const active = sortField===field;
+    return (
+      <span onClick={()=>toggle(field)}
+        style={{cursor:"pointer",userSelect:"none",display:"inline-flex",alignItems:"center",gap:2,...style}}>
+        {children}
+        <span style={{marginLeft:3,fontSize:10,opacity:active?1:0.3}}>
+          {active ? (sortDir==="asc"?"▲":"▼") : "▲"}
+        </span>
+      </span>
+    );
+  };
   return {sortField, sortDir, toggle, sortFn, ColHeader};
 }
 
@@ -5412,7 +5413,7 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
                 )}
                 {/* Dropdown to add from company contacts */}
                 {companyContacts.length>0&&(
-                  <select value="" onChange={e=>{if(e.target.value){addCo(e.target.value);e.target.value="";}}}
+                  <select value="" onChange={e=>{if(e.target.value){addEmail(e.target.value);e.target.value="";}}}
                     style={{fontSize:13}}>
                     <option value="">
                       {selectedEmails.length===0?"+ Select from company contacts…":"+ Add another contact…"}
@@ -5448,7 +5449,6 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
                 </div>
               </div>
             );
-            function addCo(email){addEmail(email);}
           })()}
           <div style={{fontSize:11,color:T.muted,marginTop:2}}>
             Reports emailed to all selected addresses + apprentice. Leave empty to use approver.
@@ -10373,7 +10373,7 @@ const submitEntryToXero = async (entry, apprentice, allEntries=[]) => {
 
 // ── Xero Module — Admin 1 only ────────────────────────────────────────────────
 function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast, onImportUser}) {
-  const [tab, setTab]             = useState("setup");     // "setup"|"employees"|"pending"|"history"
+  const [tab, setTab]             = useState("pending");   // "setup"|"employees"|"pending"|"history"
   const [settings, setSettings]   = useState({});
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [saved, setSaved]         = useState(false);
@@ -10397,7 +10397,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
   const apprentices = allUsers.filter(u=>u.role==="Apprentice").sort((a,b)=>(a.name||"").localeCompare(b.name||""));
   const approvedEntries = entries.filter(e=>e.approval==="approved")
     .sort((a,b)=>b.date.localeCompare(a.date));
-  const pendingXero = approvedEntries.filter(e=>!e.xeroStatus);
+  const pendingXero = approvedEntries.filter(e=>!e.xeroStatus||e.xeroStatus==="error");
   const submittedXero = approvedEntries.filter(e=>e.xeroStatus==="submitted");
 
   const ss = (k,v) => setSettings(s=>({...s,[k]:v}));
