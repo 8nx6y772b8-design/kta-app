@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.20
+// KTA Workforce Management — v2.7.22
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.20
+          v2.7.22
         </div>
       </div>
     </div>
@@ -3484,10 +3484,15 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
   // ── Company Detail Page ───────────────────────────────────────────────────
   if(detailCompany) {
     const co = detailCompany;
-    const linkedContacts = contacts.filter(c=>
-      c.companyId===co.id ||
-      (!c.companyId && (c.company||"").toLowerCase().trim()===(co.name||"").toLowerCase().trim())
-    );
+    const linkedContacts = contacts.filter(c=>{
+      if(c.companyId===co.id) return true;
+      if(!c.companyId && c.company) {
+        const cn = (c.company||"").toLowerCase().trim();
+        const coN = (co.name||"").toLowerCase().trim();
+        return cn===coN || cn.includes(coN) || coN.includes(cn);
+      }
+      return false;
+    });
 
     // Auto-fix any contacts linked by name but missing the company_id FK
     const unlinkFixed = linkedContacts.filter(c=>!c.companyId&&c.company);
@@ -3595,7 +3600,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               👥 Contacts {linkedContacts.length>0&&`(${linkedContacts.length})`}
             </div>
             {canEdit&&(
-              <Btn sm onClick={()=>{resetContactForm();setEditCId(null);setCForm(f=>({...f,company:co.name,companyId:co.id}));setShowCF(true);goTab("contacts");}}>
+              <Btn sm onClick={()=>{resetContactForm();setEditCId(null);setCForm(f=>({...f,company:co.name,companyId:co.id}));setShowCF(true);setDetailCompany(null);goTab("contacts");}}>
                 + Add Contact
               </Btn>
             )}
