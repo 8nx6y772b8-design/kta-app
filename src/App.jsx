@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.22
+// KTA Workforce Management — v2.7.23
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.22
+          v2.7.23
         </div>
       </div>
     </div>
@@ -2829,10 +2829,12 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
 // ─────────────────────────────────────────────────────────────────────────────
 // DUPLICATE FINDER — finds duplicate contacts or companies by name/email
 // ─────────────────────────────────────────────────────────────────────────────
-function DuplicateFinder({ items, type, onDelete, onView, canDelete }) {
+function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) {
   const [show, setShow]         = useState(false);
   const [matchBy, setMatchBy]   = useState("name"); // "name" | "email"
   const [dismissed, setDismissed] = useState(new Set());
+  const [mergeGroup, setMergeGroup] = useState(null); // group being merged
+  const [masterId, setMasterId]     = useState(null);  // chosen master record
 
   // Group items by normalised key
   const groups = (() => {
@@ -2858,7 +2860,74 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete }) {
     setDismissed(prev => new Set([...prev, group.map(i => i.id).sort().join(",")]));
   };
 
+  const doMerge = async () => {
+    if(!mergeGroup || !masterId || !onMerge) return;
+    const master  = mergeGroup.find(i=>i.id===masterId);
+    const victims = mergeGroup.filter(i=>i.id!==masterId);
+    // Merge: fill any blank fields in master from victims, then delete victims
+    const merged = {...master};
+    for(const v of victims) {
+      for(const k of Object.keys(v)) {
+        if(!merged[k] && v[k]) merged[k] = v[k];
+      }
+    }
+    await onMerge(merged, victims.map(v=>v.id));
+    setMergeGroup(null);
+    setMasterId(null);
+    setDismissed(prev => new Set([...prev, mergeGroup.map(i=>i.id).sort().join(",")]));
+  };
+
   return (
+    <>
+    {/* Merge modal */}
+    {mergeGroup && createPortal(
+      <div style={{position:"fixed",inset:0,zIndex:3000,background:"rgba(13,27,46,0.55)",
+        display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+        <div style={{background:"#fff",borderRadius:14,padding:28,maxWidth:560,width:"100%",
+          boxShadow:"0 8px 40px rgba(0,0,0,.18)"}}>
+          <div style={{fontFamily:"'Libre Baskerville'",fontSize:18,fontWeight:700,marginBottom:4}}>Merge Duplicates</div>
+          <div style={{fontSize:13,color:T.sub,marginBottom:20}}>
+            Select which record becomes the <strong>master</strong>. All contacts/links will be moved to it, missing fields will be filled from the others, then duplicates are deleted.
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
+            {mergeGroup.map(item=>(
+              <button key={item.id} onClick={()=>setMasterId(item.id)}
+                style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",
+                  borderRadius:10,cursor:"pointer",textAlign:"left",fontFamily:"DM Sans,sans-serif",
+                  background:masterId===item.id?T.tealL:T.surface,
+                  border:`2px solid ${masterId===item.id?T.teal:T.border}`,
+                  transition:"all .14s"}}>
+                <div style={{width:36,height:36,borderRadius:"50%",background:masterId===item.id?T.teal:T.border,
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontSize:14,fontWeight:700,color:"#fff",flexShrink:0}}>
+                  {masterId===item.id?"★":"○"}
+                </div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{item.name}</div>
+                  <div style={{fontSize:11,color:T.muted,marginTop:2,display:"flex",gap:8,flexWrap:"wrap"}}>
+                    {item.email&&<span>✉ {item.email}</span>}
+                    {item.phone&&<span>📞 {item.phone}</span>}
+                    {item.city&&<span>📍 {item.city}</span>}
+                    {item.address&&<span>{item.address}</span>}
+                  </div>
+                </div>
+                {masterId===item.id&&<span style={{fontSize:11,fontWeight:700,color:T.teal,flexShrink:0}}>MASTER</span>}
+              </button>
+            ))}
+          </div>
+          <div style={{fontSize:12,color:T.warn,background:T.warnL,borderRadius:8,padding:"8px 12px",marginBottom:16}}>
+            ⚠ This will permanently delete {mergeGroup.length-1} record{mergeGroup.length>2?"s":""} after merging.
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <Btn onClick={doMerge} disabled={!masterId}>
+              🔀 Merge into Master
+            </Btn>
+            <Btn v="ghost" onClick={()=>{setMergeGroup(null);setMasterId(null);}}>Cancel</Btn>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
     <Card style={{marginBottom:14, border:`1.5px solid ${T.warn}44`}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}
         onClick={()=>setShow(s=>!s)}>
@@ -2951,6 +3020,14 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete }) {
                             fontFamily:"DM Sans,sans-serif",fontWeight:600}}>
                           View
                         </button>
+                        {canDelete&&onMerge&&(
+                          <button onClick={()=>{setMergeGroup(group);setMasterId(item.id);}}
+                            style={{fontSize:11,padding:"4px 10px",borderRadius:6,cursor:"pointer",
+                              background:T.tealL,color:T.teal,border:`1px solid ${T.teal}44`,
+                              fontFamily:"DM Sans,sans-serif",fontWeight:600}}>
+                            🔀 Merge
+                          </button>
+                        )}
                         {canDelete&&(
                           <button onClick={()=>{
                             if(!window.confirm(`Delete "${item.name}"? This cannot be undone.`)) return;
@@ -2972,6 +3049,7 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete }) {
         </div>
       )}
     </Card>
+    </>
   );
 }
 
@@ -3691,6 +3769,17 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           canDelete={canDelete}
           onView={(c)=>setDetailContact(c)}
           onDelete={(id)=>{ setContacts(prev=>prev.filter(x=>x.id!==id)); deleteRow("crm_contacts",id).catch(console.error); }}
+          onMerge={async(master, victimIds)=>{
+            await upsertRow("crm_contacts",{
+              id:master.id, name:master.name, company:master.company||null,
+              company_id:master.companyId||null, email:master.email||null,
+              phone:master.phone||null, status:master.status||"Active", notes:master.notes||null,
+            }).catch(console.error);
+            for(const vid of victimIds) {
+              await deleteRow("crm_contacts",vid).catch(console.error);
+            }
+            setContacts(prev=>[...prev.filter(x=>x.id!==master.id&&!victimIds.includes(x.id)),master]);
+          }}
         />
 
         {showCF&&<Card style={{marginBottom:16,border:`1.5px solid ${T.blue}44`}}>
@@ -3930,6 +4019,28 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           canDelete={canDelete}
           onView={(co)=>setDetailCompany(co)}
           onDelete={(id)=>{ setCompanies(prev=>prev.filter(x=>x.id!==id)); deleteRow("crm_companies",id).catch(console.error); }}
+          onMerge={async(master, victimIds)=>{
+            // Update master record
+            await upsertRow("crm_companies",{
+              id:master.id, name:master.name, industry:master.industry||null,
+              phone:master.phone||null, website:master.website||null,
+              address:master.address||null, city:master.city||null,
+              postcode:master.postcode||null, country:master.country||null,
+              notes:master.notes||null, status:master.status||"Active",
+              is_host_business:master.isHostBusiness||false,
+            }).catch(console.error);
+            // Re-link contacts from victims to master
+            for(const vid of victimIds) {
+              const vContacts = contacts.filter(c=>c.companyId===vid);
+              for(const c of vContacts) {
+                await upsertRow("crm_contacts",{id:c.id,company_id:master.id,company:master.name}).catch(console.error);
+              }
+              setContacts(prev=>prev.map(c=>c.companyId===vid?{...c,companyId:master.id,company:master.name}:c));
+              // Delete victim
+              await deleteRow("crm_companies",vid).catch(console.error);
+            }
+            setCompanies(prev=>[...prev.filter(x=>x.id!==master.id&&!victimIds.includes(x.id)),master]);
+          }}
         />
 
         {showCoForm&&canEdit&&(
