@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.53
+// KTA Workforce Management — v2.7.54
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:13,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.53
+          v2.7.54
         </div>
       </div>
     </div>
@@ -4037,8 +4037,6 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               ||(c.phone||"").toLowerCase().includes(q)
               ||(c.company||"").toLowerCase().includes(q);
           }).sort(crmCtSort)
-            ?(a.name||"").localeCompare(b.name||"")
-            :(b.name||"").localeCompare(a.name||"")
           ).map((c,i)=>{
             const linkedCo = companies.find(co=>co.id===c.companyId);
             return (
@@ -6055,7 +6053,7 @@ function ContactsList() {
           <CLCol field="name">Name</CLCol><CLCol field="company">Organisation</CLCol><span>Type</span><CLCol field="email">Email</CLCol><span>Phone</span><span/>
         </div>
         {items.length===0&&<div style={{padding:"40px",textAlign:"center",color:T.muted}}>No contacts yet.</div>}
-        {[...items].sort(clSort).sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map((x,i)=>(
+        {[...items].sort(clSort).map((x,i)=>(
           <div key={x.id} className="ri" style={{display:"grid",gridTemplateColumns:"1fr 160px 100px 160px 160px 68px",
             padding:"12px 16px",borderBottom:i<items.length-1?`1px solid ${T.border}44`:"none",
             background:i%2===0?T.surface:T.bg,alignItems:"center",gap:8,animationDelay:`${i*.03}s`}}>
