@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.48
+// KTA Workforce Management — v2.7.49
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -249,14 +249,14 @@ const sendCalendarInvite = async (toEmail, toName, apprenticeName, leaveType, da
     subject: `Calendar: ${apprenticeName} — ${leaveType} (${fmtNZ(dateFrom)}–${fmtNZ(dateTo)})`,
     html: leaveEmailHtml(
       `<strong>Leave Calendar Reminder</strong>`,
-      `<p style="font-size:16.2px;color:#0d1b2e">A calendar invite has been attached for the approved leave period below. Please add it to your calendar.</p>
-       <table style="width:100%;border-collapse:collapse;font-size:16.2px;margin:12px 0">
+      `<p style="font-size:14.3px;color:#0d1b2e">A calendar invite has been attached for the approved leave period below. Please add it to your calendar.</p>
+       <table style="width:100%;border-collapse:collapse;font-size:14.3px;margin:12px 0">
          <tr><td style="padding:7px 12px;background:#f0f4f9;font-weight:700;width:40%">Apprentice</td><td style="padding:7px 12px">${apprenticeName}</td></tr>
          <tr><td style="padding:7px 12px;background:#f0f4f9;font-weight:700">Leave Type</td><td style="padding:7px 12px">${leaveType}</td></tr>
          <tr><td style="padding:7px 12px;background:#f0f4f9;font-weight:700">From</td><td style="padding:7px 12px">${fmtNZ(dateFrom)}</td></tr>
          <tr><td style="padding:7px 12px;background:#f0f4f9;font-weight:700">To</td><td style="padding:7px 12px">${fmtNZ(dateTo)}</td></tr>
        </table>
-       <div style="background:#dce8f7;border-radius:8px;padding:12px 16px;font-size:15px;color:#1b4f8c;font-weight:700">
+       <div style="background:#dce8f7;border-radius:8px;padding:12px 16px;font-size:13.2px;color:#1b4f8c;font-weight:700">
          ★ Fully approved by KTA — please open the attached .ics file to add to your calendar.
        </div>`
     ),
@@ -628,12 +628,12 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
   for(const approver of approvers) {
     const isAdminL1 = approver.role === "Admin" && (approver.adminLevel||1) === 1;
     const toolAllowanceBox = isAdminL1 ? `
-  <div style="border-left:2px solid #d0daea;padding-left:20px"><div style="font-size:13.8px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Tool Allowance</div><div style="font-size:25px;font-weight:700;color:#6b46c1">$${toolAllowanceAmt}</div><div style="font-size:12.5px;color:#8fa0b8;margin-top:2px">Add manually in Xero</div></div>` : "";
+  <div style="border-left:2px solid #d0daea;padding-left:20px"><div style="font-size:12.1px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Tool Allowance</div><div style="font-size:22px;font-weight:700;color:#6b46c1">$${toolAllowanceAmt}</div><div style="font-size:11px;color:#8fa0b8;margin-top:2px">Add manually in Xero</div></div>` : "";
     const summaryBox = `
 <div style="background:#f0f4f9;border-radius:10px;padding:14px 18px;margin:16px 0;display:flex;gap:24px;flex-wrap:wrap">
-  ${normalHrs>0?`<div><div style="font-size:13.8px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Normal Hours</div><div style="font-size:25px;font-weight:700;color:#1b4f8c">${fmtH(normalHrs)}</div></div>`:""}
-  ${overtimeHrs>0?`<div><div style="font-size:13.8px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Overtime</div><div style="font-size:25px;font-weight:700;color:#b86e1a">${fmtH(overtimeHrs)}</div></div>`:""}
-  <div><div style="font-size:13.8px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Total Hours</div><div style="font-size:25px;font-weight:700;color:#1a8a7a">${fmtH(totalHrs)}</div></div>
+  ${normalHrs>0?`<div><div style="font-size:12.1px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Normal Hours</div><div style="font-size:22px;font-weight:700;color:#1b4f8c">${fmtH(normalHrs)}</div></div>`:""}
+  ${overtimeHrs>0?`<div><div style="font-size:12.1px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Overtime</div><div style="font-size:22px;font-weight:700;color:#b86e1a">${fmtH(overtimeHrs)}</div></div>`:""}
+  <div><div style="font-size:12.1px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Total Hours</div><div style="font-size:22px;font-weight:700;color:#1a8a7a">${fmtH(totalHrs)}</div></div>
   ${toolAllowanceBox}
 </div>`;
     if(!approver.email) continue;
@@ -647,8 +647,8 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
         const typeColor  = isOvertime?"#b86e1a":isNormal?"#1b4f8c":"#4a5a72";
 
         // Calculate overtime split for this entry (display only — no rateId needed)
-        let hoursCell = `<td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:16.2px;font-weight:700;color:#1b4f8c;text-align:right">${fmtH(e.netHours)}</td>`;
-        let typeCell  = `<td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:15px;color:${typeColor}">${isNormal?"Normal":isOvertime?"Overtime":e.type}</td>`;
+        let hoursCell = `<td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:14.3px;font-weight:700;color:#1b4f8c;text-align:right">${fmtH(e.netHours)}</td>`;
+        let typeCell  = `<td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:13.2px;color:${typeColor}">${isNormal?"Normal":isOvertime?"Overtime":e.type}</td>`;
         if(isNormal && apprentice.overtimeType && apprentice.overtimeThreshold) {
           const threshold = parseFloat(apprentice.overtimeThreshold);
           let normalH = e.netHours, overtimeH = 0;
@@ -657,24 +657,24 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
             overtimeH = Math.max(0, e.netHours - threshold);
           }
           if(overtimeH > 0) {
-            typeCell  = `<td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:15px;color:#4a5a72">Normal + OT</td>`;
+            typeCell  = `<td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:13.2px;color:#4a5a72">Normal + OT</td>`;
             hoursCell = `<td style="padding:10px 12px;border-bottom:1px solid #e8edf3;text-align:right">
-              <span style="font-size:16.2px;font-weight:700;color:#1b4f8c">${fmtH(normalH)}</span>
-              <span style="font-size:13.8px;color:#b86e1a;margin-left:4px">+${fmtH(overtimeH)} OT</span>
+              <span style="font-size:14.3px;font-weight:700;color:#1b4f8c">${fmtH(normalH)}</span>
+              <span style="font-size:12.1px;color:#b86e1a;margin-left:4px">+${fmtH(overtimeH)} OT</span>
             </td>`;
           }
         }
 
         return `
 <tr>
-  <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:16.2px;color:#0d1b2e;font-weight:700">${fmtD(e.date)}</td>
+  <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:14.3px;color:#0d1b2e;font-weight:700">${fmtD(e.date)}</td>
   ${typeCell}
   ${hoursCell}
-  <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:13.8px;color:#8fa0b8">${e.start||""}${e.end?" – "+e.end:""}</td>
-  <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:13.8px;color:#4a5a72;font-style:italic">${e.note||""}</td>
+  <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:12.1px;color:#8fa0b8">${e.start||""}${e.end?" – "+e.end:""}</td>
+  <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;font-size:12.1px;color:#4a5a72;font-style:italic">${e.note||""}</td>
   <td style="padding:10px 12px;border-bottom:1px solid #e8edf3;white-space:nowrap">
-    <a href="${appUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:5px;padding:4px 12px;font-size:13.8px;font-weight:700;text-decoration:none;margin-right:4px">&#10003;</a>
-    <a href="${decUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:5px;padding:4px 12px;font-size:13.8px;font-weight:700;text-decoration:none">&#10005;</a>
+    <a href="${appUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:5px;padding:4px 12px;font-size:12.1px;font-weight:700;text-decoration:none;margin-right:4px">&#10003;</a>
+    <a href="${decUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:5px;padding:4px 12px;font-size:12.1px;font-weight:700;text-decoration:none">&#10005;</a>
   </td>
 </tr>`;
       }));
@@ -690,35 +690,35 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
         html: `
 <div style="font-family:DM Sans,Arial,sans-serif;max-width:620px;margin:0 auto;background:#f0f4f9;padding:24px">
   <div style="background:#1b4f8c;border-radius:10px 10px 0 0;padding:18px 24px">
-    <div style="color:#fff;font-size:22.5px;font-weight:700">Timesheet Submitted</div>
-    <div style="color:#dce8f7;font-size:15px;margin-top:4px">Kiwi Trade Apprentices · ${apprentice.name}</div>
+    <div style="color:#fff;font-size:19.8px;font-weight:700">Timesheet Submitted</div>
+    <div style="color:#dce8f7;font-size:13.2px;margin-top:4px">Kiwi Trade Apprentices · ${apprentice.name}</div>
   </div>
   <div style="background:#fff;padding:24px;border-radius:0 0 10px 10px;border:1px solid #d0daea">
-    <p style="font-size:18.8px;color:#0d1b2e;margin-top:0">Hi ${approver.name},</p>
-    <p style="font-size:17.5px;color:#4a5a72"><strong>${apprentice.name}</strong> has submitted ${entries.length} timesheet entr${entries.length===1?"y":"ies"} for your approval.</p>
+    <p style="font-size:16.5px;color:#0d1b2e;margin-top:0">Hi ${approver.name},</p>
+    <p style="font-size:15.4px;color:#4a5a72"><strong>${apprentice.name}</strong> has submitted ${entries.length} timesheet entr${entries.length===1?"y":"ies"} for your approval.</p>
     ${summaryBox}
     <div style="background:#e8f5f3;border:1.5px solid #1a8a7a;border-radius:10px;padding:16px 20px;margin:0 0 20px;text-align:center">
-      <div style="font-size:16.2px;color:#4a5a72;margin-bottom:12px">Approve or decline all ${entries.length} ${entries.length===1?"entry":"entries"} at once:</div>
-      <a href="${approveAllUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:8px;padding:12px 32px;font-size:18.8px;font-weight:700;text-decoration:none;margin-right:8px">✓ Approve Week</a>
-      <a href="${declineAllUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:8px;padding:12px 32px;font-size:18.8px;font-weight:700;text-decoration:none">✕ Decline Week</a>
+      <div style="font-size:14.3px;color:#4a5a72;margin-bottom:12px">Approve or decline all ${entries.length} ${entries.length===1?"entry":"entries"} at once:</div>
+      <a href="${approveAllUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:8px;padding:12px 32px;font-size:16.5px;font-weight:700;text-decoration:none;margin-right:8px">✓ Approve Week</a>
+      <a href="${declineAllUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:8px;padding:12px 32px;font-size:16.5px;font-weight:700;text-decoration:none">✕ Decline Week</a>
     </div>
     <table style="width:100%;border-collapse:collapse;margin:0 0 16px">
       <thead>
         <tr style="background:#f0f4f9">
-          <th style="padding:8px 12px;font-size:13.8px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Date</th>
-          <th style="padding:8px 12px;font-size:13.8px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Type</th>
-          <th style="padding:8px 12px;font-size:13.8px;color:#8fa0b8;text-align:right;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Hours</th>
-          <th style="padding:8px 12px;font-size:13.8px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Time</th>
-          <th style="padding:8px 12px;font-size:13.8px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Note</th>
-          <th style="padding:8px 12px;font-size:13.8px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Action</th>
+          <th style="padding:8px 12px;font-size:12.1px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Date</th>
+          <th style="padding:8px 12px;font-size:12.1px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Type</th>
+          <th style="padding:8px 12px;font-size:12.1px;color:#8fa0b8;text-align:right;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Hours</th>
+          <th style="padding:8px 12px;font-size:12.1px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Time</th>
+          <th style="padding:8px 12px;font-size:12.1px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Note</th>
+          <th style="padding:8px 12px;font-size:12.1px;color:#8fa0b8;text-align:left;text-transform:uppercase;letter-spacing:.5px;font-weight:700">Action</th>
         </tr>
       </thead>
       <tbody>${entryRowsHtml.join("")}</tbody>
     </table>
-    <p style="font-size:15px;color:#8fa0b8">✓ = Approve that day &nbsp;|&nbsp; ✕ = Decline that day &nbsp;|&nbsp; Links expire in 7 days. No login required.</p>
-    <p style="margin-top:16px"><a href="https://crmkta.com" style="display:inline-block;background:#1b4f8c;color:#fff;border-radius:8px;padding:10px 22px;font-size:16.2px;font-weight:700;text-decoration:none">Open KTA System →</a></p>
+    <p style="font-size:13.2px;color:#8fa0b8">✓ = Approve that day &nbsp;|&nbsp; ✕ = Decline that day &nbsp;|&nbsp; Links expire in 7 days. No login required.</p>
+    <p style="margin-top:16px"><a href="https://crmkta.com" style="display:inline-block;background:#1b4f8c;color:#fff;border-radius:8px;padding:10px 22px;font-size:14.3px;font-weight:700;text-decoration:none">Open KTA System →</a></p>
     <hr style="border:none;border-top:1px solid #d0daea;margin:20px 0">
-    <p style="font-size:13.8px;color:#8fa0b8">KTA Workforce Management · payroll@kta.org.nz</p>
+    <p style="font-size:12.1px;color:#8fa0b8">KTA Workforce Management · payroll@kta.org.nz</p>
   </div>
 </div>`,
       });
@@ -747,7 +747,7 @@ const notifyApprentice = async (apprentice, approver, entries, approved) => {
 <p><strong style="color:${statusColor}">${statusText}</strong></p>
 <p>${message}</p>
 <ul>${entryList}</ul>
-<p style="color:#888;font-size:15px">KTA Workforce Management · payroll@kta.org.nz</p>`,
+<p style="color:#888;font-size:13.2px">KTA Workforce Management · payroll@kta.org.nz</p>`,
     });
   } catch(err) {
     console.error("notifyApprentice error:", err);
@@ -760,14 +760,14 @@ const notifyApprentice = async (apprentice, approver, entries, approved) => {
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-  html,body{background:${T.bg};font-family:"DM Sans",sans-serif;color:${T.ink};font-size:17.5px;-webkit-tap-highlight-color:transparent;}
+  html,body{background:${T.bg};font-family:"DM Sans",sans-serif;color:${T.ink};font-size:15px;-webkit-tap-highlight-color:transparent;}
   ::-webkit-scrollbar{width:5px;height:5px;}
   ::-webkit-scrollbar-track{background:${T.border};}
   ::-webkit-scrollbar-thumb{background:${T.muted};border-radius:3px;}
   select,input,textarea{
     font-family:"DM Sans",sans-serif;background:${T.surface};
     border:1.5px solid ${T.border};color:${T.ink};border-radius:9px;
-    padding:9px 12px;font-size:20px;outline:none;width:100%;
+    padding:9px 12px;font-size:17.6px;outline:none;width:100%;
     transition:border-color .15s,box-shadow .15s;
     appearance:none;-webkit-appearance:none;
   }
@@ -779,7 +779,7 @@ const CSS = `
   input:focus,select:focus,textarea:focus{border-color:${T.accent};box-shadow:0 0 0 3px ${T.accentL};}
   input[type=date]{cursor:pointer;} input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer;width:20px;height:20px;} .ts-date-input::-webkit-calendar-picker-indicator{opacity:0;position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;cursor:pointer;}
   button{cursor:pointer;font-family:"DM Sans",sans-serif;border:none;transition:all .14s;}
-  textarea{resize:vertical;min-height:64px;line-height:1.55;font-size:20px;}
+  textarea{resize:vertical;min-height:64px;line-height:1.55;font-size:17.6px;}
 
   @keyframes fadeUp  {from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
   @keyframes fadeIn  {from{opacity:0;}to{opacity:1;}}
@@ -797,10 +797,10 @@ const CSS = `
   .login-left::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 30% 50%,${T.accent}22 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,${T.blue}14 0%,transparent 50%);}
   .login-right{width:440px;flex-shrink:0;background:${T.surface};display:flex;flex-direction:column;justify-content:center;padding:56px 48px;box-shadow:-20px 0 60px #00000033;overflow-y:auto;}
   .login-input-wrap{position:relative;margin-bottom:14px;}
-  .login-input-wrap input{padding:13px 16px 13px 44px;background:#f9f8f5;border:1.5px solid ${T.border};font-size:20px;border-radius:10px;}
+  .login-input-wrap input{padding:13px 16px 13px 44px;background:#f9f8f5;border:1.5px solid ${T.border};font-size:17.6px;border-radius:10px;}
   .login-input-wrap input:focus{background:white;}
-  .login-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:20px;color:${T.muted};pointer-events:none;}
-  .pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:${T.muted};cursor:pointer;font-size:16.2px;padding:2px 6px;border-radius:4px;font-family:"DM Sans",sans-serif;}
+  .login-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:17.6px;color:${T.muted};pointer-events:none;}
+  .pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:${T.muted};cursor:pointer;font-size:14.3px;padding:2px 6px;border-radius:4px;font-family:"DM Sans",sans-serif;}
   .pw-toggle:hover{color:${T.sub};}
 
   /* App shell */
@@ -824,7 +824,7 @@ const CSS = `
     /* Login — stack vertically */
     .login-wrap{flex-direction:column;}
     .login-left{flex:none;padding:32px 24px 24px;align-items:flex-start;}
-    .login-left h1{font-size:32.5px !important;margin-bottom:12px !important;}
+    .login-left h1{font-size:28.6px !important;margin-bottom:12px !important;}
     .login-left p,.login-left .role-badges{display:none;}
     .login-right{width:100%;flex:1;padding:28px 20px max(32px,env(safe-area-inset-bottom));box-shadow:none;border-radius:22px 22px 0 0;margin-top:-16px;z-index:2;position:relative;}
 
@@ -845,8 +845,8 @@ const CSS = `
       gap:2px;background:none;border:none;padding:4px 2px;cursor:pointer;
       font-family:"DM Sans",sans-serif;transition:all .14s;min-height:52px;
     }
-    .bottom-nav-icon{font-size:27.5px;line-height:1;display:block;}
-    .bottom-nav-label{font-size:12.5px;font-weight:700;letter-spacing:.2px;display:block;}
+    .bottom-nav-icon{font-size:24.2px;line-height:1;display:block;}
+    .bottom-nav-label{font-size:11px;font-weight:700;letter-spacing:.2px;display:block;}
     .bottom-nav-btn.active .bottom-nav-icon,
     .bottom-nav-btn.active .bottom-nav-label{color:${T.accentL};}
     .bottom-nav-btn:not(.active) .bottom-nav-icon,
@@ -862,7 +862,7 @@ const CSS = `
     .stat-grid-3{grid-template-columns:repeat(2,1fr);gap:10px;}
 
     /* Page heading */
-    .page-heading{font-size:25px !important;}
+    .page-heading{font-size:22px !important;}
 
     /* Form grids collapse to 1 or 2 col */
     .fg3{grid-template-columns:1fr !important;}
@@ -915,7 +915,7 @@ const TypePill = ({type,size="md"}) => { const m=TYPE_META[type]||TYPE_META["Oth
 const AppvPill = ({status}) => { const m=APPROVAL_META[status]||APPROVAL_META.draft; return <Pill label={m.label} color={m.color} bg={m.bg} sym={m.sym} size="sm"/> };
 
 const FL = ({children,req}) => (
-  <div style={{fontSize:14,fontWeight:700,color:T.sub,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>
+  <div style={{fontSize:12,fontWeight:700,color:T.sub,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>
     {children}{req&&<span style={{color:T.red}}> *</span>}
   </div>
 );
@@ -928,7 +928,7 @@ const Btn = ({children,onClick,v="primary",sm=false,disabled=false,full=false,st
     approve: {background:T.accentL,color:T.accent,border:`1.5px solid ${T.accent}55`},
     decline: {background:T.redL,color:T.red,border:`1.5px solid ${T.red}55`},
     blue:    {background:T.blueL,color:T.blue,border:`1.5px solid ${T.blue}55`},
-    loginbtn:{background:T.accent,color:"#fff",border:`1.5px solid ${T.accentD}`,fontSize:19,padding:"13px 20px",borderRadius:10,fontWeight:700},
+    loginbtn:{background:T.accent,color:"#fff",border:`1.5px solid ${T.accentD}`,fontSize:17,padding:"13px 20px",borderRadius:10,fontWeight:700},
   };
   return (
     <button onClick={onClick} disabled={disabled} style={{
@@ -951,9 +951,9 @@ const Card = ({children,style:sx={},onClick}) => (
 );
 const StatCard = ({label,value,sub,color=T.accent}) => (
   <Card style={{paddingBlock:18}}>
-    <div style={{fontSize:14,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{label}</div>
-    <div style={{fontSize:30,fontWeight:700,color,fontFamily:"'Libre Baskerville'"}}>{value}</div>
-    {sub&&<div style={{fontSize:14,color:T.sub,marginTop:2}}>{sub}</div>}
+    <div style={{fontSize:12,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{label}</div>
+    <div style={{fontSize:26,fontWeight:700,color,fontFamily:"'Libre Baskerville'"}}>{value}</div>
+    {sub&&<div style={{fontSize:12,color:T.sub,marginTop:2}}>{sub}</div>}
   </Card>
 );
 const Avatar = ({name,role,size=36}) => {
@@ -1004,7 +1004,7 @@ function LoginScreen({users, onLogin}) {
 <p>A password reset was requested for your KTA account.</p>
 <p>Please contact your administrator to have your password reset.</p>
 <p>If you did not request this, please ignore this email.</p>
-<p style="color:#888;font-size:15px">KTA Workforce Management · payroll@kta.org.nz</p>`,
+<p style="color:#888;font-size:13.2px">KTA Workforce Management · payroll@kta.org.nz</p>`,
       });
       setForgotMsg({ok:true,text:"Reset instructions have been sent to your email."});
     } catch(e) {
@@ -1040,10 +1040,10 @@ function LoginScreen({users, onLogin}) {
           </div>
 
           {/* Tagline */}
-          <h1 style={{fontFamily:"'Libre Baskerville'",fontSize:45,fontWeight:700,color:"#fff",lineHeight:1.25,marginBottom:20,letterSpacing:"-.5px"}}>
+          <h1 style={{fontFamily:"'Libre Baskerville'",fontSize:40,fontWeight:700,color:"#fff",lineHeight:1.25,marginBottom:20,letterSpacing:"-.5px"}}>
             Timesheet management, approvals, and CRM
           </h1>
-          <p style={{fontSize:20,color:"#ffffffaa",lineHeight:1.7}}>
+          <p style={{fontSize:18,color:"#ffffffaa",lineHeight:1.7}}>
             Built around your team and their training needs.
           </p>
         </div>
@@ -1052,10 +1052,10 @@ function LoginScreen({users, onLogin}) {
       {/* RIGHT — login form */}
       <div className="login-right">
         <div style={{marginBottom:36}}>
-          <h2 style={{fontFamily:"'Libre Baskerville'",fontSize:32,fontWeight:700,color:T.ink,marginBottom:8}}>
+          <h2 style={{fontFamily:"'Libre Baskerville'",fontSize:28,fontWeight:700,color:T.ink,marginBottom:8}}>
             Welcome back
           </h2>
-          <p style={{fontSize:16,color:T.sub}}>Sign in to your account to continue.</p>
+          <p style={{fontSize:14,color:T.sub}}>Sign in to your account to continue.</p>
         </div>
 
         <div className={shaking?"shake":""}>
@@ -1093,7 +1093,7 @@ function LoginScreen({users, onLogin}) {
           {/* Error */}
           {err&&(
             <div style={{background:T.redL,border:`1px solid ${T.red}44`,borderRadius:8,
-              padding:"9px 13px",marginBottom:14,fontSize:16,color:T.red,display:"flex",gap:8,alignItems:"center"}}>
+              padding:"9px 13px",marginBottom:14,fontSize:14,color:T.red,display:"flex",gap:8,alignItems:"center"}}>
               <span>⚠</span>{err}
             </div>
           )}
@@ -1104,7 +1104,7 @@ function LoginScreen({users, onLogin}) {
             background:loading?T.accentL:T.accent,
             color:loading?T.accent:"#fff",
             border:`1.5px solid ${T.accentD}`,
-            borderRadius:10,fontSize:19,fontWeight:700,
+            borderRadius:10,fontSize:17,fontWeight:700,
             display:"flex",alignItems:"center",justifyContent:"center",gap:10,
             cursor:loading?"default":"pointer",fontFamily:"DM Sans,sans-serif",transition:"all .15s"
           }}>
@@ -1119,14 +1119,14 @@ function LoginScreen({users, onLogin}) {
         <div style={{borderTop:`1px solid ${T.border}`,paddingTop:20}}>
           {!forgotMode ? (
             <button onClick={()=>{setForgotMode(true);setErr("");setForgotMsg("");}} style={{
-              background:"none",border:"none",color:T.accent,fontSize:16,
+              background:"none",border:"none",color:T.accent,fontSize:14,
               fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif",
               padding:0,display:"block",margin:"0 auto"
             }}>Forgot your password?</button>
           ) : (
             <div className="fi">
-              <div style={{fontSize:16,fontWeight:700,color:T.ink,marginBottom:8}}>Reset Password</div>
-              <div style={{fontSize:15,color:T.sub,marginBottom:12,lineHeight:1.5}}>
+              <div style={{fontSize:14,fontWeight:700,color:T.ink,marginBottom:8}}>Reset Password</div>
+              <div style={{fontSize:13,color:T.sub,marginBottom:12,lineHeight:1.5}}>
                 Enter your email and we'll send a reset link to your inbox.
               </div>
               <div className="login-input-wrap" style={{marginBottom:10}}>
@@ -1138,7 +1138,7 @@ function LoginScreen({users, onLogin}) {
               </div>
               {forgotMsg&&(
                 <div style={{background:forgotMsg.ok?T.accentL:T.redL,border:`1px solid ${forgotMsg.ok?T.accent:T.red}44`,
-                  borderRadius:8,padding:"9px 13px",marginBottom:10,fontSize:15,
+                  borderRadius:8,padding:"9px 13px",marginBottom:10,fontSize:13,
                   color:forgotMsg.ok?T.accent:T.red}}>
                   {forgotMsg.text}
                 </div>
@@ -1146,13 +1146,13 @@ function LoginScreen({users, onLogin}) {
               <div style={{display:"flex",gap:8}}>
                 <button onClick={sendReset} disabled={forgotSending} style={{
                   flex:1,padding:"10px",background:T.accent,color:"#fff",
-                  border:`1.5px solid ${T.accentD}`,borderRadius:9,fontSize:16,fontWeight:700,
+                  border:`1.5px solid ${T.accentD}`,borderRadius:9,fontSize:14,fontWeight:700,
                   cursor:forgotSending?"default":"pointer",fontFamily:"DM Sans,sans-serif",
                   opacity:forgotSending?0.6:1,transition:"all .15s"
                 }}>{forgotSending?"Sending…":"Send Reset Link"}</button>
                 <button onClick={()=>{setForgotMode(false);setForgotEmail("");setForgotMsg("");}} style={{
                   padding:"10px 16px",background:"none",color:T.sub,
-                  border:`1.5px solid ${T.border}`,borderRadius:9,fontSize:16,fontWeight:700,
+                  border:`1.5px solid ${T.border}`,borderRadius:9,fontSize:14,fontWeight:700,
                   cursor:"pointer",fontFamily:"DM Sans,sans-serif"
                 }}>Cancel</button>
               </div>
@@ -1160,8 +1160,8 @@ function LoginScreen({users, onLogin}) {
           )}
         </div>
         {/* Version */}
-        <div style={{marginTop:24,textAlign:"center",fontSize:15,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.48
+        <div style={{marginTop:24,textAlign:"center",fontSize:13,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
+          v2.7.49
         </div>
       </div>
     </div>
@@ -1195,7 +1195,7 @@ function EntryForm({onSave,onCancel,initial=null,minDate=null,maxDate=null,usedD
                   className="ts-date-input"
                   style={{borderColor:dateConflict?T.red:undefined,width:"100%",boxSizing:"border-box"}}/>
               </div>
-              {dateConflict&&<div style={{fontSize:14,color:T.red,marginTop:3}}>You already have an entry for this date</div>}</div>
+              {dateConflict&&<div style={{fontSize:12,color:T.red,marginTop:3}}>You already have an entry for this date</div>}</div>
         <div>
           <FL>Entry Type</FL>
           <select value={f.type} onChange={e=>sf("type",e.target.value)}>
@@ -1214,7 +1214,7 @@ function EntryForm({onSave,onCancel,initial=null,minDate=null,maxDate=null,usedD
           </select>
         </div>
       </div>
-      {err.time&&<div style={{color:T.red,fontSize:14,marginBottom:10}}>{err.time}</div>}
+      {err.time&&<div style={{color:T.red,fontSize:12,marginBottom:10}}>{err.time}</div>}
       <div style={{marginBottom:12}}>
         <FL>Break Duration</FL>
         <select value={f.breakMins} onChange={e=>sf("breakMins",e.target.value)}>
@@ -1224,10 +1224,10 @@ function EntryForm({onSave,onCancel,initial=null,minDate=null,maxDate=null,usedD
       <div style={{background:netH>0?T.accentL:T.redL,border:`1.5px solid ${netH>0?T.accent+"44":T.red+"44"}`,
         borderRadius:9,padding:"10px 14px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
-          <div style={{fontSize:14,color:T.sub,fontWeight:700,textTransform:"uppercase",letterSpacing:".5px"}}>Net Hours</div>
-          <div style={{fontSize:14,color:T.muted,marginTop:1}}>{gross>0?`${f.start}–${f.end} minus ${f.breakMins}m`:"—"}</div>
+          <div style={{fontSize:12,color:T.sub,fontWeight:700,textTransform:"uppercase",letterSpacing:".5px"}}>Net Hours</div>
+          <div style={{fontSize:12,color:T.muted,marginTop:1}}>{gross>0?`${f.start}–${f.end} minus ${f.breakMins}m`:"—"}</div>
         </div>
-        <div style={{fontFamily:"'Libre Baskerville'",fontSize:32,fontWeight:700,color:netH>0?T.accent:T.red}}>
+        <div style={{fontFamily:"'Libre Baskerville'",fontSize:28,fontWeight:700,color:netH>0?T.accent:T.red}}>
           {netH>0?`${netH}h`:"—"}
         </div>
       </div>
@@ -1257,15 +1257,15 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
       padding:"12px 16px",borderBottom:`1px solid ${T.border}44`,
       background:idx%2===0?T.surface:T.bg,alignItems:"center",gap:8,animationDelay:`${idx*.03}s`}}>
       <div>
-        <div style={{fontSize:16,fontWeight:700}}>{fmtD(entry.date)}</div>
+        <div style={{fontSize:14,fontWeight:700}}>{fmtD(entry.date)}</div>
       </div>
       {showUser&&(
         <div style={{display:"flex",alignItems:"center",gap:7}}>
           <Avatar name={user?.name} role={user?.role} size={26}/>
-          <span style={{fontSize:15,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user?.name||"—"}</span>
+          <span style={{fontSize:13,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user?.name||"—"}</span>
         </div>
       )}
-      <div style={{fontSize:15,color:entry.note?T.ink:T.muted,fontStyle:entry.note?"normal":"italic",
+      <div style={{fontSize:13,color:entry.note?T.ink:T.muted,fontStyle:entry.note?"normal":"italic",
         overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.note||"No note"}</div>
       <TypePill type={entry.type} size="sm"/>
       {(()=>{
@@ -1279,27 +1279,27 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
           }
         }
         return (<>
-          <div style={{textAlign:"center",fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:18,color:"#1b4f8c"}}>{normalH}h</div>
-          <div style={{textAlign:"center",fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:18,color:overtimeH>0?"#b86e1a":T.muted}}>{overtimeH>0?`${overtimeH}h`:"—"}</div>
-          <div style={{textAlign:"center",fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:18,color:TYPE_META[entry.type]?.color||T.accent}}>{entry.netHours}h</div>
+          <div style={{textAlign:"center",fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:16,color:"#1b4f8c"}}>{normalH}h</div>
+          <div style={{textAlign:"center",fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:16,color:overtimeH>0?"#b86e1a":T.muted}}>{overtimeH>0?`${overtimeH}h`:"—"}</div>
+          <div style={{textAlign:"center",fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:16,color:TYPE_META[entry.type]?.color||T.accent}}>{entry.netHours}h</div>
         </>);
       })()}
-      <div style={{textAlign:"center",fontSize:14,color:T.sub}}>{entry.breakMins>0?`${entry.breakMins}m`:"—"}</div>
-      <div style={{textAlign:"center",fontSize:14,color:T.muted,fontFamily:"monospace"}}>{entry.start}–{entry.end}</div>
+      <div style={{textAlign:"center",fontSize:12,color:T.sub}}>{entry.breakMins>0?`${entry.breakMins}m`:"—"}</div>
+      <div style={{textAlign:"center",fontSize:12,color:T.muted,fontFamily:"monospace"}}>{entry.start}–{entry.end}</div>
       <AppvPill status={entry.approval}/>
       <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
         {canApprove&&entry.approval==="submitted"&&(<>
           <button onClick={()=>onApprove(entry.id)} title="Approve" style={{
-            width:26,height:26,borderRadius:6,fontSize:15,background:T.accentL,color:T.accent,
+            width:26,height:26,borderRadius:6,fontSize:13,background:T.accentL,color:T.accent,
             border:`1px solid ${T.accent}44`,display:"flex",alignItems:"center",justifyContent:"center"}}>✓</button>
           <button onClick={()=>onDecline(entry.id)} title="Decline" style={{
-            width:26,height:26,borderRadius:6,fontSize:15,background:T.redL,color:T.red,
+            width:26,height:26,borderRadius:6,fontSize:13,background:T.redL,color:T.red,
             border:`1px solid ${T.red}44`,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
         </>)}
         {canSubmitXero && entry.approval==="approved" && !entry.xeroStatus && (
           <button onClick={()=>onSubmitXero&&onSubmitXero(entry.id)}
             title="Submit to Xero Payroll"
-            style={{height:26,borderRadius:6,fontSize:14,fontWeight:700,
+            style={{height:26,borderRadius:6,fontSize:12,fontWeight:700,
               background:"#e6f7fd",color:"#0d7bb5",padding:"0 7px",
               border:"1px solid #13b5ea55",display:"flex",alignItems:"center",gap:3,
               cursor:"pointer",whiteSpace:"nowrap"}}
@@ -1310,7 +1310,7 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
         )}
         {entry.xeroStatus==="submitted" && (
           <div title="Submitted to Xero"
-            style={{height:26,borderRadius:6,fontSize:14,fontWeight:700,
+            style={{height:26,borderRadius:6,fontSize:12,fontWeight:700,
               background:"#e6f7fd",color:"#0d7bb5",padding:"0 7px",
               border:"1px solid #13b5ea55",display:"flex",alignItems:"center",gap:3}}>
             𝕏 ✓
@@ -1318,7 +1318,7 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
         )}
         {entry.xeroStatus==="error" && (
           <div title={entry.xeroError||"Xero error"}
-            style={{height:26,borderRadius:6,fontSize:14,fontWeight:700,
+            style={{height:26,borderRadius:6,fontSize:12,fontWeight:700,
               background:T.redL,color:T.red,padding:"0 7px",
               border:`1px solid ${T.red}44`,display:"flex",alignItems:"center",gap:3}}>
             𝕏 ✕
@@ -1326,18 +1326,18 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
         )}
         {isLocked&&(
           <div title={entry.approval==="approved"?"Approved — contact admin to edit":"Submitted — wait for approval or decline"}
-            style={{width:26,height:26,borderRadius:6,fontSize:16,background:T.bg,color:T.muted,
+            style={{width:26,height:26,borderRadius:6,fontSize:14,background:T.bg,color:T.muted,
               border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}>🔒</div>
         )}
         {canEdit&&(
-          <button onClick={()=>onEdit(entry)} style={{width:26,height:26,borderRadius:6,fontSize:15,
+          <button onClick={()=>onEdit(entry)} style={{width:26,height:26,borderRadius:6,fontSize:13,
             background:"transparent",color:T.muted,border:`1px solid ${T.border}`,
             display:"flex",alignItems:"center",justifyContent:"center"}}
             onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
             onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
         )}
         {(canDelete===undefined?canEdit:canDelete)&&(
-          <button onClick={()=>onDelete(entry.id)} title="Delete entry" style={{width:26,height:26,borderRadius:6,fontSize:15,
+          <button onClick={()=>onDelete(entry.id)} title="Delete entry" style={{width:26,height:26,borderRadius:6,fontSize:13,
             background:"transparent",color:T.muted,border:`1px solid ${T.border}`,
             display:"flex",alignItems:"center",justifyContent:"center"}}
             onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
@@ -1359,28 +1359,28 @@ function WeekCard2({title, weekEntries, accent, canEdit, canDelete, handleEdit, 
     <Card style={{marginBottom:14,border:`1.5px solid ${accent}33`}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
         <div>
-          <div style={{fontWeight:700,fontSize:19,color:T.ink}}>{title}</div>
-          <div style={{fontSize:15,color:T.sub,marginTop:1}}>
+          <div style={{fontWeight:700,fontSize:17,color:T.ink}}>{title}</div>
+          <div style={{fontSize:13,color:T.sub,marginTop:1}}>
             {weekEntries.length===0?"No entries":`${weekEntries.length} entr${weekEntries.length===1?"y":"ies"} · ${weekEntries.reduce((a,e)=>a+e.netHours,0).toFixed(1)}h total`}
           </div>
         </div>
-        {weekEntries.length>0&&<div style={{fontSize:25,fontWeight:700,color:accent}}>{weekEntries.reduce((a,e)=>a+e.netHours,0).toFixed(1)}h</div>}
+        {weekEntries.length>0&&<div style={{fontSize:22,fontWeight:700,color:accent}}>{weekEntries.reduce((a,e)=>a+e.netHours,0).toFixed(1)}h</div>}
       </div>
       {weekEntries.length===0
-        ? <div style={{fontSize:16,color:T.muted,fontStyle:"italic",padding:"4px 0"}}>No entries for this week yet.</div>
+        ? <div style={{fontSize:14,color:T.muted,fontStyle:"italic",padding:"4px 0"}}>No entries for this week yet.</div>
         : <div style={{display:"flex",flexDirection:"column",gap:0}}>
             {[...weekEntries].sort((a,b)=>b.date.localeCompare(a.date)).map((e,i)=>(
               <div key={e.id} style={{display:"grid",gridTemplateColumns:"86px 1fr auto auto",alignItems:"center",gap:8,padding:"8px 2px",borderBottom:i<weekEntries.length-1?`1px solid ${T.border}44`:"none"}}>
-                <div style={{fontSize:16,fontWeight:700,color:T.ink}}>{fmtD2(e.date)}</div>
+                <div style={{fontSize:14,fontWeight:700,color:T.ink}}>{fmtD2(e.date)}</div>
                 <div style={{minWidth:0}}>
-                  <div style={{fontSize:15,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.type}{e.note?` · ${e.note}`:""}</div>
-                  <div style={{fontSize:14,color:T.muted}}>{e.start&&e.end?`${e.start}–${e.end}`:""}</div>
+                  <div style={{fontSize:13,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.type}{e.note?` · ${e.note}`:""}</div>
+                  <div style={{fontSize:12,color:T.muted}}>{e.start&&e.end?`${e.start}–${e.end}`:""}</div>
                 </div>
-                <div style={{fontSize:16,fontWeight:700,color:accent,whiteSpace:"nowrap"}}>{e.netHours.toFixed(1)}h</div>
+                <div style={{fontSize:14,fontWeight:700,color:accent,whiteSpace:"nowrap"}}>{e.netHours.toFixed(1)}h</div>
                 <div style={{display:"flex",alignItems:"center",gap:4}}>
-                  <span style={{fontSize:14,fontWeight:700,color:sColor(e.approval),whiteSpace:"nowrap"}}>{sLabel(e.approval)}</span>
-                  {canEdit&&canEdit(e)&&<button onClick={()=>handleEdit(e)} style={{width:22,height:22,borderRadius:5,fontSize:14,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={ev=>{ev.currentTarget.style.background=T.blueL;ev.currentTarget.style.color=T.blue;}} onMouseLeave={ev=>{ev.currentTarget.style.background="transparent";ev.currentTarget.style.color=T.muted;}}>✎</button>}
-                  {canDelete&&canDelete(e)&&<button onClick={()=>handleDelete(e.id)} style={{width:22,height:22,borderRadius:5,fontSize:14,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={ev=>{ev.currentTarget.style.background=T.redL;ev.currentTarget.style.color=T.red;}} onMouseLeave={ev=>{ev.currentTarget.style.background="transparent";ev.currentTarget.style.color=T.muted;}}>✕</button>}
+                  <span style={{fontSize:12,fontWeight:700,color:sColor(e.approval),whiteSpace:"nowrap"}}>{sLabel(e.approval)}</span>
+                  {canEdit&&canEdit(e)&&<button onClick={()=>handleEdit(e)} style={{width:22,height:22,borderRadius:5,fontSize:12,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={ev=>{ev.currentTarget.style.background=T.blueL;ev.currentTarget.style.color=T.blue;}} onMouseLeave={ev=>{ev.currentTarget.style.background="transparent";ev.currentTarget.style.color=T.muted;}}>✎</button>}
+                  {canDelete&&canDelete(e)&&<button onClick={()=>handleDelete(e.id)} style={{width:22,height:22,borderRadius:5,fontSize:12,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}} onMouseEnter={ev=>{ev.currentTarget.style.background=T.redL;ev.currentTarget.style.color=T.red;}} onMouseLeave={ev=>{ev.currentTarget.style.background="transparent";ev.currentTarget.style.color=T.muted;}}>✕</button>}
                 </div>
               </div>
             ))}
@@ -1537,7 +1537,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
         <div style={{position:"fixed",bottom:24,right:24,zIndex:999,
           background:toast.ok?T.accentL:T.warnL,
           border:`1.5px solid ${toast.ok?T.accent:T.warn}`,
-          borderRadius:10,padding:"12px 20px",fontSize:16,fontWeight:700,
+          borderRadius:10,padding:"12px 20px",fontSize:14,fontWeight:700,
           color:toast.ok?T.accent:T.warn,boxShadow:"0 4px 20px #00000022",
           maxWidth:360,lineHeight:1.4}}>
           {toast.msg}
@@ -1545,9 +1545,9 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
       )}
       <div style={{background:ROLE_META[role].bg,border:`1.5px solid ${ROLE_META[role].color}44`,
         borderRadius:10,padding:"10px 16px",marginBottom:20,display:"flex",gap:10,alignItems:"center"}}>
-        <span style={{fontSize:20}}>{ROLE_META[role].symbol}</span>
-        <span style={{fontWeight:700,color:ROLE_META[role].color,fontSize:16}}>{role} View — </span>
-        <span style={{fontSize:16,color:T.sub}}>{ROLE_META[role]?.desc||""}</span>
+        <span style={{fontSize:18}}>{ROLE_META[role].symbol}</span>
+        <span style={{fontWeight:700,color:ROLE_META[role].color,fontSize:14}}>{role} View — </span>
+        <span style={{fontSize:14,color:T.sub}}>{ROLE_META[role]?.desc||""}</span>
       </div>
       <div className="stat-grid-4">
         <StatCard label="Today (mine)" value={todayH?`${todayH}h`:"—"} color={todayH?T.accent:T.muted}/>
@@ -1621,8 +1621,8 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                   <div style={{position:"fixed",inset:0,background:"#00000066",zIndex:300,
                     display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
                     <Card style={{width:"100%",maxWidth:420,padding:24}}>
-                      <div style={{fontWeight:700,fontSize:20,marginBottom:6}}>Which week to submit?</div>
-                      <div style={{fontSize:16,color:T.sub,marginBottom:18}}>
+                      <div style={{fontWeight:700,fontSize:18,marginBottom:6}}>Which week to submit?</div>
+                      <div style={{fontSize:14,color:T.sub,marginBottom:18}}>
                         Your drafts span multiple weeks. Choose which week to submit for approval.
                       </div>
                       <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
@@ -1638,10 +1638,10 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                               border:`2px solid ${selected?T.accent:T.border}`,
                               background:selected?T.accentL:T.surface,
                               fontFamily:"DM Sans,sans-serif",transition:"all .14s"}}>
-                              <div style={{fontWeight:700,fontSize:18,color:selected?T.accent:T.ink}}>
+                              <div style={{fontWeight:700,fontSize:16,color:selected?T.accent:T.ink}}>
                                 Week ending {label}
                               </div>
-                              <div style={{fontSize:15,color:T.sub,marginTop:3}}>
+                              <div style={{fontSize:13,color:T.sub,marginTop:3}}>
                                 {cnt} entr{cnt===1?"y":"ies"} · {hrs}h total
                               </div>
                             </button>
@@ -1652,10 +1652,10 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                           border:`2px solid ${weekPickerSelected==="all"?T.blue:T.border}`,
                           background:weekPickerSelected==="all"?T.blueL:T.surface,
                           fontFamily:"DM Sans,sans-serif",transition:"all .14s"}}>
-                          <div style={{fontWeight:700,fontSize:18,color:weekPickerSelected==="all"?T.blue:T.ink}}>
+                          <div style={{fontWeight:700,fontSize:16,color:weekPickerSelected==="all"?T.blue:T.ink}}>
                             Submit all weeks at once
                           </div>
-                          <div style={{fontSize:15,color:T.sub,marginTop:3}}>
+                          <div style={{fontSize:13,color:T.sub,marginTop:3}}>
                             {myDrafts.length} entries · {myDrafts.reduce((a,e)=>a+e.netHours,0).toFixed(2)}h total
                           </div>
                         </button>
@@ -1684,7 +1684,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
       {filterableUsers.length>1&&(
         <div style={{display:"flex",gap:10,marginBottom:14}}>
           <select value={filterUid} onChange={e=>setFilterUid(e.target.value)}
-            style={{width:220,fontSize:15,padding:"7px 28px 7px 11px"}}>
+            style={{width:220,fontSize:13,padding:"7px 28px 7px 11px"}}>
             <option value="all">All Visible Users</option>
             {filterableUsers.map(u=><option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
           </select>
@@ -1744,8 +1744,8 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                 background:T.bg,borderBottom:`1.5px solid ${T.border}`,flexWrap:"wrap"}}>
                 <Avatar name={app.name} role="Apprentice" size={34}/>
                 <div style={{flex:1,minWidth:120}}>
-                  <div style={{fontWeight:700,fontSize:18}}>{app.name}</div>
-                  <div style={{fontSize:15,color:T.sub}}>{appEntries.length} entries · {submitted.length} awaiting approval</div>
+                  <div style={{fontWeight:700,fontSize:16}}>{app.name}</div>
+                  <div style={{fontSize:13,color:T.sub}}>{appEntries.length} entries · {submitted.length} awaiting approval</div>
                 </div>
               </div>
 
@@ -1753,7 +1753,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
               {submitted.length>0&&(
                 <div style={{padding:"10px 16px",background:T.warnL+"44",borderBottom:`1px solid ${T.border}`,
                   display:"flex",flexDirection:"column",gap:8}}>
-                  <div style={{fontSize:14,fontWeight:700,color:T.warn,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>
+                  <div style={{fontSize:12,fontWeight:700,color:T.warn,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>
                     Pending approval
                   </div>
                   <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
@@ -1765,14 +1765,14 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                           if(window.confirm(`Approve week ending ${fmtWeekEnd(we)} for ${app.name}?\n${cnt} ${cnt===1?"entry":"entries"} · ${hrs}h total`))
                             approveWeek(we);
                         }} style={{
-                          padding:"9px 16px",borderRadius:8,fontSize:16,fontWeight:700,
+                          padding:"9px 16px",borderRadius:8,fontSize:14,fontWeight:700,
                           background:T.accent,color:"#fff",border:"none",
                           cursor:"pointer",fontFamily:"DM Sans,sans-serif",
                           display:"flex",alignItems:"center",gap:7,transition:"opacity .14s"}}
                           onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
                           onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
                           ✓ Approve week ending {fmtWeekEnd(we)}
-                          <span style={{fontWeight:700,opacity:.8,fontSize:15}}>({cnt} {cnt===1?"entry":"entries"} · {hrs}h)</span>
+                          <span style={{fontWeight:700,opacity:.8,fontSize:13}}>({cnt} {cnt===1?"entry":"entries"} · {hrs}h)</span>
                         </button>
                       );
                     })}
@@ -1781,7 +1781,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                         if(window.confirm(`Approve ALL ${submitted.length} pending entries for ${app.name}?`))
                           approveAllWeeks();
                       }} style={{
-                        padding:"9px 16px",borderRadius:8,fontSize:16,fontWeight:700,
+                        padding:"9px 16px",borderRadius:8,fontSize:14,fontWeight:700,
                         background:T.accentD,color:"#fff",border:"none",
                         cursor:"pointer",fontFamily:"DM Sans,sans-serif",transition:"opacity .14s"}}
                         onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
@@ -1797,7 +1797,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
               <div style={{display:"grid",
                 gridTemplateColumns:"100px 1fr 110px 56px 80px 70px 80px",
                 padding:"8px 16px",background:T.bg,
-                fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
+                fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
                 <span>Date</span><span>Note</span><span>Type</span>
                 <span style={{textAlign:"center"}}>Hours</span>
                 <span style={{textAlign:"center"}}>Start–End</span>
@@ -1806,30 +1806,30 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
               </div>
 
               {appEntries.length===0&&(
-                <div style={{padding:"24px",textAlign:"center",color:T.muted,fontSize:15,fontStyle:"italic"}}>No entries yet.</div>
+                <div style={{padding:"24px",textAlign:"center",color:T.muted,fontSize:13,fontStyle:"italic"}}>No entries yet.</div>
               )}
               {appEntries.map((e,i)=>(
                 <div key={e.id} style={{display:"grid",
                   gridTemplateColumns:"100px 1fr 110px 56px 80px 70px 80px",
-                  padding:"9px 16px",gap:8,alignItems:"center",fontSize:15,
+                  padding:"9px 16px",gap:8,alignItems:"center",fontSize:13,
                   borderBottom:i<appEntries.length-1?`1px solid ${T.border}44`:"none",
                   background:e.approval==="submitted"?T.warnL+"55":i%2===0?T.surface:T.bg}}>
-                  <div style={{fontWeight:700,fontSize:15}}>{fmtD(e.date)}</div>
+                  <div style={{fontWeight:700,fontSize:13}}>{fmtD(e.date)}</div>
                   <div style={{color:e.note?T.ink:T.muted,fontStyle:e.note?"normal":"italic",
-                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:15}}>{e.note||"No note"}</div>
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:13}}>{e.note||"No note"}</div>
                   <TypePill type={e.type} size="sm"/>
                   <div style={{textAlign:"center",fontWeight:700,color:TYPE_META[e.type]?.color||T.accent,
-                    fontFamily:"DM Sans",fontSize:18}}>{e.netHours}h</div>
-                  <div style={{textAlign:"center",fontSize:14,color:T.muted,fontFamily:"monospace"}}>{e.start}–{e.end}</div>
-                  <div style={{textAlign:"center",fontSize:14,color:T.sub}}>{e.breakMins>0?`${e.breakMins}m`:"—"}</div>
+                    fontFamily:"DM Sans",fontSize:16}}>{e.netHours}h</div>
+                  <div style={{textAlign:"center",fontSize:12,color:T.muted,fontFamily:"monospace"}}>{e.start}–{e.end}</div>
+                  <div style={{textAlign:"center",fontSize:12,color:T.sub}}>{e.breakMins>0?`${e.breakMins}m`:"—"}</div>
                   <div style={{display:"flex",gap:4,alignItems:"center"}}>
                     {e.approval==="submitted"&&(<>
                       <button onClick={()=>handleApprove(e.id)} title="Approve" style={{
-                        width:26,height:26,borderRadius:6,fontSize:15,background:T.accentL,color:T.accent,
+                        width:26,height:26,borderRadius:6,fontSize:13,background:T.accentL,color:T.accent,
                         border:`1px solid ${T.accent}44`,cursor:"pointer",flexShrink:0,
                         display:"flex",alignItems:"center",justifyContent:"center"}}>✓</button>
                       <button onClick={()=>handleDecline(e.id)} title="Decline" style={{
-                        width:26,height:26,borderRadius:6,fontSize:15,background:T.redL,color:T.red,
+                        width:26,height:26,borderRadius:6,fontSize:13,background:T.redL,color:T.red,
                         border:`1px solid ${T.red}44`,cursor:"pointer",flexShrink:0,
                         display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
                     </>)}
@@ -1837,7 +1837,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                     {e.approval==="declined"&&(<>
                       <AppvPill status="declined"/>
                       <button onClick={()=>handleApprove(e.id)} title="Re-approve" style={{
-                        width:26,height:26,borderRadius:6,fontSize:14,background:T.accentL,color:T.accent,
+                        width:26,height:26,borderRadius:6,fontSize:12,background:T.accentL,color:T.accent,
                         border:`1px solid ${T.accent}44`,cursor:"pointer",flexShrink:0,
                         display:"flex",alignItems:"center",justifyContent:"center"}}>↺</button>
                     </>)}
@@ -1867,14 +1867,14 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
             <WeekCard2 title="Last Week" weekEntries={lastWeekE} accent={T.blue} canEdit={canEdit} canDelete={canDelete} handleEdit={handleEdit} handleDelete={handleDelete}/>
             {olderE.length>0&&(
               <Card style={{marginBottom:14}}>
-                <div style={{fontWeight:700,fontSize:18,marginBottom:8,color:T.sub}}>Older Entries</div>
+                <div style={{fontWeight:700,fontSize:16,marginBottom:8,color:T.sub}}>Older Entries</div>
                 <div style={{display:"flex",flexDirection:"column",gap:0}}>
                   {[...olderE].sort((a,b)=>b.date.localeCompare(a.date)).map((e,i)=>(
                     <div key={e.id} style={{display:"grid",gridTemplateColumns:"86px 1fr auto auto",alignItems:"center",gap:8,padding:"8px 2px",borderBottom:i<olderE.length-1?`1px solid ${T.border}44`:"none"}}>
-                      <div style={{fontSize:16,fontWeight:700,color:T.ink}}>{fmtD2(e.date)}</div>
-                      <div style={{minWidth:0}}><div style={{fontSize:15,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.type}{e.note?` · ${e.note}`:""}</div></div>
-                      <div style={{fontSize:16,fontWeight:700,color:T.muted}}>{e.netHours.toFixed(1)}h</div>
-                      <span style={{fontSize:14,fontWeight:700,color:sColor(e.approval)}}>{sLabel(e.approval)}</span>
+                      <div style={{fontSize:14,fontWeight:700,color:T.ink}}>{fmtD2(e.date)}</div>
+                      <div style={{minWidth:0}}><div style={{fontSize:13,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.type}{e.note?` · ${e.note}`:""}</div></div>
+                      <div style={{fontSize:14,fontWeight:700,color:T.muted}}>{e.netHours.toFixed(1)}h</div>
+                      <span style={{fontSize:12,fontWeight:700,color:sColor(e.approval)}}>{sLabel(e.approval)}</span>
                     </div>
                   ))}
                 </div>
@@ -1882,9 +1882,9 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
             )}
             {myEntries.length===0&&(
               <Card><div style={{padding:"40px 24px",textAlign:"center",color:T.muted}}>
-                <div style={{fontSize:40,marginBottom:8}}>◈</div>
+                <div style={{fontSize:35,marginBottom:8}}>◈</div>
                 <div style={{fontWeight:700}}>No entries to display</div>
-                <div style={{fontSize:15,marginTop:4}}>Use the button above to log your first entry.</div>
+                <div style={{fontSize:13,marginTop:4}}>Use the button above to log your first entry.</div>
               </div></Card>
             )}
           </>);
@@ -1895,7 +1895,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
           <Card style={{padding:0,overflow:"hidden"}}>
             <div style={{display:"grid",gridTemplateColumns:tcols,padding:"10px 16px",
               background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-              fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
+              fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
               <span>Date</span>{showUserCol&&<span>Person</span>}<span>Note</span><span>Type</span>
               <span style={{textAlign:"center"}}>Normal</span><span style={{textAlign:"center",color:"#b86e1a"}}>OT</span><span style={{textAlign:"center"}}>Total Hours Worked</span><span style={{textAlign:"center"}}>Break</span>
               <span style={{textAlign:"center"}}>Time</span><span>Status</span>
@@ -1903,9 +1903,9 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
             </div>
             {shown.length===0&&(
               <div style={{padding:"48px 24px",textAlign:"center",color:T.muted}}>
-                <div style={{fontSize:40,marginBottom:8}}>◈</div>
+                <div style={{fontSize:35,marginBottom:8}}>◈</div>
                 <div style={{fontWeight:700}}>No entries to display</div>
-                <div style={{fontSize:15,marginTop:4}}>{canAdd?"Use the button above to log your first entry.":"No entries in your scope yet."}</div>
+                <div style={{fontSize:13,marginTop:4}}>{canAdd?"Use the button above to log your first entry.":"No entries in your scope yet."}</div>
               </div>
             )}
             {shown.map((e,i)=>(
@@ -1952,7 +1952,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
             ))}
           </Card>
           {shown.length>0&&(
-            <div style={{textAlign:"right",fontSize:15,color:T.sub,marginTop:10}}>
+            <div style={{textAlign:"right",fontSize:13,color:T.sub,marginTop:10}}>
               {shown.length} entr{shown.length===1?"y":"ies"} · <strong style={{color:T.accent}}>{shown.reduce((a,e)=>a+e.netHours,0).toFixed(2)}h</strong> net
             </div>
           )}
@@ -2118,7 +2118,7 @@ function UserManagement({users, setUsers, currentUser}) {
 
       {showForm&&(
         <Card id="um-form" key={formKey} style={{marginBottom:20,border:`1.5px solid ${T.blue}44`}}>
-          <div style={{fontWeight:700,fontSize:18,marginBottom:16,color:T.blue}}>
+          <div style={{fontWeight:700,fontSize:16,marginBottom:16,color:T.blue}}>
             {editId?"✎ Edit User":"+ New User"}
           </div>
           <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
@@ -2141,7 +2141,7 @@ function UserManagement({users, setUsers, currentUser}) {
                 {form.secondaryRole&&(
                   <div style={{marginTop:6,display:"flex",alignItems:"center",gap:8}}>
                     <RolePill role="Admin"/>
-                    <span style={{fontSize:15,color:T.muted}}>+</span>
+                    <span style={{fontSize:13,color:T.muted}}>+</span>
                     <RolePill role={form.secondaryRole}/>
                   </div>
                 )}
@@ -2157,17 +2157,17 @@ function UserManagement({users, setUsers, currentUser}) {
                       <button key={lvl} type="button"
                         onClick={()=>!locked&&sf("adminLevel",lvl)}
                         style={{
-                          flex:1,padding:"10px 12px",borderRadius:9,fontSize:16,fontWeight:700,
+                          flex:1,padding:"10px 12px",borderRadius:9,fontSize:14,fontWeight:700,
                           border:`2px solid ${locked?T.border:(form.adminLevel||1)===lvl?T.accent:T.border}`,
                           background:locked?T.bg:(form.adminLevel||1)===lvl?T.accentL:T.surface,
                           color:locked?T.muted:(form.adminLevel||1)===lvl?T.accent:T.sub,
                           cursor:locked?"not-allowed":"pointer",textAlign:"left",
                           fontFamily:"DM Sans,sans-serif",transition:"all .15s",opacity:locked?0.5:1}}>
                         <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}>
-                          <span style={{fontSize:20}}>{lvl===1?"★":"☆"}</span>
+                          <span style={{fontSize:18}}>{lvl===1?"★":"☆"}</span>
                           <span>Admin Level {lvl}{locked?" (requires Admin 1)":""}</span>
                         </div>
-                        <div style={{fontSize:14,fontWeight:700,lineHeight:1.4,
+                        <div style={{fontSize:12,fontWeight:700,lineHeight:1.4,
                           color:locked?T.muted:(form.adminLevel||1)===lvl?T.accent:T.muted}}>
                           {lvl===1
                             ? "Full access — edit, delete & manage all data including message history"
@@ -2214,17 +2214,17 @@ function UserManagement({users, setUsers, currentUser}) {
                 <button onClick={()=>setShowPw(s=>!s)} type="button" style={{
                   position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",
                   background:"none",border:"none",color:T.muted,cursor:"pointer",
-                  fontSize:15,fontFamily:"DM Sans,sans-serif"}}>
+                  fontSize:13,fontFamily:"DM Sans,sans-serif"}}>
                   {showPw?"Hide":"Show"}
                 </button>
               </div>
-              {!editId&&<div style={{fontSize:14,color:T.muted,marginTop:4}}>Required for new users</div>}
+              {!editId&&<div style={{fontSize:12,color:T.muted,marginTop:4}}>Required for new users</div>}
             </div>
           </div>
 
           {/* Address fields — optional */}
           <div style={{borderTop:`1px dashed ${T.border}`,paddingTop:12,marginBottom:12}}>
-            <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:10}}>
+            <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:10}}>
               Address <span style={{fontWeight:700,textTransform:"none",letterSpacing:0}}>(optional)</span>
             </div>
             <div className="fg-addr" style={{display:"grid",gap:12}}>
@@ -2240,7 +2240,7 @@ function UserManagement({users, setUsers, currentUser}) {
             <div style={{marginBottom:16}}>
               <FL>Allocated {form.role==="Mentor"?"Apprentices & Viewers":"Apprentices"}</FL>
               {allocatable.length===0
-                ? <div style={{fontSize:15,color:T.muted,fontStyle:"italic",marginTop:4}}>
+                ? <div style={{fontSize:13,color:T.muted,fontStyle:"italic",marginTop:4}}>
                     No {form.role==="Mentor"?"apprentices or viewers":"apprentices"} found
                   </div>
                 : <>
@@ -2261,13 +2261,13 @@ function UserManagement({users, setUsers, currentUser}) {
                           return (
                             <div key={id} style={{
                               display:"inline-flex",alignItems:"center",gap:6,
-                              padding:"4px 10px",borderRadius:99,fontSize:15,fontWeight:700,
+                              padding:"4px 10px",borderRadius:99,fontSize:13,fontWeight:700,
                               background:T.accentL,color:T.accent,
                               border:`1.5px solid ${T.accent}44`}}>
                               {u.name}
                               <button onClick={()=>toggleAlloc(id)} style={{
                                 background:"none",border:"none",color:T.accent,
-                                cursor:"pointer",padding:0,fontSize:16,lineHeight:1,
+                                cursor:"pointer",padding:0,fontSize:14,lineHeight:1,
                                 fontFamily:"DM Sans,sans-serif"}}>×</button>
                             </div>
                           );
@@ -2275,7 +2275,7 @@ function UserManagement({users, setUsers, currentUser}) {
                       </div>
                     )}
                     {form.allocatedTo.length===0&&(
-                      <div style={{fontSize:15,color:T.muted,fontStyle:"italic"}}>None selected yet</div>
+                      <div style={{fontSize:13,color:T.muted,fontStyle:"italic"}}>None selected yet</div>
                     )}
                   </>
               }
@@ -2314,7 +2314,7 @@ function UserManagement({users, setUsers, currentUser}) {
               </div>
               {/* Overtime Settings */}
               <div style={{borderTop:`1px solid ${T.border}`,paddingTop:12,marginBottom:12}}>
-                <div style={{fontWeight:700,fontSize:15,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8}}>
+                <div style={{fontWeight:700,fontSize:13,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8}}>
                   Overtime Settings
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
@@ -2334,16 +2334,16 @@ function UserManagement({users, setUsers, currentUser}) {
                   {form.overtimeType&&<div>
                     <FL>Xero Overtime Rate ID</FL>
                     <input placeholder="Xero earnings rate UUID" value={form.overtimeRateId||""} onChange={e=>sf("overtimeRateId",e.target.value)}/>
-                    <div style={{fontSize:12,color:T.muted,marginTop:2}}>Find in Xero → Payroll → Pay Items</div>
+                    <div style={{fontSize:11,color:T.muted,marginTop:2}}>Find in Xero → Payroll → Pay Items</div>
                   </div>}
                 </div>
                 <div style={{marginTop:12}}>
                   <FL>Reports Go To (email)</FL>
                   <input type="email" placeholder="e.g. manager@company.co.nz" value={form.reportsEmail||""} onChange={e=>sf("reportsEmail",e.target.value)}/>
-                  <div style={{fontSize:12,color:T.muted,marginTop:2}}>Visit reports will be emailed here instead of to the approver. Leave blank to use approver.</div>
+                  <div style={{fontSize:11,color:T.muted,marginTop:2}}>Visit reports will be emailed here instead of to the approver. Leave blank to use approver.</div>
                 </div>
                 {form.overtimeType&&(
-                  <div style={{marginTop:8,padding:"8px 12px",background:T.accentL,borderRadius:7,fontSize:15,color:T.accent}}>
+                  <div style={{marginTop:8,padding:"8px 12px",background:T.accentL,borderRadius:7,fontSize:13,color:T.accent}}>
                     {form.overtimeType==="daily"
                       ? `Any hours beyond ${form.overtimeThreshold||"?"}h in a single day will submit to Xero as overtime`
                       : `Any hours beyond ${form.overtimeThreshold||"?"}h in a week will submit to Xero as overtime`}
@@ -2406,14 +2406,14 @@ function UserManagement({users, setUsers, currentUser}) {
               const active = umTab===key;
               return (
                 <button key={key} onClick={()=>setUmTab(key)} style={{
-                  padding:"7px 16px",borderRadius:99,fontSize:16,fontWeight:700,
+                  padding:"7px 16px",borderRadius:99,fontSize:14,fontWeight:700,
                   border:`1.5px solid ${active?T.accent:T.border}`,
                   background:active?T.accentL:T.surface,
                   color:active?T.accent:T.sub,
                   cursor:"pointer",fontFamily:"DM Sans,sans-serif",
                   display:"flex",alignItems:"center",gap:6,transition:"all .15s"}}>
                   {g.label}
-                  <span style={{fontSize:14,fontWeight:700,padding:"1px 7px",borderRadius:99,
+                  <span style={{fontSize:12,fontWeight:700,padding:"1px 7px",borderRadius:99,
                     background:active?T.accent:T.border+"88",color:active?"#fff":T.muted}}>{count}</span>
                 </button>
               );
@@ -2438,14 +2438,14 @@ function UserManagement({users, setUsers, currentUser}) {
           return (
             <div>
               <div style={{padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-                fontSize:14,color:T.muted,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                fontSize:12,color:T.muted,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div style={{display:"grid",gridTemplateColumns:"44px 1fr 130px 170px 1fr 72px",gap:8,flex:1,
                   fontWeight:700,textTransform:"uppercase",letterSpacing:".6px"}}>
                   <span/><span>Name</span><span>Role</span><span>Email</span><span>Allocated To</span><span/>
                 </div>
               </div>
               {groupUsers.length===0 ? (
-                <div style={{padding:32,textAlign:"center",color:T.muted,fontSize:16,fontStyle:"italic"}}>
+                <div style={{padding:32,textAlign:"center",color:T.muted,fontSize:14,fontStyle:"italic"}}>
                   No users in this group yet.
                 </div>
               ) : groupUsers.map((u,i)=>{
@@ -2463,31 +2463,31 @@ function UserManagement({users, setUsers, currentUser}) {
                     onMouseLeave={e=>{e.currentTarget.style.background=isEditing?T.blueL:i%2===0?T.surface:T.bg;}}>
                     <Avatar name={u.name} role={u.role}/>
                     <div>
-                      <div style={{fontWeight:700,fontSize:16}}>{u.name}</div>
-                      {u.phone&&<div style={{fontSize:14,color:T.muted}}>{u.phone}</div>}
-                      <div style={{fontSize:14,color:T.blue,marginTop:1}}>
+                      <div style={{fontWeight:700,fontSize:14}}>{u.name}</div>
+                      {u.phone&&<div style={{fontSize:12,color:T.muted}}>{u.phone}</div>}
+                      <div style={{fontSize:12,color:T.blue,marginTop:1}}>
                         {isEditing?"editing…":"view details →"}
                       </div>
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap"}}>
                       <RolePill role={u.role} adminLevel={u.adminLevel||null} size="sm"/>
                       {u.role==="Admin"&&u.secondaryRole&&(
-                        <><span style={{fontSize:12,color:T.muted}}>+</span><RolePill role={u.secondaryRole} size="sm"/></>
+                        <><span style={{fontSize:11,color:T.muted}}>+</span><RolePill role={u.secondaryRole} size="sm"/></>
                       )}
                     </div>
-                    <div style={{fontSize:15,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email||"—"}</div>
+                    <div style={{fontSize:13,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.email||"—"}</div>
                     <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
-                      {(u.allocatedTo||[]).length===0&&<span style={{fontSize:14,color:T.muted,fontStyle:"italic"}}>—</span>}
+                      {(u.allocatedTo||[]).length===0&&<span style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>—</span>}
                       {(u.allocatedTo||[]).map(aid=>{
                         const a=users.find(x=>x.id===aid);
-                        return a?<span key={aid} style={{fontSize:15,color:T.sub,display:"flex",alignItems:"center",gap:4}}>
+                        return a?<span key={aid} style={{fontSize:13,color:T.sub,display:"flex",alignItems:"center",gap:4}}>
                           <RolePill role={a.role} size="sm"/>{a.name}
                         </span>:null;
                       })}
                     </div>
                     <div style={{display:"flex",gap:5,justifyContent:"flex-end"}} onClick={e=>e.stopPropagation()}>
                       {canEditUser(u)&&(
-                        <button onClick={()=>setViewingUser(u)} style={{width:26,height:26,borderRadius:6,fontSize:15,
+                        <button onClick={()=>setViewingUser(u)} style={{width:26,height:26,borderRadius:6,fontSize:13,
                           background:isEditing?T.blueL:"transparent",color:isEditing?T.blue:T.muted,
                           border:`1px solid ${isEditing?T.blue+"66":T.border}`,
                           display:"flex",alignItems:"center",justifyContent:"center"}}
@@ -2495,14 +2495,14 @@ function UserManagement({users, setUsers, currentUser}) {
                           onMouseLeave={e=>{e.currentTarget.style.background=isEditing?T.blueL:"transparent";e.currentTarget.style.color=isEditing?T.blue:T.muted;}}>✎</button>
                       )}
                       {canDeleteUser(u)&&(
-                        <button onClick={()=>deleteUser(u.id)} style={{width:26,height:26,borderRadius:6,fontSize:15,
+                        <button onClick={()=>deleteUser(u.id)} style={{width:26,height:26,borderRadius:6,fontSize:13,
                           background:"transparent",color:T.muted,border:`1px solid ${T.border}`,
                           display:"flex",alignItems:"center",justifyContent:"center"}}
                           onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
                           onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
                       )}
                       {!canEditUser(u)&&(
-                        <span style={{fontSize:14,color:T.muted,fontStyle:"italic",padding:"0 4px"}}>🔒</span>
+                        <span style={{fontSize:12,color:T.muted,fontStyle:"italic",padding:"0 4px"}}>🔒</span>
                       )}
                     </div>
                   </div>
@@ -2540,12 +2540,12 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
 
   const Field = ({icon, label, value, href}) => value ? (
     <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",borderBottom:`1px solid ${T.border}`}}>
-      <span style={{fontSize:19,width:20,textAlign:"center",flexShrink:0,marginTop:1}}>{icon}</span>
+      <span style={{fontSize:17,width:20,textAlign:"center",flexShrink:0,marginTop:1}}>{icon}</span>
       <div style={{flex:1}}>
-        <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
+        <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
         {href
-          ? <a href={href} style={{fontSize:16,color:T.accent,fontWeight:700,textDecoration:"none"}}>{value}</a>
-          : <div style={{fontSize:16,color:T.ink,lineHeight:1.5}}>{value}</div>}
+          ? <a href={href} style={{fontSize:14,color:T.accent,fontWeight:700,textDecoration:"none"}}>{value}</a>
+          : <div style={{fontSize:14,color:T.ink,lineHeight:1.5}}>{value}</div>}
       </div>
     </div>
   ) : null;
@@ -2554,7 +2554,7 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
     <div className="fu">
       {/* Back */}
       <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",
-        color:T.accent,fontWeight:700,fontSize:16,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"DM Sans,sans-serif"}}>
+        color:T.accent,fontWeight:700,fontSize:14,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"DM Sans,sans-serif"}}>
         ← Back to Users
       </button>
 
@@ -2564,12 +2564,12 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
           <div style={{display:"flex",alignItems:"center",gap:14}}>
             <Avatar name={user.name} role={user.role} size={52}/>
             <div>
-              <div style={{fontWeight:700,fontSize:28,color:T.ink}}>{user.name}</div>
+              <div style={{fontWeight:700,fontSize:25,color:T.ink}}>{user.name}</div>
               <div style={{display:"flex",alignItems:"center",gap:8,marginTop:4}}>
-                <span style={{fontSize:15,fontWeight:700,padding:"3px 12px",borderRadius:20,background:roleBg,color:roleColor}}>
+                <span style={{fontSize:13,fontWeight:700,padding:"3px 12px",borderRadius:20,background:roleBg,color:roleColor}}>
                   {user.role}{user.role==="Admin"&&user.adminLevel?` L${user.adminLevel}`:""}
                 </span>
-                {user.trade&&<span style={{fontSize:15,color:T.sub}}>🔧 {user.trade}</span>}
+                {user.trade&&<span style={{fontSize:13,color:T.sub}}>🔧 {user.trade}</span>}
               </div>
             </div>
           </div>
@@ -2583,7 +2583,7 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
 
         {/* Contact details */}
         <Card>
-          <div style={{fontSize:14,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>📋 Details</div>
+          <div style={{fontSize:12,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>📋 Details</div>
           <Field icon="✉" label="Email"  value={user.email}  href={user.email?`mailto:${user.email}`:null}/>
           <Field icon="📞" label="Phone"  value={user.phone}  href={user.phone?`tel:${user.phone}`:null}/>
           {user.company&&<Field icon="🏢" label="Company" value={user.company}/>}
@@ -2599,13 +2599,13 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
         {/* Compliance */}
         {(user.licenceExpiry||user.siteSafeExpiry||user.firstAidExpiry||user.licenceNumber||user.siteSafeNumber) && (
           <Card>
-            <div style={{fontSize:14,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>🪪 Compliance</div>
+            <div style={{fontSize:12,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>🪪 Compliance</div>
             {user.licenceExpiry&&(()=>{const d=daysUntil(user.licenceExpiry);return(
               <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",borderBottom:`1px solid ${T.border}`}}>
-                <span style={{fontSize:19,width:20,textAlign:"center",flexShrink:0}}>⚡</span>
+                <span style={{fontSize:17,width:20,textAlign:"center",flexShrink:0}}>⚡</span>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>EW Licence Expiry</div>
-                  <div style={{fontSize:16,fontWeight:700,color:expiryColor(d)}}>
+                  <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>EW Licence Expiry</div>
+                  <div style={{fontSize:14,fontWeight:700,color:expiryColor(d)}}>
                     {fmtDate(user.licenceExpiry)}{d!==null?` (${d<0?"Expired":d===0?"Today":`${d}d`})`:""}
                   </div>
                 </div>
@@ -2614,10 +2614,10 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
             <Field icon="🪪" label="Licence Number" value={user.licenceNumber}/>
             {user.siteSafeExpiry&&(()=>{const d=daysUntil(user.siteSafeExpiry);return(
               <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",borderBottom:`1px solid ${T.border}`}}>
-                <span style={{fontSize:19,width:20,textAlign:"center",flexShrink:0}}>🛡</span>
+                <span style={{fontSize:17,width:20,textAlign:"center",flexShrink:0}}>🛡</span>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>Site Safe Expiry</div>
-                  <div style={{fontSize:16,fontWeight:700,color:expiryColor(d)}}>
+                  <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>Site Safe Expiry</div>
+                  <div style={{fontSize:14,fontWeight:700,color:expiryColor(d)}}>
                     {fmtDate(user.siteSafeExpiry)}{d!==null?` (${d<0?"Expired":d===0?"Today":`${d}d`})`:""}
                   </div>
                 </div>
@@ -2626,10 +2626,10 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
             <Field icon="🛡" label="Site Safe Number" value={user.siteSafeNumber}/>
             {user.firstAidExpiry&&(()=>{const d=daysUntil(user.firstAidExpiry);return(
               <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",borderBottom:`1px solid ${T.border}`}}>
-                <span style={{fontSize:19,width:20,textAlign:"center",flexShrink:0}}>🏥</span>
+                <span style={{fontSize:17,width:20,textAlign:"center",flexShrink:0}}>🏥</span>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>First Aid Expiry</div>
-                  <div style={{fontSize:16,fontWeight:700,color:expiryColor(d)}}>
+                  <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>First Aid Expiry</div>
+                  <div style={{fontSize:14,fontWeight:700,color:expiryColor(d)}}>
                     {fmtDate(user.firstAidExpiry)}{d!==null?` (${d<0?"Expired":d===0?"Today":`${d}d`})`:""}
                   </div>
                 </div>
@@ -2641,7 +2641,7 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
         {/* Emergency contact */}
         {(user.emergencyContactName||user.emergencyContactPhone)&&(
           <Card style={{border:`1.5px solid ${T.red}33`,background:T.redL+"44"}}>
-            <div style={{fontSize:14,fontWeight:700,color:T.red,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>🚨 Emergency Contact</div>
+            <div style={{fontSize:12,fontWeight:700,color:T.red,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>🚨 Emergency Contact</div>
             <Field icon="👤" label="Name"         value={user.emergencyContactName}/>
             <Field icon="🤝" label="Relationship" value={user.emergencyContactRelationship}/>
             <Field icon="📞" label="Phone"         value={user.emergencyContactPhone} href={user.emergencyContactPhone?`tel:${user.emergencyContactPhone}`:null}/>
@@ -2651,7 +2651,7 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
         {/* Allocated apprentices */}
         {allocatedApprentices.length>0&&(
           <Card>
-            <div style={{fontSize:14,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>
+            <div style={{fontSize:12,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>
               👷 Allocated Apprentices ({allocatedApprentices.length})
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -2660,8 +2660,8 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
                   background:T.accentL,borderRadius:8}}>
                   <Avatar name={app.name} role="Apprentice" size={32}/>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,fontSize:16}}>{app.name}</div>
-                    <div style={{fontSize:14,color:T.sub}}>{app.trade||"—"}{app.hostBusiness?` · ${app.hostBusiness}`:""}</div>
+                    <div style={{fontWeight:700,fontSize:14}}>{app.name}</div>
+                    <div style={{fontSize:12,color:T.sub}}>{app.trade||"—"}{app.hostBusiness?` · ${app.hostBusiness}`:""}</div>
                   </div>
                 </div>
               ))}
@@ -2689,14 +2689,14 @@ function CRMUsersPanel({allUsers, navigateTo}) {
     <Card style={{marginBottom:14,border:`1.5px solid ${T.accentL}`}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <div style={{width:28,height:28,borderRadius:8,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{"👥"}</div>
+          <div style={{width:28,height:28,borderRadius:8,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>{"👥"}</div>
           <div>
-            <div style={{fontWeight:700,fontSize:16}}>KTA Users</div>
-            <div style={{fontSize:14,color:T.muted}}>{sorted.length} users</div>
+            <div style={{fontWeight:700,fontSize:14}}>KTA Users</div>
+            <div style={{fontSize:12,color:T.muted}}>{sorted.length} users</div>
           </div>
         </div>
         <div style={{display:"flex",gap:6}}>
-          {sorted.length>6&&<button onClick={()=>setOpen(p=>!p)} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,padding:"3px 9px",fontSize:14,color:T.muted,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{open?"Less":"All "+sorted.length}</button>}
+          {sorted.length>6&&<button onClick={()=>setOpen(p=>!p)} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,padding:"3px 9px",fontSize:12,color:T.muted,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{open?"Less":"All "+sorted.length}</button>}
           <Btn sm onClick={()=>navigateTo("users")}>Open Users</Btn>
         </div>
       </div>
@@ -2712,14 +2712,14 @@ function CRMUsersPanel({allUsers, navigateTo}) {
               onMouseLeave={e=>e.currentTarget.style.background=T.bg}>
               <Avatar name={u.name} role={u.role} size={28}/>
               <div style={{minWidth:0,flex:1}}>
-                <div style={{fontWeight:700,fontSize:15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name}</div>
-                <div style={{fontSize:12,color:roleColor,fontWeight:700}}>{roleLabel}{u.trade?" - "+u.trade:""}</div>
+                <div style={{fontWeight:700,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name}</div>
+                <div style={{fontSize:11,color:roleColor,fontWeight:700}}>{roleLabel}{u.trade?" - "+u.trade:""}</div>
               </div>
             </div>
           );
         })}
       </div>
-      {!open&&sorted.length>6&&<div style={{fontSize:14,color:T.muted,textAlign:"center",marginTop:6}}>+{sorted.length-6} more</div>}
+      {!open&&sorted.length>6&&<div style={{fontSize:12,color:T.muted,textAlign:"center",marginTop:6}}>+{sorted.length-6} more</div>}
     </Card>
   );
 }
@@ -2755,32 +2755,32 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
         onMouseEnter={e=>{if(!editing)e.currentTarget.style.background=T.accentL+"55";}}
         onMouseLeave={e=>{if(!editing)e.currentTarget.style.background="none";}}>
         <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>!editing&&setExpanded(s=>!s)}>
-          <div style={{fontWeight:700,fontSize:16,color:T.ink}}>{c.name}</div>
-          <div style={{fontSize:14,color:T.muted,display:"flex",gap:10,marginTop:1,flexWrap:"wrap"}}>
+          <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{c.name}</div>
+          <div style={{fontSize:12,color:T.muted,display:"flex",gap:10,marginTop:1,flexWrap:"wrap"}}>
             {c.email&&<span>✉ {c.email}</span>}
             {c.phone&&<span>📞 {c.phone}</span>}
             {(c.job_title||c.jobTitle)&&<span>💼 {c.job_title||c.jobTitle}</span>}
           </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
-          <span style={{fontSize:14,padding:"2px 8px",borderRadius:10,
+          <span style={{fontSize:12,padding:"2px 8px",borderRadius:10,
             background:c.status==="Active"?T.accentL:T.slateL,
             color:c.status==="Active"?T.accent:T.muted}}>{c.status||"Active"}</span>
           {canEdit&&!editing&&(
             <button onClick={()=>{setEditing(true);setExpanded(true);setForm({name:c.name||"",email:c.email||"",phone:c.phone||"",job_title:c.job_title||c.jobTitle||"",status:c.status||"Active",notes:c.notes||""});}}
-              style={{width:26,height:26,borderRadius:6,fontSize:15,background:"transparent",
+              style={{width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",
                 color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}
               onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
               onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
           )}
           <button onClick={()=>!editing&&setExpanded(s=>!s)}
-            style={{width:26,height:26,borderRadius:6,fontSize:12,background:"transparent",
+            style={{width:26,height:26,borderRadius:6,fontSize:11,background:"transparent",
               color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
             {expanded?"▲":"▼"}
           </button>
           {canDelete&&!isApprenticeContact&&(
             <button onClick={onDelete}
-              style={{width:26,height:26,borderRadius:6,fontSize:15,background:"transparent",
+              style={{width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",
                 color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}
               onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
               onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
@@ -2796,26 +2796,26 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10,marginBottom:10}}>
                 {[["name","Name"],["email","Email"],["phone","Phone"],["job_title","Job Title"]].map(([k,lbl])=>(
                   <div key={k}>
-                    <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>{lbl}</div>
+                    <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>{lbl}</div>
                     <input value={form[k]} onChange={e=>sf(k,e.target.value)}
-                      style={{width:"100%",fontSize:16,padding:"6px 10px",borderRadius:6,
+                      style={{width:"100%",fontSize:14,padding:"6px 10px",borderRadius:6,
                         border:`1.5px solid ${T.border}`,background:T.surface,color:T.ink,
                         fontFamily:"DM Sans,sans-serif",boxSizing:"border-box"}}/>
                   </div>
                 ))}
                 <div>
-                  <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>Status</div>
+                  <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>Status</div>
                   <select value={form.status} onChange={e=>sf("status",e.target.value)}
-                    style={{width:"100%",fontSize:16,padding:"6px 10px",borderRadius:6,
+                    style={{width:"100%",fontSize:14,padding:"6px 10px",borderRadius:6,
                       border:`1.5px solid ${T.border}`,background:T.surface,color:T.ink,fontFamily:"DM Sans,sans-serif"}}>
                     {["Active","Prospect","Inactive"].map(s=><option key={s}>{s}</option>)}
                   </select>
                 </div>
               </div>
               <div style={{marginBottom:10}}>
-                <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>Notes</div>
+                <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>Notes</div>
                 <textarea value={form.notes} onChange={e=>sf("notes",e.target.value)} rows={2}
-                  style={{width:"100%",fontSize:16,padding:"6px 10px",borderRadius:6,
+                  style={{width:"100%",fontSize:14,padding:"6px 10px",borderRadius:6,
                     border:`1.5px solid ${T.border}`,background:T.surface,color:T.ink,
                     fontFamily:"DM Sans,sans-serif",resize:"vertical",boxSizing:"border-box"}}/>
               </div>
@@ -2823,7 +2823,7 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
                 <Btn sm onClick={save} disabled={saving}>{saving?"Saving…":"💾 Save"}</Btn>
                 <Btn sm v="ghost" onClick={()=>setEditing(false)}>Cancel</Btn>
                 <button onClick={()=>{setEditing(false);onView();}}
-                  style={{marginLeft:"auto",fontSize:15,color:T.accent,background:"none",border:"none",
+                  style={{marginLeft:"auto",fontSize:13,color:T.accent,background:"none",border:"none",
                     cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:700,textDecoration:"underline"}}>
                   Full profile →
                 </button>
@@ -2831,9 +2831,9 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
             </div>
           ) : (
             <div style={{padding:"4px 0 4px 4px",display:"flex",flexWrap:"wrap",gap:"6px 20px"}}>
-              {c.notes&&<div style={{width:"100%",fontSize:15,color:T.sub,lineHeight:1.5}}>📝 {c.notes}</div>}
+              {c.notes&&<div style={{width:"100%",fontSize:13,color:T.sub,lineHeight:1.5}}>📝 {c.notes}</div>}
               <button onClick={onView}
-                style={{fontSize:15,color:T.accent,background:"none",border:"none",
+                style={{fontSize:13,color:T.accent,background:"none",border:"none",
                   cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:700,padding:0,textDecoration:"underline"}}>
                 View full profile →
               </button>
@@ -2904,8 +2904,8 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
         display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
         <div style={{background:"#fff",borderRadius:14,padding:28,maxWidth:560,width:"100%",
           boxShadow:"0 8px 40px rgba(0,0,0,.18)"}}>
-          <div style={{fontFamily:"DM Sans",fontSize:22,fontWeight:700,marginBottom:4}}>Merge Duplicates</div>
-          <div style={{fontSize:16,color:T.sub,marginBottom:20}}>
+          <div style={{fontFamily:"DM Sans",fontSize:19,fontWeight:700,marginBottom:4}}>Merge Duplicates</div>
+          <div style={{fontSize:14,color:T.sub,marginBottom:20}}>
             Select which record becomes the <strong>master</strong>. All contacts/links will be moved to it, missing fields will be filled from the others, then duplicates are deleted.
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
@@ -2918,23 +2918,23 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
                   transition:"all .14s"}}>
                 <div style={{width:36,height:36,borderRadius:"50%",background:masterId===item.id?T.teal:T.border,
                   display:"flex",alignItems:"center",justifyContent:"center",
-                  fontSize:18,fontWeight:700,color:"#fff",flexShrink:0}}>
+                  fontSize:16,fontWeight:700,color:"#fff",flexShrink:0}}>
                   {masterId===item.id?"★":"○"}
                 </div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:700,fontSize:18,color:T.ink}}>{item.name}</div>
-                  <div style={{fontSize:14,color:T.muted,marginTop:2,display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <div style={{fontWeight:700,fontSize:16,color:T.ink}}>{item.name}</div>
+                  <div style={{fontSize:12,color:T.muted,marginTop:2,display:"flex",gap:8,flexWrap:"wrap"}}>
                     {item.email&&<span>✉ {item.email}</span>}
                     {item.phone&&<span>📞 {item.phone}</span>}
                     {item.city&&<span>📍 {item.city}</span>}
                     {item.address&&<span>{item.address}</span>}
                   </div>
                 </div>
-                {masterId===item.id&&<span style={{fontSize:14,fontWeight:700,color:T.teal,flexShrink:0}}>MASTER</span>}
+                {masterId===item.id&&<span style={{fontSize:12,fontWeight:700,color:T.teal,flexShrink:0}}>MASTER</span>}
               </button>
             ))}
           </div>
-          <div style={{fontSize:15,color:T.warn,background:T.warnL,borderRadius:8,padding:"8px 12px",marginBottom:16}}>
+          <div style={{fontSize:13,color:T.warn,background:T.warnL,borderRadius:8,padding:"8px 12px",marginBottom:16}}>
             ⚠ This will permanently delete {mergeGroup.length-1} record{mergeGroup.length>2?"s":""} after merging.
           </div>
           <div style={{display:"flex",gap:8}}>
@@ -2952,12 +2952,12 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
         onClick={()=>setShow(s=>!s)}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:32,height:32,borderRadius:8,background:T.warnL,display:"flex",
-            alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>🔁</div>
+            alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🔁</div>
           <div>
-            <div style={{fontWeight:700,fontSize:16,color:T.warn}}>
+            <div style={{fontWeight:700,fontSize:14,color:T.warn}}>
               Find Duplicate {type === "contacts" ? "Contacts" : "Companies"}
             </div>
-            <div style={{fontSize:14,color:T.muted,marginTop:1}}>
+            <div style={{fontSize:12,color:T.muted,marginTop:1}}>
               {show && groups.length > 0
                 ? `${groups.length} potential duplicate group${groups.length!==1?"s":""} found`
                 : show && groups.length === 0
@@ -2976,10 +2976,10 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
         <div style={{marginTop:14}}>
           {/* Match by toggle */}
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
-            <span style={{fontSize:15,color:T.muted,fontWeight:700}}>Match by:</span>
+            <span style={{fontSize:13,color:T.muted,fontWeight:700}}>Match by:</span>
             {["name","email"].map(opt => (
               <button key={opt} onClick={()=>{setMatchBy(opt);setDismissed(new Set());}}
-                style={{padding:"4px 14px",borderRadius:8,fontSize:15,fontWeight:700,
+                style={{padding:"4px 14px",borderRadius:8,fontSize:13,fontWeight:700,
                   cursor:"pointer",fontFamily:"DM Sans,sans-serif",
                   background:matchBy===opt?T.warn:T.bg,
                   color:matchBy===opt?"#fff":T.sub,
@@ -2988,12 +2988,12 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
               </button>
             ))}
             {type === "contacts" && matchBy === "email" && (
-              <span style={{fontSize:14,color:T.muted}}>— blank emails are ignored</span>
+              <span style={{fontSize:12,color:T.muted}}>— blank emails are ignored</span>
             )}
           </div>
 
           {groups.length === 0 ? (
-            <div style={{padding:"20px 0",textAlign:"center",color:T.teal,fontSize:16,fontWeight:700}}>
+            <div style={{padding:"20px 0",textAlign:"center",color:T.teal,fontSize:14,fontWeight:700}}>
               ✓ No duplicates found by {matchBy}
             </div>
           ) : (
@@ -3004,13 +3004,13 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
                   {/* Group header */}
                   <div style={{background:T.warnL,padding:"8px 14px",display:"flex",
                     alignItems:"center",justifyContent:"space-between"}}>
-                    <div style={{fontSize:15,fontWeight:700,color:T.warn}}>
+                    <div style={{fontSize:13,fontWeight:700,color:T.warn}}>
                       {group.length} records · {matchBy==="name"
                         ? `"${group[0].name}"`
                         : `"${group[0].email}"`}
                     </div>
                     <button onClick={()=>dismiss(group)}
-                      style={{fontSize:14,color:T.muted,background:"none",border:"none",
+                      style={{fontSize:12,color:T.muted,background:"none",border:"none",
                         cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
                       Dismiss ✕
                     </button>
@@ -3023,8 +3023,8 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
                       background:i%2===0?T.surface:T.bg}}>
                       <Avatar name={item.name} role={type==="contacts"?"Apprentice":"Admin"} size={32}/>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:700,fontSize:16,color:T.ink}}>{item.name||"—"}</div>
-                        <div style={{fontSize:14,color:T.muted,display:"flex",gap:10,flexWrap:"wrap",marginTop:1}}>
+                        <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{item.name||"—"}</div>
+                        <div style={{fontSize:12,color:T.muted,display:"flex",gap:10,flexWrap:"wrap",marginTop:1}}>
                           {item.email&&<span>✉ {item.email}</span>}
                           {item.phone&&<span>📞 {item.phone}</span>}
                           {type==="contacts"&&item.company&&<span>🏢 {item.company}</span>}
@@ -3034,14 +3034,14 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
                       </div>
                       <div style={{display:"flex",gap:6,flexShrink:0}}>
                         <button onClick={()=>onView(item)}
-                          style={{fontSize:14,padding:"4px 10px",borderRadius:6,cursor:"pointer",
+                          style={{fontSize:12,padding:"4px 10px",borderRadius:6,cursor:"pointer",
                             background:T.accentL,color:T.accent,border:`1px solid ${T.accent}44`,
                             fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
                           View
                         </button>
                         {canDelete&&onMerge&&(
                           <button onClick={()=>{setMergeGroup(group);setMasterId(item.id);}}
-                            style={{fontSize:14,padding:"4px 10px",borderRadius:6,cursor:"pointer",
+                            style={{fontSize:12,padding:"4px 10px",borderRadius:6,cursor:"pointer",
                               background:T.tealL,color:T.teal,border:`1px solid ${T.teal}44`,
                               fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
                             🔀 Merge
@@ -3052,7 +3052,7 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
                             if(!window.confirm(`Delete "${item.name}"? This cannot be undone.`)) return;
                             onDelete(item.id);
                           }}
-                            style={{fontSize:14,padding:"4px 10px",borderRadius:6,cursor:"pointer",
+                            style={{fontSize:12,padding:"4px 10px",borderRadius:6,cursor:"pointer",
                               background:T.redL,color:T.red,border:`1px solid ${T.red}44`,
                               fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
                             Delete
@@ -3103,8 +3103,8 @@ function HubSpotPropertyInspector({ hsToken, hsFetch }) {
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}
         onClick={()=>setShowInspector(s=>!s)}>
         <div>
-          <div style={{fontWeight:700,fontSize:16,color:T.gold}}>🔍 Property Inspector</div>
-          <div style={{fontSize:14,color:T.muted,marginTop:2}}>
+          <div style={{fontWeight:700,fontSize:14,color:T.gold}}>🔍 Property Inspector</div>
+          <div style={{fontSize:12,color:T.muted,marginTop:2}}>
             Find exact HubSpot property names for licence expiry, emergency contact etc.
           </div>
         </div>
@@ -3116,7 +3116,7 @@ function HubSpotPropertyInspector({ hsToken, hsFetch }) {
 
       {showInspector&&(
         <div style={{marginTop:14}}>
-          <div style={{fontSize:15,color:T.sub,marginBottom:10,lineHeight:1.6}}>
+          <div style={{fontSize:13,color:T.sub,marginBottom:10,lineHeight:1.6}}>
             Fetches all property definitions from your HubSpot account and shows their exact internal names
             alongside a sample value from the first contact. Search for "licence", "safe", "emergency", "expiry" etc.
           </div>
@@ -3128,11 +3128,11 @@ function HubSpotPropertyInspector({ hsToken, hsFetch }) {
               <div style={{marginBottom:8,display:"flex",gap:8,alignItems:"center"}}>
                 <input placeholder="Filter by name or label…" value={propFilter}
                   onChange={e=>setPropFilter(e.target.value)}
-                  style={{flex:1,fontSize:15,padding:"5px 10px"}}/>
-                <span style={{fontSize:14,color:T.muted,flexShrink:0}}>{propData.length} properties</span>
+                  style={{flex:1,fontSize:13,padding:"5px 10px"}}/>
+                <span style={{fontSize:12,color:T.muted,flexShrink:0}}>{propData.length} properties</span>
               </div>
               <div style={{maxHeight:400,overflowY:"auto",border:`1px solid ${T.border}`,borderRadius:8}}>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:14}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
                   <thead>
                     <tr style={{background:T.bg,position:"sticky",top:0}}>
                       {["Internal Name","Label","Sample Value"].map(h=>(
@@ -3161,7 +3161,7 @@ function HubSpotPropertyInspector({ hsToken, hsFetch }) {
                   </tbody>
                 </table>
               </div>
-              <div style={{fontSize:14,color:T.muted,marginTop:8}}>
+              <div style={{fontSize:12,color:T.muted,marginTop:8}}>
                 💡 Properties shown in blue have data in your account. Share the exact names and we'll update the sync.
               </div>
             </>
@@ -3379,18 +3379,18 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
     const linkedApp = allUsers && allUsers.find(u=>u.role==="Apprentice"&&u.email&&detailContact.email&&u.email.toLowerCase()===detailContact.email.toLowerCase());
     return (
       <div className="fu">
-        <button onClick={()=>setDetailContact(null)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:T.accent,fontWeight:700,fontSize:16,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"DM Sans,sans-serif"}}>
+        <button onClick={()=>setDetailContact(null)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:T.accent,fontWeight:700,fontSize:14,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"DM Sans,sans-serif"}}>
           ← Back to Contacts
         </button>
         <Card style={{marginBottom:16}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
             <div>
-              <div style={{fontWeight:700,fontSize:28,color:T.ink}}>{detailContact.name}</div>
-              {co&&<div style={{fontSize:16,color:T.accent,fontWeight:700,marginTop:2,cursor:"pointer"}} onClick={()=>{setDetailContact(null);setDetailCompany(co);}}>{co.name}</div>}
-              {!co&&detailContact.company&&<div style={{fontSize:16,color:T.sub,marginTop:2}}>{detailContact.company}</div>}
+              <div style={{fontWeight:700,fontSize:25,color:T.ink}}>{detailContact.name}</div>
+              {co&&<div style={{fontSize:14,color:T.accent,fontWeight:700,marginTop:2,cursor:"pointer"}} onClick={()=>{setDetailContact(null);setDetailCompany(co);}}>{co.name}</div>}
+              {!co&&detailContact.company&&<div style={{fontSize:14,color:T.sub,marginTop:2}}>{detailContact.company}</div>}
             </div>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              <span style={{padding:"4px 12px",borderRadius:20,fontSize:15,fontWeight:700,background:detailContact.status==="Active"?T.accentL:detailContact.status==="Prospect"?T.warnL:T.slateL,color:detailContact.status==="Active"?T.accent:detailContact.status==="Prospect"?T.warn:T.muted}}>{detailContact.status}</span>
+              <span style={{padding:"4px 12px",borderRadius:20,fontSize:13,fontWeight:700,background:detailContact.status==="Active"?T.accentL:detailContact.status==="Prospect"?T.warnL:T.slateL,color:detailContact.status==="Active"?T.accent:detailContact.status==="Prospect"?T.warn:T.muted}}>{detailContact.status}</span>
               {canEdit&&<Btn sm onClick={()=>{startEditC(detailContact);setDetailContact(null);goTab("contacts");}}>✎ Edit</Btn>}
             </div>
           </div>
@@ -3401,11 +3401,11 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           <Card style={{marginBottom:16, border:`1.5px solid ${convertContact?T.accent:T.border}`}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div>
-                <div style={{fontWeight:700,fontSize:16,color:convertContact?T.accent:T.ink}}>👤 Make this contact a system user</div>
-                <div style={{fontSize:14,color:T.muted,marginTop:2}}>Adds them to KTA so they can log in</div>
+                <div style={{fontWeight:700,fontSize:14,color:convertContact?T.accent:T.ink}}>👤 Make this contact a system user</div>
+                <div style={{fontSize:12,color:T.muted,marginTop:2}}>Adds them to KTA so they can log in</div>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-                <span style={{fontSize:15,fontWeight:700,color:convertContact?T.accent:T.muted}}>{convertContact?"Yes":"No"}</span>
+                <span style={{fontSize:13,fontWeight:700,color:convertContact?T.accent:T.muted}}>{convertContact?"Yes":"No"}</span>
                 <div onClick={()=>{ setConvertContact(convertContact?null:detailContact); setConvertRole("Approver"); setConvertAlloc([]); setConvertDone(false); }}
                   style={{position:"relative",width:52,height:28,borderRadius:14,cursor:"pointer",
                     background:convertContact?T.accent:T.border,transition:"background .2s",flexShrink:0}}>
@@ -3418,18 +3418,18 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
             {convertContact && (
               <div style={{marginTop:16,borderTop:`1px solid ${T.border}`,paddingTop:16}}>
                 {convertDone ? (
-                  <div style={{textAlign:"center",color:T.teal,fontWeight:700,fontSize:18,padding:"8px 0"}}>
+                  <div style={{textAlign:"center",color:T.teal,fontWeight:700,fontSize:16,padding:"8px 0"}}>
                     ✓ User created successfully!
                   </div>
                 ) : (
                   <>
                     {/* Role picker */}
                     <div style={{marginBottom:14}}>
-                      <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Assign Role</div>
+                      <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Assign Role</div>
                       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                         {["Approver","Viewer","Mentor","Admin"].map(r=>(
                           <button key={r} onClick={()=>{setConvertRole(r);setConvertAlloc([]);}}
-                            style={{padding:"6px 16px",borderRadius:8,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                            style={{padding:"6px 16px",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif",
                               background:convertRole===r?T.accent:T.bg,
                               color:convertRole===r?"#fff":T.sub,
                               border:`1.5px solid ${convertRole===r?T.accent:T.border}`}}>
@@ -3442,11 +3442,11 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                     {/* Apprentice allocation — only for Approver/Viewer */}
                     {["Approver","Viewer"].includes(convertRole) && (
                       <div style={{marginBottom:14}}>
-                        <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>
+                        <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>
                           Allocate Apprentices
                         </div>
                         {allUsers.filter(u=>u.role==="Apprentice").length===0
-                          ? <div style={{fontSize:15,color:T.muted,fontStyle:"italic"}}>No apprentices in system yet</div>
+                          ? <div style={{fontSize:13,color:T.muted,fontStyle:"italic"}}>No apprentices in system yet</div>
                           : <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:180,overflowY:"auto"}}>
                             {allUsers.filter(u=>u.role==="Apprentice").sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(u=>{
                               const checked=convertAlloc.includes(u.id);
@@ -3456,12 +3456,12 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                                     background:checked?T.accentL:T.bg,border:`1.5px solid ${checked?T.accent:T.border}`}}>
                                   <div style={{width:16,height:16,borderRadius:4,background:checked?T.accent:T.surface,
                                     border:`2px solid ${checked?T.accent:T.border}`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                                    {checked&&<span style={{color:"#fff",fontSize:12,fontWeight:700}}>✓</span>}
+                                    {checked&&<span style={{color:"#fff",fontSize:11,fontWeight:700}}>✓</span>}
                                   </div>
                                   <Avatar name={u.name} role="Apprentice" size={24}/>
                                   <div style={{flex:1,minWidth:0}}>
-                                    <div style={{fontSize:16,fontWeight:700,color:T.ink}}>{u.name}</div>
-                                    {u.trade&&<div style={{fontSize:14,color:T.muted}}>{u.trade}</div>}
+                                    <div style={{fontSize:14,fontWeight:700,color:T.ink}}>{u.name}</div>
+                                    {u.trade&&<div style={{fontSize:12,color:T.muted}}>{u.trade}</div>}
                                   </div>
                                 </div>
                               );
@@ -3472,7 +3472,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                     )}
 
                     {/* Summary & save */}
-                    <div style={{background:T.accentL,borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:15,color:T.accent}}>
+                    <div style={{background:T.accentL,borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:T.accent}}>
                       Will create: <strong>{detailContact.name}</strong> as <strong>{convertRole}</strong>
                       {["Approver","Viewer"].includes(convertRole)&&convertAlloc.length>0&&` · ${convertAlloc.length} apprentice${convertAlloc.length!==1?"s":""} allocated`}
                       {["Approver","Viewer"].includes(convertRole)&&convertAlloc.length===0&&<span style={{color:T.warn}}> · No apprentices allocated yet</span>}
@@ -3492,7 +3492,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         {/* Already a user badge */}
         {isExistingUser(detailContact) && (
           <div style={{marginBottom:16,padding:"10px 14px",borderRadius:8,background:T.tealL,
-            border:`1px solid ${T.teal}44`,fontSize:15,color:T.teal,fontWeight:700}}>
+            border:`1px solid ${T.teal}44`,fontSize:13,color:T.teal,fontWeight:700}}>
             ✓ This contact is already a KTA system user
           </div>
         )}
@@ -3518,33 +3518,33 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
             {label:"📝 Notes",val:detailContact.notes},
           ].filter(f=>f.val).map(f=>(
             <Card key={f.label} style={{padding:"14px 16px"}}>
-              <div style={{fontSize:12,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:6}}>{f.label}</div>
+              <div style={{fontSize:11,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:6}}>{f.label}</div>
               {f.href
-                ? <a href={f.href} style={{fontSize:16,color:T.accent,fontWeight:700,textDecoration:"none"}}>{f.val}</a>
-                : <div style={{fontSize:16,color:T.ink,lineHeight:1.5}}>{f.val}</div>}
+                ? <a href={f.href} style={{fontSize:14,color:T.accent,fontWeight:700,textDecoration:"none"}}>{f.val}</a>
+                : <div style={{fontSize:14,color:T.ink,lineHeight:1.5}}>{f.val}</div>}
             </Card>
           ))}
         </div>
         {/* Emergency Contact */}
         {(detailContact.emergency_contact_name||detailContact.emergencyContactName)&&(
           <Card style={{marginTop:14,border:`1.5px solid ${T.red}33`,background:T.redL+"44"}}>
-            <div style={{fontSize:14,fontWeight:700,color:T.red,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>🚨 Emergency Contact</div>
+            <div style={{fontSize:12,fontWeight:700,color:T.red,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>🚨 Emergency Contact</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:"8px 20px"}}>
               <div>
-                <div style={{fontSize:12,color:T.muted,fontWeight:700,marginBottom:2}}>Name</div>
-                <div style={{fontSize:16,fontWeight:700,color:T.ink}}>{detailContact.emergency_contact_name||detailContact.emergencyContactName}</div>
+                <div style={{fontSize:11,color:T.muted,fontWeight:700,marginBottom:2}}>Name</div>
+                <div style={{fontSize:14,fontWeight:700,color:T.ink}}>{detailContact.emergency_contact_name||detailContact.emergencyContactName}</div>
               </div>
               {(detailContact.emergency_contact_relationship||detailContact.emergencyContactRelationship)&&(
                 <div>
-                  <div style={{fontSize:12,color:T.muted,fontWeight:700,marginBottom:2}}>Relationship</div>
-                  <div style={{fontSize:16,color:T.ink}}>{detailContact.emergency_contact_relationship||detailContact.emergencyContactRelationship}</div>
+                  <div style={{fontSize:11,color:T.muted,fontWeight:700,marginBottom:2}}>Relationship</div>
+                  <div style={{fontSize:14,color:T.ink}}>{detailContact.emergency_contact_relationship||detailContact.emergencyContactRelationship}</div>
                 </div>
               )}
               {(detailContact.emergency_contact_phone||detailContact.emergencyContactPhone)&&(
                 <div>
-                  <div style={{fontSize:12,color:T.muted,fontWeight:700,marginBottom:2}}>Phone</div>
+                  <div style={{fontSize:11,color:T.muted,fontWeight:700,marginBottom:2}}>Phone</div>
                   <a href={`tel:${detailContact.emergency_contact_phone||detailContact.emergencyContactPhone}`}
-                    style={{fontSize:16,color:T.accent,fontWeight:700,textDecoration:"none"}}>
+                    style={{fontSize:14,color:T.accent,fontWeight:700,textDecoration:"none"}}>
                     {detailContact.emergency_contact_phone||detailContact.emergencyContactPhone}
                   </a>
                 </div>
@@ -3554,23 +3554,23 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         )}
         {linkedApp&&(
           <Card style={{marginTop:14}}>
-            <div style={{fontSize:14,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>👷 KTA Apprentice</div>
+            <div style={{fontSize:12,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>👷 KTA Apprentice</div>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <Avatar name={linkedApp.name} role="Apprentice" size={36}/>
               <div>
-                <div style={{fontWeight:700,fontSize:18}}>{linkedApp.name}</div>
-                <div style={{fontSize:15,color:T.sub}}>{linkedApp.trade} · {linkedApp.hostBusiness}</div>
+                <div style={{fontWeight:700,fontSize:16}}>{linkedApp.name}</div>
+                <div style={{fontSize:13,color:T.sub}}>{linkedApp.trade} · {linkedApp.hostBusiness}</div>
               </div>
             </div>
           </Card>
         )}
         {co&&(
           <Card style={{marginTop:14}}>
-            <div style={{fontSize:14,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>🏢 Company Details</div>
+            <div style={{fontSize:12,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>🏢 Company Details</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:"8px 20px"}}>
-              {co.phone&&<div><span style={{fontSize:14,color:T.muted}}>Phone: </span><span style={{fontSize:16}}>{co.phone}</span></div>}
-              {co.website&&<div><span style={{fontSize:14,color:T.muted}}>Website: </span><a href={co.website.startsWith("http")?co.website:"https://"+co.website} target="_blank" rel="noreferrer" style={{fontSize:16,color:T.accent}}>{co.website}</a></div>}
-              {co.city&&<div><span style={{fontSize:14,color:T.muted}}>City: </span><span style={{fontSize:16}}>{co.city}</span></div>}
+              {co.phone&&<div><span style={{fontSize:12,color:T.muted}}>Phone: </span><span style={{fontSize:14}}>{co.phone}</span></div>}
+              {co.website&&<div><span style={{fontSize:12,color:T.muted}}>Website: </span><a href={co.website.startsWith("http")?co.website:"https://"+co.website} target="_blank" rel="noreferrer" style={{fontSize:14,color:T.accent}}>{co.website}</a></div>}
+              {co.city&&<div><span style={{fontSize:12,color:T.muted}}>City: </span><span style={{fontSize:14}}>{co.city}</span></div>}
             </div>
           </Card>
         )}
@@ -3613,7 +3613,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
     return (
       <div className="fu">
         {/* ── Back + header ── */}
-        <button onClick={()=>setDetailCompany(null)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:T.accent,fontWeight:700,fontSize:16,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"DM Sans,sans-serif"}}>
+        <button onClick={()=>setDetailCompany(null)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:T.accent,fontWeight:700,fontSize:14,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"DM Sans,sans-serif"}}>
           ← Back to Companies
         </button>
 
@@ -3622,16 +3622,16 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           {/* Top bar */}
           <div style={{background:`linear-gradient(135deg,${T.accent}18,${T.teal}12)`,borderBottom:`1px solid ${T.border}`,padding:"20px 24px",display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
             <div style={{display:"flex",alignItems:"center",gap:14}}>
-              <div style={{width:52,height:52,borderRadius:12,background:T.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,fontWeight:700,color:"#fff",flexShrink:0}}>
+              <div style={{width:52,height:52,borderRadius:12,background:T.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:25,fontWeight:700,color:"#fff",flexShrink:0}}>
                 {(co.name||"?")[0].toUpperCase()}
               </div>
               <div>
-                <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:28,color:T.ink}}>{co.name}</div>
+                <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:25,color:T.ink}}>{co.name}</div>
                 <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
-                  {co.industry&&<span style={{fontSize:15,color:T.sub,fontWeight:700}}>{co.industry}</span>}
-                  {co.city&&<span style={{fontSize:15,color:T.muted}}>📍 {co.city}{co.country&&co.country!=="New Zealand"?`, ${co.country}`:""}</span>}
-                  {co.isHostBusiness&&<span style={{fontSize:14,fontWeight:700,color:T.teal,background:T.tealL,padding:"2px 10px",borderRadius:20,border:`1px solid ${T.teal}44`}}>🏢 Host Business</span>}
-                  {co.status&&co.status!=="Active"&&<span style={{fontSize:14,fontWeight:700,color:T.warn,background:T.warnL,padding:"2px 10px",borderRadius:20}}>{co.status}</span>}
+                  {co.industry&&<span style={{fontSize:13,color:T.sub,fontWeight:700}}>{co.industry}</span>}
+                  {co.city&&<span style={{fontSize:13,color:T.muted}}>📍 {co.city}{co.country&&co.country!=="New Zealand"?`, ${co.country}`:""}</span>}
+                  {co.isHostBusiness&&<span style={{fontSize:12,fontWeight:700,color:T.teal,background:T.tealL,padding:"2px 10px",borderRadius:20,border:`1px solid ${T.teal}44`}}>🏢 Host Business</span>}
+                  {co.status&&co.status!=="Active"&&<span style={{fontSize:12,fontWeight:700,color:T.warn,background:T.warnL,padding:"2px 10px",borderRadius:20}}>{co.status}</span>}
                 </div>
               </div>
             </div>
@@ -3651,23 +3651,23 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               {icon:"🌏",label:"Country",   val:co.country},
             ].filter(f=>f.val).map(f=>(
               <div key={f.label}>
-                <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{f.icon} {f.label}</div>
+                <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{f.icon} {f.label}</div>
                 {f.isLink
-                  ? <a href={f.href} target="_blank" rel="noreferrer" style={{fontSize:16,color:T.accent,fontWeight:700,textDecoration:"none"}}>{f.val}</a>
+                  ? <a href={f.href} target="_blank" rel="noreferrer" style={{fontSize:14,color:T.accent,fontWeight:700,textDecoration:"none"}}>{f.val}</a>
                   : f.href
-                    ? <a href={f.href} style={{fontSize:16,color:T.accent,fontWeight:700,textDecoration:"none"}}>{f.val}</a>
-                    : <div style={{fontSize:16,color:T.ink,fontWeight:700}}>{f.val}</div>
+                    ? <a href={f.href} style={{fontSize:14,color:T.accent,fontWeight:700,textDecoration:"none"}}>{f.val}</a>
+                    : <div style={{fontSize:14,color:T.ink,fontWeight:700}}>{f.val}</div>
                 }
               </div>
             ))}
             {canEdit&&(
               <div>
-                <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:6}}>🏢 Host Business</div>
+                <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:6}}>🏢 Host Business</div>
                 <div onClick={toggleHostBusiness} style={{display:"inline-flex",alignItems:"center",gap:8,cursor:"pointer"}}>
                   <div style={{position:"relative",width:44,height:24,borderRadius:12,background:co.isHostBusiness?T.teal:T.border,transition:"background .2s",flexShrink:0}}>
                     <div style={{position:"absolute",top:2,left:co.isHostBusiness?22:2,width:20,height:20,borderRadius:"50%",background:"#fff",boxShadow:"0 1px 4px rgba(0,0,0,.2)",transition:"left .2s"}}/>
                   </div>
-                  <span style={{fontSize:15,fontWeight:700,color:co.isHostBusiness?T.teal:T.muted}}>{co.isHostBusiness?"Yes":"No"}</span>
+                  <span style={{fontSize:13,fontWeight:700,color:co.isHostBusiness?T.teal:T.muted}}>{co.isHostBusiness?"Yes":"No"}</span>
                 </div>
               </div>
             )}
@@ -3675,8 +3675,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
 
           {co.notes&&(
             <div style={{padding:"0 24px 16px"}}>
-              <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:6}}>📝 Notes</div>
-              <div style={{fontSize:16,color:T.ink,lineHeight:1.6,background:T.bg,borderRadius:8,padding:"10px 14px",border:`1px solid ${T.border}`}}>{co.notes}</div>
+              <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:6}}>📝 Notes</div>
+              <div style={{fontSize:14,color:T.ink,lineHeight:1.6,background:T.bg,borderRadius:8,padding:"10px 14px",border:`1px solid ${T.border}`}}>{co.notes}</div>
             </div>
           )}
         </div>
@@ -3689,8 +3689,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
             <div style={{background:"#fff",borderRadius:14,border:`1px solid ${T.border}`,overflow:"hidden"}}>
               <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <div style={{fontWeight:700,fontSize:19,color:T.ink}}>👥 Contacts</div>
-                  {linkedContacts.length>0&&<span style={{fontSize:14,fontWeight:700,color:"#fff",background:T.accent,borderRadius:20,padding:"1px 8px"}}>{linkedContacts.length}</span>}
+                  <div style={{fontWeight:700,fontSize:17,color:T.ink}}>👥 Contacts</div>
+                  {linkedContacts.length>0&&<span style={{fontSize:12,fontWeight:700,color:"#fff",background:T.accent,borderRadius:20,padding:"1px 8px"}}>{linkedContacts.length}</span>}
                 </div>
                 {canEdit&&(
                   <Btn sm onClick={()=>{resetContactForm();setEditCId(null);setCForm(f=>({...f,company:co.name,companyId:co.id}));setShowCF(true);setDetailCompany(null);goTab("contacts");}}>
@@ -3699,9 +3699,9 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 )}
               </div>
               {linkedContacts.length===0?(
-                <div style={{padding:"32px 20px",textAlign:"center",color:T.muted,fontSize:16,fontStyle:"italic"}}>
+                <div style={{padding:"32px 20px",textAlign:"center",color:T.muted,fontSize:14,fontStyle:"italic"}}>
                   No contacts linked to this company yet.<br/>
-                  <span style={{fontSize:15}}>Use "+ Add Contact" to create one.</span>
+                  <span style={{fontSize:13}}>Use "+ Add Contact" to create one.</span>
                 </div>
               ):(
                 <div>
@@ -3715,26 +3715,26 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                       onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                       <Avatar name={c.name} role="Approver" size={36}/>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:700,fontSize:18,color:T.ink}}>{c.name}</div>
-                        <div style={{fontSize:14,color:T.muted,marginTop:2,display:"flex",gap:12,flexWrap:"wrap"}}>
+                        <div style={{fontWeight:700,fontSize:16,color:T.ink}}>{c.name}</div>
+                        <div style={{fontSize:12,color:T.muted,marginTop:2,display:"flex",gap:12,flexWrap:"wrap"}}>
                           {(c.job_title||c.jobTitle)&&<span>💼 {c.job_title||c.jobTitle}</span>}
                           {c.email&&<span>✉ {c.email}</span>}
                           {c.phone&&<span>📞 {c.phone}</span>}
                         </div>
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
-                        <span style={{fontSize:14,padding:"2px 8px",borderRadius:10,
+                        <span style={{fontSize:12,padding:"2px 8px",borderRadius:10,
                           background:c.status==="Active"?T.accentL:T.slateL,
                           color:c.status==="Active"?T.accent:T.muted}}>{c.status||"Active"}</span>
                         {canEdit&&(
                           <button onClick={e=>{e.stopPropagation();startEditC(c);setDetailCompany(null);goTab("contacts");}}
-                            style={{width:26,height:26,borderRadius:6,fontSize:14,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
+                            style={{width:26,height:26,borderRadius:6,fontSize:12,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
                             onMouseEnter={e=>{e.stopPropagation();e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
                             onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
                         )}
                         {canDelete&&(
                           <button onClick={e=>{e.stopPropagation();if(!window.confirm(`Delete ${c.name}?`))return;setContacts(prev=>prev.filter(x=>x.id!==c.id));deleteRow("crm_contacts",c.id).catch(console.error);}}
-                            style={{width:26,height:26,borderRadius:6,fontSize:14,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
+                            style={{width:26,height:26,borderRadius:6,fontSize:12,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
                             onMouseEnter={e=>{e.stopPropagation();e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;}}
                             onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✕</button>
                         )}
@@ -3752,7 +3752,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
             {/* KTA Apprentices */}
             {allocatedApprentices.length>0&&(
               <div style={{background:"#fff",borderRadius:14,border:`1px solid ${T.border}`,overflow:"hidden"}}>
-                <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,fontWeight:700,fontSize:16,color:T.teal}}>
+                <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,fontWeight:700,fontSize:14,color:T.teal}}>
                   👷 KTA Apprentices ({allocatedApprentices.length})
                 </div>
                 <div style={{padding:"8px 0"}}>
@@ -3760,8 +3760,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                     <div key={app.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px"}}>
                       <Avatar name={app.name} role="Apprentice" size={30}/>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontWeight:700,fontSize:16,color:T.ink}}>{app.name}</div>
-                        <div style={{fontSize:14,color:T.teal}}>{app.trade||"—"}</div>
+                        <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{app.name}</div>
+                        <div style={{fontSize:12,color:T.teal}}>{app.trade||"—"}</div>
                       </div>
                     </div>
                   ))}
@@ -3771,14 +3771,14 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
 
             {/* Quick stats */}
             <div style={{background:"#fff",borderRadius:14,border:`1px solid ${T.border}`,padding:"14px 16px"}}>
-              <div style={{fontWeight:700,fontSize:15,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>Summary</div>
+              <div style={{fontWeight:700,fontSize:13,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>Summary</div>
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
                 {[
                   {label:"Contacts",   val:linkedContacts.length,       color:T.accent},
                   {label:"Apprentices",val:allocatedApprentices.length, color:T.teal},
                   {label:"Status",     val:co.status||"Active",          color:T.ink},
                 ].map(s=>(
-                  <div key={s.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:16}}>
+                  <div key={s.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:14}}>
                     <span style={{color:T.muted}}>{s.label}</span>
                     <span style={{fontWeight:700,color:s.color}}>{s.val}</span>
                   </div>
@@ -3794,10 +3794,10 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
   if(!fullAccess) return (
     <div className="fu">
       <div style={{background:T.warnL,border:`1.5px solid ${T.warn}44`,borderRadius:10,padding:"16px 20px",display:"flex",gap:12,alignItems:"center"}}>
-        <span style={{fontSize:28}}>🔒</span>
+        <span style={{fontSize:25}}>🔒</span>
         <div>
-          <strong style={{color:T.warn,fontSize:18}}>Restricted Access</strong>
-          <div style={{fontSize:16,color:T.sub,marginTop:3}}>CRM is available to Admins and Mentors only.</div>
+          <strong style={{color:T.warn,fontSize:16}}>Restricted Access</strong>
+          <div style={{fontSize:14,color:T.sub,marginTop:3}}>CRM is available to Admins and Mentors only.</div>
         </div>
       </div>
     </div>
@@ -3807,9 +3807,9 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
     <div className="fu">
       <div style={{background:ROLE_META[role].bg,border:`1.5px solid ${ROLE_META[role].color}44`,
         borderRadius:10,padding:"10px 16px",marginBottom:20,display:"flex",gap:10,alignItems:"center"}}>
-        <span style={{fontSize:20}}>{ROLE_META[role].symbol}</span>
-        <span style={{fontWeight:700,color:ROLE_META[role].color,fontSize:16}}>{role} View — </span>
-        <span style={{fontSize:16,color:T.sub}}>{canEdit?"Full CRM access — edit contacts and deals":"Read-only CRM view"}</span>
+        <span style={{fontSize:18}}>{ROLE_META[role].symbol}</span>
+        <span style={{fontWeight:700,color:ROLE_META[role].color,fontSize:14}}>{role} View — </span>
+        <span style={{fontSize:14,color:T.sub}}>{canEdit?"Full CRM access — edit contacts and deals":"Read-only CRM view"}</span>
       </div>
       <div className="stat-grid-4">
         <StatCard label="Contacts" value={contacts.length} color={T.blue}/>
@@ -3820,7 +3820,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
       <div style={{display:"flex",gap:8,marginBottom:20}}>
         {["contacts","companies","pipeline","deals","import"].map(t=>(
           <button key={t} onClick={()=>goTab(t)} style={{
-            padding:"7px 16px",borderRadius:8,fontSize:16,fontWeight:700,
+            padding:"7px 16px",borderRadius:8,fontSize:14,fontWeight:700,
             background:tab===t?T.accent:T.surface,color:tab===t?"#fff":T.sub,
             border:`1.5px solid ${tab===t?T.accentD:T.border}`,
             fontFamily:"DM Sans,sans-serif",cursor:"pointer",transition:"all .14s"
@@ -3858,10 +3858,10 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           {/* ── Step 1: HubSpot lookup (only shown for new contacts) ── */}
           {!editCId&&hsStatus!=="found"&&hsStatus!=="notfound"&&(
             <div style={{marginBottom:16}}>
-              <div style={{fontWeight:700,fontSize:16,color:T.ink,marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
-                <span style={{fontSize:20}}>🔍</span> Look up in HubSpot
+              <div style={{fontWeight:700,fontSize:14,color:T.ink,marginBottom:4,display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:18}}>🔍</span> Look up in HubSpot
               </div>
-              <div style={{fontSize:15,color:T.sub,marginBottom:10}}>Enter an email or phone number to auto-fill from HubSpot.</div>
+              <div style={{fontSize:13,color:T.sub,marginBottom:10}}>Enter an email or phone number to auto-fill from HubSpot.</div>
               <div style={{display:"flex",gap:8}}>
                 <input
                   placeholder="Email address or phone number…"
@@ -3872,7 +3872,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 />
                 <button onClick={handleHsLookup} disabled={hsStatus==="searching"||!hsEmail.trim()} style={{
                   padding:"9px 18px",background:T.accent,color:"#fff",border:`1.5px solid ${T.accentD}`,
-                  borderRadius:9,fontSize:16,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",
+                  borderRadius:9,fontSize:14,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap",
                   fontFamily:"DM Sans,sans-serif",opacity:(!hsEmail.trim()||hsStatus==="searching")?0.5:1,
                   display:"flex",alignItems:"center",gap:7,transition:"all .15s"
                 }}>
@@ -3884,7 +3884,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               </div>
               <div style={{marginTop:10,textAlign:"right"}}>
                 <button onClick={()=>setHsStatus("notfound")} style={{
-                  background:"none",border:"none",color:T.muted,fontSize:15,
+                  background:"none",border:"none",color:T.muted,fontSize:13,
                   cursor:"pointer",fontFamily:"DM Sans,sans-serif",textDecoration:"underline"
                 }}>Skip — enter manually</button>
               </div>
@@ -3894,24 +3894,24 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           {/* ── HubSpot result banner ── */}
           {hsStatus==="found"&&(
             <div style={{background:T.accentL,border:`1.5px solid ${T.accent}44`,borderRadius:9,
-              padding:"9px 14px",marginBottom:14,display:"flex",gap:10,alignItems:"center",fontSize:16}}>
-              <span style={{fontSize:20}}>✓</span>
+              padding:"9px 14px",marginBottom:14,display:"flex",gap:10,alignItems:"center",fontSize:14}}>
+              <span style={{fontSize:18}}>✓</span>
               <div style={{flex:1}}>
                 <strong style={{color:T.accent}}>Found in HubSpot</strong>
                 <span style={{color:T.sub,marginLeft:8}}>Fields auto-filled — review and save.</span>
               </div>
               <button onClick={()=>{setHsStatus(null);setHsSource(false);resetContactForm();}} style={{
-                background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:16,fontFamily:"DM Sans,sans-serif"
+                background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:14,fontFamily:"DM Sans,sans-serif"
               }}>✕ Clear</button>
             </div>
           )}
           {hsStatus==="notfound"&&!editCId&&(
             <div style={{background:T.warnL,border:`1.5px solid ${T.warn}44`,borderRadius:9,
-              padding:"9px 14px",marginBottom:14,display:"flex",gap:10,alignItems:"center",fontSize:16}}>
+              padding:"9px 14px",marginBottom:14,display:"flex",gap:10,alignItems:"center",fontSize:14}}>
               <span>⚠</span>
               <span style={{color:T.warn,flex:1}}>Not found in HubSpot — fill in manually below.</span>
               <button onClick={()=>{setHsStatus(null);setHsEmail("");}} style={{
-                background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:16,fontFamily:"DM Sans,sans-serif"
+                background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:14,fontFamily:"DM Sans,sans-serif"
               }}>← Try again</button>
             </div>
           )}
@@ -3982,7 +3982,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         </Card>}
         {contacts.length>0&&(
           <div style={{marginBottom:10,position:"relative"}}>
-            <span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",fontSize:18,color:T.muted,pointerEvents:"none"}}>🔍</span>
+            <span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",fontSize:16,color:T.muted,pointerEvents:"none"}}>🔍</span>
             <input
               value={contactSearch}
               onChange={e=>setContactSearch(e.target.value)}
@@ -3994,10 +3994,10 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         <Card style={{padding:0,overflow:"hidden"}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 140px 160px 100px 60px",
             padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-            fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
+            fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
             <span onClick={()=>setContactSort(s=>s==="az"?"za":"az")}
               style={{cursor:"pointer",userSelect:"none",display:"flex",alignItems:"center",gap:4}}>
-              Name <span style={{fontSize:12}}>{contactSort==="az"?"▲":"▼"}</span>
+              Name <span style={{fontSize:11}}>{contactSort==="az"?"▲":"▼"}</span>
             </span>
             <span>Email</span><span>Phone</span><span>Status</span><span/>
           </div>
@@ -4024,21 +4024,21 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 onMouseEnter={e=>e.currentTarget.style.background=T.accentL}
                 onMouseLeave={e=>e.currentTarget.style.background=i%2===0?T.surface:T.bg}>
                 <div>
-                  <div style={{fontWeight:700,fontSize:16,color:T.ink}}>{c.name}</div>
-                  {c.company&&<div style={{fontSize:14,color:T.muted}}>{c.company}</div>}
+                  <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{c.name}</div>
+                  {c.company&&<div style={{fontSize:12,color:T.muted}}>{c.company}</div>}
                 </div>
-                <div style={{fontSize:15,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.email||"—"}</div>
-                <div style={{fontSize:15,color:T.sub}}>{c.phone||"—"}</div>
+                <div style={{fontSize:13,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.email||"—"}</div>
+                <div style={{fontSize:13,color:T.sub}}>{c.phone||"—"}</div>
                 <Pill label={c.status} size="sm"
                   color={c.status==="Active"?T.accent:c.status==="Prospect"?T.warn:T.muted}
                   bg={c.status==="Active"?T.accentL:c.status==="Prospect"?T.warnL:T.slateL}/>
                 {canEdit&&<div style={{display:"flex",gap:5}} onClick={e=>e.stopPropagation()}>
-                  <button onClick={()=>startEditC(c)} style={{width:26,height:26,borderRadius:6,fontSize:15,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
+                  <button onClick={()=>startEditC(c)} style={{width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
                     onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
                     onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
                   {isAdmin1CRM&&!isExistingUser(c)&&(
                     <button onClick={()=>setDetailContact(c)} title="Make KTA User"
-                      style={{width:26,height:26,borderRadius:6,fontSize:15,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
+                      style={{width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
                       onMouseEnter={e=>{e.currentTarget.style.background=T.accentL;e.currentTarget.style.color=T.accent;}}
                       onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>👤</button>
                   )}
@@ -4053,7 +4053,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                           deleteRow("crm_contacts",c.id).catch(console.error);
                         }}
                         title={isApp?"Protected — linked to an apprentice":"Delete contact"}
-                        style={{width:26,height:26,borderRadius:6,fontSize:15,
+                        style={{width:26,height:26,borderRadius:6,fontSize:13,
                           background:"transparent",color:isApp?T.border:T.muted,
                           border:`1px solid ${isApp?T.border:T.border}`,
                           display:"flex",alignItems:"center",justifyContent:"center",
@@ -4071,7 +4071,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
             const q=contactSearch.toLowerCase();
             return (c.name||"").toLowerCase().includes(q)||(c.email||"").toLowerCase().includes(q)||(c.phone||"").toLowerCase().includes(q)||(c.company||"").toLowerCase().includes(q);
           }).length===0&&(
-            <div style={{padding:"32px",textAlign:"center",color:T.muted,fontSize:16}}>
+            <div style={{padding:"32px",textAlign:"center",color:T.muted,fontSize:14}}>
               No contacts match "<strong>{contactSearch}</strong>"
             </div>
           )}
@@ -4080,14 +4080,14 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
       {tab==="companies"&&(<>
         <div style={{marginBottom:14,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <div style={{fontSize:16,color:T.sub}}>
+            <div style={{fontSize:14,color:T.sub}}>
               {showHostsOnly
                 ? `${companies.filter(c=>c.isHostBusiness).length} host businesses`
                 : `${companies.length} companies`}
             </div>
             {showHostsOnly&&(
               <button onClick={()=>setShowHostsOnly(false)}
-                style={{fontSize:14,padding:"2px 10px",borderRadius:20,background:T.tealL,
+                style={{fontSize:12,padding:"2px 10px",borderRadius:20,background:T.tealL,
                   color:T.teal,border:`1px solid ${T.teal}44`,cursor:"pointer",
                   fontFamily:"DM Sans,sans-serif",fontWeight:700,display:"flex",alignItems:"center",gap:5}}>
                 🏢 Host Businesses only &nbsp;✕
@@ -4130,16 +4130,16 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         {showCoForm&&canEdit&&(
           <Card style={{marginBottom:16,border:`1.5px solid ${T.accent}44`}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
-              <div style={{fontWeight:700,fontSize:18,color:T.accent}}>{editCoId?"✎ Edit Company":"+ New Company"}</div>
+              <div style={{fontWeight:700,fontSize:16,color:T.accent}}>{editCoId?"✎ Edit Company":"+ New Company"}</div>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <span style={{fontSize:15,fontWeight:700,color:T.sub}}>🏢 Host Business</span>
+                <span style={{fontSize:13,fontWeight:700,color:T.sub}}>🏢 Host Business</span>
                 <div onClick={()=>scf("isHostBusiness",!coForm.isHostBusiness)}
                   style={{position:"relative",width:52,height:28,borderRadius:14,cursor:"pointer",
                     background:coForm.isHostBusiness?T.teal:T.border,transition:"background .2s",flexShrink:0}}>
                   <div style={{position:"absolute",top:3,left:coForm.isHostBusiness?26:3,width:22,height:22,
                     borderRadius:"50%",background:"#fff",boxShadow:"0 1px 4px rgba(0,0,0,.25)",transition:"left .2s"}}/>
                 </div>
-                <span style={{fontSize:15,fontWeight:700,color:coForm.isHostBusiness?T.teal:T.muted,minWidth:24}}>
+                <span style={{fontSize:13,fontWeight:700,color:coForm.isHostBusiness?T.teal:T.muted,minWidth:24}}>
                   {coForm.isHostBusiness?"Yes":"No"}
                 </span>
               </div>
@@ -4163,19 +4163,19 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         )}
 
         {companies.length===0&&!showCoForm&&(
-          <Card><div style={{textAlign:"center",color:T.muted,padding:24,fontSize:16}}>
+          <Card><div style={{textAlign:"center",color:T.muted,padding:24,fontSize:14}}>
             No companies yet. Use <strong>+ Add Company</strong> above or import from HubSpot using the <strong>Import</strong> tab.
           </div></Card>
         )}
         {showHostsOnly&&companies.filter(c=>c.isHostBusiness).length===0&&companies.length>0&&(
-          <Card><div style={{textAlign:"center",color:T.muted,padding:24,fontSize:16}}>
+          <Card><div style={{textAlign:"center",color:T.muted,padding:24,fontSize:14}}>
             No companies are flagged as Host Businesses yet. Open a company and toggle the <strong>🏢 Host Business</strong> switch to mark it.
           </div></Card>
         )}
         {companies.length>0&&(!showHostsOnly||companies.filter(c=>c.isHostBusiness).length>0)&&(
           <>
           <div style={{marginBottom:10,position:"relative"}}>
-            <span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",fontSize:18,color:T.muted,pointerEvents:"none"}}>🔍</span>
+            <span style={{position:"absolute",left:11,top:"50%",transform:"translateY(-50%)",fontSize:16,color:T.muted,pointerEvents:"none"}}>🔍</span>
             <input
               value={companySearch}
               onChange={e=>setCompanySearch(e.target.value)}
@@ -4186,10 +4186,10 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           <Card style={{padding:0,overflow:"hidden"}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 120px 150px 150px 60px",
               padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-              fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
+              fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
               <span onClick={()=>setCompanySort(s=>s==="az"?"za":"az")}
                 style={{cursor:"pointer",userSelect:"none",display:"flex",alignItems:"center",gap:4}}>
-                Company <span style={{fontSize:12}}>{companySort==="az"?"▲":"▼"}</span>
+                Company <span style={{fontSize:11}}>{companySort==="az"?"▲":"▼"}</span>
               </span>
               <span>Industry</span><span>Phone</span><span>City</span><span/>
             </div>
@@ -4215,23 +4215,23 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                     onMouseLeave={e=>e.currentTarget.style.background=i%2===0?T.surface:T.bg}>
                     <div>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <div style={{fontWeight:700,fontSize:16,color:T.ink}}>{co.name}</div>
-                        {co.isHostBusiness&&<span style={{fontSize:12,fontWeight:700,padding:"2px 7px",borderRadius:10,background:T.tealL,color:T.teal,flexShrink:0}}>Host</span>}
+                        <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{co.name}</div>
+                        {co.isHostBusiness&&<span style={{fontSize:11,fontWeight:700,padding:"2px 7px",borderRadius:10,background:T.tealL,color:T.teal,flexShrink:0}}>Host</span>}
                       </div>
                       {linkedContacts.length>0&&(
-                        <div style={{fontSize:14,color:T.muted,marginTop:2}}>
+                        <div style={{fontSize:12,color:T.muted,marginTop:2}}>
                           {linkedContacts.slice(0,3).map(c=>c.name).join(", ")}
                           {linkedContacts.length>3&&` +${linkedContacts.length-3} more`}
                         </div>
                       )}
                     </div>
-                    <div style={{fontSize:15,color:T.sub}}>{co.industry||"—"}</div>
-                    <div style={{fontSize:15,color:T.sub}}>{co.phone||"—"}</div>
-                    <div style={{fontSize:15,color:T.sub}}>{co.city||"—"}</div>
+                    <div style={{fontSize:13,color:T.sub}}>{co.industry||"—"}</div>
+                    <div style={{fontSize:13,color:T.sub}}>{co.phone||"—"}</div>
+                    <div style={{fontSize:13,color:T.sub}}>{co.city||"—"}</div>
                     <div style={{display:"flex",gap:5}} onClick={e=>e.stopPropagation()}>
                       {canEdit&&(
                         <button onClick={()=>{setCoForm({name:co.name,industry:co.industry||"",phone:co.phone||"",website:co.website||"",address:co.address||"",city:co.city||"",postcode:co.postcode||"",country:co.country||"New Zealand",notes:co.notes||"",status:co.status||"Active",isHostBusiness:co.isHostBusiness||false});setEditCoId(co.id);setShowCoForm(true);setExpandedCompany(null);window.scrollTo({top:0,behavior:"smooth"});}}
-                          style={{width:26,height:26,borderRadius:6,fontSize:15,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}
+                          style={{width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}
                           onMouseEnter={e=>{e.currentTarget.style.background=T.accentL;e.currentTarget.style.color=T.accent;}}
                           onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
                       )}
@@ -4240,7 +4240,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                           if(!window.confirm(`Delete ${co.name}?`)) return;
                           setCompanies(prev=>prev.filter(x=>x.id!==co.id));
                           deleteRow("crm_companies",co.id).catch(console.error);
-                        }} style={{width:26,height:26,borderRadius:6,fontSize:15,background:"transparent",
+                        }} style={{width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",
                           color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}
                           onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
                           onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
@@ -4254,7 +4254,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               const q=companySearch.toLowerCase();
               return (co.name||"").toLowerCase().includes(q)||(co.industry||"").toLowerCase().includes(q)||(co.city||"").toLowerCase().includes(q)||(co.phone||"").toLowerCase().includes(q);
             }).length===0&&(
-              <div style={{padding:"32px",textAlign:"center",color:T.muted,fontSize:16}}>
+              <div style={{padding:"32px",textAlign:"center",color:T.muted,fontSize:14}}>
                 No companies match "<strong>{companySearch}</strong>"
               </div>
             )}
@@ -4268,25 +4268,25 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           {pipeline.map(({stage,color,items,value})=>(
             <div key={stage}>
               <div style={{padding:"8px 11px",borderRadius:"9px 9px 0 0",background:color+"18",borderBottom:`2px solid ${color}`,marginBottom:8}}>
-                <div style={{fontWeight:700,fontSize:15,color}}>{stage}</div>
-                <div style={{fontSize:14,color:T.muted,marginTop:2}}>{items.length} · ${value.toLocaleString()}</div>
+                <div style={{fontWeight:700,fontSize:13,color}}>{stage}</div>
+                <div style={{fontSize:12,color:T.muted,marginTop:2}}>{items.length} · ${value.toLocaleString()}</div>
               </div>
               {items.map(d=>(
                 <div key={d.id} style={{background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:9,padding:"10px 12px",marginBottom:8}}>
-                  <div style={{fontWeight:700,fontSize:16}}>{d.title}</div>
-                  {d.contact&&<div style={{color:T.muted,fontSize:14,marginTop:2}}>{d.contact}</div>}
-                  {d.value&&<div style={{color,fontWeight:700,fontSize:18,marginTop:5}}>${parseFloat(d.value).toLocaleString()}</div>}
+                  <div style={{fontWeight:700,fontSize:14}}>{d.title}</div>
+                  {d.contact&&<div style={{color:T.muted,fontSize:12,marginTop:2}}>{d.contact}</div>}
+                  {d.value&&<div style={{color,fontWeight:700,fontSize:16,marginTop:5}}>${parseFloat(d.value).toLocaleString()}</div>}
                   {canEdit&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:9}}>
                     {STAGES.filter(s=>s!==stage).map(s=>(
                       <button key={s} onClick={()=>moveDeal(d.id,s)} style={{
-                        fontSize:11,padding:"2px 6px",borderRadius:4,
+                        fontSize:10,padding:"2px 6px",borderRadius:4,
                         background:STAGE_C[s]+"22",color:STAGE_C[s],border:"none",
                         fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>→{s}</button>
                     ))}
                   </div>}
                 </div>
               ))}
-              {items.length===0&&<div style={{color:T.muted,fontSize:14,textAlign:"center",paddingTop:12}}>Empty</div>}
+              {items.length===0&&<div style={{color:T.muted,fontSize:12,textAlign:"center",paddingTop:12}}>Empty</div>}
             </div>
           ))}
         </div>
@@ -4892,8 +4892,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           <div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12,marginBottom:12}}>
               <Card style={{border:`1.5px solid ${T.accent}33`}}>
-                <div style={{fontWeight:700,fontSize:16,marginBottom:4}}>🚀 Full Sync</div>
-                <div style={{fontSize:15,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+                <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>🚀 Full Sync</div>
+                <div style={{fontSize:13,color:T.sub,marginBottom:12,lineHeight:1.6}}>
                   Deletes all companies <em>and</em> contacts then re-imports everything fresh including links.
                 </div>
                 <Btn sm onClick={fullSync} disabled={hsImporting} style={{background:T.accent,color:"#fff",fontWeight:700,width:"100%"}}>
@@ -4901,8 +4901,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 </Btn>
               </Card>
               <Card style={{border:`1.5px solid ${T.teal}33`}}>
-                <div style={{fontWeight:700,fontSize:16,marginBottom:4}}>🏢 Add New Companies</div>
-                <div style={{fontSize:15,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+                <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>🏢 Add New Companies</div>
+                <div style={{fontSize:13,color:T.sub,marginBottom:12,lineHeight:1.6}}>
                   Adds companies from HubSpot that don't exist here yet. Existing companies are <strong>never deleted or overwritten</strong> — only new ones are added.
                 </div>
                 <Btn sm onClick={syncCompaniesOnly} disabled={hsImporting} style={{background:T.teal,color:"#fff",fontWeight:700,width:"100%"}}>
@@ -4910,8 +4910,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 </Btn>
               </Card>
               <Card style={{border:`1.5px solid ${T.blue}33`}}>
-                <div style={{fontWeight:700,fontSize:16,marginBottom:4}}>👥 Add New Contacts</div>
-                <div style={{fontSize:15,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+                <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>👥 Add New Contacts</div>
+                <div style={{fontSize:13,color:T.sub,marginBottom:12,lineHeight:1.6}}>
                   Adds contacts from HubSpot that don't exist here yet. Existing contacts are <strong>never deleted or overwritten</strong> — only new ones are added.
                 </div>
                 <Btn sm onClick={syncContactsOnly} disabled={hsImporting} style={{background:T.blue,color:"#fff",fontWeight:700,width:"100%"}}>
@@ -4919,8 +4919,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 </Btn>
               </Card>
               <Card style={{border:`1.5px solid ${T.gold}33`}}>
-                <div style={{fontWeight:700,fontSize:16,marginBottom:4}}>📋 Sync Activity</div>
-                <div style={{fontSize:15,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+                <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>📋 Sync Activity</div>
+                <div style={{fontSize:13,color:T.sub,marginBottom:12,lineHeight:1.6}}>
                   Imports all HubSpot activity — notes, calls, meetings, emails and tasks — linked to your contacts and companies. Safe to re-run; duplicates are skipped.
                 </div>
                 <Btn sm onClick={syncActivity} disabled={hsImporting} style={{background:T.gold,color:"#fff",fontWeight:700,width:"100%"}}>
@@ -4928,8 +4928,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 </Btn>
               </Card>
               <Card style={{border:`1.5px solid ${T.teal}33`,gridColumn:"1 / -1"}}>
-                <div style={{fontWeight:700,fontSize:16,marginBottom:4}}>👤 Sync User Compliance Data</div>
-                <div style={{fontSize:15,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+                <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>👤 Sync User Compliance Data</div>
+                <div style={{fontSize:13,color:T.sub,marginBottom:12,lineHeight:1.6}}>
                   Matches HubSpot contacts to KTA users by email and updates their <strong>EW Licence expiry, Site Safe, First Aid, licence numbers and emergency contact</strong> — without touching any other data. Run this whenever compliance data is updated in HubSpot.
                 </div>
                 <Btn sm onClick={syncUsersFromHubSpot} disabled={hsImporting} style={{background:T.teal,color:"#fff",fontWeight:700,width:"100%"}}>
@@ -4938,11 +4938,11 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               </Card>
             </div>
             <Card style={{marginBottom:12}}>
-              <div style={{fontSize:15,color:T.sub,marginBottom:8}}>HubSpot API Token (required for all sync options)</div>
+              <div style={{fontSize:13,color:T.sub,marginBottom:8}}>HubSpot API Token (required for all sync options)</div>
               <input type="password" placeholder="pat-ap1-xxxxxxxx…"
                 value={hsToken} onChange={e=>setHsToken(e.target.value)}
-                style={{width:"100%",fontFamily:"monospace",fontSize:15}}/>
-              {hsMsg&&<div style={{marginTop:10,fontSize:15,fontWeight:700,lineHeight:1.7,
+                style={{width:"100%",fontFamily:"monospace",fontSize:13}}/>
+              {hsMsg&&<div style={{marginTop:10,fontSize:13,fontWeight:700,lineHeight:1.7,
                 color:hsMsg.startsWith("✓")?T.teal:hsMsg.startsWith("Error")?T.red:T.sub}}>{hsMsg}</div>}
             </Card>
 
@@ -4950,8 +4950,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
 
             {canDelete&&(
               <Card style={{border:`1.5px solid ${T.red}44`,marginTop:8}}>
-                <div style={{fontWeight:700,fontSize:16,color:T.red,marginBottom:6}}>⚠ Danger Zone</div>
-                <div style={{fontSize:15,color:T.sub,marginBottom:12}}>
+                <div style={{fontWeight:700,fontSize:14,color:T.red,marginBottom:6}}>⚠ Danger Zone</div>
+                <div style={{fontSize:13,color:T.sub,marginBottom:12}}>
                   Permanently deletes <strong>all CRM contacts and companies</strong> from the database. This cannot be undone.
                 </div>
                 <button onClick={async()=>{
@@ -4965,7 +4965,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                     setHsMsg("✓ All contacts and companies deleted.");
                   } catch(e){ setHsMsg("Error: "+e.message); }
                 }} style={{background:T.red,color:"#fff",border:"none",borderRadius:8,
-                  padding:"8px 18px",fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                  padding:"8px 18px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
                   🗑 Delete All Contacts &amp; Companies
                 </button>
               </Card>
@@ -4995,7 +4995,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         <Card style={{padding:0,overflow:"hidden"}}>
           <div style={{display:"grid",gridTemplateColumns:"8px 1fr 140px 100px 120px 100px 40px",
             padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-            fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:10}}>
+            fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:10}}>
             <span/><span>Deal</span><span>Contact</span><span style={{textAlign:"right"}}>Value</span>
             <span>Stage</span><span>Close</span><span/>
           </div>
@@ -5005,15 +5005,15 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               padding:"12px 16px",borderBottom:i<deals.length-1?`1px solid ${T.border}44`:"none",
               background:i%2===0?T.surface:T.bg,alignItems:"center",gap:10,animationDelay:`${i*.03}s`}}>
               <div style={{width:8,height:34,borderRadius:3,background:STAGE_C[d.stage]||T.muted}}/>
-              <div><div style={{fontWeight:700,fontSize:16}}>{d.title}</div>
-                {d.notes&&<div style={{fontSize:14,color:T.muted,marginTop:1}}>{d.notes}</div>}</div>
-              <div style={{fontSize:15,color:T.sub}}>{d.contact||"—"}</div>
-              <div style={{textAlign:"right",fontFamily:"DM Sans",fontWeight:700,fontSize:18,color:STAGE_C[d.stage]||T.muted}}>
+              <div><div style={{fontWeight:700,fontSize:14}}>{d.title}</div>
+                {d.notes&&<div style={{fontSize:12,color:T.muted,marginTop:1}}>{d.notes}</div>}</div>
+              <div style={{fontSize:13,color:T.sub}}>{d.contact||"—"}</div>
+              <div style={{textAlign:"right",fontFamily:"DM Sans",fontWeight:700,fontSize:16,color:STAGE_C[d.stage]||T.muted}}>
                 {d.value?`$${parseFloat(d.value).toLocaleString()}`:"—"}</div>
               <Pill label={d.stage} size="sm" color={STAGE_C[d.stage]||T.muted} bg={(STAGE_C[d.stage]||T.muted)+"1a"}/>
-              <div style={{fontSize:14,color:T.muted}}>{d.closeDate?new Date(d.closeDate+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"}):"—"}</div>
+              <div style={{fontSize:12,color:T.muted}}>{d.closeDate?new Date(d.closeDate+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"}):"—"}</div>
               {canEdit&&<button onClick={()=>{ setDeals(prev=>prev.filter(x=>x.id!==d.id)); deleteRow("crm_deals",d.id).catch(console.error); }} style={{
-                width:26,height:26,borderRadius:6,fontSize:15,background:"transparent",color:T.muted,
+                width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",color:T.muted,
                 border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
                 onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
                 onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>}
@@ -5047,16 +5047,16 @@ function WeeklyHoursList({allUsers, entries}) {
   return (
     <div className="fu">
       <div style={{marginBottom:18}}>
-        <div style={{fontFamily:"DM Sans",fontSize:22,fontWeight:700}}>Hours This Week</div>
-        <div style={{fontSize:15,color:T.sub,marginTop:3}}>All timesheet entries from this week, grouped by apprentice.</div>
+        <div style={{fontFamily:"DM Sans",fontSize:19,fontWeight:700}}>Hours This Week</div>
+        <div style={{fontSize:13,color:T.sub,marginTop:3}}>All timesheet entries from this week, grouped by apprentice.</div>
       </div>
 
       {/* Global type summary bar */}
       {weekEntries.length>0 && (
         <Card style={{marginBottom:20,padding:"16px 20px"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-            <div style={{fontSize:16,fontWeight:700}}>All Apprentices — Week Total</div>
-            <div style={{fontFamily:"'Libre Baskerville'",fontSize:28,fontWeight:700,color:T.accent}}>{globalTotal}h</div>
+            <div style={{fontSize:14,fontWeight:700}}>All Apprentices — Week Total</div>
+            <div style={{fontFamily:"'Libre Baskerville'",fontSize:25,fontWeight:700,color:T.accent}}>{globalTotal}h</div>
           </div>
           {/* Type breakdown pills */}
           <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
@@ -5066,9 +5066,9 @@ function WeeklyHoursList({allUsers, entries}) {
                 <div key={type} style={{display:"flex",alignItems:"center",gap:6,
                   background:m.bg,border:`1px solid ${m.color}44`,
                   borderRadius:8,padding:"5px 10px"}}>
-                  <span style={{fontSize:16}}>{m.sym}</span>
-                  <span style={{fontSize:15,color:m.color,fontWeight:700}}>{type}</span>
-                  <span style={{fontSize:16,fontWeight:700,color:m.color,fontFamily:"DM Sans"}}>{hrs.toFixed(1)}h</span>
+                  <span style={{fontSize:14}}>{m.sym}</span>
+                  <span style={{fontSize:13,color:m.color,fontWeight:700}}>{type}</span>
+                  <span style={{fontSize:14,fontWeight:700,color:m.color,fontFamily:"DM Sans"}}>{hrs.toFixed(1)}h</span>
                 </div>
               );
             })}
@@ -5100,13 +5100,13 @@ function WeeklyHoursList({allUsers, entries}) {
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:appEntries.length>0?12:0}}>
               <Avatar name={app.name} role="Apprentice" size={36}/>
               <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:18}}>{app.name}</div>
-                <div style={{fontSize:15,color:T.sub}}>{appEntries.length} entr{appEntries.length===1?"y":"ies"} this week</div>
+                <div style={{fontWeight:700,fontSize:16}}>{app.name}</div>
+                <div style={{fontSize:13,color:T.sub}}>{appEntries.length} entr{appEntries.length===1?"y":"ies"} this week</div>
               </div>
-              <div style={{fontFamily:"'Libre Baskerville'",fontSize:28,fontWeight:700,color:T.accent}}>{totalHrs.toFixed(1)}h</div>
+              <div style={{fontFamily:"'Libre Baskerville'",fontSize:25,fontWeight:700,color:T.accent}}>{totalHrs.toFixed(1)}h</div>
             </div>
 
-            {appEntries.length===0 && <div style={{fontSize:15,color:T.muted,fontStyle:"italic"}}>No entries this week.</div>}
+            {appEntries.length===0 && <div style={{fontSize:13,color:T.muted,fontStyle:"italic"}}>No entries this week.</div>}
 
             {appEntries.length>0 && (<>
               {/* Type breakdown pills for this apprentice */}
@@ -5117,9 +5117,9 @@ function WeeklyHoursList({allUsers, entries}) {
                     <div key={type} style={{display:"flex",alignItems:"center",gap:5,
                       background:m.bg,border:`1px solid ${m.color}33`,
                       borderRadius:6,padding:"3px 8px"}}>
-                      <span style={{fontSize:14}}>{m.sym}</span>
-                      <span style={{fontSize:14,color:m.color,fontWeight:700}}>{type}</span>
-                      <span style={{fontSize:15,fontWeight:700,color:m.color}}>{hrs.toFixed(1)}h</span>
+                      <span style={{fontSize:12}}>{m.sym}</span>
+                      <span style={{fontSize:12,color:m.color,fontWeight:700}}>{type}</span>
+                      <span style={{fontSize:13,fontWeight:700,color:m.color}}>{hrs.toFixed(1)}h</span>
                     </div>
                   );
                 })}
@@ -5138,7 +5138,7 @@ function WeeklyHoursList({allUsers, entries}) {
                 {appEntries.map((e,i)=>(
                   <div key={e.id} style={{display:"grid",gridTemplateColumns:"110px 1fr 120px 60px 90px",
                     gap:8,padding:"7px 4px",borderBottom:i<appEntries.length-1?`1px solid ${T.border}44`:"none",
-                    alignItems:"center",fontSize:15}}>
+                    alignItems:"center",fontSize:13}}>
                     <div style={{fontWeight:700}}>{fmtD(e.date)}</div>
                     <div style={{color:e.note?T.ink:T.muted,fontStyle:e.note?"normal":"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.note||"No note"}</div>
                     <TypePill type={e.type} size="sm"/>
@@ -5166,18 +5166,18 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
   return (
     <div className="fu">
       <div style={{marginBottom:18}}>
-        <div style={{fontFamily:"DM Sans",fontSize:22,fontWeight:700}}>
+        <div style={{fontFamily:"DM Sans",fontSize:19,fontWeight:700}}>
           {status==="submitted"?"Pending":status==="approved"?"Submitted — Approved":"Submitted — Not Approved"}
         </div>
-        <div style={{fontSize:15,color:T.sub,marginTop:3}}>
+        <div style={{fontSize:13,color:T.sub,marginTop:3}}>
           {filtered.length} entr{filtered.length===1?"y":"ies"} — grouped by apprentice A–Z.
         </div>
       </div>
       {filtered.length===0 && (
         <Card style={{textAlign:"center",padding:"48px 24px"}}>
-          <div style={{fontSize:40,marginBottom:8}}>{isPending?"✓":"◈"}</div>
-          <div style={{fontWeight:700,fontSize:19}}>{status==="submitted"?"All caught up!":status==="approved"?"No approved entries yet.":"No declined entries."}</div>
-          <div style={{fontSize:15,color:T.sub,marginTop:6}}>{status==="submitted"?"No timesheets are waiting for approval.":""}</div>
+          <div style={{fontSize:35,marginBottom:8}}>{isPending?"✓":"◈"}</div>
+          <div style={{fontWeight:700,fontSize:17}}>{status==="submitted"?"All caught up!":status==="approved"?"No approved entries yet.":"No declined entries."}</div>
+          <div style={{fontSize:13,color:T.sub,marginTop:6}}>{status==="submitted"?"No timesheets are waiting for approval.":""}</div>
         </Card>
       )}
       {apprentices.map(app=>{
@@ -5188,8 +5188,8 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
               <Avatar name={app.name} role="Apprentice" size={36}/>
               <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:18}}>{app.name}</div>
-                <div style={{fontSize:15,color:T.sub}}>{appEntries.length} {status} entr{appEntries.length===1?"y":"ies"}</div>
+                <div style={{fontWeight:700,fontSize:16}}>{app.name}</div>
+                <div style={{fontSize:13,color:T.sub}}>{appEntries.length} {status} entr{appEntries.length===1?"y":"ies"}</div>
               </div>
             </div>
             <div style={{borderTop:`1px solid ${T.border}`,paddingTop:10}}>
@@ -5197,15 +5197,15 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
                 <div key={e.id} style={{display:"grid",
                   gridTemplateColumns:isPending?"110px 1fr 120px 60px 80px":"110px 1fr 120px 60px",
                   gap:8,padding:"8px 4px",borderBottom:i<appEntries.length-1?`1px solid ${T.border}44`:"none",
-                  alignItems:"center",fontSize:15}}>
+                  alignItems:"center",fontSize:13}}>
                   <div style={{fontWeight:700}}>{fmtD(e.date)}</div>
                   <div style={{color:e.note?T.ink:T.muted,fontStyle:e.note?"normal":"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.note||"No note"}</div>
                   <TypePill type={e.type} size="sm"/>
                   <div style={{fontWeight:700,color:TYPE_META[e.type]?.color||T.accent,textAlign:"center"}}>{e.netHours}h</div>
                   {isPending && (
                     <div style={{display:"flex",gap:4}}>
-                      <button onClick={()=>onApprove(e.id)} style={{width:28,height:28,borderRadius:6,fontSize:16,background:T.accentL,color:T.accent,border:`1px solid ${T.accent}44`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} title="Approve">✓</button>
-                      <button onClick={()=>onDecline(e.id)} style={{width:28,height:28,borderRadius:6,fontSize:16,background:T.redL,color:T.red,border:`1px solid ${T.red}44`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} title="Decline">✕</button>
+                      <button onClick={()=>onApprove(e.id)} style={{width:28,height:28,borderRadius:6,fontSize:14,background:T.accentL,color:T.accent,border:`1px solid ${T.accent}44`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} title="Approve">✓</button>
+                      <button onClick={()=>onDecline(e.id)} style={{width:28,height:28,borderRadius:6,fontSize:14,background:T.redL,color:T.red,border:`1px solid ${T.red}44`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} title="Decline">✕</button>
                     </div>
                   )}
                 </div>
@@ -5346,7 +5346,7 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
 
   return (
     <div>
-      {title && <div style={{fontWeight:700,fontSize:18,color:T.blue,marginBottom:14}}>{title}</div>}
+      {title && <div style={{fontWeight:700,fontSize:16,color:T.blue,marginBottom:14}}>{title}</div>}
       <div style={{display:"none"}} aria-hidden="true">
         <input type="text" name="username" tabIndex={-1}/>
         <input type="email" name="email" tabIndex={-1}/>
@@ -5404,14 +5404,14 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
             <input type="email" placeholder="e.g. manager@company.co.nz"
               value={form.reportsEmail||""} onChange={e=>sf("reportsEmail",e.target.value)}/>
           )}
-          <div style={{fontSize:12,color:T.muted,marginTop:2}}>
+          <div style={{fontSize:11,color:T.muted,marginTop:2}}>
             {companyContacts.length>0
               ? `${companyContacts.length} contact${companyContacts.length!==1?"s":""} from ${form.hostBusiness||"host business"} — or type any email`
               : "Visit reports emailed here + apprentice. Leave blank to use approver."}
           </div>
         </div>
         <div style={{gridColumn:"1/-1"}}>
-          <div style={{fontWeight:700,fontSize:15,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>Overtime Settings</div>
+          <div style={{fontWeight:700,fontSize:13,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>Overtime Settings</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
             <div><FL>Overtime Type</FL>
               <select value={form.overtimeType||""} onChange={e=>sf("overtimeType",e.target.value||null)}>
@@ -5454,7 +5454,7 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
               value={pwField} onChange={e=>setPwField(e.target.value)} style={{paddingRight:60}}/>
             <button onClick={()=>setShowPw(s=>!s)} type="button"
               style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",
-                background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:15}}>
+                background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:13}}>
               {showPw?"Hide":"Show"}
             </button>
           </div>
@@ -5589,8 +5589,8 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
       {/* Header */}
       <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:18}}>
         <div>
-          <div style={{fontFamily:"DM Sans", fontSize:22, fontWeight:700}}>Apprentices</div>
-          <div style={{fontSize:15, color:T.sub, marginTop:3}}>{apprentices.length} apprentice{apprentices.length!==1?"s":""} — click a row to view their timesheet, or expand to manage allocations.</div>
+          <div style={{fontFamily:"DM Sans", fontSize:19, fontWeight:700}}>Apprentices</div>
+          <div style={{fontSize:13, color:T.sub, marginTop:3}}>{apprentices.length} apprentice{apprentices.length!==1?"s":""} — click a row to view their timesheet, or expand to manage allocations.</div>
         </div>
         <Btn onClick={()=>{setForm(blank);setEditId(null);setPwField("");setExpandId(null);setFormApproverId("");setFormViewerId("");setShowForm(s=>!s);}}>
           {showForm ? "✕ Cancel" : "+ Add Apprentice"}
@@ -5600,7 +5600,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
       {/* Add form — top of page for new apprentices only */}
       {showForm && !editId && (
         <Card style={{marginBottom:20, border:`1.5px solid ${T.blue}44`}}>
-          <div style={{fontWeight:700, fontSize:18, marginBottom:16, color:T.blue}}>{editId?"✎ Edit Apprentice":"+ New Apprentice"}</div>
+          <div style={{fontWeight:700, fontSize:16, marginBottom:16, color:T.blue}}>{editId?"✎ Edit Apprentice":"+ New Apprentice"}</div>
           {/* Hidden honeypot inputs — absorb Chrome autofill before it hits real fields */}
           <div style={{display:"none"}} aria-hidden="true">
             <input type="text" name="username" tabIndex={-1}/>
@@ -5644,11 +5644,11 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
               <input type="email" placeholder="e.g. manager@company.co.nz"
                 value={form.reportsEmail||""}
                 onChange={e=>sf("reportsEmail",e.target.value)}/>
-              <div style={{fontSize:12,color:T.muted,marginTop:2}}>Visit reports emailed here + apprentice. Leave blank to use approver.</div>
+              <div style={{fontSize:11,color:T.muted,marginTop:2}}>Visit reports emailed here + apprentice. Leave blank to use approver.</div>
             </div>
             {/* ── Overtime Settings ── */}
             <div style={{gridColumn:"1/-1"}}>
-              <div style={{fontWeight:700,fontSize:15,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>
+              <div style={{fontWeight:700,fontSize:13,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8,marginTop:4,paddingTop:8,borderTop:`1px solid ${T.border}`}}>
                 Overtime Settings
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
@@ -5666,7 +5666,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
                     placeholder={form.overtimeType==="daily"?"e.g. 8":"e.g. 40"}
                     value={form.overtimeThreshold}
                     onChange={e=>sf("overtimeThreshold",parseFloat(e.target.value)||"")}/>
-                  <div style={{fontSize:12,color:T.muted,marginTop:2}}>
+                  <div style={{fontSize:11,color:T.muted,marginTop:2}}>
                     {form.overtimeType==="daily"?"Hours per day before overtime":"Hours per week before overtime"}
                   </div>
                 </div>}
@@ -5675,11 +5675,11 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
                   <input placeholder="Xero earnings rate UUID"
                     value={form.overtimeRateId||""}
                     onChange={e=>sf("overtimeRateId",e.target.value)}/>
-                  <div style={{fontSize:12,color:T.muted,marginTop:2}}>Find in Xero → Payroll → Pay Items</div>
+                  <div style={{fontSize:11,color:T.muted,marginTop:2}}>Find in Xero → Payroll → Pay Items</div>
                 </div>}
               </div>
               {form.overtimeType&&(
-                <div style={{marginTop:8,padding:"8px 12px",background:T.accentL,borderRadius:7,fontSize:15,color:T.accent}}>
+                <div style={{marginTop:8,padding:"8px 12px",background:T.accentL,borderRadius:7,fontSize:13,color:T.accent}}>
                   {form.overtimeType==="daily"
                     ? `Any hours beyond ${form.overtimeThreshold||"?"}h in a single day will submit to Xero as overtime`
                     : `Any hours beyond ${form.overtimeThreshold||"?"}h in a week will submit to Xero as overtime`}
@@ -5712,9 +5712,9 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
               <div style={{position:"relative"}}>
                 <input type={showPw?"text":"password"} autoComplete="new-password" placeholder={editId?"Leave blank to keep":"Set password"}
                   value={pwField} onChange={e=>setPwField(e.target.value)} style={{paddingRight:60}}/>
-                <button onClick={()=>setShowPw(s=>!s)} type="button" style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:15,fontFamily:"DM Sans,sans-serif"}}>{showPw?"Hide":"Show"}</button>
+                <button onClick={()=>setShowPw(s=>!s)} type="button" style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:13,fontFamily:"DM Sans,sans-serif"}}>{showPw?"Hide":"Show"}</button>
               </div>
-              {!editId && <div style={{fontSize:14,color:T.muted,marginTop:3}}>Required for new users</div>}
+              {!editId && <div style={{fontSize:12,color:T.muted,marginTop:3}}>Required for new users</div>}
             </div>
           </div>
           <div style={{display:"flex", gap:8}}>
@@ -5729,7 +5729,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
         <div style={{display:"grid",
           gridTemplateColumns:"36px 1fr 140px 130px 120px 110px 110px 72px",
           padding:"10px 16px", background:T.bg, borderBottom:`1.5px solid ${T.border}`,
-          fontSize:14, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:".6px", gap:8}}>
+          fontSize:12, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:".6px", gap:8}}>
           <span/><span>Name</span><span>Email</span><span>Phone</span>
           <span>Trade</span><span>Licence Exp.</span><span>Allocations</span>
           <span style={{textAlign:"right"}}>Actions</span>
@@ -5737,9 +5737,9 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
 
         {apprentices.length === 0 && (
           <div style={{padding:"48px 24px", textAlign:"center", color:T.muted}}>
-            <div style={{fontSize:40, marginBottom:8}}>◑</div>
+            <div style={{fontSize:35, marginBottom:8}}>◑</div>
             <div style={{fontWeight:700}}>No apprentices yet</div>
-            <div style={{fontSize:15, marginTop:4}}>Add your first apprentice above.</div>
+            <div style={{fontSize:13, marginTop:4}}>Add your first apprentice above.</div>
           </div>
         )}
 
@@ -5768,16 +5768,16 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
 
                 {/* Name — click → timesheet */}
                 <div onClick={()=>onViewTimesheet(u.id)} style={{cursor:"pointer"}}>
-                  <div style={{fontWeight:700, fontSize:16, color:T.accent}}>{u.firstName||u.name.split(" ")[0]} <span style={{color:T.sub}}>{u.lastName||u.name.split(" ").slice(1).join(" ")}</span></div>
+                  <div style={{fontWeight:700, fontSize:14, color:T.accent}}>{u.firstName||u.name.split(" ")[0]} <span style={{color:T.sub}}>{u.lastName||u.name.split(" ").slice(1).join(" ")}</span></div>
                 </div>
 
-                <div style={{fontSize:15, color:T.sub, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{u.email||"—"}</div>
-                <div style={{fontSize:15, color:T.sub}}>{u.phone||"—"}</div>
+                <div style={{fontSize:13, color:T.sub, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{u.email||"—"}</div>
+                <div style={{fontSize:13, color:T.sub}}>{u.phone||"—"}</div>
 
                 {/* Trade */}
                 <div>{u.trade
                   ? <Pill label={u.trade} size="sm" color={T.teal} bg={T.tealL}/>
-                  : <span style={{fontSize:15,color:T.muted}}>—</span>}
+                  : <span style={{fontSize:13,color:T.muted}}>—</span>}
                 </div>
 
                 {/* Licence / Site Safe / First Aid expiry */}
@@ -5791,21 +5791,21 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
                     const c = licColour(val);
                     return (
                       <div key={label} style={{display:"flex",alignItems:"center",gap:4}}>
-                        <span style={{fontSize:12,fontWeight:700,color:T.muted,width:22,flexShrink:0}}>{label}</span>
-                        <span style={{fontSize:14,fontWeight:700,color:c}}>
+                        <span style={{fontSize:11,fontWeight:700,color:T.muted,width:22,flexShrink:0}}>{label}</span>
+                        <span style={{fontSize:12,fontWeight:700,color:c}}>
                           {new Date(val+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"})}
                           {c===T.red&&<span style={{marginLeft:3}}>⚠</span>}
                         </span>
                       </div>
                     );
                   })}
-                  {!u.licenceExpiry&&!u.siteSafeExpiry&&!u.firstAidExpiry&&<span style={{fontSize:15,color:T.muted}}>—</span>}
+                  {!u.licenceExpiry&&!u.siteSafeExpiry&&!u.firstAidExpiry&&<span style={{fontSize:13,color:T.muted}}>—</span>}
                 </div>
 
                 {/* Allocation summary — click to expand */}
                 <button onClick={()=>setExpandId(isExpanded?null:u.id)} style={{
                   background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left"}}>
-                  <div style={{fontSize:14}}>
+                  <div style={{fontSize:12}}>
                     <div style={{color:approver?T.warn:T.muted, fontWeight:approver?600:400}}>
                       ▲ {approver?approver.name.split(" ")[0]:"No approver"}
                     </div>
@@ -5816,15 +5816,15 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
                       ✦ {mentor.name.split(" ")[0]}
                     </div>}
                   </div>
-                  <div style={{fontSize:12,color:T.blue,marginTop:3}}>{isExpanded?"▲ collapse":"✎ manage"}</div>
+                  <div style={{fontSize:11,color:T.blue,marginTop:3}}>{isExpanded?"▲ collapse":"✎ manage"}</div>
                 </button>
 
                 {/* Actions */}
                 <div style={{display:"flex", gap:5, justifyContent:"flex-end"}}>
-                  <button onClick={()=>{if(editId===u.id){setEditId(null);setExpandId(null);}else{startEdit(u);}}} style={{width:26,height:26,borderRadius:6,fontSize:15,background:editId===u.id?T.blueL:"transparent",color:editId===u.id?T.blue:T.muted,border:`1px solid ${editId===u.id?T.blue+"66":T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
+                  <button onClick={()=>{if(editId===u.id){setEditId(null);setExpandId(null);}else{startEdit(u);}}} style={{width:26,height:26,borderRadius:6,fontSize:13,background:editId===u.id?T.blueL:"transparent",color:editId===u.id?T.blue:T.muted,border:`1px solid ${editId===u.id?T.blue+"66":T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
                     onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
                     onMouseLeave={e=>{e.currentTarget.style.background=editId===u.id?T.blueL:"transparent";e.currentTarget.style.color=editId===u.id?T.blue:T.muted;}}>✎</button>
-                  <button onClick={()=>deleteUser(u.id)} style={{width:26,height:26,borderRadius:6,fontSize:15,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
+                  <button onClick={()=>deleteUser(u.id)} style={{width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
                     onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
                     onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
                 </div>
@@ -5857,12 +5857,12 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
 
                     {/* Approvers column */}
                     <div>
-                      <div style={{fontSize:15,fontWeight:700,color:T.warn,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
+                      <div style={{fontSize:13,fontWeight:700,color:T.warn,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
                         <span>▲</span> Approvers
-                        <span style={{fontSize:14,fontWeight:700,color:T.sub}}>— can approve / decline this apprentice's timesheets</span>
+                        <span style={{fontSize:12,fontWeight:700,color:T.sub}}>— can approve / decline this apprentice's timesheets</span>
                       </div>
                       {approvers.length===0
-                        ? <div style={{fontSize:15,color:T.muted,fontStyle:"italic"}}>No Approver accounts exist yet.</div>
+                        ? <div style={{fontSize:13,color:T.muted,fontStyle:"italic"}}>No Approver accounts exist yet.</div>
                         : approvers.map(ap=>{
                             const isAllocd = (ap.allocatedTo||[]).includes(u.id);
                             return (
@@ -5876,12 +5876,12 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
                                   background:isAllocd?T.warn:"transparent",
                                   border:`2px solid ${isAllocd?T.warn:T.muted}`,
                                   display:"flex",alignItems:"center",justifyContent:"center",
-                                  fontSize:14,color:"#fff",flexShrink:0}}>
+                                  fontSize:12,color:"#fff",flexShrink:0}}>
                                   {isAllocd?"✓":""}
                                 </div>
                                 <div>
-                                  <div style={{fontSize:16,fontWeight:700,color:T.ink}}>{ap.name}</div>
-                                  <div style={{fontSize:14,color:T.sub}}>{ap.email}</div>
+                                  <div style={{fontSize:14,fontWeight:700,color:T.ink}}>{ap.name}</div>
+                                  <div style={{fontSize:12,color:T.sub}}>{ap.email}</div>
                                 </div>
                               </button>
                             );
@@ -5891,12 +5891,12 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
 
                     {/* Viewers column */}
                     <div>
-                      <div style={{fontSize:15,fontWeight:700,color:T.teal,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
+                      <div style={{fontSize:13,fontWeight:700,color:T.teal,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
                         <span>◆</span> Viewers
-                        <span style={{fontSize:14,fontWeight:700,color:T.sub}}>— can view all timesheet stages, read only</span>
+                        <span style={{fontSize:12,fontWeight:700,color:T.sub}}>— can view all timesheet stages, read only</span>
                       </div>
                       {viewers.length===0
-                        ? <div style={{fontSize:15,color:T.muted,fontStyle:"italic"}}>No Viewer accounts exist yet.</div>
+                        ? <div style={{fontSize:13,color:T.muted,fontStyle:"italic"}}>No Viewer accounts exist yet.</div>
                         : viewers.map(vw=>{
                             const isAllocd = (vw.allocatedTo||[]).includes(u.id);
                             return (
@@ -5910,12 +5910,12 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
                                   background:isAllocd?T.teal:"transparent",
                                   border:`2px solid ${isAllocd?T.teal:T.muted}`,
                                   display:"flex",alignItems:"center",justifyContent:"center",
-                                  fontSize:14,color:"#fff",flexShrink:0}}>
+                                  fontSize:12,color:"#fff",flexShrink:0}}>
                                   {isAllocd?"✓":""}
                                 </div>
                                 <div>
-                                  <div style={{fontSize:16,fontWeight:700,color:T.ink}}>{vw.name}</div>
-                                  <div style={{fontSize:14,color:T.sub}}>{vw.email}</div>
+                                  <div style={{fontSize:14,fontWeight:700,color:T.ink}}>{vw.name}</div>
+                                  <div style={{fontSize:12,color:T.sub}}>{vw.email}</div>
                                 </div>
                               </button>
                             );
@@ -5971,8 +5971,8 @@ function ContactsList() {
     <div className="fu">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18}}>
         <div>
-          <div style={{fontFamily:"DM Sans",fontSize:22,fontWeight:700}}>Contacts</div>
-          <div style={{fontSize:15,color:T.sub,marginTop:3}}>Business and other contacts — not system users.</div>
+          <div style={{fontFamily:"DM Sans",fontSize:19,fontWeight:700}}>Contacts</div>
+          <div style={{fontSize:13,color:T.sub,marginTop:3}}>Business and other contacts — not system users.</div>
         </div>
         <Btn onClick={()=>{setForm(blank);setEditId(null);setShowForm(s=>!s);}}>
           {showForm?"✕ Cancel":"+ Add Contact"}
@@ -5980,7 +5980,7 @@ function ContactsList() {
       </div>
       {showForm&&(
         <Card style={{marginBottom:20,border:`1.5px solid ${T.slate}44`}}>
-          <div style={{fontWeight:700,fontSize:18,marginBottom:16,color:T.slate}}>{editId?"✎ Edit Contact":"+ New Contact"}</div>
+          <div style={{fontWeight:700,fontSize:16,marginBottom:16,color:T.slate}}>{editId?"✎ Edit Contact":"+ New Contact"}</div>
           <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
             <div><FL req>Name</FL><input placeholder="Jane Smith" value={form.name} onChange={e=>sf("name",e.target.value)}/></div>
             <div><FL>Organisation</FL><input placeholder="Company / Agency" value={form.company} onChange={e=>sf("company",e.target.value)}/></div>
@@ -6002,7 +6002,7 @@ function ContactsList() {
       <Card style={{padding:0,overflow:"hidden"}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 160px 100px 160px 160px 68px",
           padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-          fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
+          fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
           <span>Name</span><span>Organisation</span><span>Type</span><span>Email</span><span>Phone</span><span/>
         </div>
         {items.length===0&&<div style={{padding:"40px",textAlign:"center",color:T.muted}}>No contacts yet.</div>}
@@ -6011,18 +6011,18 @@ function ContactsList() {
             padding:"12px 16px",borderBottom:i<items.length-1?`1px solid ${T.border}44`:"none",
             background:i%2===0?T.surface:T.bg,alignItems:"center",gap:8,animationDelay:`${i*.03}s`}}>
             <div>
-              <div style={{fontWeight:700,fontSize:16}}>{x.name}</div>
-              {x.notes&&<div style={{fontSize:14,color:T.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.notes}</div>}
+              <div style={{fontWeight:700,fontSize:14}}>{x.name}</div>
+              {x.notes&&<div style={{fontSize:12,color:T.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.notes}</div>}
             </div>
-            <div style={{fontSize:15,color:T.sub}}>{x.company||"—"}</div>
+            <div style={{fontSize:13,color:T.sub}}>{x.company||"—"}</div>
             <Pill label={x.type||"General"} size="sm" color={CTYPE_C[x.type]||T.slate} bg={(CTYPE_C[x.type]||T.slate)+"1a"}/>
-            <div style={{fontSize:15,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.email||"—"}</div>
-            <div style={{fontSize:15,color:T.sub}}>{x.phone||"—"}</div>
+            <div style={{fontSize:13,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.email||"—"}</div>
+            <div style={{fontSize:13,color:T.sub}}>{x.phone||"—"}</div>
             <div style={{display:"flex",gap:5,justifyContent:"flex-end"}}>
-              <button onClick={()=>startEdit(x)} style={{width:26,height:26,borderRadius:6,fontSize:15,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
+              <button onClick={()=>startEdit(x)} style={{width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
                 onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
                 onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
-              <button onClick={()=>del(x.id)} style={{width:26,height:26,borderRadius:6,fontSize:15,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
+              <button onClick={()=>del(x.id)} style={{width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
                 onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
                 onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
             </div>
@@ -6067,8 +6067,8 @@ function HostBusinessList() {
     <div className="fu">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18}}>
         <div>
-          <div style={{fontFamily:"DM Sans",fontSize:22,fontWeight:700}}>Host Businesses</div>
-          <div style={{fontSize:15,color:T.sub,marginTop:3}}>Companies that host apprentices for on-the-job training.</div>
+          <div style={{fontFamily:"DM Sans",fontSize:19,fontWeight:700}}>Host Businesses</div>
+          <div style={{fontSize:13,color:T.sub,marginTop:3}}>Companies that host apprentices for on-the-job training.</div>
         </div>
         <Btn onClick={()=>{setForm(blank);setEditId(null);setShowForm(s=>!s);}}>
           {showForm?"✕ Cancel":"+ Add Host Business"}
@@ -6076,7 +6076,7 @@ function HostBusinessList() {
       </div>
       {showForm&&(
         <Card style={{marginBottom:20,border:`1.5px solid ${T.teal}44`}}>
-          <div style={{fontWeight:700,fontSize:18,marginBottom:16,color:T.teal}}>{editId?"✎ Edit Host Business":"+ New Host Business"}</div>
+          <div style={{fontWeight:700,fontSize:16,marginBottom:16,color:T.teal}}>{editId?"✎ Edit Host Business":"+ New Host Business"}</div>
           <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
             <div><FL req>Business Name</FL><input placeholder="Acme Constructions" value={form.name} onChange={e=>sf("name",e.target.value)}/></div>
             <div><FL>Industry</FL>
@@ -6105,7 +6105,7 @@ function HostBusinessList() {
       <Card style={{padding:0,overflow:"hidden"}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 120px 140px 140px 60px 80px 68px",
           padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-          fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
+          fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
           <span>Business</span><span>Industry</span><span>Contact</span><span>Email</span><span style={{textAlign:"center"}}>Cap.</span><span>Status</span><span/>
         </div>
         {items.length===0&&<div style={{padding:"40px",textAlign:"center",color:T.muted}}>No host businesses yet.</div>}
@@ -6114,21 +6114,21 @@ function HostBusinessList() {
             padding:"12px 16px",borderBottom:i<items.length-1?`1px solid ${T.border}44`:"none",
             background:i%2===0?T.surface:T.bg,alignItems:"center",gap:8,animationDelay:`${i*.03}s`}}>
             <div>
-              <div style={{fontWeight:700,fontSize:16}}>{x.name}</div>
-              {x.notes&&<div style={{fontSize:14,color:T.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.notes}</div>}
+              <div style={{fontWeight:700,fontSize:14}}>{x.name}</div>
+              {x.notes&&<div style={{fontSize:12,color:T.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.notes}</div>}
             </div>
-            <div style={{fontSize:15,color:T.sub}}>{x.industry||"—"}</div>
-            <div style={{fontSize:15,color:T.sub}}>{x.contact||"—"}</div>
-            <div style={{fontSize:15,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.email||"—"}</div>
-            <div style={{textAlign:"center",fontSize:16,fontWeight:700,color:T.teal}}>{x.capacity||"—"}</div>
+            <div style={{fontSize:13,color:T.sub}}>{x.industry||"—"}</div>
+            <div style={{fontSize:13,color:T.sub}}>{x.contact||"—"}</div>
+            <div style={{fontSize:13,color:T.sub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.email||"—"}</div>
+            <div style={{textAlign:"center",fontSize:14,fontWeight:700,color:T.teal}}>{x.capacity||"—"}</div>
             <Pill label={x.status||"Active"} size="sm"
               color={x.status==="Active"?T.accent:x.status==="Pending"?T.warn:T.muted}
               bg={x.status==="Active"?T.accentL:x.status==="Pending"?T.warnL:T.slateL}/>
             <div style={{display:"flex",gap:5,justifyContent:"flex-end"}}>
-              <button onClick={()=>startEdit(x)} style={{width:26,height:26,borderRadius:6,fontSize:15,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
+              <button onClick={()=>startEdit(x)} style={{width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
                 onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
                 onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
-              <button onClick={()=>del(x.id)} style={{width:26,height:26,borderRadius:6,fontSize:15,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
+              <button onClick={()=>del(x.id)} style={{width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
                 onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
                 onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
             </div>
@@ -6178,8 +6178,8 @@ function TargetDealsList() {
     <div className="fu">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18}}>
         <div>
-          <div style={{fontFamily:"DM Sans",fontSize:22,fontWeight:700}}>Target Deals</div>
-          <div style={{fontSize:15,color:T.sub,marginTop:3}}>{items.filter(x=>!["Won","Lost"].includes(x.stage)).length} active deals · pipeline value <strong style={{color:T.accent}}>${totalValue.toLocaleString()}</strong></div>
+          <div style={{fontFamily:"DM Sans",fontSize:19,fontWeight:700}}>Target Deals</div>
+          <div style={{fontSize:13,color:T.sub,marginTop:3}}>{items.filter(x=>!["Won","Lost"].includes(x.stage)).length} active deals · pipeline value <strong style={{color:T.accent}}>${totalValue.toLocaleString()}</strong></div>
         </div>
         <Btn onClick={()=>{setForm(blank);setEditId(null);setShowForm(s=>!s);}}>
           {showForm?"✕ Cancel":"+ Add Deal"}
@@ -6187,7 +6187,7 @@ function TargetDealsList() {
       </div>
       {showForm&&(
         <Card style={{marginBottom:20,border:`1.5px solid ${T.gold}44`}}>
-          <div style={{fontWeight:700,fontSize:18,marginBottom:16,color:T.gold}}>{editId?"✎ Edit Deal":"+ New Deal"}</div>
+          <div style={{fontWeight:700,fontSize:16,marginBottom:16,color:T.gold}}>{editId?"✎ Edit Deal":"+ New Deal"}</div>
           <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
             <div><FL req>Deal Title</FL><input placeholder="e.g. Funding Round 2025" value={form.title} onChange={e=>sf("title",e.target.value)}/></div>
             <div><FL>Contact Person</FL><input placeholder="Name" value={form.contact} onChange={e=>sf("contact",e.target.value)}/></div>
@@ -6215,7 +6215,7 @@ function TargetDealsList() {
       <Card style={{padding:0,overflow:"hidden"}}>
         <div style={{display:"grid",gridTemplateColumns:"8px 1fr 130px 130px 90px 80px 80px 68px",
           padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
-          fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
+          fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
           <span/><span>Deal</span><span>Organisation</span><span>Contact</span><span style={{textAlign:"right"}}>Value</span><span>Stage</span><span>Priority</span><span/>
         </div>
         {items.length===0&&<div style={{padding:"40px",textAlign:"center",color:T.muted}}>No deals yet.</div>}
@@ -6228,21 +6228,21 @@ function TargetDealsList() {
             background:i%2===0?T.surface:T.bg,alignItems:"center",gap:8,animationDelay:`${i*.03}s`}}>
             <div style={{width:8,height:36,borderRadius:3,background:DEAL_C[x.stage]||T.muted}}/>
             <div>
-              <div style={{fontWeight:700,fontSize:16}}>{x.title}</div>
-              {x.notes&&<div style={{fontSize:14,color:T.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.notes}</div>}
+              <div style={{fontWeight:700,fontSize:14}}>{x.title}</div>
+              {x.notes&&<div style={{fontSize:12,color:T.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{x.notes}</div>}
             </div>
-            <div style={{fontSize:15,color:T.sub}}>{x.org||"—"}</div>
-            <div style={{fontSize:15,color:T.sub}}>{x.contact||"—"}</div>
-            <div style={{textAlign:"right",fontFamily:"DM Sans",fontWeight:700,fontSize:18,color:DEAL_C[x.stage]||T.muted}}>
+            <div style={{fontSize:13,color:T.sub}}>{x.org||"—"}</div>
+            <div style={{fontSize:13,color:T.sub}}>{x.contact||"—"}</div>
+            <div style={{textAlign:"right",fontFamily:"DM Sans",fontWeight:700,fontSize:16,color:DEAL_C[x.stage]||T.muted}}>
               {x.value?`$${parseFloat(x.value).toLocaleString()}`:"—"}
             </div>
             <Pill label={x.stage} size="sm" color={DEAL_C[x.stage]||T.muted} bg={(DEAL_C[x.stage]||T.muted)+"1a"}/>
             <Pill label={x.priority||"Medium"} size="sm" color={PRIORITY_C[x.priority||"Medium"]} bg={PRIORITY_C[x.priority||"Medium"]+"1a"}/>
             <div style={{display:"flex",gap:5,justifyContent:"flex-end"}}>
-              <button onClick={()=>startEdit(x)} style={{width:26,height:26,borderRadius:6,fontSize:15,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
+              <button onClick={()=>startEdit(x)} style={{width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
                 onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
                 onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
-              <button onClick={()=>del(x.id)} style={{width:26,height:26,borderRadius:6,fontSize:15,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
+              <button onClick={()=>del(x.id)} style={{width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
                 onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
                 onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;e.currentTarget.style.borderColor=T.border;}}>✕</button>
             </div>
@@ -6399,10 +6399,10 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
       <button onClick={onViewApprenticeList} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
         onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
         <Card style={{paddingBlock:18,border:`1.5px solid ${T.blue}44`,height:"100%"}}>
-          <div style={{fontSize:14,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Apprentices</div>
-          <div style={{fontSize:30,fontWeight:700,color:T.blue,fontFamily:"'Libre Baskerville'"}}>{apprentices.length}</div>
-          <div style={{fontSize:14,color:T.sub,marginTop:2}}>active workforce</div>
-          <div style={{fontSize:14,color:T.blue,marginTop:6,fontWeight:700}}>View & manage →</div>
+          <div style={{fontSize:12,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Apprentices</div>
+          <div style={{fontSize:26,fontWeight:700,color:T.blue,fontFamily:"'Libre Baskerville'"}}>{apprentices.length}</div>
+          <div style={{fontSize:12,color:T.sub,marginTop:2}}>active workforce</div>
+          <div style={{fontSize:12,color:T.blue,marginTop:6,fontWeight:700}}>View & manage →</div>
         </Card>
       </button>
     ),
@@ -6410,10 +6410,10 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
       <button onClick={()=>onViewList("hours")} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
         onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
         <Card style={{paddingBlock:14,border:`1.5px solid ${T.accent}44`,height:"100%"}}>
-          <div style={{fontSize:14,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:6}}>Hours This Week</div>
+          <div style={{fontSize:12,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:6}}>Hours This Week</div>
           <div style={{display:"flex",alignItems:"baseline",gap:4,marginBottom:8}}>
-            <span style={{fontSize:25,fontWeight:700,color:T.accent,fontFamily:"DM Sans"}}>{totalHrsWeek}</span>
-            <span style={{fontSize:16,color:T.sub,fontWeight:700}}>h total</span>
+            <span style={{fontSize:22,fontWeight:700,color:T.accent,fontFamily:"DM Sans"}}>{totalHrsWeek}</span>
+            <span style={{fontSize:14,color:T.sub,fontWeight:700}}>h total</span>
           </div>
           {weekTypeHrs.length>0 ? (
             <div style={{display:"flex",flexDirection:"column",gap:3,marginBottom:8}}>
@@ -6422,7 +6422,7 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
                 const pct  = Math.round((hrs/parseFloat(totalHrsWeek||"1"))*100);
                 return (
                   <div key={type}>
-                    <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:T.sub,marginBottom:1}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.sub,marginBottom:1}}>
                       <span style={{fontWeight:700,color:meta.color}}>{type}</span>
                       <span style={{fontWeight:700}}>{hrs.toFixed(1)}h</span>
                     </div>
@@ -6432,31 +6432,31 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
                   </div>
                 );
               })}
-              {weekTypeHrs.length>5&&<div style={{fontSize:12,color:T.muted,marginTop:2}}>+{weekTypeHrs.length-5} more types</div>}
+              {weekTypeHrs.length>5&&<div style={{fontSize:11,color:T.muted,marginTop:2}}>+{weekTypeHrs.length-5} more types</div>}
             </div>
           ) : (
-            <div style={{fontSize:14,color:T.muted,marginBottom:8}}>all apprentices</div>
+            <div style={{fontSize:12,color:T.muted,marginBottom:8}}>all apprentices</div>
           )}
-          <div style={{fontSize:14,color:T.accent,fontWeight:700}}>View list →</div>
+          <div style={{fontSize:12,color:T.accent,fontWeight:700}}>View list →</div>
         </Card>
       </button>
     ),
-    submitted: <button onClick={()=>onViewList("submitted")} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalSubmitted>0?T.warn:T.muted}44`,height:"100%"}}><div style={{fontSize:14,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Pending</div><div style={{fontSize:30,fontWeight:700,color:totalSubmitted>0?T.warn:T.muted,fontFamily:"'Libre Baskerville'"}}>{totalSubmitted}</div><div style={{fontSize:14,color:T.sub,marginTop:2}}>submitted, awaiting review</div><div style={{fontSize:14,color:totalSubmitted>0?T.warn:T.muted,marginTop:6,fontWeight:700}}>View list →</div></Card></button>,
-    approved:  <button onClick={()=>onViewList("approved")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${T.teal}44`,height:"100%"}}><div style={{fontSize:14,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Approved</div><div style={{fontSize:30,fontWeight:700,color:T.teal,fontFamily:"'Libre Baskerville'"}}>{totalApproved}</div><div style={{fontSize:14,color:T.sub,marginTop:2}}>approved by approver</div><div style={{fontSize:14,color:T.teal,marginTop:6,fontWeight:700}}>View list →</div></Card></button>,
-    declined:  <button onClick={()=>onViewList("declined")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalNotApproved>0?T.red:T.muted}44`,height:"100%"}}><div style={{fontSize:14,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Not Approved</div><div style={{fontSize:30,fontWeight:700,color:totalNotApproved>0?T.red:T.muted,fontFamily:"DM Sans"}}>{totalNotApproved}</div><div style={{fontSize:14,color:T.sub,marginTop:2}}>declined by approver</div><div style={{fontSize:14,color:totalNotApproved>0?T.red:T.muted,marginTop:6,fontWeight:700}}>View list →</div></Card></button>,
+    submitted: <button onClick={()=>onViewList("submitted")} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalSubmitted>0?T.warn:T.muted}44`,height:"100%"}}><div style={{fontSize:12,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Pending</div><div style={{fontSize:26,fontWeight:700,color:totalSubmitted>0?T.warn:T.muted,fontFamily:"'Libre Baskerville'"}}>{totalSubmitted}</div><div style={{fontSize:12,color:T.sub,marginTop:2}}>submitted, awaiting review</div><div style={{fontSize:12,color:totalSubmitted>0?T.warn:T.muted,marginTop:6,fontWeight:700}}>View list →</div></Card></button>,
+    approved:  <button onClick={()=>onViewList("approved")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${T.teal}44`,height:"100%"}}><div style={{fontSize:12,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Approved</div><div style={{fontSize:26,fontWeight:700,color:T.teal,fontFamily:"'Libre Baskerville'"}}>{totalApproved}</div><div style={{fontSize:12,color:T.sub,marginTop:2}}>approved by approver</div><div style={{fontSize:12,color:T.teal,marginTop:6,fontWeight:700}}>View list →</div></Card></button>,
+    declined:  <button onClick={()=>onViewList("declined")}  style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}><Card style={{paddingBlock:18,border:`1.5px solid ${totalNotApproved>0?T.red:T.muted}44`,height:"100%"}}><div style={{fontSize:12,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Submitted — Not Approved</div><div style={{fontSize:26,fontWeight:700,color:totalNotApproved>0?T.red:T.muted,fontFamily:"DM Sans"}}>{totalNotApproved}</div><div style={{fontSize:12,color:T.sub,marginTop:2}}>declined by approver</div><div style={{fontSize:12,color:totalNotApproved>0?T.red:T.muted,marginTop:6,fontWeight:700}}>View list →</div></Card></button>,
     timesheets: (
       <button onClick={onViewTimesheets} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
         onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
         <Card style={{paddingBlock:18,border:`1.5px solid ${T.teal}44`,height:"100%"}}>
-          <div style={{fontSize:14,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Timesheets</div>
+          <div style={{fontSize:12,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Timesheets</div>
           <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:2}}>
-            <div style={{fontSize:30,fontWeight:700,color:T.teal,fontFamily:"'Libre Baskerville'"}}>{activeApps}</div>
-            <div style={{fontSize:14,color:T.muted}}>/ {apprentices.length}</div>
+            <div style={{fontSize:26,fontWeight:700,color:T.teal,fontFamily:"'Libre Baskerville'"}}>{activeApps}</div>
+            <div style={{fontSize:12,color:T.muted}}>/ {apprentices.length}</div>
           </div>
-          <div style={{fontSize:14,color:T.sub,marginTop:2}}>apprentices with entries</div>
+          <div style={{fontSize:12,color:T.sub,marginTop:2}}>apprentices with entries</div>
           {pendingCount>0
-            ? <div style={{fontSize:14,color:T.warn,marginTop:6,fontWeight:700}}>⚠ {pendingCount} pending review</div>
-            : <div style={{fontSize:14,color:T.teal,marginTop:6,fontWeight:700}}>View timesheets →</div>
+            ? <div style={{fontSize:12,color:T.warn,marginTop:6,fontWeight:700}}>⚠ {pendingCount} pending review</div>
+            : <div style={{fontSize:12,color:T.teal,marginTop:6,fontWeight:700}}>View timesheets →</div>
           }
         </Card>
       </button>
@@ -6465,16 +6465,16 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
       <button onClick={onViewLeave} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
         onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
         <Card style={{paddingBlock:18,border:`1.5px solid ${leaveStats.pending>0||leaveStats.approver_approved>0?T.warn:T.hol}44`,height:"100%"}}>
-          <div style={{fontSize:14,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Leave Requests</div>
-          <div style={{fontSize:30,fontWeight:700,color:leaveStats.pending>0||leaveStats.approver_approved>0?T.warn:T.hol,fontFamily:"DM Sans",marginBottom:4}}>{leaveStats.total}</div>
+          <div style={{fontSize:12,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>Leave Requests</div>
+          <div style={{fontSize:26,fontWeight:700,color:leaveStats.pending>0||leaveStats.approver_approved>0?T.warn:T.hol,fontFamily:"DM Sans",marginBottom:4}}>{leaveStats.total}</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
-            {leaveStats.pending>0           && <span style={{fontSize:12,fontWeight:700,color:"#b86e1a",background:"#faebd7",borderRadius:99,padding:"2px 7px"}}>{leaveStats.pending} approver</span>}
-            {leaveStats.approver_approved>0 && <span style={{fontSize:12,fontWeight:700,color:"#1b4f8c",background:"#dce8f7",borderRadius:99,padding:"2px 7px"}}>{leaveStats.approver_approved} KTA</span>}
-            {leaveStats.kta_approved>0      && <span style={{fontSize:12,fontWeight:700,color:"#1a6b3a",background:"#d4f0e0",borderRadius:99,padding:"2px 7px"}}>{leaveStats.kta_approved} approved</span>}
-            {leaveStats.declined>0          && <span style={{fontSize:12,fontWeight:700,color:"#bf2b2b",background:"#fde8e8",borderRadius:99,padding:"2px 7px"}}>{leaveStats.declined} declined</span>}
-            {leaveStats.total===0           && <span style={{fontSize:14,color:T.muted}}>no requests</span>}
+            {leaveStats.pending>0           && <span style={{fontSize:11,fontWeight:700,color:"#b86e1a",background:"#faebd7",borderRadius:99,padding:"2px 7px"}}>{leaveStats.pending} approver</span>}
+            {leaveStats.approver_approved>0 && <span style={{fontSize:11,fontWeight:700,color:"#1b4f8c",background:"#dce8f7",borderRadius:99,padding:"2px 7px"}}>{leaveStats.approver_approved} KTA</span>}
+            {leaveStats.kta_approved>0      && <span style={{fontSize:11,fontWeight:700,color:"#1a6b3a",background:"#d4f0e0",borderRadius:99,padding:"2px 7px"}}>{leaveStats.kta_approved} approved</span>}
+            {leaveStats.declined>0          && <span style={{fontSize:11,fontWeight:700,color:"#bf2b2b",background:"#fde8e8",borderRadius:99,padding:"2px 7px"}}>{leaveStats.declined} declined</span>}
+            {leaveStats.total===0           && <span style={{fontSize:12,color:T.muted}}>no requests</span>}
           </div>
-          <div style={{fontSize:14,color:T.hol,marginTop:6,fontWeight:700}}>View & manage →</div>
+          <div style={{fontSize:12,color:T.hol,marginTop:6,fontWeight:700}}>View & manage →</div>
         </Card>
       </button>
     ),
@@ -6518,10 +6518,10 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
                 <button onClick={()=>handleCrmCard(id)} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left",borderRadius:14,display:"block",width:"100%"}}
                   onMouseEnter={e=>e.currentTarget.style.opacity="0.85"} onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
                   <Card style={{paddingBlock:18,border:`1.5px solid ${color}44`}}>
-                    <div style={{fontSize:14,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{label}</div>
-                    <div style={{fontSize:35,marginBottom:4,color}}>{icon}</div>
-                    <div style={{fontSize:14,color:T.sub}}>{sub}</div>
-                    <div style={{fontSize:14,color,marginTop:6,fontWeight:700}}>View & manage →</div>
+                    <div style={{fontSize:12,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{label}</div>
+                    <div style={{fontSize:31,marginBottom:4,color}}>{icon}</div>
+                    <div style={{fontSize:12,color:T.sub}}>{sub}</div>
+                    <div style={{fontSize:12,color,marginTop:6,fontWeight:700}}>View & manage →</div>
                   </Card>
                 </button>
               </div>
@@ -6570,14 +6570,14 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
     <div style={{position:"relative"}}>
       <button onClick={()=>setShow(s=>!s)} style={{
         position:"relative",background:"none",border:"none",cursor:"pointer",
-        color:"#ffffff99",fontSize:25,padding:"4px 8px",borderRadius:8,
+        color:"#ffffff99",fontSize:22,padding:"4px 8px",borderRadius:8,
         transition:"color .15s"}}
         onMouseEnter={e=>e.currentTarget.style.color="#fff"}
         onMouseLeave={e=>e.currentTarget.style.color="#ffffff99"}>
         🔔
         {unread>0&&(
           <span style={{position:"absolute",top:0,right:2,background:T.red,color:"#fff",
-            borderRadius:99,fontSize:12,fontWeight:700,padding:"1px 5px",lineHeight:"14px",
+            borderRadius:99,fontSize:11,fontWeight:700,padding:"1px 5px",lineHeight:"14px",
             minWidth:16,textAlign:"center"}}>
             {unread>9?"9+":unread}
           </span>
@@ -6590,9 +6590,9 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
           {/* Header */}
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
             padding:"12px 16px",borderBottom:`1px solid ${T.border}`,background:T.bg}}>
-            <div style={{fontWeight:700,fontSize:16}}>Notifications {unread>0&&<span style={{color:T.red}}>({unread})</span>}</div>
+            <div style={{fontWeight:700,fontSize:14}}>Notifications {unread>0&&<span style={{color:T.red}}>({unread})</span>}</div>
             {unread>0&&(
-              <button onClick={onReadAll} style={{fontSize:14,color:T.blue,background:"none",
+              <button onClick={onReadAll} style={{fontSize:12,color:T.blue,background:"none",
                 border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
                 Mark all read
               </button>
@@ -6601,26 +6601,26 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
           {/* List */}
           <div style={{maxHeight:"min(460px, 70vh)",overflowY:"auto"}}>
             {notifs.length===0&&(
-              <div style={{padding:24,textAlign:"center",color:T.muted,fontSize:16}}>No notifications</div>
+              <div style={{padding:24,textAlign:"center",color:T.muted,fontSize:14}}>No notifications</div>
             )}
             {notifs.map(n=>(
               <div key={n.id} style={{borderBottom:`1px solid ${T.border}44`,
                 background:n.read?T.surface:T.blueL+"55"}}>
                 <div style={{padding:"12px 16px",display:"flex",gap:10,alignItems:"flex-start",cursor:"pointer"}}
                   onClick={()=>{ if(!n.read) onRead(n.id); }}>
-                  <span style={{fontSize:20,marginTop:2,color:typeColor(n.type),flexShrink:0}}>{typeIcon(n.type)}</span>
+                  <span style={{fontSize:18,marginTop:2,color:typeColor(n.type),flexShrink:0}}>{typeIcon(n.type)}</span>
                   <div style={{flex:1,minWidth:0}}>
-                    <div className="notif-title" style={{fontWeight:n.read?500:700,fontSize:16,color:typeColor(n.type),
+                    <div className="notif-title" style={{fontWeight:n.read?500:700,fontSize:14,color:typeColor(n.type),
                       wordBreak:"break-word",lineHeight:1.35}}>{n.title}</div>
-                    <div className="notif-msg" style={{fontSize:15,color:T.sub,marginTop:3,lineHeight:1.5,
+                    <div className="notif-msg" style={{fontSize:13,color:T.sub,marginTop:3,lineHeight:1.5,
                       wordBreak:"break-word",whiteSpace:"pre-wrap"}}>{n.message}</div>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:6,flexWrap:"wrap",gap:4}}>
-                      <div style={{fontSize:12,color:T.muted}}>
+                      <div style={{fontSize:11,color:T.muted}}>
                         {n.created_at ? new Date(n.created_at).toLocaleString("en-AU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : "Just now"}
                       </div>
                       {n.created_by&&n.type!=="reply"&&(
                         <button onClick={e=>{e.stopPropagation();setReplyId(replyId===n.id?null:n.id);setReplyText("");}}
-                          style={{fontSize:14,color:T.teal,background:replyId===n.id?T.tealL:"none",border:"none",cursor:"pointer",
+                          style={{fontSize:12,color:T.teal,background:replyId===n.id?T.tealL:"none",border:"none",cursor:"pointer",
                             fontFamily:"DM Sans,sans-serif",fontWeight:700,padding:"2px 6px",borderRadius:4}}>
                           ↩ Reply
                         </button>
@@ -6630,7 +6630,7 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
                   {canDelete&&(
                     <button onClick={e=>{e.stopPropagation();onDelete(n.id);setReplyId(null);}} style={{
                       background:"none",border:"none",color:T.muted,cursor:"pointer",
-                      fontSize:18,padding:"0 2px",flexShrink:0,marginLeft:2}}
+                      fontSize:16,padding:"0 2px",flexShrink:0,marginLeft:2}}
                       onMouseEnter={e=>e.currentTarget.style.color=T.red}
                       onMouseLeave={e=>e.currentTarget.style.color=T.muted}>✕</button>
                   )}
@@ -6642,7 +6642,7 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
                       value={replyText}
                       onChange={e=>setReplyText(e.target.value)}
                       rows={2}
-                      style={{width:"100%",fontSize:16,padding:"8px 10px",borderRadius:7,
+                      style={{width:"100%",fontSize:14,padding:"8px 10px",borderRadius:7,
                         border:`1.5px solid ${T.teal}66`,fontFamily:"DM Sans,sans-serif",
                         background:T.bg,resize:"none",outline:"none",color:T.ink,boxSizing:"border-box"}}
                       onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();handleReply(n);}}}
@@ -6650,13 +6650,13 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
                     />
                     <div style={{display:"flex",gap:6,marginTop:6}}>
                       <button onClick={()=>handleReply(n)} disabled={!replyText.trim()} style={{
-                        fontSize:15,fontWeight:700,padding:"6px 14px",borderRadius:6,
+                        fontSize:13,fontWeight:700,padding:"6px 14px",borderRadius:6,
                         background:replyText.trim()?T.teal:"#ccc",color:"#fff",border:"none",
                         cursor:replyText.trim()?"pointer":"default",fontFamily:"DM Sans,sans-serif"}}>
                         Send Reply
                       </button>
                       <button onClick={()=>setReplyId(null)} style={{
-                        fontSize:15,padding:"6px 10px",borderRadius:6,background:"none",
+                        fontSize:13,padding:"6px 10px",borderRadius:6,background:"none",
                         border:`1px solid ${T.border}`,color:T.sub,cursor:"pointer",
                         fontFamily:"DM Sans,sans-serif"}}>
                         Cancel
@@ -6709,13 +6709,13 @@ const LeaveStatusStepper = ({ status }) => {
                 background: declined && i===0 ? "#fde8e8" : done ? color : "#f0f4f9",
                 border:`2px solid ${declined&&i===0?"#bf2b2b":done?color:"#d0daea"}`,
                 display:"flex",alignItems:"center",justifyContent:"center",
-                fontSize:14,fontWeight:700,color:declined&&i===0?"#bf2b2b":textCol,
+                fontSize:12,fontWeight:700,color:declined&&i===0?"#bf2b2b":textCol,
                 boxShadow:current?"0 0 0 3px "+color+"33":"none",
                 transition:"all .2s",
               }}>
                 {declined && i===0 ? "✕" : done ? (i===currentStep ? s.sym : "✓") : i+1}
               </div>
-              <div style={{fontSize:11,color:done?color:"#aaa",marginTop:3,textAlign:"center",fontWeight:done?700:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:64}}>
+              <div style={{fontSize:10,color:done?color:"#aaa",marginTop:3,textAlign:"center",fontWeight:done?700:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:64}}>
                 {declined && i===0 ? "Declined" : s.label}
               </div>
             </div>
@@ -6737,19 +6737,19 @@ const sendLeaveEmail = async ({ to, toName, subject, html }) => {
 const leaveEmailHtml = (title, body) => `
 <div style="font-family:"DM Sans",sans-serif;max-width:600px;margin:0 auto;background:#f0f4f9;padding:24px">
   <div style="background:#1b4f8c;borderRadius:10px;padding:18px 24px;margin-bottom:0;border-radius:10px 10px 0 0">
-    <div style="color:#fff;font-size:22.5px;font-weight:700">KTA Leave Request</div>
-    <div style="color:#dce8f7;font-size:15px;margin-top:4px">Kiwi Trade Apprentices</div>
+    <div style="color:#fff;font-size:19.8px;font-weight:700">KTA Leave Request</div>
+    <div style="color:#dce8f7;font-size:13.2px;margin-top:4px">Kiwi Trade Apprentices</div>
   </div>
   <div style="background:#fff;padding:24px;border-radius:0 0 10px 10px;border:1px solid #d0daea">
-    <p style="font-size:18.8px;color:#0d1b2e;margin-top:0">${title}</p>
+    <p style="font-size:16.5px;color:#0d1b2e;margin-top:0">${title}</p>
     ${body}
     <hr style="border:none;border-top:1px solid #d0daea;margin:20px 0">
-    <p style="font-size:13.8px;color:#8fa0b8">KTA Workforce Management · payroll@kta.org.nz</p>
+    <p style="font-size:12.1px;color:#8fa0b8">KTA Workforce Management · payroll@kta.org.nz</p>
   </div>
 </div>`;
 
 const leaveDetailTable = (req, apprenticeName, approverName) => `
-<table style="width:100%;border-collapse:collapse;font-size:16.2px;margin:16px 0">
+<table style="width:100%;border-collapse:collapse;font-size:14.3px;margin:16px 0">
   <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:700;width:40%">Apprentice</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${apprenticeName}</td></tr>
   <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:700">Leave Type</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${req.leave_type}</td></tr>
   <tr><td style="padding:8px 12px;background:#f0f4f9;font-weight:700">From</td><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb">${fmtDateNZ(req.date_from)}</td></tr>
@@ -6764,10 +6764,10 @@ const leaveActionButtons = async (leaveId, actorId, actorRole) => {
   const decUrl = await leaveActionUrl(leaveId, "decline", actorId, actorRole);
   return `
 <div style="margin:24px 0;display:flex;gap:12px;flex-wrap:wrap">
-  <a href="${appUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:8px;padding:12px 28px;font-size:17.5px;font-weight:700;text-decoration:none;font-family:DM Sans,Arial,sans-serif">✓ Approve Leave</a>
-  <a href="${decUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:8px;padding:12px 28px;font-size:17.5px;font-weight:700;text-decoration:none;font-family:DM Sans,Arial,sans-serif">✕ Decline Leave</a>
+  <a href="${appUrl}" style="display:inline-block;background:#1a8a7a;color:#fff;border-radius:8px;padding:12px 28px;font-size:15.4px;font-weight:700;text-decoration:none;font-family:DM Sans,Arial,sans-serif">✓ Approve Leave</a>
+  <a href="${decUrl}" style="display:inline-block;background:#bf2b2b;color:#fff;border-radius:8px;padding:12px 28px;font-size:15.4px;font-weight:700;text-decoration:none;font-family:DM Sans,Arial,sans-serif">✕ Decline Leave</a>
 </div>
-<p style="font-size:13.8px;color:#8fa0b8;margin-top:4px">These buttons record your response immediately — no login required. Links expire in 7 days.</p>`;
+<p style="font-size:12.1px;color:#8fa0b8;margin-top:4px">These buttons record your response immediately — no login required. Links expire in 7 days.</p>`;
 };
 
 const fmtDateNZ = (iso) => {
@@ -6838,9 +6838,9 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
 
   if(done) return (
     <div style={{textAlign:"center",padding:"32px 16px"}}>
-      <div style={{fontSize:45,marginBottom:12}}>✅</div>
-      <div style={{fontWeight:700,fontSize:20,color:T.teal}}>Leave request submitted!</div>
-      <div style={{fontSize:16,color:T.sub,marginTop:6}}>
+      <div style={{fontSize:40,marginBottom:12}}>✅</div>
+      <div style={{fontWeight:700,fontSize:18,color:T.teal}}>Leave request submitted!</div>
+      <div style={{fontSize:14,color:T.sub,marginTop:6}}>
         {approver?.email ? `An email has been sent to ${approver.name}.` : "No approver email found — please notify your approver directly."}
       </div>
     </div>
@@ -6851,12 +6851,12 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
       {/* Read-only info */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
         <div style={{background:T.bg,borderRadius:8,padding:"10px 14px"}}>
-          <div style={{fontSize:14,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3}}>Apprentice</div>
-          <div style={{fontWeight:700,fontSize:18,color:T.ink}}>{currentUser.name}</div>
+          <div style={{fontSize:12,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3}}>Apprentice</div>
+          <div style={{fontWeight:700,fontSize:16,color:T.ink}}>{currentUser.name}</div>
         </div>
         <div style={{background:T.bg,borderRadius:8,padding:"10px 14px"}}>
-          <div style={{fontSize:14,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3}}>Approver</div>
-          <div style={{fontWeight:700,fontSize:18,color:approver?T.ink:T.warn}}>
+          <div style={{fontSize:12,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3}}>Approver</div>
+          <div style={{fontWeight:700,fontSize:16,color:approver?T.ink:T.warn}}>
             {approver ? approver.name : "⚠ No approver assigned"}
           </div>
         </div>
@@ -6865,20 +6865,20 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
       {/* Dates */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
         <div>
-          <label style={{fontSize:15,fontWeight:700,color:T.sub,display:"block",marginBottom:5}}>Leave Starting *</label>
+          <label style={{fontSize:13,fontWeight:700,color:T.sub,display:"block",marginBottom:5}}>Leave Starting *</label>
           <input type="date" value={form.dateFrom} onChange={e=>sf("dateFrom",e.target.value)}
-            style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:16,fontFamily:"DM Sans,sans-serif",color:T.ink,outline:"none",boxSizing:"border-box"}}/>
+            style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:14,fontFamily:"DM Sans,sans-serif",color:T.ink,outline:"none",boxSizing:"border-box"}}/>
         </div>
         <div>
-          <label style={{fontSize:15,fontWeight:700,color:T.sub,display:"block",marginBottom:5}}>Leave Finishing *</label>
+          <label style={{fontSize:13,fontWeight:700,color:T.sub,display:"block",marginBottom:5}}>Leave Finishing *</label>
           <input type="date" value={form.dateTo} onChange={e=>sf("dateTo",e.target.value)}
-            style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:16,fontFamily:"DM Sans,sans-serif",color:T.ink,outline:"none",boxSizing:"border-box"}}/>
+            style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:14,fontFamily:"DM Sans,sans-serif",color:T.ink,outline:"none",boxSizing:"border-box"}}/>
         </div>
       </div>
 
       {/* Leave type */}
       <div style={{marginBottom:14}}>
-        <label style={{fontSize:15,fontWeight:700,color:T.sub,display:"block",marginBottom:5}}>Type of Leave *</label>
+        <label style={{fontSize:13,fontWeight:700,color:T.sub,display:"block",marginBottom:5}}>Type of Leave *</label>
         <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
           {LEAVE_TYPES.map(t=>(
             <button key={t} onClick={()=>sf("leaveType",t)}
@@ -6886,7 +6886,7 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
                 background:form.leaveType===t?T.accentL:T.surface,
                 color:form.leaveType===t?T.accent:T.ink,
                 fontWeight:form.leaveType===t?700:400,
-                fontSize:15,cursor:"pointer",fontFamily:"DM Sans,sans-serif",transition:"all .12s"}}>
+                fontSize:13,cursor:"pointer",fontFamily:"DM Sans,sans-serif",transition:"all .12s"}}>
               {t}
             </button>
           ))}
@@ -6895,13 +6895,13 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
 
       {/* Notes */}
       <div style={{marginBottom:16}}>
-        <label style={{fontSize:15,fontWeight:700,color:T.sub,display:"block",marginBottom:5}}>Additional Notes</label>
+        <label style={{fontSize:13,fontWeight:700,color:T.sub,display:"block",marginBottom:5}}>Additional Notes</label>
         <textarea value={form.notes} onChange={e=>sf("notes",e.target.value)} rows={3}
           placeholder="Any additional details about your leave request…"
-          style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:16,fontFamily:"DM Sans,sans-serif",color:T.ink,outline:"none",resize:"vertical",boxSizing:"border-box",lineHeight:1.6}}/>
+          style={{width:"100%",border:`1.5px solid ${T.border}`,borderRadius:8,padding:"9px 12px",fontSize:14,fontFamily:"DM Sans,sans-serif",color:T.ink,outline:"none",resize:"vertical",boxSizing:"border-box",lineHeight:1.6}}/>
       </div>
 
-      {error && <div style={{background:T.redL,border:`1px solid ${T.red}33`,borderRadius:7,padding:"8px 12px",fontSize:15,color:T.red,marginBottom:12}}>{error}</div>}
+      {error && <div style={{background:T.redL,border:`1px solid ${T.red}33`,borderRadius:7,padding:"8px 12px",fontSize:13,color:T.red,marginBottom:12}}>{error}</div>}
 
       <div style={{display:"flex",gap:8}}>
         <Btn onClick={handleSubmit} disabled={saving}>{saving?"Submitting…":"📨 Submit Leave Request"}</Btn>
@@ -6946,8 +6946,8 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
             `Your leave request has been approved by <strong>${currentUser.name}</strong> and forwarded to KTA for final approval.`,
             leaveDetailTable(req, apprentice.name, approver.name) +
             `<div style="background:#d4f0ec;border-radius:8px;padding:12px 16px;margin:14px 0;border-left:4px solid #1a8a7a">
-              <div style="font-weight:700;font-size:15px;color:#1a8a7a;margin-bottom:4px">✓ Stage 1 of 2 Complete</div>
-              <div style="font-size:15px;color:#0d1b2e">Approver approved. Awaiting KTA final approval.</div>
+              <div style="font-weight:700;font-size:13.2px;color:#1a8a7a;margin-bottom:4px">✓ Stage 1 of 2 Complete</div>
+              <div style="font-size:13.2px;color:#0d1b2e">Approver approved. Awaiting KTA final approval.</div>
             </div>`
           ),
         });
@@ -6982,8 +6982,8 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
             `Your leave request has been <strong>fully approved by KTA</strong>. Enjoy your time off! 🎉`,
             leaveDetailTable(req, apprentice.name, approver.name) +
             `<div style="background:#dce8f7;border-radius:8px;padding:12px 16px;margin:14px 0;border-left:4px solid #1b4f8c">
-              <div style="font-weight:700;font-size:15px;color:#1b4f8c;margin-bottom:4px">★ Fully Approved</div>
-              <div style="font-size:15px;color:#0d1b2e">Both approver and KTA have approved your leave.</div>
+              <div style="font-weight:700;font-size:13.2px;color:#1b4f8c;margin-bottom:4px">★ Fully Approved</div>
+              <div style="font-size:13.2px;color:#0d1b2e">Both approver and KTA have approved your leave.</div>
             </div>`
           ),
         });
@@ -7025,10 +7025,10 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
           `Your leave request for <strong>${req.leave_type}</strong> (${fmtDateNZ(req.date_from)} – ${fmtDateNZ(req.date_to)}) has been <strong>declined</strong> by <strong>${currentUser.name}</strong>.`,
           leaveDetailTable(req, apprentice.name, approver.name) +
           `<div style="background:#fde8e8;border-radius:8px;padding:12px 16px;margin:14px 0;border-left:4px solid #bf2b2b">
-            <div style="font-weight:700;font-size:15px;color:#bf2b2b;margin-bottom:4px">Reason for Decline</div>
-            <div style="font-size:15px;color:#0d1b2e">${declineReason.trim()}</div>
+            <div style="font-weight:700;font-size:13.2px;color:#bf2b2b;margin-bottom:4px">Reason for Decline</div>
+            <div style="font-size:13.2px;color:#0d1b2e">${declineReason.trim()}</div>
           </div>
-          <p style="font-size:15px;color:#4a5a72">Please contact <strong>${currentUser.name}</strong> for further information.</p>`
+          <p style="font-size:13.2px;color:#4a5a72">Please contact <strong>${currentUser.name}</strong> for further information.</p>`
         ),
       });
     }
@@ -7040,10 +7040,10 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
         `A leave request from <strong>${apprentice.name}</strong> has been <strong>declined</strong> by <strong>${currentUser.name}</strong>.`,
         leaveDetailTable(req, apprentice.name, approver.name) +
         `<div style="background:#fde8e8;border-radius:8px;padding:12px 16px;margin:14px 0;border-left:4px solid #bf2b2b">
-          <div style="font-weight:700;font-size:15px;color:#bf2b2b;margin-bottom:4px">Reason for Decline</div>
-          <div style="font-size:15px;color:#0d1b2e">${declineReason.trim()}</div>
+          <div style="font-weight:700;font-size:13.2px;color:#bf2b2b;margin-bottom:4px">Reason for Decline</div>
+          <div style="font-size:13.2px;color:#0d1b2e">${declineReason.trim()}</div>
         </div>
-        <p style="font-size:15px;color:#4a5a72">The apprentice has been notified.</p>`
+        <p style="font-size:13.2px;color:#4a5a72">The apprentice has been notified.</p>`
       ),
     }).catch(()=>{});
     setReq(updated);
@@ -7069,18 +7069,18 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
         <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
-            <div style={{fontWeight:700,fontSize:18,color:T.ink}}>{apprentice.name}</div>
-            <span style={{background:T.bg,color:T.sub,borderRadius:99,padding:"2px 10px",fontSize:14,fontWeight:700}}>
+            <div style={{fontWeight:700,fontSize:16,color:T.ink}}>{apprentice.name}</div>
+            <span style={{background:T.bg,color:T.sub,borderRadius:99,padding:"2px 10px",fontSize:12,fontWeight:700}}>
               {req.leave_type}
             </span>
           </div>
-          <div style={{fontSize:15,color:T.sub}}>
+          <div style={{fontSize:13,color:T.sub}}>
             📅 {fmtDateNZ(req.date_from)} → {fmtDateNZ(req.date_to)}
             <span style={{marginLeft:12,color:T.muted}}>Approver: {approver.name}</span>
           </div>
-          {req.notes && <div style={{fontSize:15,color:T.sub,marginTop:4,fontStyle:"italic"}}>"{req.notes}"</div>}
+          {req.notes && <div style={{fontSize:13,color:T.sub,marginTop:4,fontStyle:"italic"}}>"{req.notes}"</div>}
           {req.decline_reason && req.status==="declined" && (
-            <div style={{fontSize:14,color:T.red,marginTop:4,background:T.redL,borderRadius:6,padding:"4px 8px",display:"inline-block"}}>
+            <div style={{fontSize:12,color:T.red,marginTop:4,background:T.redL,borderRadius:6,padding:"4px 8px",display:"inline-block"}}>
               Reason: {req.decline_reason}
             </div>
           )}
@@ -7089,13 +7089,13 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
           <div style={{display:"flex",gap:6,flexShrink:0}}>
             {canApprove && (
               <button onClick={approve} disabled={acting}
-                style={{background:T.teal,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"DM Sans,sans-serif",opacity:acting?0.6:1}}>
+                style={{background:T.teal,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"DM Sans,sans-serif",opacity:acting?0.6:1}}>
                 {acting?"…":"✓ Approve"}
               </button>
             )}
             {canDecline && !acting && (
               <button onClick={()=>{setDeclineMode(true);setDeclineReason("");setReasonErr("");}}
-                style={{background:T.redL,color:T.red,border:`1.5px solid ${T.red}44`,borderRadius:7,padding:"7px 14px",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                style={{background:T.redL,color:T.red,border:`1.5px solid ${T.red}44`,borderRadius:7,padding:"7px 14px",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
                 ✕ Decline
               </button>
             )}
@@ -7106,7 +7106,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
                 onDelete(req.id);
               }}
                 title="Delete leave request"
-                style={{background:"none",border:`1.5px solid ${T.red}44`,color:T.red,borderRadius:7,padding:"7px 10px",fontSize:16,cursor:"pointer",lineHeight:1}}>
+                style={{background:"none",border:`1.5px solid ${T.red}44`,color:T.red,borderRadius:7,padding:"7px 10px",fontSize:14,cursor:"pointer",lineHeight:1}}>
                 🗑
               </button>
             )}
@@ -7118,29 +7118,29 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
       <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${T.border}`}}>
         <LeaveStatusStepper status={req.status}/>
         {fillMsg && (
-          <div style={{marginTop:6,fontSize:14,color:T.teal,fontWeight:700}}>{fillMsg}</div>
+          <div style={{marginTop:6,fontSize:12,color:T.teal,fontWeight:700}}>{fillMsg}</div>
         )}
       </div>
 
       {/* Inline decline reason form */}
       {declineMode && (
         <div style={{marginTop:12,padding:"12px 14px",background:T.redL,borderRadius:9,border:`1px solid ${T.red}33`}}>
-          <div style={{fontWeight:700,fontSize:15,color:T.red,marginBottom:8}}>✕ Decline — Reason Required</div>
+          <div style={{fontWeight:700,fontSize:13,color:T.red,marginBottom:8}}>✕ Decline — Reason Required</div>
           <textarea
             value={declineReason}
             onChange={e=>{setDeclineReason(e.target.value);setReasonErr("");}}
             placeholder="Enter reason for declining this leave request…"
             rows={2}
-            style={{width:"100%",border:`1.5px solid ${reasonErr?T.red:T.border}`,borderRadius:7,padding:"8px 10px",fontSize:15,fontFamily:"DM Sans,sans-serif",resize:"vertical",boxSizing:"border-box",color:T.ink}}
+            style={{width:"100%",border:`1.5px solid ${reasonErr?T.red:T.border}`,borderRadius:7,padding:"8px 10px",fontSize:13,fontFamily:"DM Sans,sans-serif",resize:"vertical",boxSizing:"border-box",color:T.ink}}
           />
-          {reasonErr && <div style={{fontSize:14,color:T.red,marginBottom:6}}>{reasonErr}</div>}
+          {reasonErr && <div style={{fontSize:12,color:T.red,marginBottom:6}}>{reasonErr}</div>}
           <div style={{display:"flex",gap:8,marginTop:6}}>
             <button onClick={submitDecline} disabled={acting}
-              style={{background:T.red,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"DM Sans,sans-serif",opacity:acting?0.6:1}}>
+              style={{background:T.red,color:"#fff",border:"none",borderRadius:7,padding:"7px 16px",fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"DM Sans,sans-serif",opacity:acting?0.6:1}}>
               {acting?"…":"Confirm Decline"}
             </button>
             <button onClick={()=>setDeclineMode(false)} disabled={acting}
-              style={{background:T.bg,color:T.sub,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 14px",fontSize:15,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+              style={{background:T.bg,color:T.sub,border:`1px solid ${T.border}`,borderRadius:7,padding:"7px 14px",fontSize:13,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
               Cancel
             </button>
           </div>
@@ -7162,12 +7162,12 @@ function LeaveToggleCard({ currentUser, allUsers }) {
         style={{width:"100%", background:"none", border:"none", padding:0, cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif"}}>
         <div style={{display:"flex", alignItems:"center", gap:10}}>
           <div style={{width:36, height:36, borderRadius:10, background:T.accentL,
-            display:"flex", alignItems:"center", justifyContent:"center", fontSize:22}}>🏖️</div>
+            display:"flex", alignItems:"center", justifyContent:"center", fontSize:19}}>🏖️</div>
           <div style={{flex:1}}>
-            <div style={{fontWeight:700, fontSize:19}}>Apply for Leave</div>
-            <div style={{fontSize:15, color:T.sub}}>Submit a leave request to your approver</div>
+            <div style={{fontWeight:700, fontSize:17}}>Apply for Leave</div>
+            <div style={{fontSize:13, color:T.sub}}>Submit a leave request to your approver</div>
           </div>
-          <div style={{fontSize:16, color:T.muted, marginLeft:"auto"}}>{open ? "▲" : "▼"}</div>
+          <div style={{fontSize:14, color:T.muted, marginLeft:"auto"}}>{open ? "▲" : "▼"}</div>
         </div>
       </button>
 
@@ -7183,8 +7183,8 @@ function LeaveToggleCard({ currentUser, allUsers }) {
       )}
       {open && submitted && (
         <div style={{marginTop:18, borderTop:`1px solid ${T.border}`, paddingTop:18, textAlign:"center", padding:"24px 16px"}}>
-          <div style={{fontSize:40, marginBottom:10}}>✅</div>
-          <div style={{fontWeight:700, color:T.teal, fontSize:19}}>Leave request submitted!</div>
+          <div style={{fontSize:35, marginBottom:10}}>✅</div>
+          <div style={{fontWeight:700, color:T.teal, fontSize:17}}>Leave request submitted!</div>
         </div>
       )}
     </Card>
@@ -7219,12 +7219,12 @@ function LeaveRequestsListPage({ currentUser, allUsers, entries, setEntries }) {
 
   const handleUpdate = (updated) => setRequests(prev=>prev.map(r=>r.id===updated.id?updated:r));
 
-  if(loading) return <div style={{textAlign:"center",padding:40,color:T.muted,fontSize:16}}>Loading leave requests…</div>;
+  if(loading) return <div style={{textAlign:"center",padding:40,color:T.muted,fontSize:14}}>Loading leave requests…</div>;
   if(requests.length===0) return (
     <Card style={{textAlign:"center",padding:"52px 24px"}}>
-      <div style={{fontSize:45,marginBottom:10}}>🏖️</div>
-      <div style={{fontWeight:700,fontSize:19}}>No leave requests yet</div>
-      <div style={{fontSize:16,color:T.sub,marginTop:6}}>Approved leave requests will appear here.</div>
+      <div style={{fontSize:40,marginBottom:10}}>🏖️</div>
+      <div style={{fontWeight:700,fontSize:17}}>No leave requests yet</div>
+      <div style={{fontSize:14,color:T.sub,marginTop:6}}>Approved leave requests will appear here.</div>
     </Card>
   );
 
@@ -7266,7 +7266,7 @@ function LeaveOverviewCard({ allUsers }) {
 
   if(loading) return (
     <Card style={{marginBottom:16,padding:"18px 20px"}}>
-      <div style={{fontSize:15,color:T.muted}}>Loading leave requests…</div>
+      <div style={{fontSize:13,color:T.muted}}>Loading leave requests…</div>
     </Card>
   );
   if(requests.length===0) return null;
@@ -7275,18 +7275,18 @@ function LeaveOverviewCard({ allUsers }) {
     <Card style={{marginBottom:16,border:`1.5px solid ${T.border}`}}>
       {/* Header */}
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-        <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🏖️</div>
+        <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19}}>🏖️</div>
         <div style={{flex:1}}>
-          <div style={{fontFamily:"DM Sans",fontWeight:700,fontSize:20}}>Leave Requests</div>
-          <div style={{fontSize:15,color:T.sub,marginTop:2}}>{requests.length} request{requests.length!==1?"s":""} — click a row to manage in the panel below</div>
+          <div style={{fontFamily:"DM Sans",fontWeight:700,fontSize:18}}>Leave Requests</div>
+          <div style={{fontSize:13,color:T.sub,marginTop:2}}>{requests.length} request{requests.length!==1?"s":""} — click a row to manage in the panel below</div>
         </div>
-        <button onClick={load} title="Refresh" style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:T.muted,padding:4}}>↻</button>
+        <button onClick={load} title="Refresh" style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:T.muted,padding:4}}>↻</button>
       </div>
 
       {/* Legend */}
       <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:12}}>
         {Object.entries(STATUS).map(([k,v])=>(
-          <span key={k} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:14,
+          <span key={k} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:12,
             color:v.color,background:v.bg,borderRadius:99,padding:"3px 10px",fontWeight:700,
             border:`1px solid ${v.color}33`}}>
             <span style={{width:7,height:7,borderRadius:"50%",background:v.color,display:"inline-block"}}/>
@@ -7297,11 +7297,11 @@ function LeaveOverviewCard({ allUsers }) {
 
       {/* Table */}
       <div style={{overflowX:"auto"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:15}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead>
             <tr style={{background:T.bg}}>
               {["Apprentice","Leave Type","Start","End","Status"].map(h=>(
-                <th key={h} style={{padding:"8px 12px",textAlign:"left",fontSize:12,fontWeight:700,
+                <th key={h} style={{padding:"8px 12px",textAlign:"left",fontSize:11,fontWeight:700,
                   color:T.muted,textTransform:"uppercase",letterSpacing:".6px",
                   borderBottom:`1.5px solid ${T.border}`,whiteSpace:"nowrap"}}>
                   {h}
@@ -7336,7 +7336,7 @@ function LeaveOverviewCard({ allUsers }) {
                   <td style={{padding:"10px 12px",whiteSpace:"nowrap"}}>
                     <span style={{display:"inline-flex",alignItems:"center",gap:5,
                       background:s.bg,color:s.color,border:`1px solid ${s.color}44`,
-                      borderRadius:99,padding:"3px 10px",fontSize:14,fontWeight:700}}>
+                      borderRadius:99,padding:"3px 10px",fontSize:12,fontWeight:700}}>
                       <span style={{width:7,height:7,borderRadius:"50%",background:s.color,display:"inline-block"}}/>
                       {s.label}
                     </span>
@@ -7425,35 +7425,35 @@ function LeaveRequestsPanel({ currentUser, allUsers, entries=[], setEntries=null
 
   const shown = TAB_CONFIG.find(t=>t.id===tab)?.list || [];
 
-  if(loading) return <div style={{textAlign:"center",padding:20,color:T.muted,fontSize:16}}>Loading leave requests…</div>;
+  if(loading) return <div style={{textAlign:"center",padding:20,color:T.muted,fontSize:14}}>Loading leave requests…</div>;
   if(requests.length === 0) return null;
 
   return (
     <Card style={{marginBottom:16,border:`1.5px solid ${T.border}`}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-        <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🏖️</div>
+        <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19}}>🏖️</div>
         <div style={{flex:1}}>
-          <div style={{fontFamily:"DM Sans",fontWeight:700,fontSize:20}}>Leave Requests</div>
-          <div style={{fontSize:15,color:T.sub,marginTop:2}}>{isViewer?"View apprentice leave applications":"Review and approve apprentice leave applications"}</div>
+          <div style={{fontFamily:"DM Sans",fontWeight:700,fontSize:18}}>Leave Requests</div>
+          <div style={{fontSize:13,color:T.sub,marginTop:2}}>{isViewer?"View apprentice leave applications":"Review and approve apprentice leave applications"}</div>
         </div>
-        <button onClick={load} title="Refresh" style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:T.muted,padding:4}}>↻</button>
+        <button onClick={load} title="Refresh" style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:T.muted,padding:4}}>↻</button>
       </div>
       {/* Status tabs — all 4 stages clearly separated */}
       <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
         {TAB_CONFIG.map(tc => (
           <button key={tc.id} onClick={()=>setTab(tc.id)}
             style={{padding:"5px 12px",borderRadius:8,border:`1.5px solid ${tab===tc.id?tc.color:T.border}`,
-              cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:14,fontWeight:700,
+              cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:12,fontWeight:700,
               background:tab===tc.id?tc.color:T.surface,
               color:tab===tc.id?"#fff":tc.list.length>0?tc.color:T.muted,
               transition:"all .12s"}}>
             {tc.label}
-            {tc.list.length>0 && <span style={{marginLeft:5,background:tab===tc.id?"rgba(255,255,255,.25)":tc.color+"22",borderRadius:99,padding:"1px 7px",fontSize:12,fontWeight:700}}>{tc.list.length}</span>}
+            {tc.list.length>0 && <span style={{marginLeft:5,background:tab===tc.id?"rgba(255,255,255,.25)":tc.color+"22",borderRadius:99,padding:"1px 7px",fontSize:11,fontWeight:700}}>{tc.list.length}</span>}
           </button>
         ))}
       </div>
       {shown.length===0
-        ? <div style={{textAlign:"center",padding:"20px",color:T.muted,fontSize:16,fontStyle:"italic"}}>No leave requests in this category.</div>
+        ? <div style={{textAlign:"center",padding:"20px",color:T.muted,fontSize:14,fontStyle:"italic"}}>No leave requests in this category.</div>
         : shown.map(r => (
             <LeaveRequestCard key={r.id} req={r} allUsers={allUsers} currentUser={currentUser}
               isAdmin={isAdmin} isApprover={isApprover} onUpdate={handleUpdate}
@@ -7488,10 +7488,10 @@ function MyLeaveRequests({ currentUser }) {
     <Card style={{marginBottom:16,border:`1.5px solid ${T.border}`}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:32,height:32,borderRadius:8,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📋</div>
-          <div style={{fontWeight:700,fontSize:19}}>My Leave Requests</div>
+          <div style={{width:32,height:32,borderRadius:8,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📋</div>
+          <div style={{fontWeight:700,fontSize:17}}>My Leave Requests</div>
         </div>
-        <button onClick={load} title="Refresh" style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:T.muted}}>↻</button>
+        <button onClick={load} title="Refresh" style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:T.muted}}>↻</button>
       </div>
       {requests.map(r => {
         const meta = LEAVE_STATUS_META[r.status] || LEAVE_STATUS_META.pending;
@@ -7504,19 +7504,19 @@ function MyLeaveRequests({ currentUser }) {
             {/* Header row */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap",marginBottom:6}}>
               <div>
-                <div style={{fontWeight:700,fontSize:16,color:T.ink}}>{r.leave_type}</div>
-                <div style={{fontSize:15,color:T.sub,marginTop:2}}>
+                <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{r.leave_type}</div>
+                <div style={{fontSize:13,color:T.sub,marginTop:2}}>
                   📅 {fmtDateNZ(r.date_from)} → {fmtDateNZ(r.date_to)}
                 </div>
-                {r.notes && <div style={{fontSize:14,color:T.muted,marginTop:2,fontStyle:"italic"}}>"{r.notes}"</div>}
+                {r.notes && <div style={{fontSize:12,color:T.muted,marginTop:2,fontStyle:"italic"}}>"{r.notes}"</div>}
               </div>
-              <span style={{background:meta.bg,color:meta.color,borderRadius:99,padding:"3px 12px",fontSize:14,fontWeight:700,flexShrink:0,whiteSpace:"nowrap"}}>
+              <span style={{background:meta.bg,color:meta.color,borderRadius:99,padding:"3px 12px",fontSize:12,fontWeight:700,flexShrink:0,whiteSpace:"nowrap"}}>
                 {meta.sym} {meta.label}
               </span>
             </div>
             {/* Decline reason — shown if declined */}
             {r.status==="declined" && r.decline_reason && (
-              <div style={{background:T.redL,border:`1px solid ${T.red}22`,borderRadius:7,padding:"7px 10px",fontSize:15,color:T.red,marginBottom:6}}>
+              <div style={{background:T.redL,border:`1px solid ${T.red}22`,borderRadius:7,padding:"7px 10px",fontSize:13,color:T.red,marginBottom:6}}>
                 <span style={{fontWeight:700}}>Reason: </span>{r.decline_reason}
               </div>
             )}
@@ -7584,10 +7584,10 @@ function ContactUs({currentUser, allUsers, onSend}) {
     <Card style={{marginTop:20,border:`1.5px solid ${T.border}`}} className="fu">
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
         <div style={{width:36,height:36,borderRadius:10,background:T.accentL,
-          display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>📞</div>
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:19}}>📞</div>
         <div>
-          <div style={{fontWeight:700,fontSize:19}}>Contact Us</div>
-          <div style={{fontSize:15,color:T.sub}}>Get in touch with your KTA team</div>
+          <div style={{fontWeight:700,fontSize:17}}>Contact Us</div>
+          <div style={{fontSize:13,color:T.sub}}>Get in touch with your KTA team</div>
         </div>
       </div>
 
@@ -7603,16 +7603,16 @@ function ContactUs({currentUser, allUsers, onSend}) {
               display:"flex",alignItems:"center",gap:12}}>
             <div style={{width:44,height:44,borderRadius:99,background:person.color,
               display:"flex",alignItems:"center",justifyContent:"center",
-              color:"#fff",fontWeight:700,fontSize:18,flexShrink:0}}>
+              color:"#fff",fontWeight:700,fontSize:16,flexShrink:0}}>
               {person.avatar}
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontWeight:700,fontSize:18,color:T.ink}}>{person.name}</div>
+              <div style={{fontWeight:700,fontSize:16,color:T.ink}}>{person.name}</div>
               <div style={{marginTop:3}}><RolePill role={person.role} size="sm"/></div>
             </div>
             {selectedId===person.id
-              ? <span style={{fontSize:20,color:person.color,flexShrink:0}}>✓</span>
-              : <span style={{fontSize:18,color:T.muted,flexShrink:0}}>›</span>
+              ? <span style={{fontSize:18,color:person.color,flexShrink:0}}>✓</span>
+              : <span style={{fontSize:16,color:T.muted,flexShrink:0}}>›</span>
             }
           </button>
         ))}
@@ -7621,7 +7621,7 @@ function ContactUs({currentUser, allUsers, onSend}) {
       {/* Contact options */}
       {selected&&!msgMode&&!sent&&(
         <div className="fu" style={{background:T.bg,borderRadius:10,padding:14}}>
-          <div style={{fontSize:15,fontWeight:700,color:T.sub,marginBottom:10,textTransform:"uppercase",letterSpacing:".5px"}}>
+          <div style={{fontSize:13,fontWeight:700,color:T.sub,marginBottom:10,textTransform:"uppercase",letterSpacing:".5px"}}>
             How would you like to reach {selected.name.split(" ")[0]}?
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -7632,10 +7632,10 @@ function ContactUs({currentUser, allUsers, onSend}) {
                   textDecoration:"none",color:T.ink,transition:"all .14s"}}
                 onMouseEnter={e=>e.currentTarget.style.borderColor=T.accent}
                 onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
-                <span style={{fontSize:25}}>📱</span>
+                <span style={{fontSize:22}}>📱</span>
                 <div>
-                  <div style={{fontSize:16,fontWeight:700}}>Call</div>
-                  <div style={{fontSize:15,color:T.sub}}>{selected.phone}</div>
+                  <div style={{fontSize:14,fontWeight:700}}>Call</div>
+                  <div style={{fontSize:13,color:T.sub}}>{selected.phone}</div>
                 </div>
               </a>
             )}
@@ -7646,15 +7646,15 @@ function ContactUs({currentUser, allUsers, onSend}) {
                   textDecoration:"none",color:T.ink,transition:"all .14s"}}
                 onMouseEnter={e=>e.currentTarget.style.borderColor=T.accent}
                 onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
-                <span style={{fontSize:25}}>✉️</span>
+                <span style={{fontSize:22}}>✉️</span>
                 <div>
-                  <div style={{fontSize:16,fontWeight:700}}>Email</div>
-                  <div style={{fontSize:15,color:T.sub}}>{selected.email}</div>
+                  <div style={{fontSize:14,fontWeight:700}}>Email</div>
+                  <div style={{fontSize:13,color:T.sub}}>{selected.email}</div>
                 </div>
               </a>
             )}
             {!selected.phone&&!selected.email&&(
-              <div style={{fontSize:15,color:T.muted,fontStyle:"italic",padding:"8px 0"}}>
+              <div style={{fontSize:13,color:T.muted,fontStyle:"italic",padding:"8px 0"}}>
                 No phone or email on file — use the in-app message below.
               </div>
             )}
@@ -7665,10 +7665,10 @@ function ContactUs({currentUser, allUsers, onSend}) {
                 color:T.ink,transition:"all .14s",width:"100%"}}
               onMouseEnter={e=>e.currentTarget.style.borderColor=selected.color}
               onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}>
-              <span style={{fontSize:25}}>💬</span>
+              <span style={{fontSize:22}}>💬</span>
               <div>
-                <div style={{fontSize:16,fontWeight:700}}>Message in App</div>
-                <div style={{fontSize:15,color:T.sub}}>Send a message via the KTA app</div>
+                <div style={{fontSize:14,fontWeight:700}}>Message in App</div>
+                <div style={{fontSize:13,color:T.sub}}>Send a message via the KTA app</div>
               </div>
             </button>
           </div>
@@ -7678,7 +7678,7 @@ function ContactUs({currentUser, allUsers, onSend}) {
       {/* In-app message composer */}
       {selected&&msgMode&&!sent&&(
         <div className="fu" style={{background:T.bg,borderRadius:10,padding:14}}>
-          <div style={{fontSize:16,fontWeight:700,marginBottom:8}}>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:8}}>
             Message to {selected.name}
           </div>
           <textarea
@@ -7686,7 +7686,7 @@ function ContactUs({currentUser, allUsers, onSend}) {
             value={msgText}
             onChange={e=>setMsgText(e.target.value)}
             rows={4}
-            style={{width:"100%",fontSize:16,padding:"10px 12px",borderRadius:8,
+            style={{width:"100%",fontSize:14,padding:"10px 12px",borderRadius:8,
               border:`1.5px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",
               background:T.surface,resize:"none",color:T.ink,outline:"none",
               boxSizing:"border-box"}}
@@ -7703,9 +7703,9 @@ function ContactUs({currentUser, allUsers, onSend}) {
       {/* Sent confirmation */}
       {sent&&(
         <div className="fu" style={{background:T.accentL,borderRadius:10,padding:16,textAlign:"center"}}>
-          <div style={{fontSize:25,marginBottom:4}}>✓</div>
-          <div style={{fontWeight:700,color:T.accent,fontSize:18}}>Message sent!</div>
-          <div style={{fontSize:15,color:T.sub,marginTop:2}}>{selected?.name} will get back to you soon.</div>
+          <div style={{fontSize:22,marginBottom:4}}>✓</div>
+          <div style={{fontWeight:700,color:T.accent,fontSize:16}}>Message sent!</div>
+          <div style={{fontSize:13,color:T.sub,marginTop:2}}>{selected?.name} will get back to you soon.</div>
         </div>
       )}
     </Card>
@@ -7804,8 +7804,8 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver, ccEm
       html: `<p>Hi ${r.name},</p>
 <p>Please find attached the apprentice check in report for <strong>${apprentice.name}</strong>.</p>
 <hr>
-<pre style="font-family:monospace;font-size:16.2px;line-height:1.6">${lines}</pre>
-<p style="color:#888;font-size:15px">KTA Workforce Management · payroll@kta.org.nz</p>`,
+<pre style="font-family:monospace;font-size:14.3px;line-height:1.6">${lines}</pre>
+<p style="color:#888;font-size:13.2px">KTA Workforce Management · payroll@kta.org.nz</p>`,
       attachments,
     });
   }
@@ -7844,10 +7844,10 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
           height:52, flexShrink:0, boxShadow:"0 2px 8px rgba(0,0,0,.18)",
         }}>
           <div style={{display:"flex", alignItems:"center", gap:12}}>
-            <div style={{fontSize:25}}>📋</div>
+            <div style={{fontSize:22}}>📋</div>
             <div>
-              <div style={{fontWeight:700, fontSize:19, color:"#fff"}}>New Meeting Report</div>
-              <div style={{fontSize:14, color:"rgba(255,255,255,.65)"}}>{apprentice.name}</div>
+              <div style={{fontWeight:700, fontSize:17, color:"#fff"}}>New Meeting Report</div>
+              <div style={{fontSize:12, color:"rgba(255,255,255,.65)"}}>{apprentice.name}</div>
             </div>
           </div>
           <div style={{display:"flex", alignItems:"center", gap:10}}>
@@ -7859,13 +7859,13 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
                 background: showPast ? T.gold : "rgba(255,255,255,.12)",
                 border: `1.5px solid ${showPast ? T.gold : "rgba(255,255,255,.25)"}`,
                 borderRadius:8, padding:"6px 14px", cursor:"pointer",
-                color: showPast ? T.dark : "#fff", fontSize:15, fontWeight:700,
+                color: showPast ? T.dark : "#fff", fontSize:13, fontWeight:700,
                 fontFamily:"DM Sans,sans-serif", transition:"all .15s",
               }}
             >
               <span>📁</span>
               <span>Past Reports</span>
-              <span style={{fontSize:12, opacity:.7}}>{showPast ? "▶" : "◀"}</span>
+              <span style={{fontSize:11, opacity:.7}}>{showPast ? "▶" : "◀"}</span>
             </button>
             {/* Close */}
             <button
@@ -7873,7 +7873,7 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
               style={{
                 background:"rgba(255,255,255,.12)", border:"1.5px solid rgba(255,255,255,.25)",
                 borderRadius:8, padding:"6px 12px", cursor:"pointer",
-                color:"#fff", fontSize:16, fontWeight:700,
+                color:"#fff", fontSize:14, fontWeight:700,
                 fontFamily:"DM Sans,sans-serif", transition:"all .15s",
               }}
             >✕ Cancel</button>
@@ -7906,11 +7906,11 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
           padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between",
         }}>
           <div style={{display:"flex", alignItems:"center", gap:8}}>
-            <span style={{fontSize:20}}>📁</span>
-            <div style={{fontWeight:700, fontSize:18, color:T.gold}}>Past Reports</div>
+            <span style={{fontSize:18}}>📁</span>
+            <div style={{fontWeight:700, fontSize:16, color:T.gold}}>Past Reports</div>
           </div>
           <button onClick={() => setShowPast(false)} style={{
-            background:"none", border:"none", cursor:"pointer", fontSize:20, color:T.gold, padding:4,
+            background:"none", border:"none", cursor:"pointer", fontSize:18, color:T.gold, padding:4,
           }}>✕</button>
         </div>
         <div style={{padding:"16px", flex:1}}>
@@ -7927,14 +7927,14 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
 // recreates them as new component types, unmounting/remounting and losing focus.
 const ReportTA = ({rows=4, value, onChange, placeholder}) => (
   <textarea rows={rows} value={value} onChange={onChange} placeholder={placeholder||""}
-    style={{width:"100%",fontSize:16,padding:"10px 12px",border:`1px solid ${T.border}`,
+    style={{width:"100%",fontSize:14,padding:"10px 12px",border:`1px solid ${T.border}`,
       borderTop:"none",borderRadius:0,fontFamily:"DM Sans,sans-serif",background:"#fff",
       resize:"vertical",color:T.ink,outline:"none",boxSizing:"border-box",minHeight:90}}/>
 );
 const ReportSH = ({children, req}) => (
   <div style={{background:"#f5f7fa",border:`1px solid ${T.border}`,borderBottom:"none",
-    padding:"9px 12px",fontWeight:700,fontSize:16,color:T.ink,display:"flex",alignItems:"center",gap:5}}>
-    {children}{req&&<span style={{color:T.red,fontSize:14,marginLeft:2}}>*</span>}
+    padding:"9px 12px",fontWeight:700,fontSize:14,color:T.ink,display:"flex",alignItems:"center",gap:5}}>
+    {children}{req&&<span style={{color:T.red,fontSize:12,marginLeft:2}}>*</span>}
   </div>
 );
 
@@ -8064,8 +8064,8 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
       {/* KTA Header */}
       <div style={{background:T.dark,padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <div>
-          <div style={{fontFamily:"DM Sans",fontWeight:700,fontSize:20,color:"#fff"}}>Apprentice Check In Report</div>
-          <div style={{fontSize:14,color:"#ffffff88",marginTop:2}}>Kiwi Trade Apprentices</div>
+          <div style={{fontFamily:"DM Sans",fontWeight:700,fontSize:18,color:"#fff"}}>Apprentice Check In Report</div>
+          <div style={{fontSize:12,color:"#ffffff88",marginTop:2}}>Kiwi Trade Apprentices</div>
         </div>
         <img src={KTA_LOGO} alt="KTA" style={{height:36,objectFit:"contain",filter:"brightness(0) invert(1)"}}
           onError={e=>e.target.style.display="none"}/>
@@ -8074,17 +8074,17 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
       {/* Top table — Trainee Name / Location / Date */}
       <div style={{border:`1px solid ${T.border}`,borderTop:"none"}}>
         {[
-          {label:"Trainee Name", content:<div style={{padding:"4px 6px",fontSize:16,fontWeight:700}}>{apprentice.name}</div>},
+          {label:"Trainee Name", content:<div style={{padding:"4px 6px",fontSize:14,fontWeight:700}}>{apprentice.name}</div>},
           {label:"Location",     content:<input value={form.location} onChange={e=>sf("location",e.target.value)}
             placeholder="e.g. Worksite, Zoom, Head Office"
             onKeyDown={e=>e.stopPropagation()}
-            style={{border:"none",fontSize:16,width:"100%",outline:"none",padding:"6px",fontFamily:"DM Sans,sans-serif",background:"transparent"}}/>},
+            style={{border:"none",fontSize:14,width:"100%",outline:"none",padding:"6px",fontFamily:"DM Sans,sans-serif",background:"transparent"}}/>},
           {label:"Date",         content:<div style={{position:"relative"}}><input type="date" value={form.date} onChange={e=>sf("date",e.target.value)}
             className="ts-date-input"
-            style={{border:"none",fontSize:16,width:"100%",outline:"none",padding:"6px",fontFamily:"DM Sans,sans-serif",background:"transparent",cursor:"pointer"}}/></div>},
+            style={{border:"none",fontSize:14,width:"100%",outline:"none",padding:"6px",fontFamily:"DM Sans,sans-serif",background:"transparent",cursor:"pointer"}}/></div>},
         ].map(({label,content})=>(
           <div key={label} style={{display:"grid",gridTemplateColumns:"160px 1fr",borderBottom:`1px solid ${T.border}`}}>
-            <div style={{padding:"10px 12px",fontWeight:700,fontSize:16,borderRight:`1px solid ${T.border}`,background:"#f5f7fa"}}>{label}</div>
+            <div style={{padding:"10px 12px",fontWeight:700,fontSize:14,borderRight:`1px solid ${T.border}`,background:"#f5f7fa"}}>{label}</div>
             <div>{content}</div>
           </div>
         ))}
@@ -8100,7 +8100,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
           placeholder="Practical skills, site work, tasks completed, employer feedback…"/>
         <ReportSH>Previous Goals</ReportSH>
         {prevGoalsSource && (
-          <div style={{fontSize:14,color:T.teal,marginBottom:4,paddingLeft:2}}>
+          <div style={{fontSize:12,color:T.teal,marginBottom:4,paddingLeft:2}}>
             ✓ Auto-filled from report dated {prevGoalsSource.split('-').reverse().join('/')} — edit as needed
           </div>
         )}
@@ -8117,15 +8117,15 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
       {/* Bottom table — Licence Expiry / Next Visit / KTA Rep */}
       <div style={{border:`1px solid ${T.border}`,borderTop:"none"}}>
         {[
-          {label:"Licence Expiry",      content:<div style={{padding:"6px",fontSize:16,fontWeight:700,
+          {label:"Licence Expiry",      content:<div style={{padding:"6px",fontSize:14,fontWeight:700,
             color: apprentice.licenceExpiry && new Date(apprentice.licenceExpiry+"T00:00:00")<new Date() ? T.red : T.ink}}>
             {apprentice.licenceExpiry ? fD(apprentice.licenceExpiry) : "Not set"}</div>},
           {label:"Date of Next Visit",  content:<input type="date" value={form.nextVisitDate} onChange={e=>sf("nextVisitDate",e.target.value)}
-            style={{border:"none",fontSize:16,width:"100%",outline:"none",padding:"6px",fontFamily:"DM Sans,sans-serif",background:"transparent"}}/>},
-          {label:"KTA Representative",  content:<div style={{padding:"6px",fontSize:16,fontWeight:700}}>{mentor.name}</div>},
+            style={{border:"none",fontSize:14,width:"100%",outline:"none",padding:"6px",fontFamily:"DM Sans,sans-serif",background:"transparent"}}/>},
+          {label:"KTA Representative",  content:<div style={{padding:"6px",fontSize:14,fontWeight:700}}>{mentor.name}</div>},
         ].map(({label,content})=>(
           <div key={label} style={{display:"grid",gridTemplateColumns:"180px 1fr",borderBottom:`1px solid ${T.border}`}}>
-            <div style={{padding:"10px 12px",fontWeight:700,fontSize:16,borderRight:`1px solid ${T.border}`,background:"#f5f7fa"}}>{label}</div>
+            <div style={{padding:"10px 12px",fontWeight:700,fontSize:14,borderRight:`1px solid ${T.border}`,background:"#f5f7fa"}}>{label}</div>
             <div>{content}</div>
           </div>
         ))}
@@ -8133,7 +8133,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
 
       {/* Email notice + save */}
       <div style={{padding:"14px 16px 40px 16px",background:T.bg,borderTop:`1px solid ${T.border}`}}>
-        <div style={{fontSize:15,color:T.accent,marginBottom:12,padding:"8px 12px",
+        <div style={{fontSize:13,color:T.accent,marginBottom:12,padding:"8px 12px",
           background:T.accentL,borderRadius:7,border:`1px solid ${T.accent}33`}}>
           📧 On save this report will be emailed to:
           <strong> {apprentice.name}</strong>{apprentice.email?` (${apprentice.email})`:` — ⚠ no email set`}
@@ -8146,9 +8146,9 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
         </div>
         {/* ── Additional CC recipients ── */}
         <div style={{marginBottom:12}}>
-          <div style={{fontSize:15,fontWeight:700,color:T.sub,marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{fontSize:13,fontWeight:700,color:T.sub,marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <span>➕ Also send to</span>
-            <button onClick={()=>setShowAddEmail(s=>!s)} style={{fontSize:14,padding:"3px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:T.surface,color:T.sub,cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
+            <button onClick={()=>setShowAddEmail(s=>!s)} style={{fontSize:12,padding:"3px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:T.surface,color:T.sub,cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
               {showAddEmail?"✕ Close":"+ Add recipient"}
             </button>
           </div>
@@ -8157,10 +8157,10 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
           {ccEmails.length>0&&(
             <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}}>
               {ccEmails.map(r=>(
-                <div key={r.email} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 10px",borderRadius:20,background:T.tealL,border:`1px solid ${T.teal}44`,fontSize:15,fontWeight:700,color:T.teal}}>
+                <div key={r.email} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 10px",borderRadius:20,background:T.tealL,border:`1px solid ${T.teal}44`,fontSize:13,fontWeight:700,color:T.teal}}>
                   <span>{r.name}</span>
-                  <span style={{fontSize:12,fontWeight:700,color:T.muted}}>({r.email})</span>
-                  <button onClick={()=>removeCc(r.email)} style={{background:"none",border:"none",cursor:"pointer",color:T.teal,fontSize:16,lineHeight:1,padding:0,fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                  <span style={{fontSize:11,fontWeight:700,color:T.muted}}>({r.email})</span>
+                  <button onClick={()=>removeCc(r.email)} style={{background:"none",border:"none",cursor:"pointer",color:T.teal,fontSize:14,lineHeight:1,padding:0,fontFamily:"DM Sans,sans-serif"}}>✕</button>
                 </div>
               ))}
             </div>
@@ -8171,7 +8171,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
             <div style={{background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:10,padding:"12px 14px"}}>
               {companyContacts.length>0&&(
                 <div style={{marginBottom:10}}>
-                  <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>
+                  <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>
                     🏢 {apprentice.hostBusiness} Contacts
                   </div>
                   <div style={{display:"flex",flexDirection:"column",gap:4}}>
@@ -8185,12 +8185,12 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
                             background:already?T.tealL:"#fff",cursor:already?"default":"pointer",
                             fontFamily:"DM Sans,sans-serif",textAlign:"left",transition:"all .12s"}}>
                           <div>
-                            <div style={{fontWeight:700,fontSize:16,color:T.ink}}>{c.name}</div>
-                            <div style={{fontSize:14,color:T.muted}}>{c.email}</div>
+                            <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{c.name}</div>
+                            <div style={{fontSize:12,color:T.muted}}>{c.email}</div>
                           </div>
                           {already
-                            ? <span style={{fontSize:14,fontWeight:700,color:T.teal}}>✓ Added</span>
-                            : <span style={{fontSize:14,color:T.accent,fontWeight:700}}>+ Add</span>
+                            ? <span style={{fontSize:12,fontWeight:700,color:T.teal}}>✓ Added</span>
+                            : <span style={{fontSize:12,color:T.accent,fontWeight:700}}>+ Add</span>
                           }
                         </button>
                       );
@@ -8200,7 +8200,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
               )}
               {/* Type a new address */}
               <div style={{borderTop:companyContacts.length>0?`1px solid ${T.border}`:"none",paddingTop:companyContacts.length>0?10:0}}>
-                <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>
+                <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>
                   ✉ Enter email manually
                 </div>
                 <div style={{display:"flex",gap:6}}>
@@ -8210,7 +8210,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
                     value={customEmail}
                     onChange={e=>setCustomEmail(e.target.value)}
                     onKeyDown={e=>{if(e.key==="Enter"&&customEmail.includes("@")){addCc(customEmail.trim(),customEmail.trim());setCustomEmail("");setShowAddEmail(false);}}}
-                    style={{flex:1,fontSize:16}}
+                    style={{flex:1,fontSize:14}}
                   />
                   <Btn sm onClick={()=>{if(customEmail.includes("@")){addCc(customEmail.trim(),customEmail.trim());setCustomEmail("");setShowAddEmail(false);}else{alert("Enter a valid email address.");}}}>
                     Add
@@ -8221,14 +8221,14 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
           )}
         </div>
 
-        {emailStatus==="sending"&&<div style={{background:T.warnL,border:`1px solid ${T.warn}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:15,color:T.warn}}>⏳ Sending emails…</div>}
-        {emailStatus==="sent"&&<div style={{background:T.tealL,border:`1px solid ${T.teal}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:15,color:T.teal}}>✓ Saved and emailed!</div>}
-        {emailStatus==="error"&&<div style={{background:T.redL,border:`1px solid ${T.red}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:15,color:T.red}}>⚠ Report saved but email failed — check Edge Function deployment.</div>}
+        {emailStatus==="sending"&&<div style={{background:T.warnL,border:`1px solid ${T.warn}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:13,color:T.warn}}>⏳ Sending emails…</div>}
+        {emailStatus==="sent"&&<div style={{background:T.tealL,border:`1px solid ${T.teal}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:13,color:T.teal}}>✓ Saved and emailed!</div>}
+        {emailStatus==="error"&&<div style={{background:T.redL,border:`1px solid ${T.red}44`,borderRadius:7,padding:"8px 12px",marginBottom:10,fontSize:13,color:T.red}}>⚠ Report saved but email failed — check Edge Function deployment.</div>}
         <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
           <Btn onClick={handleSave} disabled={saving}>{saving?"Saving…":"💾 Save & Email Report"}</Btn>
           {!emailStatus&&(
             <button onClick={handleSaveDraft} disabled={savingDraft}
-              style={{padding:"9px 18px",borderRadius:9,fontSize:16,fontWeight:700,cursor:"pointer",
+              style={{padding:"9px 18px",borderRadius:9,fontSize:14,fontWeight:700,cursor:"pointer",
                 background:T.surface,color:T.sub,border:`1.5px solid ${T.border}`,
                 fontFamily:"DM Sans,sans-serif",opacity:savingDraft?0.6:1,transition:"all .14s"}}>
               {savingDraft?"Saving…":draftId?"💾 Update Draft":"💾 Save Draft"}
@@ -8264,18 +8264,18 @@ function PastMeetingReports({apprentice, allUsers, canEdit=false}) {
 
   const Section = ({label,value}) => value ? (
     <div style={{marginBottom:10}}>
-      <div style={{fontSize:14,fontWeight:700,color:T.dark,textTransform:"uppercase",
+      <div style={{fontSize:12,fontWeight:700,color:T.dark,textTransform:"uppercase",
         letterSpacing:".6px",marginBottom:3,paddingBottom:3,borderBottom:`1px solid ${T.border}`}}>{label}</div>
-      <div style={{fontSize:16,color:T.ink,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{value}</div>
+      <div style={{fontSize:14,color:T.ink,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{value}</div>
     </div>
   ) : null;
 
-  if(loading) return <div style={{padding:24,textAlign:"center",color:T.muted,fontSize:16}}>Loading reports…</div>;
+  if(loading) return <div style={{padding:24,textAlign:"center",color:T.muted,fontSize:14}}>Loading reports…</div>;
 
   return (
     <div>
       {reports.length===0&&(
-        <div style={{padding:"24px 0",textAlign:"center",color:T.muted,fontSize:16,fontStyle:"italic"}}>No check in reports yet</div>
+        <div style={{padding:"24px 0",textAlign:"center",color:T.muted,fontSize:14,fontStyle:"italic"}}>No check in reports yet</div>
       )}
       {reports.map(r=>{
         const mentorUser = allUsers.find(u=>u.id===r.mentor_id);
@@ -8288,17 +8288,17 @@ function PastMeetingReports({apprentice, allUsers, canEdit=false}) {
               borderBottom:isOpen?`1px solid ${T.border}`:"none",transition:"background .15s"}}>
               <div style={{width:34,height:34,borderRadius:8,
                 background:isOpen?"#ffffff20":T.accentL,
-                display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,flexShrink:0}}>📋</div>
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>📋</div>
               <div style={{flex:1}}>
-                <div style={{fontWeight:700,fontSize:18,color:isOpen?"#fff":T.ink}}>
+                <div style={{fontWeight:700,fontSize:16,color:isOpen?"#fff":T.ink}}>
                   {fD(r.date)}{r.location?` — ${r.location}`:""}
                 </div>
-                <div style={{fontSize:15,color:isOpen?"#ffffff88":T.sub,marginTop:1}}>
+                <div style={{fontSize:13,color:isOpen?"#ffffff88":T.sub,marginTop:1}}>
                   {mentorUser?.name||"Unknown"} · KTA Representative
                   {r.next_visit_date&&<span style={{marginLeft:8}}>Next visit: {fD(r.next_visit_date)}</span>}
                 </div>
               </div>
-              <div style={{fontSize:14,color:isOpen?"#ffffff66":T.muted}}>{isOpen?"▲ collapse":"▼ view"}</div>
+              <div style={{fontSize:12,color:isOpen?"#ffffff66":T.muted}}>{isOpen?"▲ collapse":"▼ view"}</div>
             </div>
             {isOpen&&(
               <div style={{padding:"16px",background:"#fff"}}>
@@ -8315,14 +8315,14 @@ function PastMeetingReports({apprentice, allUsers, canEdit=false}) {
                     {label:"KTA Representative",  value: mentorUser?.name||"—"},
                   ].map(({label,value})=>(
                     <div key={label}>
-                      <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
-                      <div style={{fontSize:16,fontWeight:700,color:T.ink}}>{value}</div>
+                      <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
+                      <div style={{fontSize:14,fontWeight:700,color:T.ink}}>{value}</div>
                     </div>
                   ))}
                 </div>
                 {canEdit&&(
                   <button onClick={()=>handleDelete(r.id)} style={{
-                    marginTop:12,fontSize:15,color:T.red,background:"none",
+                    marginTop:12,fontSize:13,color:T.red,background:"none",
                     border:`1px solid ${T.red}44`,borderRadius:6,padding:"4px 12px",
                     cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>🗑 Delete Report</button>
                 )}
@@ -8445,7 +8445,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
         return `<tr>
           <td style="padding:9px 12px;font-weight:700;color:#0d1b2e;border-bottom:1px solid #edf2f7">${it.item}</td>
           <td style="padding:9px 12px;color:#4a5a72;border-bottom:1px solid #edf2f7">${it.size||"—"}</td>
-          <td style="padding:9px 12px;text-align:center;font-weight:700;font-size:18.8px;color:#b86e1a;border-bottom:1px solid #edf2f7">${need}</td>
+          <td style="padding:9px 12px;text-align:center;font-weight:700;font-size:16.5px;color:#b86e1a;border-bottom:1px solid #edf2f7">${need}</td>
           <td style="padding:9px 12px;color:#888;font-style:italic;border-bottom:1px solid #edf2f7">${it.notes||""}</td>
         </tr>`;
       }).join("");
@@ -8453,8 +8453,8 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
       const assignedTableRows = assignedRows.map(it => `<tr>
           <td style="padding:9px 12px;font-weight:700;color:#0d1b2e;border-bottom:1px solid #edf2f7">${it.item}</td>
           <td style="padding:9px 12px;color:#4a5a72;border-bottom:1px solid #edf2f7">${it.size||"—"}</td>
-          <td style="padding:9px 12px;text-align:center;font-weight:700;font-size:18.8px;color:#1a8a7a;border-bottom:1px solid #edf2f7">${it.qtyIssued}</td>
-          <td style="padding:9px 12px;border-bottom:1px solid #edf2f7"><span style="display:inline-block;padding:2px 10px;border-radius:99px;font-size:13.8px;font-weight:700;background:#d4f0ec;color:#1a8a7a">Yes</span></td>
+          <td style="padding:9px 12px;text-align:center;font-weight:700;font-size:16.5px;color:#1a8a7a;border-bottom:1px solid #edf2f7">${it.qtyIssued}</td>
+          <td style="padding:9px 12px;border-bottom:1px solid #edf2f7"><span style="display:inline-block;padding:2px 10px;border-radius:99px;font-size:12.1px;font-weight:700;background:#d4f0ec;color:#1a8a7a">Yes</span></td>
           <td style="padding:9px 12px;color:#888;font-style:italic;border-bottom:1px solid #edf2f7">${it.notes||""}</td>
         </tr>`).join("");
 
@@ -8462,74 +8462,74 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
 <body style="margin:0;padding:20px;background:#f0f4f9;font-family:Arial,Helvetica,sans-serif">
 <div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
   <div style="background:#1b4f8c;padding:20px 28px">
-    <div style="font-size:13.8px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">KTA Workforce Management</div>
-    <div style="font-size:25px;font-weight:700;color:#fff">PPE Request — ${apprentice.name}</div>
-    <div style="font-size:15px;color:rgba(255,255,255,.7);margin-top:4px">All items issued new and non-returnable</div>
+    <div style="font-size:12.1px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">KTA Workforce Management</div>
+    <div style="font-size:22px;font-weight:700;color:#fff">PPE Request — ${apprentice.name}</div>
+    <div style="font-size:13.2px;color:rgba(255,255,255,.7);margin-top:4px">All items issued new and non-returnable</div>
   </div>
   <table style="width:100%;border-collapse:collapse;background:#f8fafc;border-bottom:2px solid #dce8f7">
     <tr>
       <td style="padding:12px 16px;border-right:1px solid #dce8f7;width:25%">
-        <div style="font-size:12.5px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">Apprentice</div>
-        <div style="font-size:16.2px;font-weight:700;color:#0d1b2e">${apprentice.name}</div>
+        <div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">Apprentice</div>
+        <div style="font-size:14.3px;font-weight:700;color:#0d1b2e">${apprentice.name}</div>
       </td>
       <td style="padding:12px 16px;border-right:1px solid #dce8f7;width:25%">
-        <div style="font-size:12.5px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">Host Business</div>
-        <div style="font-size:16.2px;font-weight:700;color:#0d1b2e">${apprentice.hostBusiness||"—"}</div>
+        <div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">Host Business</div>
+        <div style="font-size:14.3px;font-weight:700;color:#0d1b2e">${apprentice.hostBusiness||"—"}</div>
       </td>
       <td style="padding:12px 16px;border-right:1px solid #dce8f7;width:25%">
-        <div style="font-size:12.5px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">Trade</div>
-        <div style="font-size:16.2px;font-weight:700;color:#0d1b2e">${apprentice.trade||"—"}</div>
+        <div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">Trade</div>
+        <div style="font-size:14.3px;font-weight:700;color:#0d1b2e">${apprentice.trade||"—"}</div>
       </td>
       <td style="padding:12px 16px;width:25%">
-        <div style="font-size:12.5px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">KTA Staff</div>
-        <div style="font-size:16.2px;font-weight:700;color:#0d1b2e">${mentor?.name||"—"}</div>
+        <div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">KTA Staff</div>
+        <div style="font-size:14.3px;font-weight:700;color:#0d1b2e">${mentor?.name||"—"}</div>
       </td>
     </tr>
     <tr style="border-top:1px solid #dce8f7">
       <td style="padding:10px 16px;border-right:1px solid #dce8f7">
-        <div style="font-size:12.5px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">Date Requested</div>
-        <div style="font-size:16.2px;color:#0d1b2e">${fmtD(dateRequested)}</div>
+        <div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">Date Requested</div>
+        <div style="font-size:14.3px;color:#0d1b2e">${fmtD(dateRequested)}</div>
       </td>
       <td colspan="3" style="padding:10px 16px">
-        <div style="font-size:12.5px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">Date Issued</div>
-        <div style="font-size:16.2px;color:#0d1b2e">${dateIssued?fmtD(dateIssued):"Not yet issued"}</div>
+        <div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">Date Issued</div>
+        <div style="font-size:14.3px;color:#0d1b2e">${dateIssued?fmtD(dateIssued):"Not yet issued"}</div>
       </td>
     </tr>
   </table>
   ${toOrderRows.length > 0 ? `
   <div style="padding:20px 28px 10px">
-    <div style="font-size:20px;font-weight:700;color:#b86e1a;margin-bottom:2px">📦 Need to Order</div>
-    <div style="font-size:13.8px;color:#888">Qty to order = Qty requested − Qty issued</div>
+    <div style="font-size:17.6px;font-weight:700;color:#b86e1a;margin-bottom:2px">📦 Need to Order</div>
+    <div style="font-size:12.1px;color:#888">Qty to order = Qty requested − Qty issued</div>
   </div>
-  <table style="width:100%;border-collapse:collapse;font-size:16.2px">
+  <table style="width:100%;border-collapse:collapse;font-size:14.3px">
     <thead><tr style="background:#faebd7">
-      <th style="padding:9px 12px;text-align:left;font-size:12.5px;color:#b86e1a;text-transform:uppercase;letter-spacing:.7px">PPE Item</th>
-      <th style="padding:9px 12px;text-align:left;font-size:12.5px;color:#b86e1a;text-transform:uppercase;letter-spacing:.7px">Size / Spec</th>
-      <th style="padding:9px 12px;text-align:center;font-size:12.5px;color:#b86e1a;text-transform:uppercase;letter-spacing:.7px">Qty to Order</th>
-      <th style="padding:9px 12px;text-align:left;font-size:12.5px;color:#b86e1a;text-transform:uppercase;letter-spacing:.7px">Notes</th>
+      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#b86e1a;text-transform:uppercase;letter-spacing:.7px">PPE Item</th>
+      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#b86e1a;text-transform:uppercase;letter-spacing:.7px">Size / Spec</th>
+      <th style="padding:9px 12px;text-align:center;font-size:11px;color:#b86e1a;text-transform:uppercase;letter-spacing:.7px">Qty to Order</th>
+      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#b86e1a;text-transform:uppercase;letter-spacing:.7px">Notes</th>
     </tr></thead>
     <tbody>${orderTableRows}</tbody>
   </table>` : ""}
   ${assignedRows.length > 0 ? `
   <div style="padding:20px 28px 10px;margin-top:${toOrderRows.length > 0 ? "16px" : "0"}">
-    <div style="font-size:20px;font-weight:700;color:#1a8a7a;margin-bottom:2px">✅ PPE Assigned</div>
-    <div style="font-size:13.8px;color:#888">Items physically issued to ${apprentice.name} at time of request</div>
+    <div style="font-size:17.6px;font-weight:700;color:#1a8a7a;margin-bottom:2px">✅ PPE Assigned</div>
+    <div style="font-size:12.1px;color:#888">Items physically issued to ${apprentice.name} at time of request</div>
   </div>
-  <table style="width:100%;border-collapse:collapse;font-size:16.2px">
+  <table style="width:100%;border-collapse:collapse;font-size:14.3px">
     <thead><tr style="background:#d4f0ec">
-      <th style="padding:9px 12px;text-align:left;font-size:12.5px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">PPE Item</th>
-      <th style="padding:9px 12px;text-align:left;font-size:12.5px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Size / Spec</th>
-      <th style="padding:9px 12px;text-align:center;font-size:12.5px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Qty Issued</th>
-      <th style="padding:9px 12px;text-align:left;font-size:12.5px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Approved</th>
-      <th style="padding:9px 12px;text-align:left;font-size:12.5px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Notes</th>
+      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">PPE Item</th>
+      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Size / Spec</th>
+      <th style="padding:9px 12px;text-align:center;font-size:11px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Qty Issued</th>
+      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Approved</th>
+      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Notes</th>
     </tr></thead>
     <tbody>${assignedTableRows}</tbody>
   </table>` : ""}
   <div style="margin:20px 28px;padding:14px 16px;background:#fdf3d4;border-radius:8px;border-left:3px solid #a07820">
-    <div style="font-size:15px;color:#4a5a72;font-style:italic;line-height:1.6">I request the PPE items listed above. I understand that all items are provided new and are mine to keep. I agree to use them appropriately and in accordance with health and safety requirements.</div>
+    <div style="font-size:13.2px;color:#4a5a72;font-style:italic;line-height:1.6">I request the PPE items listed above. I understand that all items are provided new and are mine to keep. I agree to use them appropriately and in accordance with health and safety requirements.</div>
   </div>
   <div style="padding:14px 28px;background:#f8fafc;border-top:1px solid #dce8f7">
-    <div style="font-size:13.8px;color:#8fa0b8">KTA Workforce Management &nbsp;·&nbsp; payroll@kta.org.nz</div>
+    <div style="font-size:12.1px;color:#8fa0b8">KTA Workforce Management &nbsp;·&nbsp; payroll@kta.org.nz</div>
   </div>
 </div></body></html>`;
 
@@ -8553,7 +8553,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
     setRequests(prev=>prev.filter(r=>r.id!==id));
   };
 
-  if(loading) return <div style={{padding:16,textAlign:"center",color:T.muted,fontSize:16}}>Loading…</div>;
+  if(loading) return <div style={{padding:16,textAlign:"center",color:T.muted,fontSize:14}}>Loading…</div>;
 
   return (
     <div>
@@ -8567,19 +8567,19 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
         <Card style={{border:`1.5px solid ${T.teal}44`,marginBottom:16,padding:0,overflow:"hidden"}}>
           {/* Header */}
           <div style={{background:T.teal,padding:"12px 16px"}}>
-            <div style={{fontWeight:700,fontSize:18,color:"#fff"}}>PPE Request — {apprentice.name}</div>
-            <div style={{fontSize:15,color:"rgba(255,255,255,.8)",marginTop:2}}>All items issued new and non-returnable</div>
+            <div style={{fontWeight:700,fontSize:16,color:"#fff"}}>PPE Request — {apprentice.name}</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,.8)",marginTop:2}}>All items issued new and non-returnable</div>
           </div>
 
           {/* Info strip */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:12,padding:"14px 16px",background:T.bg,borderBottom:`1px solid ${T.border}`}}>
             <div>
               <FL>Apprentice</FL>
-              <div style={{fontSize:16,fontWeight:700,color:T.ink,padding:"6px 10px",background:T.surface,borderRadius:7,border:`1px solid ${T.border}`}}>{apprentice.name}</div>
+              <div style={{fontSize:14,fontWeight:700,color:T.ink,padding:"6px 10px",background:T.surface,borderRadius:7,border:`1px solid ${T.border}`}}>{apprentice.name}</div>
             </div>
             <div>
               <FL>KTA Staff</FL>
-              <div style={{fontSize:16,fontWeight:700,color:T.ink,padding:"6px 10px",background:T.surface,borderRadius:7,border:`1px solid ${T.border}`}}>{mentor?.name||"—"}</div>
+              <div style={{fontSize:14,fontWeight:700,color:T.ink,padding:"6px 10px",background:T.surface,borderRadius:7,border:`1px solid ${T.border}`}}>{mentor?.name||"—"}</div>
             </div>
             <div>
               <FL req>Date Requested</FL>
@@ -8593,11 +8593,11 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
 
           {/* Items table */}
           <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:15}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead>
                 <tr style={{background:T.accentL}}>
                   {["PPE Item","Size / Spec","Qty Requested","Qty Issued","Notes","Approved"].map(h=>(
-                    <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:14,color:T.accent,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
+                    <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,fontSize:12,color:T.accent,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap"}}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -8607,11 +8607,11 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                     <td style={{padding:"6px 10px",fontWeight:700,color:T.ink,whiteSpace:"nowrap",borderBottom:`1px solid ${T.border}44`}}>{cat.item}</td>
                     <td style={{padding:"4px 6px",borderBottom:`1px solid ${T.border}44`}}>
                       {cat.sizes.length>0
-                        ? <select value={rows[i].size} onChange={e=>sr(i,"size",e.target.value)} style={{fontSize:14,padding:"3px 6px",minWidth:90}}>
+                        ? <select value={rows[i].size} onChange={e=>sr(i,"size",e.target.value)} style={{fontSize:12,padding:"3px 6px",minWidth:90}}>
                             <option value="">—</option>
                             {cat.sizes.map(s=><option key={s}>{s}</option>)}
                           </select>
-                        : <input value={rows[i].size} onChange={e=>sr(i,"size",e.target.value)} placeholder="Specify…" style={{fontSize:14,padding:"3px 6px",width:90}}/>
+                        : <input value={rows[i].size} onChange={e=>sr(i,"size",e.target.value)} placeholder="Specify…" style={{fontSize:12,padding:"3px 6px",width:90}}/>
                       }
                     </td>
                     <td style={{padding:"4px 6px",borderBottom:`1px solid ${T.border}44`}}>
@@ -8620,7 +8620,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                         const issued=rows[i].qtyIssued;
                         const autoApproved=issued&&req?(parseFloat(issued)===parseFloat(req)?"Yes":"Pending"):""; 
                         setRows(prev=>prev.map((r,idx)=>idx===i?{...r,qtyReq:req,...(issued?{approved:autoApproved}:{})}:r));
-                      }} style={{fontSize:14,padding:"3px 6px",width:56,textAlign:"center"}}/>
+                      }} style={{fontSize:12,padding:"3px 6px",width:56,textAlign:"center"}}/>
                     </td>
                     <td style={{padding:"4px 6px",borderBottom:`1px solid ${T.border}44`}}>
                       <input type="number" min="0" value={rows[i].qtyIssued} onChange={e=>{
@@ -8628,13 +8628,13 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                         const req=rows[i].qtyReq;
                         const autoApproved=issued&&req?(parseFloat(issued)===parseFloat(req)?"Yes":"Pending"):""; 
                         setRows(prev=>prev.map((r,idx)=>idx===i?{...r,qtyIssued:issued,approved:autoApproved}:r));
-                      }} style={{fontSize:14,padding:"3px 6px",width:56,textAlign:"center"}}/>
+                      }} style={{fontSize:12,padding:"3px 6px",width:56,textAlign:"center"}}/>
                     </td>
                     <td style={{padding:"4px 6px",borderBottom:`1px solid ${T.border}44`}}>
-                      <input value={rows[i].notes} onChange={e=>sr(i,"notes",e.target.value)} placeholder="Notes…" style={{fontSize:14,padding:"3px 6px",width:"100%",minWidth:120}}/>
+                      <input value={rows[i].notes} onChange={e=>sr(i,"notes",e.target.value)} placeholder="Notes…" style={{fontSize:12,padding:"3px 6px",width:"100%",minWidth:120}}/>
                     </td>
                     <td style={{padding:"4px 6px",borderBottom:`1px solid ${T.border}44`}}>
-                      <select value={rows[i].approved} onChange={e=>sr(i,"approved",e.target.value)} style={{fontSize:14,padding:"3px 6px"}}>
+                      <select value={rows[i].approved} onChange={e=>sr(i,"approved",e.target.value)} style={{fontSize:12,padding:"3px 6px"}}>
                         <option value="">—</option>
                         <option value="Yes">Yes</option>
                         <option value="No">No</option>
@@ -8648,7 +8648,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
           </div>
 
           {/* Acknowledgement */}
-          <div style={{margin:"12px 16px",padding:"10px 14px",background:T.warnL,borderRadius:8,border:`1px solid ${T.warn}44`,fontSize:15,color:T.sub,fontStyle:"italic"}}>
+          <div style={{margin:"12px 16px",padding:"10px 14px",background:T.warnL,borderRadius:8,border:`1px solid ${T.warn}44`,fontSize:13,color:T.sub,fontStyle:"italic"}}>
             I request the PPE items listed above. I understand that all items are provided new and are mine to keep. I agree to use them appropriately and in accordance with health and safety requirements.
           </div>
 
@@ -8656,10 +8656,10 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,padding:"0 16px 16px"}}>
             {[{label:"Apprentice Signature", name:apprentice.name},{label:"KTA Staff Signature", name:mentor?.name||""}].map(({label,name})=>(
               <div key={label} style={{border:`1px solid ${T.border}`,borderRadius:8,padding:"10px 14px",background:T.surface}}>
-                <div style={{fontSize:14,fontWeight:700,color:T.muted,marginBottom:6}}>{label}</div>
-                <div style={{fontSize:16,fontWeight:700,color:T.ink,marginBottom:12}}>{name}</div>
+                <div style={{fontSize:12,fontWeight:700,color:T.muted,marginBottom:6}}>{label}</div>
+                <div style={{fontSize:14,fontWeight:700,color:T.ink,marginBottom:12}}>{name}</div>
                 <div style={{borderBottom:`2px solid ${T.border}`,marginBottom:4,height:28}}/>
-                <div style={{fontSize:12,color:T.muted}}>Signature</div>
+                <div style={{fontSize:11,color:T.muted}}>Signature</div>
               </div>
             ))}
           </div>
@@ -8673,11 +8673,11 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
 
       {/* Past requests */}
       {requests.length===0&&!showForm&&(
-        <div style={{padding:"24px 0",textAlign:"center",color:T.muted,fontSize:16,fontStyle:"italic"}}>No PPE requests yet</div>
+        <div style={{padding:"24px 0",textAlign:"center",color:T.muted,fontSize:14,fontStyle:"italic"}}>No PPE requests yet</div>
       )}
       {requests.length>0&&(
         <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
-          <div style={{padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px"}}>
+          <div style={{padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px"}}>
             Past Requests
           </div>
           {requests.map((r,i)=>{
@@ -8690,25 +8690,25 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                   style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",
                     background:r.completed?T.tealL:isOpen?T.accentL:i%2===0?T.surface:T.bg,transition:"background .15s"}}>
                   <div style={{flex:1,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                    <span style={{fontWeight:700,fontSize:16,color:T.ink}}>Requested {fmtDate(r.date_requested)}</span>
-                    {r.date_issued&&<span style={{fontSize:15,color:T.teal}}>· Issued {fmtDate(r.date_issued)}</span>}
-                    <span style={{fontSize:15,color:T.muted}}>· {items.filter(it=>parseFloat(it.qtyReq||0)>0).length} item{items.filter(it=>parseFloat(it.qtyReq||0)>0).length!==1?"s":""}</span>
+                    <span style={{fontWeight:700,fontSize:14,color:T.ink}}>Requested {fmtDate(r.date_requested)}</span>
+                    {r.date_issued&&<span style={{fontSize:13,color:T.teal}}>· Issued {fmtDate(r.date_issued)}</span>}
+                    <span style={{fontSize:13,color:T.muted}}>· {items.filter(it=>parseFloat(it.qtyReq||0)>0).length} item{items.filter(it=>parseFloat(it.qtyReq||0)>0).length!==1?"s":""}</span>
                     {r.completed
-                      ? <span style={{padding:"2px 10px",borderRadius:99,fontSize:14,fontWeight:700,background:T.tealL,color:T.teal,border:`1px solid ${T.teal}44`}}>✓ Completed</span>
+                      ? <span style={{padding:"2px 10px",borderRadius:99,fontSize:12,fontWeight:700,background:T.tealL,color:T.teal,border:`1px solid ${T.teal}44`}}>✓ Completed</span>
                       : items.some(it=>it.approved==="Pending"&&parseFloat(it.qtyReq||0)>0)
-                        ? <span style={{padding:"2px 10px",borderRadius:99,fontSize:14,fontWeight:700,background:T.goldL,color:T.gold,border:`1px solid ${T.gold}44`}}>⏳ Pending Items</span>
+                        ? <span style={{padding:"2px 10px",borderRadius:99,fontSize:12,fontWeight:700,background:T.goldL,color:T.gold,border:`1px solid ${T.gold}44`}}>⏳ Pending Items</span>
                         : null}
                   </div>
-                  <div style={{fontSize:15,color:T.muted,whiteSpace:"nowrap"}}>{r.staff_name||"—"}</div>
+                  <div style={{fontSize:13,color:T.muted,whiteSpace:"nowrap"}}>{r.staff_name||"—"}</div>
                   {canEdit&&!r.completed&&<button onClick={e=>{e.stopPropagation();startEditReq(r);}}
-                    style={{padding:"3px 9px",borderRadius:5,background:"none",border:`1px solid ${T.accent}44`,color:T.accent,cursor:"pointer",fontSize:14,fontWeight:700}}
+                    style={{padding:"3px 9px",borderRadius:5,background:"none",border:`1px solid ${T.accent}44`,color:T.accent,cursor:"pointer",fontSize:12,fontWeight:700}}
                     onMouseEnter={e=>{e.currentTarget.style.background=T.accentL;}}
                     onMouseLeave={e=>{e.currentTarget.style.background="none";}}>✎ Edit</button>}
                   {canEdit&&<button onClick={e=>{e.stopPropagation();handleDelete(r.id);}}
-                    style={{width:26,height:26,borderRadius:5,background:"none",border:`1px solid ${T.border}`,color:T.muted,cursor:"pointer",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center"}}
+                    style={{width:26,height:26,borderRadius:5,background:"none",border:`1px solid ${T.border}`,color:T.muted,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}
                     onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;}}
                     onMouseLeave={e=>{e.currentTarget.style.background="none";e.currentTarget.style.color=T.muted;}}>✕</button>}
-                  <span style={{fontSize:14,color:T.muted}}>{isOpen?"▲":"▼"}</span>
+                  <span style={{fontSize:12,color:T.muted}}>{isOpen?"▲":"▼"}</span>
                 </div>
                 {/* Expand: edit mode or read-only view */}
                 {isOpen&&(
@@ -8719,15 +8719,15 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
                           <div>
                             <FL>Date Issued</FL>
-                            <input type="date" value={editDateIssued} onChange={e=>setEditDateIssued(e.target.value)} style={{fontSize:15}}/>
+                            <input type="date" value={editDateIssued} onChange={e=>setEditDateIssued(e.target.value)} style={{fontSize:13}}/>
                           </div>
                         </div>
                         <div style={{overflowX:"auto"}}>
-                          <table style={{width:"100%",borderCollapse:"collapse",fontSize:15}}>
+                          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                             <thead>
                               <tr style={{background:T.accentL}}>
                                 {["PPE Item","Size","Qty Req","Qty Issued","Notes","Approved"].map(h=>(
-                                  <th key={h} style={{padding:"6px 8px",textAlign:"left",fontWeight:700,fontSize:14,color:T.accent,borderBottom:`1px solid ${T.border}`}}>{h}</th>
+                                  <th key={h} style={{padding:"6px 8px",textAlign:"left",fontWeight:700,fontSize:12,color:T.accent,borderBottom:`1px solid ${T.border}`}}>{h}</th>
                                 ))}
                               </tr>
                             </thead>
@@ -8743,15 +8743,15 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                                       const req=it.qtyReq;
                                       const auto=issued&&req?(parseFloat(issued)>=parseFloat(req)?"Yes":"Pending"):"Pending";
                                       setEditRows(prev=>prev.map((r2,idx)=>r2.item===it.item?{...r2,qtyIssued:issued,approved:auto}:r2));
-                                    }} style={{fontSize:14,padding:"3px 6px",width:52,textAlign:"center"}}/>
+                                    }} style={{fontSize:12,padding:"3px 6px",width:52,textAlign:"center"}}/>
                                   </td>
                                   <td style={{padding:"4px 6px"}}>
                                     <input value={it.notes||""} onChange={e=>setEditRows(prev=>prev.map(r2=>r2.item===it.item?{...r2,notes:e.target.value}:r2))}
-                                      placeholder="Notes…" style={{fontSize:14,padding:"3px 6px",width:120}}/>
+                                      placeholder="Notes…" style={{fontSize:12,padding:"3px 6px",width:120}}/>
                                   </td>
                                   <td style={{padding:"4px 6px"}}>
                                     <select value={it.approved||""} onChange={e=>setEditRows(prev=>prev.map(r2=>r2.item===it.item?{...r2,approved:e.target.value}:r2))}
-                                      style={{fontSize:14,padding:"3px 6px",
+                                      style={{fontSize:12,padding:"3px 6px",
                                         background:it.approved==="Yes"?T.tealL:it.approved==="Pending"?T.goldL:it.approved==="No"?T.redL:"",
                                         color:it.approved==="Yes"?T.teal:it.approved==="Pending"?T.gold:it.approved==="No"?T.red:T.ink,
                                         fontWeight:700,borderRadius:5}}>
@@ -8767,7 +8767,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                           </table>
                         </div>
                         {editRows.filter(it=>parseFloat(it.qtyReq||0)>0).every(it=>it.approved==="Yes")&&(
-                          <div style={{marginTop:10,padding:"8px 12px",background:T.tealL,borderRadius:7,fontSize:15,color:T.teal,fontWeight:700}}>
+                          <div style={{marginTop:10,padding:"8px 12px",background:T.tealL,borderRadius:7,fontSize:13,color:T.teal,fontWeight:700}}>
                             ✓ All items issued — saving will mark this request as Completed
                           </div>
                         )}
@@ -8782,10 +8782,10 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                     ) : (
                       /* ── READ-ONLY VIEW ── */
                       <div style={{padding:"0 14px 12px"}}>
-                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:15,marginTop:10}}>
+                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:13,marginTop:10}}>
                           <thead>
                             <tr>{["Item","Size","Qty Req","Qty Issued","Notes","Approved"].map(h=>(
-                              <th key={h} style={{padding:"6px 8px",textAlign:"left",fontWeight:700,color:T.sub,borderBottom:`1px solid ${T.border}`,fontSize:14}}>{h}</th>
+                              <th key={h} style={{padding:"6px 8px",textAlign:"left",fontWeight:700,color:T.sub,borderBottom:`1px solid ${T.border}`,fontSize:12}}>{h}</th>
                             ))}</tr>
                           </thead>
                           <tbody>
@@ -8797,7 +8797,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                                 <td style={{padding:"5px 8px",textAlign:"center",color:T.teal,fontWeight:700}}>{it.qtyIssued||"—"}</td>
                                 <td style={{padding:"5px 8px",color:T.muted,fontStyle:"italic"}}>{it.notes||""}</td>
                                 <td style={{padding:"5px 8px"}}>{it.approved
-                                  ? <span style={{padding:"2px 8px",borderRadius:99,fontSize:14,fontWeight:700,
+                                  ? <span style={{padding:"2px 8px",borderRadius:99,fontSize:12,fontWeight:700,
                                       background:it.approved==="Yes"?T.tealL:it.approved==="No"?T.redL:T.goldL,
                                       color:it.approved==="Yes"?T.teal:it.approved==="No"?T.red:T.gold}}>{it.approved}</span>
                                   : "—"}
@@ -8806,7 +8806,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                             ))}
                           </tbody>
                         </table>
-                        <div style={{marginTop:10,fontSize:14,color:T.sub}}>
+                        <div style={{marginTop:10,fontSize:12,color:T.sub}}>
                           Apprentice: <strong>{r.apprentice_name}</strong> · Staff: <strong>{r.staff_name||"—"}</strong>
                         </div>
                       </div>
@@ -8938,7 +8938,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
     <div className="fu">
       <button onClick={onBack} style={{
         display:"inline-flex",alignItems:"center",gap:6,background:"none",border:"none",
-        color:T.sub,fontSize:16,fontFamily:"DM Sans,sans-serif",cursor:"pointer",
+        color:T.sub,fontSize:14,fontFamily:"DM Sans,sans-serif",cursor:"pointer",
         marginBottom:16,padding:0,fontWeight:700}}
         onMouseEnter={e=>e.currentTarget.style.color=T.ink}
         onMouseLeave={e=>e.currentTarget.style.color=T.sub}>
@@ -8951,15 +8951,15 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
           paddingBottom:16,borderBottom:`1px solid ${T.border}`}}>
           <div style={{width:54,height:54,borderRadius:"50%",flexShrink:0,
             background:T.dark,display:"flex",alignItems:"center",justifyContent:"center",
-            fontSize:28,fontWeight:700,color:"#fff",fontFamily:"DM Sans"}}>
+            fontSize:25,fontWeight:700,color:"#fff",fontFamily:"DM Sans"}}>
             {apprentice.name?.[0]?.toUpperCase()||"?"}
           </div>
           <div style={{flex:1}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <div style={{fontFamily:"DM Sans",fontSize:28,fontWeight:700,color:T.ink}}>{apprentice.name}</div>
+              <div style={{fontFamily:"DM Sans",fontSize:25,fontWeight:700,color:T.ink}}>{apprentice.name}</div>
               {canEditExpiry&&<button onClick={()=>setShowEditForm(true)}
                 style={{background:T.accentL,border:`1px solid ${T.accent}44`,borderRadius:7,
-                  padding:"4px 10px",fontSize:14,fontWeight:700,color:T.accent,cursor:"pointer",
+                  padding:"4px 10px",fontSize:12,fontWeight:700,color:T.accent,cursor:"pointer",
                   fontFamily:"DM Sans,sans-serif",display:"flex",alignItems:"center",gap:4}}>
                 ✏️ Edit
               </button>}
@@ -8971,7 +8971,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             </div>
           </div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,alignItems:"stretch"}}>
           {/* Trade + Licence combined card */}
           {(()=>{
             const d=licDays; const c=licColor;
@@ -8979,42 +8979,42 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             const licVal=apprentice.licenceExpiry?(d!==null?`${fmtDate(apprentice.licenceExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:fmtDate(apprentice.licenceExpiry)):"Not set";
             const borderCol=editingExpiry==="licence"||editingExpiry==="licenceNum"?T.accent:T.border;
             return (
-              <div style={{background:licBg,borderRadius:10,padding:"10px 14px",border:`1px solid ${borderCol}`}}>
+              <div style={{background:licBg,borderRadius:10,padding:"10px 14px",border:`1px solid ${borderCol}`,height:"100%",boxSizing:"border-box"}}>
                 {/* Trade row */}
-                <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:2}}>🔧 Trade</div>
-                <div style={{fontSize:16,fontWeight:700,color:T.accent,marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${T.border}44`}}>{apprentice.trade||"Not set"}</div>
+                <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:2}}>🔧 Trade</div>
+                <div style={{fontSize:14,fontWeight:700,color:T.accent,marginBottom:10,paddingBottom:10,borderBottom:`1px solid ${T.border}44`}}>{apprentice.trade||"Not set"}</div>
                 {/* Licence expiry row */}
-                <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>📄 Licence Expiry</span>
-                  {canEditExpiry&&editingExpiry!=="licence"&&<button onClick={()=>{setEditingExpiry("licence");setExpiryVal(apprentice.licenceExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
+                  {canEditExpiry&&editingExpiry!=="licence"&&<button onClick={()=>{setEditingExpiry("licence");setExpiryVal(apprentice.licenceExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
                 </div>
                 {editingExpiry==="licence"?(
                   <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap",marginBottom:8}}>
-                    <input type="date" value={expiryVal} onChange={e=>setExpiryVal(e.target.value)} style={{fontSize:15,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif"}}/>
-                    <button onClick={()=>saveExpiry("licence",expiryVal)} disabled={savingExpiry} style={{fontSize:14,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
-                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:14,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                    <input type="date" value={expiryVal} onChange={e=>setExpiryVal(e.target.value)} style={{fontSize:13,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif"}}/>
+                    <button onClick={()=>saveExpiry("licence",expiryVal)} disabled={savingExpiry} style={{fontSize:12,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
+                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:12,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
                   </div>
-                ):<div style={{fontSize:16,fontWeight:700,color:c,marginBottom:8}}>{licVal}</div>}
+                ):<div style={{fontSize:14,fontWeight:700,color:c,marginBottom:8}}>{licVal}</div>}
                 {/* Licence number row */}
-                <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>Licence #</span>
-                  {canEditExpiry&&editingExpiry!=="licenceNum"&&<button onClick={()=>{setEditingExpiry("licenceNum");setLicNumVal(apprentice.licenceNumber||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
+                  {canEditExpiry&&editingExpiry!=="licenceNum"&&<button onClick={()=>{setEditingExpiry("licenceNum");setLicNumVal(apprentice.licenceNumber||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
                 </div>
                 {editingExpiry==="licenceNum"?(
                   <div style={{display:"flex",gap:4,alignItems:"center"}}>
                     <input value={licNumVal} onChange={e=>setLicNumVal(e.target.value)} placeholder="e.g. LBP123456"
-                      style={{fontSize:15,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",flex:1}}/>
-                    <button onClick={()=>saveExpiry("licenceNum",licNumVal)} disabled={savingExpiry} style={{fontSize:14,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
-                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:14,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                      style={{fontSize:13,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",flex:1}}/>
+                    <button onClick={()=>saveExpiry("licenceNum",licNumVal)} disabled={savingExpiry} style={{fontSize:12,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
+                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:12,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
                   </div>
-                ):<div style={{fontSize:15,fontWeight:700,color:apprentice.licenceNumber?T.ink:T.muted,fontStyle:apprentice.licenceNumber?"normal":"italic"}}>{apprentice.licenceNumber||"Not set"}</div>}
+                ):<div style={{fontSize:13,fontWeight:700,color:apprentice.licenceNumber?T.ink:T.muted,fontStyle:apprentice.licenceNumber?"normal":"italic"}}>{apprentice.licenceNumber||"Not set"}</div>}
               </div>
             );
           })()}
           {/* Last Mentor Visit — static */}
-          <div style={{background:T.tealL,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`}}>
-            <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>📅 Last Mentor Visit</div>
-            <div style={{fontSize:16,fontWeight:700,color:T.teal}}>{loadingVisit?"…":lastVisit?fmtDate(lastVisit):"No visits yet"}</div>
+          <div style={{background:T.tealL,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`,height:"100%",boxSizing:"border-box"}}>
+            <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>📅 Last Mentor Visit</div>
+            <div style={{fontSize:14,fontWeight:700,color:T.teal}}>{loadingVisit?"…":lastVisit?fmtDate(lastVisit):"No visits yet"}</div>
           </div>
           {/* Site Safe Expiry — editable */}
           {(()=>{
@@ -9022,32 +9022,32 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             const bg=d===null?T.bg:d<0?T.redL:d<=30?T.warnL:T.tealL;
             const val=apprentice.siteSafeExpiry?(d!==null?`${fmtDate(apprentice.siteSafeExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:fmtDate(apprentice.siteSafeExpiry)):"Not set";
             return (
-              <div style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${editingExpiry==="siteSafe"||editingExpiry==="siteSafeNum"?T.teal:T.border}`,position:"relative"}}>
-                <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${editingExpiry==="siteSafe"||editingExpiry==="siteSafeNum"?T.teal:T.border}`,position:"relative",height:"100%",boxSizing:"border-box"}}>
+                <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>🦺 Site Safe Expiry</span>
-                  {canEditExpiry&&editingExpiry!=="siteSafe"&&<button onClick={()=>{setEditingExpiry("siteSafe");setExpiryVal(apprentice.siteSafeExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
+                  {canEditExpiry&&editingExpiry!=="siteSafe"&&<button onClick={()=>{setEditingExpiry("siteSafe");setExpiryVal(apprentice.siteSafeExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
                 </div>
                 {editingExpiry==="siteSafe"?(
                   <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
-                    <input type="date" value={expiryVal} onChange={e=>setExpiryVal(e.target.value)} style={{fontSize:15,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif"}}/>
-                    <button onClick={()=>saveExpiry("siteSafe",expiryVal)} disabled={savingExpiry} style={{fontSize:14,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
-                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:14,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                    <input type="date" value={expiryVal} onChange={e=>setExpiryVal(e.target.value)} style={{fontSize:13,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif"}}/>
+                    <button onClick={()=>saveExpiry("siteSafe",expiryVal)} disabled={savingExpiry} style={{fontSize:12,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
+                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:12,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
                   </div>
-                ):<div style={{fontSize:16,fontWeight:700,color:c}}>{val}</div>}
+                ):<div style={{fontSize:14,fontWeight:700,color:c}}>{val}</div>}
                 {/* Site Safe Number */}
                 <div style={{marginTop:8,paddingTop:8,borderTop:`1px solid ${T.border}44`}}>
-                  <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:3,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                     <span>Site Safe #</span>
-                    {canEditExpiry&&editingExpiry!=="siteSafeNum"&&<button onClick={()=>{setEditingExpiry("siteSafeNum");setSiteSafeNumVal(apprentice.siteSafeNumber||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:T.teal,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
+                    {canEditExpiry&&editingExpiry!=="siteSafeNum"&&<button onClick={()=>{setEditingExpiry("siteSafeNum");setSiteSafeNumVal(apprentice.siteSafeNumber||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:T.teal,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
                   </div>
                   {editingExpiry==="siteSafeNum"?(
                     <div style={{display:"flex",gap:4,alignItems:"center"}}>
                       <input value={siteSafeNumVal} onChange={e=>setSiteSafeNumVal(e.target.value)} placeholder="e.g. SS789012"
-                        style={{fontSize:15,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",flex:1}}/>
-                      <button onClick={()=>saveExpiry("siteSafeNum",siteSafeNumVal)} disabled={savingExpiry} style={{fontSize:14,padding:"3px 8px",borderRadius:5,background:T.teal,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
-                      <button onClick={()=>setEditingExpiry(null)} style={{fontSize:14,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                        style={{fontSize:13,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",flex:1}}/>
+                      <button onClick={()=>saveExpiry("siteSafeNum",siteSafeNumVal)} disabled={savingExpiry} style={{fontSize:12,padding:"3px 8px",borderRadius:5,background:T.teal,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
+                      <button onClick={()=>setEditingExpiry(null)} style={{fontSize:12,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
                     </div>
-                  ):<div style={{fontSize:15,fontWeight:700,color:apprentice.siteSafeNumber?T.ink:T.muted,fontStyle:apprentice.siteSafeNumber?"normal":"italic"}}>{apprentice.siteSafeNumber||"Not set"}</div>}
+                  ):<div style={{fontSize:13,fontWeight:700,color:apprentice.siteSafeNumber?T.ink:T.muted,fontStyle:apprentice.siteSafeNumber?"normal":"italic"}}>{apprentice.siteSafeNumber||"Not set"}</div>}
                 </div>
               </div>
             );
@@ -9058,28 +9058,28 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             const bg=d===null?T.bg:d<0?T.redL:d<=30?T.warnL:T.tealL;
             const val=apprentice.firstAidExpiry?(d!==null?`${fmtDate(apprentice.firstAidExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:fmtDate(apprentice.firstAidExpiry)):"Not set";
             return (
-              <div style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${editingExpiry==="firstAid"?T.teal:T.border}`,position:"relative"}}>
-                <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{background:bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${editingExpiry==="firstAid"?T.teal:T.border}`,position:"relative",height:"100%",boxSizing:"border-box"}}>
+                <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span>🩹 First Aid Expiry</span>
-                  {canEditExpiry&&editingExpiry!=="firstAid"&&<button onClick={()=>{setEditingExpiry("firstAid");setExpiryVal(apprentice.firstAidExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
+                  {canEditExpiry&&editingExpiry!=="firstAid"&&<button onClick={()=>{setEditingExpiry("firstAid");setExpiryVal(apprentice.firstAidExpiry||"");}} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:T.accent,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>}
                 </div>
                 {editingExpiry==="firstAid"?(
                   <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}}>
-                    <input type="date" value={expiryVal} onChange={e=>setExpiryVal(e.target.value)} style={{fontSize:15,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif"}}/>
-                    <button onClick={()=>saveExpiry("firstAid",expiryVal)} disabled={savingExpiry} style={{fontSize:14,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
-                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:14,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                    <input type="date" value={expiryVal} onChange={e=>setExpiryVal(e.target.value)} style={{fontSize:13,padding:"3px 6px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif"}}/>
+                    <button onClick={()=>saveExpiry("firstAid",expiryVal)} disabled={savingExpiry} style={{fontSize:12,padding:"3px 8px",borderRadius:5,background:T.accent,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingExpiry?"…":"Save"}</button>
+                    <button onClick={()=>setEditingExpiry(null)} style={{fontSize:12,padding:"3px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
                   </div>
-                ):<div style={{fontSize:16,fontWeight:700,color:c}}>{val}</div>}
+                ):<div style={{fontSize:14,fontWeight:700,color:c}}>{val}</div>}
               </div>
             );
           })()}
           {/* Host Business — editable for Admin/Mentor */}
-          <div style={{background:T.slateL,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`}}>
+          <div style={{background:T.slateL,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`,height:"100%",boxSizing:"border-box"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-              <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px"}}>🏢 Host Business</div>
+              <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px"}}>🏢 Host Business</div>
               {canEditExpiry&&!editingHostBiz&&(
                 <button onClick={()=>{setEditingHostBiz(true);setHostBizVal(apprentice.hostBusiness||"");}}
-                  style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:T.slate,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>
+                  style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:T.slate,padding:0,fontFamily:"DM Sans,sans-serif"}}>✏️</button>
               )}
             </div>
             {editingHostBiz?(
@@ -9090,7 +9090,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   const otherOnes = hostCosAdv.filter(c=>!c.isHostBusiness);
                   return(<div style={{flex:1,display:"flex",flexDirection:"column",gap:4}}>
                     <select value={listed?hostBizVal:"__custom__"} onChange={e=>{if(e.target.value!=="__custom__")setHostBizVal(e.target.value);}}
-                      style={{fontSize:15,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",width:"100%"}}>
+                      style={{fontSize:13,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",width:"100%"}}>
                       <option value="">— Select host business —</option>
                       {hostOnes.length>0&&<optgroup label="🏢 Host Businesses">
                         {hostOnes.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
@@ -9102,28 +9102,28 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     </select>
                     {!listed&&<input value={hostBizVal} onChange={e=>setHostBizVal(e.target.value)}
                       placeholder="Type host business name…"
-                      style={{fontSize:15,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",width:"100%"}}/>}
+                      style={{fontSize:13,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",width:"100%"}}/>}
                     {listed&&!hostCosAdv.find(c=>c.name===hostBizVal)?.isHostBusiness&&hostBizVal&&(
-                      <div style={{fontSize:14,color:T.teal}}>✓ Will be flagged as a Host Business in CRM on save</div>
+                      <div style={{fontSize:12,color:T.teal}}>✓ Will be flagged as a Host Business in CRM on save</div>
                     )}
                   </div>);
                 })():<input value={hostBizVal} onChange={e=>setHostBizVal(e.target.value)}
                   placeholder="e.g. Sparks Electrical Ltd"
-                  style={{fontSize:15,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",flex:1}}/>}
+                  style={{fontSize:13,padding:"4px 8px",borderRadius:5,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",flex:1}}/>}
                 <button onClick={saveHostBiz} disabled={savingHostBiz}
-                  style={{fontSize:14,padding:"4px 8px",borderRadius:5,background:T.slate,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingHostBiz?"…":"Save"}</button>
+                  style={{fontSize:12,padding:"4px 8px",borderRadius:5,background:T.slate,color:"#fff",border:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>{savingHostBiz?"…":"Save"}</button>
                 <button onClick={()=>setEditingHostBiz(false)}
-                  style={{fontSize:14,padding:"4px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
+                  style={{fontSize:12,padding:"4px 6px",borderRadius:5,background:"none",border:`1px solid ${T.border}`,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>✕</button>
               </div>
             ):( 
               <div>
-                <div style={{fontSize:16,fontWeight:700,color:T.slate}}>{apprentice.hostBusiness||"Not set"}</div>
+                <div style={{fontSize:14,fontWeight:700,color:T.slate}}>{apprentice.hostBusiness||"Not set"}</div>
                 {(approver||allocatedViewer)&&apprentice.hostBusiness&&(
                   <div style={{display:"flex",flexDirection:"column",gap:4,marginTop:8}}>
                     {approver&&(
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        <span style={{fontSize:12,fontWeight:700,color:T.warn,textTransform:"uppercase",letterSpacing:".5px",minWidth:52}}>Approver</span>
-                        <span style={{fontSize:15,fontWeight:700,color:T.ink,background:T.warnL,
+                        <span style={{fontSize:11,fontWeight:700,color:T.warn,textTransform:"uppercase",letterSpacing:".5px",minWidth:52}}>Approver</span>
+                        <span style={{fontSize:13,fontWeight:700,color:T.ink,background:T.warnL,
                           padding:"2px 8px",borderRadius:10,border:`1px solid ${T.warn}33`}}>
                           {approver.name}
                         </span>
@@ -9131,8 +9131,8 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     )}
                     {allocatedViewer&&(
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        <span style={{fontSize:12,fontWeight:700,color:T.blue,textTransform:"uppercase",letterSpacing:".5px",minWidth:52}}>Viewer</span>
-                        <span style={{fontSize:15,fontWeight:700,color:T.ink,background:T.blueL,
+                        <span style={{fontSize:11,fontWeight:700,color:T.blue,textTransform:"uppercase",letterSpacing:".5px",minWidth:52}}>Viewer</span>
+                        <span style={{fontSize:13,fontWeight:700,color:T.ink,background:T.blueL,
                           padding:"2px 8px",borderRadius:10,border:`1px solid ${T.blue}33`}}>
                           {allocatedViewer.name}
                         </span>
@@ -9145,11 +9145,11 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
           </div>
           {/* Reports Go To */}
           {(apprentice.reportsEmail || isAdmin) && (
-            <div style={{background:T.accentL,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.accent}33`,marginTop:10}}>
-              <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>📧 Reports Go To</div>
+            <div style={{background:T.accentL,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.accent}33`,height:"100%",boxSizing:"border-box"}}>
+              <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>📧 Reports Go To</div>
               {apprentice.reportsEmail
-                ? <div style={{fontSize:16,fontWeight:700,color:T.accent}}>{apprentice.reportsEmail}</div>
-                : <div style={{fontSize:15,color:T.muted,fontStyle:"italic"}}>Not set — reports go to approver</div>
+                ? <div style={{fontSize:14,fontWeight:700,color:T.accent}}>{apprentice.reportsEmail}</div>
+                : <div style={{fontSize:13,color:T.muted,fontStyle:"italic"}}>Not set — reports go to approver</div>
               }
             </div>
           )}
@@ -9165,45 +9165,45 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                 <button onClick={()=>{setShowMeetingForm(s=>!s); setShowPastReports(false); setShowPPE(false); setShowActivity(false);}}
                   style={{width:"100%", background:showMeetingForm?T.accentL:T.surface, border:`1.5px solid ${showMeetingForm?T.accent:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
-                    <div style={{width:28,height:28,borderRadius:7,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>📋</div>
+                    <div style={{width:28,height:28,borderRadius:7,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>📋</div>
                     <div style={{minWidth:0}}>
-                      <div style={{fontWeight:700, fontSize:15, color:showMeetingForm?T.accent:T.ink}}>New Report</div>
-                      <div style={{fontSize:12, color:T.sub, marginTop:1}}>Record a visit</div>
+                      <div style={{fontWeight:700, fontSize:13, color:showMeetingForm?T.accent:T.ink}}>New Report</div>
+                      <div style={{fontSize:11, color:T.sub, marginTop:1}}>Record a visit</div>
                     </div>
-                    <div style={{marginLeft:"auto", fontSize:14, color:T.muted}}>↗</div>
+                    <div style={{marginLeft:"auto", fontSize:12, color:T.muted}}>↗</div>
                   </div>
                 </button>
                 <button onClick={()=>{setShowPastReports(s=>!s); setShowMeetingForm(false); setShowPPE(false); setShowActivity(false);}}
                   style={{width:"100%", background:showPastReports?T.goldL:T.surface, border:`1.5px solid ${showPastReports?T.gold:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
-                    <div style={{width:28,height:28,borderRadius:7,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>📁</div>
+                    <div style={{width:28,height:28,borderRadius:7,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>📁</div>
                     <div style={{minWidth:0}}>
-                      <div style={{fontWeight:700, fontSize:15, color:showPastReports?T.gold:T.ink}}>Past Reports</div>
-                      <div style={{fontSize:12, color:T.sub, marginTop:1}}>Visit history</div>
+                      <div style={{fontWeight:700, fontSize:13, color:showPastReports?T.gold:T.ink}}>Past Reports</div>
+                      <div style={{fontSize:11, color:T.sub, marginTop:1}}>Visit history</div>
                     </div>
-                    <div style={{marginLeft:"auto", fontSize:14, color:T.muted}}>{showPastReports?"▲":"▼"}</div>
+                    <div style={{marginLeft:"auto", fontSize:12, color:T.muted}}>{showPastReports?"▲":"▼"}</div>
                   </div>
                 </button>
                 <button onClick={()=>{setShowPPE(s=>!s); setShowMeetingForm(false); setShowPastReports(false); setShowActivity(false);}}
                   style={{width:"100%", background:showPPE?T.tealL:T.surface, border:`1.5px solid ${showPPE?T.teal:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
-                    <div style={{width:28,height:28,borderRadius:7,background:T.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🦺</div>
+                    <div style={{width:28,height:28,borderRadius:7,background:T.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>🦺</div>
                     <div style={{minWidth:0}}>
-                      <div style={{fontWeight:700, fontSize:15, color:showPPE?T.teal:T.ink}}>PPE</div>
-                      <div style={{fontSize:12, color:T.sub, marginTop:1}}>Equipment issued</div>
+                      <div style={{fontWeight:700, fontSize:13, color:showPPE?T.teal:T.ink}}>PPE</div>
+                      <div style={{fontSize:11, color:T.sub, marginTop:1}}>Equipment issued</div>
                     </div>
-                    <div style={{marginLeft:"auto", fontSize:14, color:T.muted}}>{showPPE?"▲":"▼"}</div>
+                    <div style={{marginLeft:"auto", fontSize:12, color:T.muted}}>{showPPE?"▲":"▼"}</div>
                   </div>
                 </button>
                 <button onClick={()=>{setShowActivity(s=>!s); setShowMeetingForm(false); setShowPastReports(false); setShowPPE(false);}}
                   style={{width:"100%", background:showActivity?T.slateL:T.surface, border:`1.5px solid ${showActivity?T.slate:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
-                    <div style={{width:28,height:28,borderRadius:7,background:T.slateL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>📬</div>
+                    <div style={{width:28,height:28,borderRadius:7,background:T.slateL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>📬</div>
                     <div style={{minWidth:0}}>
-                      <div style={{fontWeight:700, fontSize:15, color:showActivity?T.slate:T.ink}}>Activity</div>
-                      <div style={{fontSize:12, color:T.sub, marginTop:1}}>Emails & notes</div>
+                      <div style={{fontWeight:700, fontSize:13, color:showActivity?T.slate:T.ink}}>Activity</div>
+                      <div style={{fontSize:11, color:T.sub, marginTop:1}}>Emails & notes</div>
                     </div>
-                    <div style={{marginLeft:"auto", fontSize:14, color:T.muted}}>{showActivity?"▲":"▼"}</div>
+                    <div style={{marginLeft:"auto", fontSize:12, color:T.muted}}>{showActivity?"▲":"▼"}</div>
                   </div>
                 </button>
               </div>
@@ -9246,10 +9246,10 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               };
               const inp = (field, label, type="text", opts=null) => (
                 <div key={field} style={{display:"flex",flexDirection:"column",gap:4}}>
-                  <label style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px"}}>{label}</label>
+                  <label style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px"}}>{label}</label>
                   {opts ? (
                     <select value={pdForm[field]} onChange={e=>setPdForm(p=>({...p,[field]:e.target.value}))}
-                      style={{fontSize:16,padding:"7px 10px",borderRadius:7,border:`1.5px solid ${T.border}`,
+                      style={{fontSize:14,padding:"7px 10px",borderRadius:7,border:`1.5px solid ${T.border}`,
                         background:T.surface,color:T.ink,fontFamily:"DM Sans,sans-serif"}}>
                       <option value="">Not set</option>
                       {opts.map(o=><option key={o} value={o}>{o}</option>)}
@@ -9257,7 +9257,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   ) : (
                     <input type={type} value={pdForm[field]}
                       onChange={e=>setPdForm(p=>({...p,[field]:e.target.value}))}
-                      style={{fontSize:16,padding:"7px 10px",borderRadius:7,border:`1.5px solid ${T.border}`,
+                      style={{fontSize:14,padding:"7px 10px",borderRadius:7,border:`1.5px solid ${T.border}`,
                         background:T.surface,color:T.ink,fontFamily:"DM Sans,sans-serif"}}/>
                   )}
                 </div>
@@ -9265,10 +9265,10 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               const readRow = (label, value, icon) => (
                 <div key={label} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",
                   borderBottom:`1px solid ${T.border}`}}>
-                  <span style={{fontSize:19,marginTop:1,width:20,textAlign:"center",flexShrink:0}}>{icon}</span>
+                  <span style={{fontSize:17,marginTop:1,width:20,textAlign:"center",flexShrink:0}}>{icon}</span>
                   <div style={{flex:1}}>
-                    <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
-                    <div style={{fontSize:16,color:value?T.ink:T.muted,fontStyle:value?"normal":"italic"}}>{value||"Not set"}</div>
+                    <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
+                    <div style={{fontSize:14,color:value?T.ink:T.muted,fontStyle:value?"normal":"italic"}}>{value||"Not set"}</div>
                   </div>
                 </div>
               );
@@ -9277,7 +9277,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                 <Card style={{marginBottom:16,cursor:pdEdit?"default":"pointer"}}
                   onClick={()=>{ if(!pdEdit) setShowPersonal(s=>!s); }}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <div style={{fontWeight:700,fontSize:18,display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{fontWeight:700,fontSize:16,display:"flex",alignItems:"center",gap:8}}>
                       <span>👤</span> Personal Details
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:8}} onClick={e=>e.stopPropagation()}>
@@ -9294,7 +9294,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                             emergencyContactRelationship:apprentice.emergencyContactRelationship||"",
                           });
                           setPdEdit(true);
-                        }} style={{fontSize:15,color:T.accent,background:T.accentL,border:"none",
+                        }} style={{fontSize:13,color:T.accent,background:T.accentL,border:"none",
                           borderRadius:6,padding:"4px 12px",cursor:"pointer",fontWeight:700,fontFamily:"DM Sans,sans-serif"}}>
                           ✏ Edit
                         </button>
@@ -9319,7 +9319,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                             {inp("hostBusiness","Host Business")}
                           </div>
                           <div style={{borderTop:`1px solid ${T.border}`,paddingTop:12,marginBottom:12}}>
-                            <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:10}}>📍 Address</div>
+                            <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:10}}>📍 Address</div>
                             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12}}>
                               {inp("address","Street Address")}
                               {inp("addressLine2","Address Line 2")}
@@ -9329,7 +9329,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                             </div>
                           </div>
                           <div style={{borderTop:`1px solid ${T.border}`,paddingTop:12,marginBottom:12}}>
-                            <div style={{fontSize:14,fontWeight:700,color:T.red,textTransform:"uppercase",letterSpacing:".5px",marginBottom:10}}>🚨 Emergency Contact</div>
+                            <div style={{fontSize:12,fontWeight:700,color:T.red,textTransform:"uppercase",letterSpacing:".5px",marginBottom:10}}>🚨 Emergency Contact</div>
                             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12}}>
                               {inp("emergencyContactName","Name")}
                               {inp("emergencyContactPhone","Phone","tel")}
@@ -9339,12 +9339,12 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                           <div style={{display:"flex",gap:8}}>
                             <button onClick={savePd} disabled={pdSaving}
                               style={{background:T.accent,color:"#fff",border:"none",borderRadius:8,
-                                padding:"8px 20px",fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                                padding:"8px 20px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
                               {pdSaving?"Saving…":"💾 Save"}
                             </button>
                             <button onClick={()=>setPdEdit(false)} disabled={pdSaving}
                               style={{background:T.bg,color:T.sub,border:`1.5px solid ${T.border}`,borderRadius:8,
-                                padding:"8px 16px",fontSize:16,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+                                padding:"8px 16px",fontSize:14,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
                               Cancel
                             </button>
                           </div>
@@ -9360,10 +9360,10 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                             {readRow("Host Business", apprentice.hostBusiness, "🏢")}
                           </div>
                           <div style={{display:"flex",alignItems:"flex-start",gap:10,paddingTop:9}}>
-                            <span style={{fontSize:19,marginTop:1,width:20,textAlign:"center",flexShrink:0}}>📍</span>
+                            <span style={{fontSize:17,marginTop:1,width:20,textAlign:"center",flexShrink:0}}>📍</span>
                             <div>
-                              <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>Address</div>
-                              <div style={{fontSize:16,color:addrDisplay?T.ink:T.muted,fontStyle:addrDisplay?"normal":"italic",lineHeight:1.6}}>
+                              <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>Address</div>
+                              <div style={{fontSize:14,color:addrDisplay?T.ink:T.muted,fontStyle:addrDisplay?"normal":"italic",lineHeight:1.6}}>
                                 {addrDisplay||"Not set"}
                               </div>
                             </div>
@@ -9371,26 +9371,26 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                           {(apprentice.emergencyContactName||apprentice.emergencyContactPhone)&&(
                             <div style={{marginTop:12,padding:"10px 14px",borderRadius:8,
                               background:T.redL+"66",border:`1px solid ${T.red}33`}}>
-                              <div style={{fontSize:14,fontWeight:700,color:T.red,textTransform:"uppercase",
+                              <div style={{fontSize:12,fontWeight:700,color:T.red,textTransform:"uppercase",
                                 letterSpacing:".5px",marginBottom:8}}>🚨 Emergency Contact</div>
                               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:"6px 16px"}}>
                                 {apprentice.emergencyContactName&&(
                                   <div>
-                                    <div style={{fontSize:12,color:T.muted,fontWeight:700,marginBottom:1}}>Name</div>
-                                    <div style={{fontSize:16,fontWeight:700,color:T.ink}}>{apprentice.emergencyContactName}</div>
+                                    <div style={{fontSize:11,color:T.muted,fontWeight:700,marginBottom:1}}>Name</div>
+                                    <div style={{fontSize:14,fontWeight:700,color:T.ink}}>{apprentice.emergencyContactName}</div>
                                   </div>
                                 )}
                                 {apprentice.emergencyContactRelationship&&(
                                   <div>
-                                    <div style={{fontSize:12,color:T.muted,fontWeight:700,marginBottom:1}}>Relationship</div>
-                                    <div style={{fontSize:16,color:T.ink}}>{apprentice.emergencyContactRelationship}</div>
+                                    <div style={{fontSize:11,color:T.muted,fontWeight:700,marginBottom:1}}>Relationship</div>
+                                    <div style={{fontSize:14,color:T.ink}}>{apprentice.emergencyContactRelationship}</div>
                                   </div>
                                 )}
                                 {apprentice.emergencyContactPhone&&(
                                   <div>
-                                    <div style={{fontSize:12,color:T.muted,fontWeight:700,marginBottom:1}}>Phone</div>
+                                    <div style={{fontSize:11,color:T.muted,fontWeight:700,marginBottom:1}}>Phone</div>
                                     <a href={`tel:${apprentice.emergencyContactPhone}`}
-                                      style={{fontSize:16,color:T.accent,fontWeight:700,textDecoration:"none"}}>
+                                      style={{fontSize:14,color:T.accent,fontWeight:700,textDecoration:"none"}}>
                                       {apprentice.emergencyContactPhone}
                                     </a>
                                   </div>
@@ -9414,20 +9414,20 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
         {/* Goals from last meeting */}
         <Card style={{border:`1.5px solid ${T.accent}33`}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-            <div style={{width:32,height:32,borderRadius:8,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🎯</div>
+            <div style={{width:32,height:32,borderRadius:8,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🎯</div>
             <div>
-              <div style={{fontWeight:700,fontSize:18}}>Goals from Last Meeting</div>
-              {lastReport&&<div style={{fontSize:14,color:T.sub}}>{fmtDate(lastReport.date)}</div>}
+              <div style={{fontWeight:700,fontSize:16}}>Goals from Last Meeting</div>
+              {lastReport&&<div style={{fontSize:12,color:T.sub}}>{fmtDate(lastReport.date)}</div>}
             </div>
           </div>
           {lastReport?.goals_this_meeting
-            ? <div style={{fontSize:16,color:T.ink,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{lastReport.goals_this_meeting}</div>
-            : <div style={{fontSize:15,color:T.muted,fontStyle:"italic"}}>{lastReport?"No goals recorded for this visit":"No meeting reports yet"}</div>
+            ? <div style={{fontSize:14,color:T.ink,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{lastReport.goals_this_meeting}</div>
+            : <div style={{fontSize:13,color:T.muted,fontStyle:"italic"}}>{lastReport?"No goals recorded for this visit":"No meeting reports yet"}</div>
           }
           {lastReport?.rating&&(
             <div style={{marginTop:10,display:"inline-flex",alignItems:"center",gap:6,
               background:ratingColor(lastReport.rating)+"15",borderRadius:6,padding:"3px 10px"}}>
-              <span style={{fontSize:15,fontWeight:700,color:ratingColor(lastReport.rating)}}>{lastReport.rating}</span>
+              <span style={{fontSize:13,fontWeight:700,color:ratingColor(lastReport.rating)}}>{lastReport.rating}</span>
             </div>
           )}
         </Card>
@@ -9436,20 +9436,20 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
         {prevReport&&(
           <Card style={{border:`1.5px solid ${T.gold}33`}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-              <div style={{width:32,height:32,borderRadius:8,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📌</div>
+              <div style={{width:32,height:32,borderRadius:8,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📌</div>
               <div>
-                <div style={{fontWeight:700,fontSize:18}}>Goals from Previous Meeting</div>
-                <div style={{fontSize:14,color:T.sub}}>{fmtDate(prevReport.date)}</div>
+                <div style={{fontWeight:700,fontSize:16}}>Goals from Previous Meeting</div>
+                <div style={{fontSize:12,color:T.sub}}>{fmtDate(prevReport.date)}</div>
               </div>
             </div>
             {prevReport.goals_this_meeting
-              ? <div style={{fontSize:16,color:T.ink,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{prevReport.goals_this_meeting}</div>
-              : <div style={{fontSize:15,color:T.muted,fontStyle:"italic"}}>No goals recorded for this visit</div>
+              ? <div style={{fontSize:14,color:T.ink,lineHeight:1.6,whiteSpace:"pre-wrap"}}>{prevReport.goals_this_meeting}</div>
+              : <div style={{fontSize:13,color:T.muted,fontStyle:"italic"}}>No goals recorded for this visit</div>
             }
             {prevReport.rating&&(
               <div style={{marginTop:10,display:"inline-flex",alignItems:"center",gap:6,
                 background:ratingColor(prevReport.rating)+"15",borderRadius:6,padding:"3px 10px"}}>
-                <span style={{fontSize:15,fontWeight:700,color:ratingColor(prevReport.rating)}}>{prevReport.rating}</span>
+                <span style={{fontSize:13,fontWeight:700,color:ratingColor(prevReport.rating)}}>{prevReport.rating}</span>
               </div>
             )}
           </Card>
@@ -9462,10 +9462,10 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             {isAdmin && (
               <Card style={{marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-            <div style={{width:36,height:36,borderRadius:10,background:T.blueL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>⏱</div>
+            <div style={{width:36,height:36,borderRadius:10,background:T.blueL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19}}>⏱</div>
             <div>
-              <div style={{fontWeight:700,fontSize:19}}>Timesheet Summary</div>
-              <div style={{fontSize:15,color:T.sub}}>All entries for {apprentice.name}</div>
+              <div style={{fontWeight:700,fontSize:17}}>Timesheet Summary</div>
+              <div style={{fontSize:13,color:T.sub}}>All entries for {apprentice.name}</div>
             </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:16}}>
@@ -9477,8 +9477,8 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               {label:"Declined",        value: appEntries.filter(e=>e.approval==="declined").length,         color:T.red},
             ].map(({label,value,color})=>(
               <div key={label} style={{background:T.bg,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`,textAlign:"center"}}>
-                <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>{label}</div>
-                <div style={{fontSize:25,fontWeight:700,color,fontFamily:"'Libre Baskerville'"}}>{value}</div>
+                <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>{label}</div>
+                <div style={{fontSize:22,fontWeight:700,color,fontFamily:"'Libre Baskerville'"}}>{value}</div>
               </div>
             ))}
           </div>
@@ -9487,7 +9487,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
               <div style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 70px 90px",
                 padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
-                fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
+                fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
                 <span>Date</span><span>Type / Note</span><span style={{textAlign:"center"}}>Hours</span><span>Status</span><span>Start–End</span>
               </div>
               {appEntries.slice(0,20).map((e,i)=>{
@@ -9495,24 +9495,24 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                 const tm = TYPE_META[e.type]||TYPE_META["Normal Hours"];
                 return (
                   <div key={e.id} style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 70px 90px",
-                    padding:"9px 14px",gap:8,alignItems:"center",fontSize:16,
+                    padding:"9px 14px",gap:8,alignItems:"center",fontSize:14,
                     borderBottom:i<Math.min(appEntries.length,20)-1?`1px solid ${T.border}44`:"none",
                     background:i%2===0?T.surface:T.bg}}>
-                    <div style={{fontWeight:700,fontSize:15}}>{fmtD(e.date)}</div>
+                    <div style={{fontWeight:700,fontSize:13}}>{fmtD(e.date)}</div>
                     <div>
                       <Pill label={e.type} size="sm" color={tm.color} bg={tm.bg}/>
-                      {e.note&&<div style={{fontSize:14,color:T.muted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.note}</div>}
+                      {e.note&&<div style={{fontSize:12,color:T.muted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.note}</div>}
                     </div>
                     <div style={{textAlign:"center",fontWeight:700,color:T.accent}}>{e.netHours}h</div>
                     <Pill label={am.label} size="sm" color={am.color} bg={am.bg}/>
-                    <div style={{fontSize:14,color:T.sub}}>{e.start}–{e.end}</div>
+                    <div style={{fontSize:12,color:T.sub}}>{e.start}–{e.end}</div>
                   </div>
                 );
               })}
-              {appEntries.length>20&&<div style={{padding:"8px 14px",fontSize:15,color:T.muted,textAlign:"center"}}>Showing 20 of {appEntries.length} entries</div>}
+              {appEntries.length>20&&<div style={{padding:"8px 14px",fontSize:13,color:T.muted,textAlign:"center"}}>Showing 20 of {appEntries.length} entries</div>}
             </div>
           )}
-              {appEntries.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:T.muted,fontSize:16,fontStyle:"italic"}}>No timesheet entries yet</div>}
+              {appEntries.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:T.muted,fontSize:14,fontStyle:"italic"}}>No timesheet entries yet</div>}
             </Card>
           )}
           </DraggableSection>
@@ -9522,10 +9522,10 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             {isAdmin && (
               <Card style={{marginBottom:16}}>
                 <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-                  <div style={{width:36,height:36,borderRadius:10,background:T.holL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🏖</div>
+                  <div style={{width:36,height:36,borderRadius:10,background:T.holL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19}}>🏖</div>
                   <div style={{flex:1}}>
-                    <div style={{fontWeight:700,fontSize:19}}>Leave Requests</div>
-                    <div style={{fontSize:15,color:T.sub}}>All leave for {apprentice.name}</div>
+                    <div style={{fontWeight:700,fontSize:17}}>Leave Requests</div>
+                    <div style={{fontSize:13,color:T.sub}}>All leave for {apprentice.name}</div>
                   </div>
                   <button onClick={()=>{
                     setAdvLeaveLoading(true);
@@ -9534,13 +9534,13 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                         .sort((a,b)=>b.created_at.localeCompare(a.created_at)));
                     }).catch(()=>{}).finally(()=>setAdvLeaveLoading(false));
                   }} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 10px",
-                    fontSize:14,color:T.muted,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}
+                    fontSize:12,color:T.muted,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}
                     title="Refresh leave data">↻ Refresh</button>
                 </div>
                 {advLeaveLoading ? (
-                  <div style={{padding:"16px 0",textAlign:"center",color:T.muted,fontSize:16}}>Loading…</div>
+                  <div style={{padding:"16px 0",textAlign:"center",color:T.muted,fontSize:14}}>Loading…</div>
                 ) : advLeave.length === 0 ? (
-                  <div style={{padding:"16px 0",textAlign:"center",color:T.muted,fontSize:16,fontStyle:"italic"}}>No leave requests yet</div>
+                  <div style={{padding:"16px 0",textAlign:"center",color:T.muted,fontSize:14,fontStyle:"italic"}}>No leave requests yet</div>
                 ) : (
                   <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
                     {advLeave.map((r,i)=>{
@@ -9557,20 +9557,20 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                           borderBottom:i<advLeave.length-1?`1px solid ${T.border}44`:"none",
                           background:i%2===0?T.surface:T.bg}}>
                           <div>
-                            <div style={{fontWeight:700,fontSize:16,color:T.ink}}>{r.leave_type}</div>
-                            {r.notes&&<div style={{fontSize:14,color:T.muted,marginTop:2,fontStyle:"italic"}}>{r.notes}</div>}
+                            <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{r.leave_type}</div>
+                            {r.notes&&<div style={{fontSize:12,color:T.muted,marginTop:2,fontStyle:"italic"}}>{r.notes}</div>}
                           </div>
-                          <div style={{fontSize:15,color:T.sub}}>
+                          <div style={{fontSize:13,color:T.sub}}>
                             {fmtD(r.date_from)}{r.date_to&&r.date_to!==r.date_from?` – ${fmtD(r.date_to)}`:""}</div>
-                          <div style={{fontSize:14,color:T.muted}}>{fmtD(r.created_at?.slice(0,10))}</div>
+                          <div style={{fontSize:12,color:T.muted}}>{fmtD(r.created_at?.slice(0,10))}</div>
                           <div>
                             <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 10px",
-                              borderRadius:99,fontSize:14,fontWeight:700,
+                              borderRadius:99,fontSize:12,fontWeight:700,
                               background:statusMeta.bg,color:statusMeta.color}}>
                               {statusMeta.icon} {statusMeta.label}
                             </span>
                             {r.status==="declined"&&r.decline_reason&&(
-                              <div style={{fontSize:14,color:T.red,marginTop:3,fontStyle:"italic"}}>
+                              <div style={{fontSize:12,color:T.red,marginTop:3,fontStyle:"italic"}}>
                                 Reason: {r.decline_reason}
                               </div>
                             )}
@@ -9632,10 +9632,10 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
           <Card style={{marginBottom:16}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>📋</div>
+                <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19}}>📋</div>
                 <div>
-                  <div style={{fontWeight:700,fontSize:19}}>New Meeting Report</div>
-                  <div style={{fontSize:15,color:T.sub}}>Record a visit or check-in with {apprentice.name}</div>
+                  <div style={{fontWeight:700,fontSize:17}}>New Meeting Report</div>
+                  <div style={{fontSize:13,color:T.sub}}>Record a visit or check-in with {apprentice.name}</div>
                 </div>
               </div>
               <Btn onClick={()=>setShowMeetingForm(true)}>+ New Report</Btn>
@@ -9643,20 +9643,20 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
           </Card>
           <Card style={{marginBottom:16}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-              <div style={{width:36,height:36,borderRadius:10,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>📁</div>
+              <div style={{width:36,height:36,borderRadius:10,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19}}>📁</div>
               <div>
-                <div style={{fontWeight:700,fontSize:19}}>Past Meeting Reports</div>
-                <div style={{fontSize:15,color:T.sub}}>History of all visits with {apprentice.name}</div>
+                <div style={{fontWeight:700,fontSize:17}}>Past Meeting Reports</div>
+                <div style={{fontSize:13,color:T.sub}}>History of all visits with {apprentice.name}</div>
               </div>
             </div>
             <PastMeetingReports key={meetingKey} apprentice={apprentice} allUsers={allUsers} canEdit={true}/>
           </Card>
           <Card style={{marginBottom:16}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-              <div style={{width:36,height:36,borderRadius:10,background:T.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🦺</div>
+              <div style={{width:36,height:36,borderRadius:10,background:T.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19}}>🦺</div>
               <div>
-                <div style={{fontWeight:700,fontSize:19}}>PPE Allocation</div>
-                <div style={{fontSize:15,color:T.sub}}>Personal protective equipment issued to {apprentice.name}</div>
+                <div style={{fontWeight:700,fontSize:17}}>PPE Allocation</div>
+                <div style={{fontSize:13,color:T.sub}}>Personal protective equipment issued to {apprentice.name}</div>
               </div>
             </div>
             <PPEAllocation apprentice={apprentice} mentor={viewer} canEdit={true}/>
@@ -9744,14 +9744,14 @@ function MentorDashboard({currentUser, allUsers}) {
       <DraggableSection id="apprentices" dragProps={mentorDragProps}>
         <Card>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-            <div style={{width:38,height:38,borderRadius:11,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:25}}>👷</div>
+            <div style={{width:38,height:38,borderRadius:11,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>👷</div>
             <div>
-              <div style={{fontWeight:700,fontSize:20}}>My Apprentices</div>
-              <div style={{fontSize:15,color:T.sub}}>{myApprentices.length} apprentice{myApprentices.length!==1?"s":""} allocated to you</div>
+              <div style={{fontWeight:700,fontSize:18}}>My Apprentices</div>
+              <div style={{fontSize:13,color:T.sub}}>{myApprentices.length} apprentice{myApprentices.length!==1?"s":""} allocated to you</div>
             </div>
           </div>
           {myApprentices.length===0&&(
-            <div style={{padding:"24px 0",textAlign:"center",color:T.muted,fontSize:16,fontStyle:"italic"}}>
+            <div style={{padding:"24px 0",textAlign:"center",color:T.muted,fontSize:14,fontStyle:"italic"}}>
               No apprentices allocated to you yet — contact an Admin.
             </div>
           )}
@@ -9769,8 +9769,8 @@ function MentorDashboard({currentUser, allUsers}) {
                 onMouseLeave={e=>e.currentTarget.style.background="none"}>
                 <Avatar name={app.name} role="Apprentice" size={42}/>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:700,fontSize:18,color:T.accent}}>{app.name}</div>
-                  <div style={{fontSize:15,color:T.sub,marginTop:1,display:"flex",gap:10,flexWrap:"wrap"}}>
+                  <div style={{fontWeight:700,fontSize:16,color:T.accent}}>{app.name}</div>
+                  <div style={{fontSize:13,color:T.sub,marginTop:1,display:"flex",gap:10,flexWrap:"wrap"}}>
                     {app.trade&&<span>🔧 {app.trade}</span>}
                     {app.hostBusiness&&<span>🏢 {app.hostBusiness}</span>}
                     {meta.lastVisit&&<span>📅 Last visit {fmtDate(meta.lastVisit)}</span>}
@@ -9786,7 +9786,7 @@ function MentorDashboard({currentUser, allUsers}) {
                 </div>
                 <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
                   {licWarn&&(
-                    <div style={{fontSize:14,fontWeight:700,color:licDays<0?T.red:licDays<=7?T.red:T.warn,
+                    <div style={{fontSize:12,fontWeight:700,color:licDays<0?T.red:licDays<=7?T.red:T.warn,
                       background:licDays<=7?T.redL:T.warnL,borderRadius:6,padding:"2px 8px"}}>
                       {licDays<0?"Licence expired":licDays===0?"Expires today":`Licence: ${licDays}d`}
                     </div>
@@ -9803,16 +9803,16 @@ function MentorDashboard({currentUser, allUsers}) {
       <DraggableSection id="resources" dragProps={mentorDragProps}>
         <Card>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-            <div style={{width:38,height:38,borderRadius:11,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:25}}>📂</div>
+            <div style={{width:38,height:38,borderRadius:11,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>📂</div>
             <div>
-              <div style={{fontWeight:700,fontSize:20}}>Resources</div>
-              <div style={{fontSize:15,color:T.sub}}>Guides, templates, and reference materials</div>
+              <div style={{fontWeight:700,fontSize:18}}>Resources</div>
+              <div style={{fontSize:13,color:T.sub}}>Guides, templates, and reference materials</div>
             </div>
           </div>
           <div style={{background:T.bg,borderRadius:10,padding:"14px 16px",border:`1px dashed ${T.border}`,textAlign:"center"}}>
-            <div style={{fontSize:35,marginBottom:8}}>📁</div>
-            <div style={{fontWeight:700,fontSize:18,color:T.sub,marginBottom:4}}>Resource Folder Coming Soon</div>
-            <div style={{fontSize:15,color:T.muted,lineHeight:1.6}}>
+            <div style={{fontSize:31,marginBottom:8}}>📁</div>
+            <div style={{fontWeight:700,fontSize:16,color:T.sub,marginBottom:4}}>Resource Folder Coming Soon</div>
+            <div style={{fontSize:13,color:T.muted,lineHeight:1.6}}>
               This section will link to shared files, templates, and training resources.<br/>
               Contact your Admin to set up the resource folder.
             </div>
@@ -9825,10 +9825,10 @@ function MentorDashboard({currentUser, allUsers}) {
   return (
     <div className="fu">
       <div style={{marginBottom:20}}>
-        <h1 style={{fontFamily:"DM Sans",fontSize:32,fontWeight:700,letterSpacing:"-.4px",marginBottom:4}}>
+        <h1 style={{fontFamily:"DM Sans",fontSize:28,fontWeight:700,letterSpacing:"-.4px",marginBottom:4}}>
           Welcome, {currentUser.name.split(" ")[0]}
         </h1>
-        <p style={{fontSize:16,color:T.sub}}>Your apprentice overview and mentor tools</p>
+        <p style={{fontSize:14,color:T.sub}}>Your apprentice overview and mentor tools</p>
       </div>
       {mentorOrder.map(id => mentorSections[id] || null)}
     </div>
@@ -9868,8 +9868,8 @@ function PinPromptModal({ title, onConfirm, onCancel }) {
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div style={{background:T.surface,borderRadius:16,padding:"28px 28px 24px",maxWidth:320,width:"100%",border:`1.5px solid ${T.border}`,boxShadow:"0 8px 32px rgba(0,0,0,.18)"}}>
-        <div style={{fontWeight:700,fontSize:20,marginBottom:6}}>🔒 {title}</div>
-        <div style={{fontSize:16,color:T.sub,marginBottom:18}}>Enter your 4-digit PIN to continue.</div>
+        <div style={{fontWeight:700,fontSize:18,marginBottom:6}}>🔒 {title}</div>
+        <div style={{fontSize:14,color:T.sub,marginBottom:18}}>Enter your 4-digit PIN to continue.</div>
         <input
           type="password"
           inputMode="numeric"
@@ -9879,12 +9879,12 @@ function PinPromptModal({ title, onConfirm, onCancel }) {
           onChange={e=>{ setPin(e.target.value.replace(/\D/g,"")); setErr(""); }}
           onKeyDown={e=>e.key==="Enter"&&submit()}
           autoFocus
-          style={{textAlign:"center",fontSize:35,letterSpacing:12,marginBottom:8,width:"100%"}}
+          style={{textAlign:"center",fontSize:31,letterSpacing:12,marginBottom:8,width:"100%"}}
         />
-        {err&&<div style={{color:T.red,fontSize:15,marginBottom:8,textAlign:"center"}}>{err}</div>}
+        {err&&<div style={{color:T.red,fontSize:13,marginBottom:8,textAlign:"center"}}>{err}</div>}
         <div style={{display:"flex",gap:8,marginTop:8}}>
-          <button onClick={onCancel} style={{flex:1,padding:"10px",borderRadius:8,border:`1.5px solid ${T.border}`,background:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:16}}>Cancel</button>
-          <button onClick={submit} disabled={checking} style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:T.accent,color:"#fff",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:16,fontWeight:700}}>
+          <button onClick={onCancel} style={{flex:1,padding:"10px",borderRadius:8,border:`1.5px solid ${T.border}`,background:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:14}}>Cancel</button>
+          <button onClick={submit} disabled={checking} style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:T.accent,color:"#fff",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:14,fontWeight:700}}>
             {checking?"…":"Confirm"}
           </button>
         </div>
@@ -9958,8 +9958,8 @@ function BroadcastComposer({users, currentUser, onSend, onClose}) {
       display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
       <Card style={{width:"100%",maxWidth:480,padding:28}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-          <div style={{fontFamily:"DM Sans",fontSize:22,fontWeight:700}}><span style={{display:"flex",alignItems:"center",gap:8}}><BatSignal size={22}/> Contact Via App</span></div>
-          <button onClick={onClose} style={{background:"none",border:"none",fontSize:25,
+          <div style={{fontFamily:"DM Sans",fontSize:19,fontWeight:700}}><span style={{display:"flex",alignItems:"center",gap:8}}><BatSignal size={22}/> Contact Via App</span></div>
+          <button onClick={onClose} style={{background:"none",border:"none",fontSize:22,
             color:T.muted,cursor:"pointer"}}>✕</button>
         </div>
         <div style={{marginBottom:14}}>
@@ -9976,7 +9976,7 @@ function BroadcastComposer({users, currentUser, onSend, onClose}) {
               ))}
             </optgroup>
           </select>
-          <div style={{fontSize:14,color:T.muted,marginTop:4}}>
+          <div style={{fontSize:12,color:T.muted,marginTop:4}}>
             Will notify {recipCount} recipient{recipCount!==1?"s":""}
           </div>
         </div>
@@ -9989,7 +9989,7 @@ function BroadcastComposer({users, currentUser, onSend, onClose}) {
           <textarea placeholder="Write your message here…" value={message} onChange={e=>setMessage(e.target.value)}
             rows={4} style={{width:"100%",resize:"vertical",padding:"9px 12px",
               border:`1.5px solid ${T.border}`,borderRadius:8,fontFamily:"DM Sans,sans-serif",
-              fontSize:16,background:T.bg,color:T.ink,boxSizing:"border-box"}}/>
+              fontSize:14,background:T.bg,color:T.ink,boxSizing:"border-box"}}/>
         </div>
         <div style={{display:"flex",gap:8}}>
           <Btn onClick={send} disabled={sending||!title.trim()||!message.trim()}>
@@ -10079,20 +10079,20 @@ function ApprenticeConversation({apprentice, allUsers, currentUser, canManageMes
     <Card style={{marginTop:20,border:`1.5px solid ${T.border}`}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
         <div style={{width:34,height:34,borderRadius:10,background:T.accentL,
-          display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>💬</div>
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>💬</div>
         <div>
-          <div style={{fontWeight:700,fontSize:18}}>Conversation</div>
-          <div style={{fontSize:15,color:T.sub}}>
+          <div style={{fontWeight:700,fontSize:16}}>Conversation</div>
+          <div style={{fontSize:13,color:T.sub}}>
             Permanent message history with {apprentice.name}
-            {canManageMessages&&<span style={{marginLeft:8,fontSize:14,color:T.muted}}>(hover a message to delete)</span>}
+            {canManageMessages&&<span style={{marginLeft:8,fontSize:12,color:T.muted}}>(hover a message to delete)</span>}
           </div>
         </div>
       </div>
 
-      {loadErr&&<div style={{fontSize:15,color:T.red,marginBottom:12}}>⚠ Could not load messages: {loadErr}</div>}
+      {loadErr&&<div style={{fontSize:13,color:T.red,marginBottom:12}}>⚠ Could not load messages: {loadErr}</div>}
 
       {Object.keys(grouped).length===0&&!loadErr&&(
-        <div style={{padding:"24px 0",textAlign:"center",color:T.muted,fontSize:16,fontStyle:"italic"}}>
+        <div style={{padding:"24px 0",textAlign:"center",color:T.muted,fontSize:14,fontStyle:"italic"}}>
           No messages yet
         </div>
       )}
@@ -10101,7 +10101,7 @@ function ApprenticeConversation({apprentice, allUsers, currentUser, canManageMes
         <div key={day} style={{marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
             <div style={{flex:1,height:1,background:T.border}}/>
-            <div style={{fontSize:14,color:T.muted,fontWeight:700,whiteSpace:"nowrap"}}>{fmtDay(day)}</div>
+            <div style={{fontSize:12,color:T.muted,fontWeight:700,whiteSpace:"nowrap"}}>{fmtDay(day)}</div>
             <div style={{flex:1,height:1,background:T.border}}/>
           </div>
           {dayMsgs.map(m=>{
@@ -10117,17 +10117,17 @@ function ApprenticeConversation({apprentice, allUsers, currentUser, canManageMes
                   borderRadius:fromApp?"4px 12px 12px 12px":"12px 4px 12px 12px",
                   background:fromApp?T.bg:T.accentL,
                   border:`1px solid ${fromApp?T.border:T.accent+"44"}`,position:"relative"}}>
-                  <div style={{fontSize:15,color:T.ink,lineHeight:1.5,wordBreak:"break-word"}}>{m.body}</div>
+                  <div style={{fontSize:13,color:T.ink,lineHeight:1.5,wordBreak:"break-word"}}>{m.body}</div>
                   {/* Delete button — Admin 1 only, shown on hover */}
                   {canManageMessages&&hoverMsg===m.id&&(
                     <button onClick={()=>handleDelete(m.id)} title="Delete message" style={{
                       position:"absolute",top:-8,right:-8,width:20,height:20,borderRadius:"50%",
                       background:T.red,color:"#fff",border:"none",cursor:"pointer",
-                      fontSize:14,display:"flex",alignItems:"center",justifyContent:"center",
+                      fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",
                       lineHeight:1,fontWeight:700}}>✕</button>
                   )}
                 </div>
-                <div style={{fontSize:12,color:T.muted,marginTop:3,display:"flex",gap:6}}>
+                <div style={{fontSize:11,color:T.muted,marginTop:3,display:"flex",gap:6}}>
                   <span>{sender?.name||"Unknown"}</span>
                   {m.created_at&&<span>· {fmtTime(m.created_at)}</span>}
                 </div>
@@ -10144,7 +10144,7 @@ function ApprenticeConversation({apprentice, allUsers, currentUser, canManageMes
           value={msgText}
           onChange={e=>setMsgText(e.target.value)}
           rows={2}
-          style={{width:"100%",fontSize:16,padding:"9px 12px",borderRadius:8,
+          style={{width:"100%",fontSize:14,padding:"9px 12px",borderRadius:8,
             border:`1.5px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",
             background:T.surface,resize:"none",color:T.ink,outline:"none",boxSizing:"border-box"}}
           onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();handleSend();}}}
@@ -10333,7 +10333,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
 
   const TabBtn = ({id,label,count}) => (
     <button onClick={()=>setTab(id)} style={{
-      padding:"8px 16px",borderRadius:8,fontSize:16,fontWeight:700,
+      padding:"8px 16px",borderRadius:8,fontSize:14,fontWeight:700,
       background: tab===id ? xeroBlue : T.bg,
       color: tab===id ? "#fff" : T.sub,
       border: tab===id ? `1.5px solid ${xeroBlueDark}` : `1.5px solid ${T.border}`,
@@ -10343,7 +10343,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
       {count!==undefined&&<span style={{
         background: tab===id?"#ffffff33":T.border,
         color: tab===id?"#fff":T.sub,
-        borderRadius:99,padding:"1px 7px",fontSize:14,fontWeight:700}}>{count}</span>}
+        borderRadius:99,padding:"1px 7px",fontSize:12,fontWeight:700}}>{count}</span>}
     </button>
   );
 
@@ -10355,21 +10355,21 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
         boxShadow:"0 2px 12px #13b5ea11"}}>
         <div style={{width:52,height:52,borderRadius:12,background:"#e6f7fd",
           display:"flex",alignItems:"center",justifyContent:"center",
-          fontSize:35,fontWeight:700,color:xeroBlue,fontFamily:"Georgia,serif",flexShrink:0}}>𝕏</div>
+          fontSize:31,fontWeight:700,color:xeroBlue,fontFamily:"Georgia,serif",flexShrink:0}}>𝕏</div>
         <div>
-          <div style={{fontFamily:"DM Sans",fontSize:25,fontWeight:700,color:T.ink}}>Xero Payroll Integration</div>
-          <div style={{fontSize:16,color:T.sub,marginTop:2}}>
+          <div style={{fontFamily:"DM Sans",fontSize:22,fontWeight:700,color:T.ink}}>Xero Payroll Integration</div>
+          <div style={{fontSize:14,color:T.sub,marginTop:2}}>
             Submit approved timesheets to Xero Payroll NZ · Admin Level 1 only
           </div>
         </div>
         <div style={{marginLeft:"auto",display:"flex",gap:8,flexWrap:"wrap"}}>
           <div style={{textAlign:"center",padding:"8px 16px",background:T.accentL,borderRadius:8}}>
-            <div style={{fontSize:25,fontWeight:700,color:T.accent,fontFamily:"DM Sans"}}>{pendingXero.length}</div>
-            <div style={{fontSize:14,color:T.sub,fontWeight:700}}>Awaiting Xero</div>
+            <div style={{fontSize:22,fontWeight:700,color:T.accent,fontFamily:"DM Sans"}}>{pendingXero.length}</div>
+            <div style={{fontSize:12,color:T.sub,fontWeight:700}}>Awaiting Xero</div>
           </div>
           <div style={{textAlign:"center",padding:"8px 16px",background:"#e6f7fd",borderRadius:8}}>
-            <div style={{fontSize:25,fontWeight:700,color:xeroBlue,fontFamily:"DM Sans"}}>{submittedXero.length}</div>
-            <div style={{fontSize:14,color:T.sub,fontWeight:700}}>Submitted</div>
+            <div style={{fontSize:22,fontWeight:700,color:xeroBlue,fontFamily:"DM Sans"}}>{submittedXero.length}</div>
+            <div style={{fontSize:12,color:T.sub,fontWeight:700}}>Submitted</div>
           </div>
         </div>
       </div>
@@ -10388,34 +10388,34 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
           {/* Custom connection status */}
           <div style={{background:T.tealL,border:`1.5px solid ${T.teal}55`,borderRadius:12,
             padding:"14px 18px",marginBottom:20,display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:25}}>✓</span>
+            <span style={{fontSize:22}}>✓</span>
             <div>
-              <div style={{fontWeight:700,fontSize:16,color:T.teal}}>Xero Custom Connection</div>
-              <div style={{fontSize:15,color:T.sub,marginTop:2}}>
+              <div style={{fontWeight:700,fontSize:14,color:T.teal}}>Xero Custom Connection</div>
+              <div style={{fontSize:13,color:T.sub,marginTop:2}}>
                 Using client credentials — no OAuth flow required. Save your Edge Function URL and Tenant ID below, then load earnings rates.
               </div>
             </div>
           </div>
 
           <Card style={{marginBottom:16}}>
-            <div style={{fontWeight:700,fontSize:19,marginBottom:16,color:T.ink}}>Connection Settings</div>
+            <div style={{fontWeight:700,fontSize:17,marginBottom:16,color:T.ink}}>Connection Settings</div>
             <div style={{marginBottom:12}}>
               <FL>Supabase Edge Function URL</FL>
               <input value={settings.edgeFunctionUrl||""} onChange={e=>ss("edgeFunctionUrl",e.target.value)}
                 placeholder="https://your-project.supabase.co/functions/v1/xero-proxy"/>
-              <div style={{fontSize:14,color:T.muted,marginTop:3}}>The URL of your deployed xero-proxy Supabase Edge Function</div>
+              <div style={{fontSize:12,color:T.muted,marginTop:3}}>The URL of your deployed xero-proxy Supabase Edge Function</div>
             </div>
             <div style={{marginBottom:16}}>
               <FL>Xero Tenant / Organisation ID</FL>
               <input value={settings.tenantId||""} onChange={e=>ss("tenantId",e.target.value)}
                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"/>
-              <div style={{fontSize:14,color:T.muted,marginTop:3}}>Found in Xero under My Xero → Connections, or via GET /connections</div>
+              <div style={{fontSize:12,color:T.muted,marginTop:3}}>Found in Xero under My Xero → Connections, or via GET /connections</div>
             </div>
 
-            <div style={{fontWeight:700,fontSize:18,marginBottom:12,marginTop:4,color:T.ink,borderTop:`1px solid ${T.border}`,paddingTop:16}}>
+            <div style={{fontWeight:700,fontSize:16,marginBottom:12,marginTop:4,color:T.ink,borderTop:`1px solid ${T.border}`,paddingTop:16}}>
               Payroll Mapping
             </div>
-            <div style={{fontSize:15,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+            <div style={{fontSize:13,color:T.sub,marginBottom:12,lineHeight:1.6}}>
               Map each KTA entry type to a Xero <strong>Earnings Rate</strong> or <strong>Leave Type</strong>. Click Load to pull both from Xero.
             </div>
             <div style={{marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
@@ -10439,7 +10439,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
                 }catch(e){ alert("Failed: "+e.message); }
               }}>🔄 Load from Xero</Btn>
               {(xeroRates.length>0||xeroLeaveTypes.length>0||xeroReimbursements.length>0)&&(
-                <span style={{fontSize:15,color:T.teal,fontWeight:700}}>
+                <span style={{fontSize:13,color:T.teal,fontWeight:700}}>
                   ✓ {xeroRates.length} rates · {xeroLeaveTypes.length} leave · {xeroReimbursements.length} reimbursements
                 </span>
               )}
@@ -10452,17 +10452,17 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
               return (
                 <div key={type} style={{display:"grid",gridTemplateColumns:"180px 1fr 28px",gap:8,alignItems:"center",marginBottom:6}}>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{fontSize:14,padding:"1px 6px",borderRadius:4,fontWeight:700,
+                    <span style={{fontSize:12,padding:"1px 6px",borderRadius:4,fontWeight:700,
                       background:isLeaveType?T.tealL:T.accentL,
                       color:isLeaveType?T.teal:T.accent}}>
                       {isLeaveType?"Leave":"Pay"}
                     </span>
-                    <span style={{fontSize:16,fontWeight:700,color:T.ink}}>{type}</span>
+                    <span style={{fontSize:14,fontWeight:700,color:T.ink}}>{type}</span>
                   </div>
                   {hasOptions ? (
                     <select value={val}
                       onChange={e=>ss("earningsRates",{...settings.earningsRates,[type]:e.target.value})}
-                      style={{fontSize:15,padding:"5px 8px",border:`1px solid ${val?T.teal:T.border}`,borderRadius:6,background:"#fff",
+                      style={{fontSize:13,padding:"5px 8px",border:`1px solid ${val?T.teal:T.border}`,borderRadius:6,background:"#fff",
                         color:val?T.ink:T.muted}}>
                       <option value="">— Not mapped —</option>
                       {xeroRates.length>0&&<optgroup label="── Earnings Rates ──">
@@ -10481,32 +10481,32 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
                       placeholder="Load from Xero above, or paste ID manually"/>
                   )}
                   {val
-                    ? <span style={{fontSize:18,color:T.teal}}>✓</span>
-                    : <span style={{fontSize:18,color:T.muted}}>—</span>
+                    ? <span style={{fontSize:16,color:T.teal}}>✓</span>
+                    : <span style={{fontSize:16,color:T.muted}}>—</span>
                   }
                 </div>
               );
             })}
 
             <div style={{marginTop:16,padding:"14px 16px",background:T.warnL,borderRadius:8,border:`1px solid ${T.warn}44`,marginBottom:12}}>
-              <div style={{fontWeight:700,fontSize:16,color:T.warn,marginBottom:8}}>🔧 Tool Allowance Reimbursement</div>
-              <div style={{fontSize:15,color:T.sub,marginBottom:10,lineHeight:1.5}}>Automatically submits Tool Allowance = (Normal Hours + Overtime) × /bin/zsh.50 per hour when you submit a timesheet to Xero. Paste the Xero Reimbursement ID for Tool Allowance below.</div>
+              <div style={{fontWeight:700,fontSize:14,color:T.warn,marginBottom:8}}>🔧 Tool Allowance Reimbursement</div>
+              <div style={{fontSize:13,color:T.sub,marginBottom:10,lineHeight:1.5}}>Automatically submits Tool Allowance = (Normal Hours + Overtime) × /bin/zsh.50 per hour when you submit a timesheet to Xero. Paste the Xero Reimbursement ID for Tool Allowance below.</div>
               <div style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:8,alignItems:"center"}}>
-                <span style={{fontSize:16,fontWeight:700,color:T.ink}}>Tool Allowance ID</span>
+                <span style={{fontSize:14,fontWeight:700,color:T.ink}}>Tool Allowance ID</span>
                 {xeroReimbursements.length>0
                   ? <select value={settings.toolAllowanceReimbursementId||""} onChange={e=>ss("toolAllowanceReimbursementId",e.target.value)}
-                      style={{fontSize:15,padding:"6px 8px",border:`1px solid ${settings.toolAllowanceReimbursementId?T.teal:T.border}`,borderRadius:6,background:"#fff",flex:1}}>
+                      style={{fontSize:13,padding:"6px 8px",border:`1px solid ${settings.toolAllowanceReimbursementId?T.teal:T.border}`,borderRadius:6,background:"#fff",flex:1}}>
                       <option value="">— Select reimbursement type —</option>
                       {xeroReimbursements.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
                     </select>
-                  : <input value={settings.toolAllowanceReimbursementId||""} onChange={e=>ss("toolAllowanceReimbursementId",e.target.value)} placeholder="Load from Xero above, or paste ID" style={{fontSize:15,padding:"6px 8px",border:`1px solid ${settings.toolAllowanceReimbursementId?T.teal:T.border}`,borderRadius:6,flex:1}}/>
+                  : <input value={settings.toolAllowanceReimbursementId||""} onChange={e=>ss("toolAllowanceReimbursementId",e.target.value)} placeholder="Load from Xero above, or paste ID" style={{fontSize:13,padding:"6px 8px",border:`1px solid ${settings.toolAllowanceReimbursementId?T.teal:T.border}`,borderRadius:6,flex:1}}/>
                 }
               </div>
-              <div style={{fontSize:14,color:T.muted,marginTop:6}}>To find this: Xero → Payroll → Pay Items → Reimbursements → Tool Allowance → copy the ID from the URL</div>
+              <div style={{fontSize:12,color:T.muted,marginTop:6}}>To find this: Xero → Payroll → Pay Items → Reimbursements → Tool Allowance → copy the ID from the URL</div>
             </div>
             <div style={{marginTop:4}}>
               {saved
-                ? <div style={{display:"inline-flex",alignItems:"center",gap:6,color:T.teal,fontWeight:700,fontSize:16}}>✓ Settings saved</div>
+                ? <div style={{display:"inline-flex",alignItems:"center",gap:6,color:T.teal,fontWeight:700,fontSize:14}}>✓ Settings saved</div>
                 : <Btn onClick={saveSettings}>Save Settings</Btn>
               }
             </div>
@@ -10514,11 +10514,11 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
 
           {/* Edge function download */}
           <Card>
-            <div style={{fontWeight:700,fontSize:19,marginBottom:12,color:T.ink}}>📦 Supabase Edge Function</div>
-            <div style={{fontSize:16,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+            <div style={{fontWeight:700,fontSize:17,marginBottom:12,color:T.ink}}>📦 Supabase Edge Function</div>
+            <div style={{fontSize:14,color:T.sub,marginBottom:12,lineHeight:1.6}}>
               Deploy this function to Supabase to act as your Xero API proxy. It securely holds your Xero OAuth token and handles token refresh.
             </div>
-            <div style={{background:"#1a1a2e",borderRadius:10,padding:"14px 16px",fontFamily:"monospace",fontSize:14,color:"#e2e8f0",lineHeight:1.6,overflowX:"auto",marginBottom:12}}>
+            <div style={{background:"#1a1a2e",borderRadius:10,padding:"14px 16px",fontFamily:"monospace",fontSize:12,color:"#e2e8f0",lineHeight:1.6,overflowX:"auto",marginBottom:12}}>
               <div style={{color:"#64748b",marginBottom:4}}>{`// supabase/functions/xero-proxy/index.ts`}</div>
               <div style={{color:"#94a3b8"}}>{`// Deploy with: supabase functions deploy xero-proxy`}</div>
               <div>{`// Set secrets: supabase secrets set XERO_CLIENT_ID=... XERO_CLIENT_SECRET=... XERO_REFRESH_TOKEN=...`}</div>
@@ -10630,7 +10630,7 @@ serve(async (req) => {
         <Card>
           {!settings.edgeFunctionUrl&&(
             <div style={{background:T.warnL,border:`1px solid ${T.warn}44`,borderRadius:8,
-              padding:"10px 14px",marginBottom:16,fontSize:15,color:T.warn}}>
+              padding:"10px 14px",marginBottom:16,fontSize:13,color:T.warn}}>
               ⚠ Set up your Edge Function URL and Tenant ID in the <strong>Setup</strong> tab first.
             </div>
           )}
@@ -10656,7 +10656,7 @@ serve(async (req) => {
               }catch(e){ alert("Failed: "+e.message); }
             }}>🔄 Load Employees from Xero</Btn>
             {xeroEmployees.length>0&&(
-              <span style={{fontSize:15,color:T.teal,fontWeight:700}}>
+              <span style={{fontSize:13,color:T.teal,fontWeight:700}}>
                 ✓ {xeroEmployees.length} Xero employees loaded
               </span>
             )}
@@ -10682,8 +10682,8 @@ serve(async (req) => {
 
             return (
               <div style={{marginBottom:24}}>
-                <div style={{fontWeight:700,fontSize:18,marginBottom:4}}>⬇ Import / Merge from Xero</div>
-                <div style={{fontSize:15,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+                <div style={{fontWeight:700,fontSize:16,marginBottom:4}}>⬇ Import / Merge from Xero</div>
+                <div style={{fontSize:13,color:T.sub,marginBottom:12,lineHeight:1.6}}>
                   These Xero employees are not yet linked to KTA.
                   {mergeCount>0 && <> <span style={{color:T.teal,fontWeight:700}}>{mergeCount} email match{mergeCount>1?"es":""}</span> found — merging will link their Xero ID and fill any missing fields.</>}
                   {importCount>0 && <> <span style={{color:xeroBlue,fontWeight:700}}>{importCount} new</span> will be created as Apprentices.</>}
@@ -10691,17 +10691,17 @@ serve(async (req) => {
                 <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 110px",
                     padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
-                    fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:10}}>
+                    fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:10}}>
                     <span>Xero Employee</span><span>Email</span><span>KTA Match</span><span></span>
                   </div>
                   {withMatch.map(({xe,match},i)=>(
                     <div key={xe.employeeID||xe.EmployeeID} style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 110px",
-                      padding:"10px 14px",gap:10,alignItems:"center",fontSize:16,
+                      padding:"10px 14px",gap:10,alignItems:"center",fontSize:14,
                       borderBottom:i<withMatch.length-1?`1px solid ${T.border}44`:"none",
                       background:match?`${T.tealL}55`:i%2===0?T.surface:T.bg}}>
                       <div style={{fontWeight:700}}>{xe.firstName||xe.FirstName} {xe.lastName||xe.LastName}</div>
-                      <div style={{fontSize:14,color:T.sub,wordBreak:"break-all"}}>{xe.Email||<span style={{color:T.muted}}>—</span>}</div>
-                      <div style={{fontSize:14}}>
+                      <div style={{fontSize:12,color:T.sub,wordBreak:"break-all"}}>{xe.Email||<span style={{color:T.muted}}>—</span>}</div>
+                      <div style={{fontSize:12}}>
                         {match
                           ? <span style={{color:T.teal,fontWeight:700,display:"flex",alignItems:"center",gap:4}}>
                               <span style={{width:6,height:6,borderRadius:"50%",background:T.teal,display:"inline-block"}}/>
@@ -10777,7 +10777,7 @@ serve(async (req) => {
                             showToast(`✓ ${xeFirst} ${xeLast} imported as Apprentice`);
                           }
                         } catch(e) { alert((match?"Merge":"Import")+" failed: "+e.message); }
-                      }} style={{fontSize:15,padding:"5px 10px",borderRadius:6,fontWeight:700,
+                      }} style={{fontSize:13,padding:"5px 10px",borderRadius:6,fontWeight:700,
                         background: match ? T.teal : xeroBlue,
                         color:"#fff",
                         border:`1px solid ${match ? T.teal : xeroBlueDark}`,
@@ -10818,22 +10818,22 @@ serve(async (req) => {
 
             if(!syncItems.length) return (
               <div style={{marginBottom:24,padding:"10px 14px",background:T.tealL,borderRadius:8,
-                fontSize:15,color:T.teal,fontWeight:700}}>
+                fontSize:13,color:T.teal,fontWeight:700}}>
                 ✓ All linked apprentices are up to date with Xero data.
               </div>
             );
 
             return (
               <div style={{marginBottom:24}}>
-                <div style={{fontWeight:700,fontSize:18,marginBottom:4}}>🔄 Xero Data Available to Fill</div>
-                <div style={{fontSize:15,color:T.sub,marginBottom:12,lineHeight:1.6}}>
+                <div style={{fontWeight:700,fontSize:16,marginBottom:4}}>🔄 Xero Data Available to Fill</div>
+                <div style={{fontSize:13,color:T.sub,marginBottom:12,lineHeight:1.6}}>
                   These linked apprentices have <strong>blank fields</strong> that Xero can fill in.
                   Existing KTA data is never overwritten — only blank fields are filled.
                 </div>
                 <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
                   <div style={{display:"grid",gridTemplateColumns:"160px 1fr 120px",
                     padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
-                    fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:10}}>
+                    fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:10}}>
                     <span>Apprentice</span><span>Missing Fields Xero Can Fill</span><span></span>
                   </div>
                   {syncItems.map(({a,xe,missing},i)=>(
@@ -10841,10 +10841,10 @@ serve(async (req) => {
                       padding:"10px 14px",gap:10,alignItems:"center",
                       borderBottom:i<syncItems.length-1?`1px solid ${T.border}44`:"none",
                       background:i%2===0?T.surface:T.bg}}>
-                      <div style={{fontWeight:700,fontSize:16}}>{a.name}</div>
+                      <div style={{fontWeight:700,fontSize:14}}>{a.name}</div>
                       <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
                         {missing.map(m=>(
-                          <span key={m.field} style={{fontSize:14,background:T.accentL,color:T.accent,
+                          <span key={m.field} style={{fontSize:12,background:T.accentL,color:T.accent,
                             borderRadius:5,padding:"2px 7px",fontWeight:700}}>
                             {m.label}: {m.value}
                           </span>
@@ -10862,7 +10862,7 @@ serve(async (req) => {
                           onImportUser({...a, ...stateUpdates});
                           showToast(`✓ Filled ${missing.length} fields for ${a.name}`);
                         } catch(e){ alert("Sync failed: "+e.message); }
-                      }} style={{fontSize:15,padding:"6px 12px",borderRadius:7,fontWeight:700,
+                      }} style={{fontSize:13,padding:"6px 12px",borderRadius:7,fontWeight:700,
                         background:T.teal,color:"#fff",border:`1px solid ${T.teal}`,
                         cursor:"pointer",fontFamily:"DM Sans,sans-serif",whiteSpace:"nowrap"}}>
                         ✓ Fill {missing.length} field{missing.length>1?"s":""}
@@ -10882,7 +10882,7 @@ serve(async (req) => {
                           onImportUser({...a, ...stateUpdates});
                         }
                         showToast(`✓ Synced Xero data for ${syncItems.length} apprentices`);
-                      }} style={{fontSize:15,padding:"6px 14px",borderRadius:7,fontWeight:700,
+                      }} style={{fontSize:13,padding:"6px 14px",borderRadius:7,fontWeight:700,
                         background:T.accent,color:"#fff",border:"none",
                         cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
                         ⬇ Fill All Missing Fields
@@ -10895,30 +10895,30 @@ serve(async (req) => {
           })()}
 
           {/* ── Section 2: Link existing KTA apprentices to Xero ── */}
-          <div style={{fontWeight:700,fontSize:18,marginBottom:6}}>🔗 Link Existing Apprentices</div>
-          <div style={{fontSize:15,color:T.sub,marginBottom:12}}>
+          <div style={{fontWeight:700,fontSize:16,marginBottom:6}}>🔗 Link Existing Apprentices</div>
+          <div style={{fontSize:13,color:T.sub,marginBottom:12}}>
             Match each KTA apprentice to their Xero payroll record.
           </div>
           <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 120px",
               padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
-              fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:10}}>
+              fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:10}}>
               <span>KTA Apprentice</span><span>Xero Employee</span><span>Status</span>
             </div>
             {apprentices.map((a,i)=>(
               <div key={a.id} style={{display:"grid",gridTemplateColumns:"1fr 1fr 120px",
-                padding:"10px 14px",gap:10,alignItems:"center",fontSize:16,
+                padding:"10px 14px",gap:10,alignItems:"center",fontSize:14,
                 borderBottom:i<apprentices.length-1?`1px solid ${T.border}44`:"none",
                 background:i%2===0?T.surface:T.bg}}>
                 <div>
                   <div style={{fontWeight:700}}>{a.name}</div>
-                  <div style={{fontSize:14,color:T.sub}}>{a.trade||"No trade set"}</div>
+                  <div style={{fontSize:12,color:T.sub}}>{a.trade||"No trade set"}</div>
                 </div>
                 {xeroEmployees.length > 0 ? (
                   <select
                     value={empMap[a.id]!==undefined ? empMap[a.id] : (a.xeroEmployeeId||"")}
                     onChange={e=>setEmpMap(m=>({...m,[a.id]:e.target.value}))}
-                    style={{fontSize:15,padding:"5px 8px",border:`1px solid ${T.border}`,
+                    style={{fontSize:13,padding:"5px 8px",border:`1px solid ${T.border}`,
                       borderRadius:6,width:"100%",boxSizing:"border-box",background:"#fff"}}>
                     <option value="">— Select Xero employee —</option>
                     {xeroEmployees.map(xe=>(
@@ -10932,13 +10932,13 @@ serve(async (req) => {
                     value={empMap[a.id]!==undefined ? empMap[a.id] : (a.xeroEmployeeId||"")}
                     onChange={e=>setEmpMap(m=>({...m,[a.id]:e.target.value}))}
                     placeholder="Click Load from Xero above, or paste ID manually"
-                    style={{fontSize:15,padding:"5px 8px",border:`1px solid ${T.border}`,
+                    style={{fontSize:13,padding:"5px 8px",border:`1px solid ${T.border}`,
                       borderRadius:6,fontFamily:"monospace",width:"100%",boxSizing:"border-box"}}
                   />
                 )}
                 <div style={{display:"flex",gap:6,alignItems:"center"}}>
                   {savingMap[a.id]==="saved"
-                    ? <span style={{fontSize:15,color:T.teal,fontWeight:700}}>✓ Saved</span>
+                    ? <span style={{fontSize:13,color:T.teal,fontWeight:700}}>✓ Saved</span>
                     : (
                       <button onClick={async()=>{
                         const newId = empMap[a.id];
@@ -10950,7 +10950,7 @@ serve(async (req) => {
                           setTimeout(()=>setSavingMap(m=>({...m,[a.id]:null})),2000);
                         } catch(e) { alert("Save failed: "+e.message); setSavingMap(m=>({...m,[a.id]:null})); }
                       }} disabled={empMap[a.id]===undefined||savingMap[a.id]==="saving"}
-                        style={{fontSize:15,padding:"4px 10px",borderRadius:6,
+                        style={{fontSize:13,padding:"4px 10px",borderRadius:6,
                           background: empMap[a.id]!==undefined ? xeroBlue : T.bg,
                           color: empMap[a.id]!==undefined ? "#fff" : T.muted,
                           border:`1px solid ${empMap[a.id]!==undefined?xeroBlueDark:T.border}`,
@@ -10961,9 +10961,9 @@ serve(async (req) => {
                     )
                   }
                   {a.xeroEmployeeId && !empMap[a.id]
-                    ? <span style={{fontSize:14,color:T.teal}}>✓ Linked</span>
+                    ? <span style={{fontSize:12,color:T.teal}}>✓ Linked</span>
                     : !a.xeroEmployeeId && empMap[a.id]===undefined
-                    ? <span style={{fontSize:14,color:T.warn}}>⚠ Not set</span>
+                    ? <span style={{fontSize:12,color:T.warn}}>⚠ Not set</span>
                     : null
                   }
                 </div>
@@ -10983,7 +10983,7 @@ serve(async (req) => {
             : (
               <>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-                  <div style={{fontSize:16,color:T.sub}}>{pendingXero.length} approved {pendingXero.length===1?"entry":"entries"} ready to submit</div>
+                  <div style={{fontSize:14,color:T.sub}}>{pendingXero.length} approved {pendingXero.length===1?"entry":"entries"} ready to submit</div>
                   <button
                     disabled={submittingAll || pendingXero.filter(e=>{
                       const a=allUsers.find(u=>u.id===e.userId);
@@ -11009,7 +11009,7 @@ serve(async (req) => {
                       }
                       setSubmittingAll(false);
                     }}
-                    style={{fontSize:16,fontWeight:700,padding:"8px 18px",borderRadius:8,
+                    style={{fontSize:14,fontWeight:700,padding:"8px 18px",borderRadius:8,
                       background: submittingAll?"#e6f7fd":xeroBlue,
                       color: submittingAll?xeroBlueDark:"#fff",
                       border:`1.5px solid ${xeroBlueDark}`,
@@ -11017,15 +11017,15 @@ serve(async (req) => {
                       display:"flex",alignItems:"center",gap:6,
                       opacity: submittingAll?0.7:1}}>
                     {submittingAll
-                      ? <><span style={{fontSize:18}}>⏳</span> Submitting…</>
-                      : <><span style={{fontSize:18}}>𝕏</span> Submit All</>
+                      ? <><span style={{fontSize:16}}>⏳</span> Submitting…</>
+                      : <><span style={{fontSize:16}}>𝕏</span> Submit All</>
                     }
                   </button>
                 </div>
                 <Card style={{padding:0,overflow:"hidden"}}>
                   <div style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 90px 80px 90px",
                     padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
-                    fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
+                    fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
                     <span>Date</span><span>Apprentice</span><span style={{textAlign:"center"}}>Hours</span>
                     <span>Type</span><span>Status</span><span style={{textAlign:"right"}}>Action</span>
                   </div>
@@ -11037,23 +11037,23 @@ serve(async (req) => {
                     const canSubmit = hasXeroId && hasRate && settings.edgeFunctionUrl && settings.tenantId;
                     return (
                       <div key={e.id} style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 90px 80px 90px",
-                        padding:"10px 14px",gap:8,alignItems:"center",fontSize:16,
+                        padding:"10px 14px",gap:8,alignItems:"center",fontSize:14,
                         borderBottom:i<pendingXero.length-1?`1px solid ${T.border}44`:"none",
                         background:i%2===0?T.surface:T.bg}}>
-                        <div style={{fontWeight:700,fontSize:15}}>{fD(e.date)}</div>
+                        <div style={{fontWeight:700,fontSize:13}}>{fD(e.date)}</div>
                         <div>
-                          <div style={{fontWeight:700,fontSize:16}}>{app?.name||"Unknown"}</div>
-                          {!hasXeroId&&<div style={{fontSize:14,color:T.warn}}>⚠ No Xero ID</div>}
-                          {!hasRate&&<div style={{fontSize:14,color:T.warn}}>⚠ Rate not mapped</div>}
+                          <div style={{fontWeight:700,fontSize:14}}>{app?.name||"Unknown"}</div>
+                          {!hasXeroId&&<div style={{fontSize:12,color:T.warn}}>⚠ No Xero ID</div>}
+                          {!hasRate&&<div style={{fontSize:12,color:T.warn}}>⚠ Rate not mapped</div>}
                         </div>
                         <div style={{textAlign:"center",fontWeight:700,color:T.accent,fontFamily:"DM Sans"}}>{e.netHours}h</div>
                         <Pill label={e.type} size="sm" color={tm.color} bg={tm.bg}/>
                         <div>
                           {e.xeroStatus==="submitting"
-                            ? <span style={{fontSize:14,color:T.muted}}>Sending…</span>
+                            ? <span style={{fontSize:12,color:T.muted}}>Sending…</span>
                             : e.xeroStatus==="error"
-                            ? <span style={{fontSize:14,color:T.red}} title={e.xeroError}>✕ Error</span>
-                            : <span style={{fontSize:14,color:T.muted}}>Pending</span>
+                            ? <span style={{fontSize:12,color:T.red}} title={e.xeroError}>✕ Error</span>
+                            : <span style={{fontSize:12,color:T.muted}}>Pending</span>
                           }
                         </div>
                         <div style={{display:"flex",justifyContent:"flex-end"}}>
@@ -11070,7 +11070,7 @@ serve(async (req) => {
                                 onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"error",xeroError:res.error}:x));
                               }
                             }}
-                            style={{fontSize:15,fontWeight:700,padding:"4px 12px",borderRadius:7,
+                            style={{fontSize:13,fontWeight:700,padding:"4px 12px",borderRadius:7,
                               background: canSubmit?"#e6f7fd":T.bg,
                               color: canSubmit?xeroBlueDark:T.muted,
                               border:`1.5px solid ${canSubmit?xeroBlue:T.border}`,
@@ -11097,7 +11097,7 @@ serve(async (req) => {
             : <>
                 <div style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 90px 1fr",
                   padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
-                  fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
+                  fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
                   <span>Date</span><span>Apprentice</span><span style={{textAlign:"center"}}>Hours</span>
                   <span>Type</span><span>Xero Timesheet ID</span>
                 </div>
@@ -11106,14 +11106,14 @@ serve(async (req) => {
                   const tm = TYPE_META[e.type]||TYPE_META["Normal Hours"];
                   return (
                     <div key={e.id} style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 90px 1fr",
-                      padding:"10px 14px",gap:8,alignItems:"center",fontSize:16,
+                      padding:"10px 14px",gap:8,alignItems:"center",fontSize:14,
                       borderBottom:i<submittedXero.length-1?`1px solid ${T.border}44`:"none",
                       background:i%2===0?T.surface:T.bg}}>
-                      <div style={{fontWeight:700,fontSize:15}}>{fD(e.date)}</div>
+                      <div style={{fontWeight:700,fontSize:13}}>{fD(e.date)}</div>
                       <div style={{fontWeight:700}}>{app?.name||"Unknown"}</div>
                       <div style={{textAlign:"center",fontWeight:700,color:T.accent,fontFamily:"DM Sans"}}>{e.netHours}h</div>
                       <Pill label={e.type} size="sm" color={tm.color} bg={tm.bg}/>
-                      <div style={{fontSize:14,color:xeroBlue,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      <div style={{fontSize:12,color:xeroBlue,fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                         {e.xeroTimesheetId||"—"}
                       </div>
                     </div>
@@ -11173,7 +11173,7 @@ const fetchOrgInbox = async (folder="inbox", maxResults=50) => {
 const NoteTextarea = ({value, onChange, placeholder}) => (
   <textarea value={value} onChange={onChange} placeholder={placeholder}
     rows={3}
-    style={{width:"100%",fontSize:16,padding:"10px 12px",border:`1.5px solid ${T.border}`,
+    style={{width:"100%",fontSize:14,padding:"10px 12px",border:`1.5px solid ${T.border}`,
       borderRadius:8,fontFamily:"DM Sans,sans-serif",background:"#fff",resize:"vertical",
       color:T.ink,outline:"none",boxSizing:"border-box",minHeight:72}}/>
 );
@@ -11374,15 +11374,15 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
       {pinPrompt==="asklock"&&pendingNote&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <div style={{background:T.surface,borderRadius:16,padding:"28px 28px 24px",maxWidth:340,width:"100%",border:`1.5px solid ${T.border}`}}>
-            <div style={{fontWeight:700,fontSize:20,marginBottom:8}}>Save Note</div>
-            <div style={{fontSize:16,color:T.sub,marginBottom:20}}>Would you like to lock this note with your PIN? Locked notes are only visible to you.</div>
+            <div style={{fontWeight:700,fontSize:18,marginBottom:8}}>Save Note</div>
+            <div style={{fontSize:14,color:T.sub,marginBottom:20}}>Would you like to lock this note with your PIN? Locked notes are only visible to you.</div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>commitNote({...pendingNote,is_locked:false})}
-                style={{flex:1,padding:"10px",borderRadius:8,border:`1.5px solid ${T.border}`,background:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:16}}>
+                style={{flex:1,padding:"10px",borderRadius:8,border:`1.5px solid ${T.border}`,background:"none",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:14}}>
                 💾 Save unlocked
               </button>
               <button onClick={()=>{ setPinPrompt("lockpin"); }}
-                style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:T.accent,color:"#fff",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:16,fontWeight:700}}>
+                style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:T.accent,color:"#fff",cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontSize:14,fontWeight:700}}>
                 🔒 Lock with PIN
               </button>
             </div>
@@ -11410,10 +11410,10 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
         marginBottom:14,flexWrap:"wrap",gap:8}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:32,height:32,borderRadius:8,background:"#f0f7ff",
-            display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>✉</div>
+            display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>✉</div>
           <div>
-            <div style={{fontWeight:700,fontSize:18,color:T.ink}}>Activity & Email Timeline</div>
-            <div style={{fontSize:14,color:T.sub}}>{personEmail||"No email set"}</div>
+            <div style={{fontWeight:700,fontSize:16,color:T.ink}}>Activity & Email Timeline</div>
+            <div style={{fontSize:12,color:T.sub}}>{personEmail||"No email set"}</div>
           </div>
         </div>
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -11435,11 +11435,11 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                     <button key={label}
                       onClick={()=>{setActivityType(label);setAddingNote(true);}}
                       style={{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"9px 14px",
-                        background:"none",border:"none",cursor:"pointer",fontSize:16,
+                        background:"none",border:"none",cursor:"pointer",fontSize:14,
                         color:T.ink,fontFamily:"DM Sans,sans-serif",textAlign:"left"}}
                       onMouseEnter={e=>e.currentTarget.style.background=T.accentL}
                       onMouseLeave={e=>e.currentTarget.style.background="none"}>
-                      <span style={{fontSize:19}}>{icon}</span>{label}
+                      <span style={{fontSize:17}}>{icon}</span>{label}
                     </button>
                   ))}
                 </div>
@@ -11458,7 +11458,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
       {addingNote&&(
         <div style={{background:T.goldL,border:`1.5px solid ${T.gold}44`,borderRadius:10,
           padding:14,marginBottom:14}}>
-          <div style={{fontWeight:700,fontSize:16,marginBottom:8,color:T.gold}}>
+          <div style={{fontWeight:700,fontSize:14,marginBottom:8,color:T.gold}}>
             {activityType==="Phone Call"?"📞":activityType==="Email"?"✉":activityType==="Text Message"?"💬":activityType==="In Person Meeting"?"🤝":"📝"} Log {activityType||"Activity Note"}
           </div>
           <NoteTextarea
@@ -11478,13 +11478,13 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
       {/* Not configured banner */}
       {!proxyOk&&(
         <div style={{background:T.warnL,border:`1px solid ${T.warn}44`,borderRadius:8,
-          padding:"10px 14px",marginBottom:14,fontSize:15,color:T.warn,lineHeight:1.6}}>
+          padding:"10px 14px",marginBottom:14,fontSize:13,color:T.warn,lineHeight:1.6}}>
           ⚠ <strong>Email tracking not configured.</strong> Set up the M365 Email Proxy URL in Admin → Settings to enable live email sync. Activity notes can still be logged manually.
         </div>
       )}
       {emailError&&(
         <div style={{background:T.redL,border:`1px solid ${T.red}44`,borderRadius:8,
-          padding:"10px 14px",marginBottom:14,fontSize:15,color:T.red}}>
+          padding:"10px 14px",marginBottom:14,fontSize:13,color:T.red}}>
           ✕ Email sync error: {emailError}
         </div>
       )}
@@ -11492,7 +11492,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
       {/* Live emails from M365 (unpinned) */}
       {proxyOk&&emails.length>0&&(
         <div style={{marginBottom:16}}>
-          <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",
+          <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",
             letterSpacing:".6px",marginBottom:8}}>
             📬 Emails from Microsoft 365 — {emails.length} found
           </div>
@@ -11509,11 +11509,11 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                     borderBottom:isOpen?`1px solid ${T.border}`:"none"}}>
                   <div style={{width:6,height:6,borderRadius:"50%",background:dm.color,flexShrink:0}}/>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:700,fontSize:16,color:T.ink,
+                    <div style={{fontWeight:700,fontSize:14,color:T.ink,
                       overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                       {em.subject||"(no subject)"}
                     </div>
-                    <div style={{fontSize:14,color:T.sub,marginTop:1}}>
+                    <div style={{fontSize:12,color:T.sub,marginTop:1}}>
                       <span style={{color:dm.color,fontWeight:700}}>{dm.label}</span>
                       {" · "}{em.from||em.to||""}
                       {" · "}{fmtTs(em.date)}
@@ -11524,22 +11524,22 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                       <button onClick={e=>{e.stopPropagation();pinEmail(em);}}
                         disabled={pinning[em.id]}
                         title="Pin to activity log"
-                        style={{fontSize:14,fontWeight:700,padding:"3px 9px",borderRadius:6,
+                        style={{fontSize:12,fontWeight:700,padding:"3px 9px",borderRadius:6,
                           background:T.accentL,color:T.accent,border:`1px solid ${T.accent}44`,
                           cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
                         {pinning[em.id]?"…":"📌 Pin"}
                       </button>
                     )}
-                    {isPinned&&<span style={{fontSize:14,color:T.teal,fontWeight:700}}>✓ Pinned</span>}
-                    <span style={{fontSize:14,color:T.muted}}>{isOpen?"▲":"▼"}</span>
+                    {isPinned&&<span style={{fontSize:12,color:T.teal,fontWeight:700}}>✓ Pinned</span>}
+                    <span style={{fontSize:12,color:T.muted}}>{isOpen?"▲":"▼"}</span>
                   </div>
                 </div>
                 {isOpen&&(
-                  <div style={{padding:"12px 14px",background:"#fff",fontSize:16,
+                  <div style={{padding:"12px 14px",background:"#fff",fontSize:14,
                     color:T.ink,lineHeight:1.7,whiteSpace:"pre-wrap",borderTop:`1px solid ${T.border}`}}>
                     <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
-                      {em.from&&<span style={{fontSize:14,color:T.sub}}><strong>From:</strong> {em.from}</span>}
-                      {em.to&&<span style={{fontSize:14,color:T.sub}}><strong>To:</strong> {em.to}</span>}
+                      {em.from&&<span style={{fontSize:12,color:T.sub}}><strong>From:</strong> {em.from}</span>}
+                      {em.to&&<span style={{fontSize:12,color:T.sub}}><strong>To:</strong> {em.to}</span>}
                     </div>
                     {em.bodyPreview||em.snippet||"(no preview available)"}
                   </div>
@@ -11552,14 +11552,14 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
 
       {/* Activity timeline (notes + pinned emails + reports) */}
       {(loadingNotes)
-        ? <div style={{textAlign:"center",padding:"24px 0",color:T.muted,fontSize:16}}>Loading activity…</div>
+        ? <div style={{textAlign:"center",padding:"24px 0",color:T.muted,fontSize:14}}>Loading activity…</div>
         : timeline.length===0
-        ? <div style={{textAlign:"center",padding:"24px 0",color:T.muted,fontSize:16,fontStyle:"italic"}}>
+        ? <div style={{textAlign:"center",padding:"24px 0",color:T.muted,fontSize:14,fontStyle:"italic"}}>
             No activity logged yet. Use "+ Log Activity" to add a note.
           </div>
         : (
           <div>
-            <div style={{fontSize:14,fontWeight:700,color:T.muted,textTransform:"uppercase",
+            <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",
               letterSpacing:".6px",marginBottom:8}}>Activity Log</div>
             {timeline.map((item,i)=>{
               if(item._src==="extra") {
@@ -11570,11 +11570,11 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                     <div style={{flex:1,background:T.blueL,border:`1px solid ${T.blue}33`,
                       borderRadius:8,padding:"10px 13px"}}>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                        <span style={{fontSize:16}}>📋</span>
-                        <span style={{fontWeight:700,fontSize:16,color:T.blue}}>{item.label||"Meeting Report"}</span>
-                        <span style={{fontSize:14,color:T.sub,marginLeft:"auto"}}>{fmtTs(item.created_at||item.date)}</span>
+                        <span style={{fontSize:14}}>📋</span>
+                        <span style={{fontWeight:700,fontSize:14,color:T.blue}}>{item.label||"Meeting Report"}</span>
+                        <span style={{fontSize:12,color:T.sub,marginLeft:"auto"}}>{fmtTs(item.created_at||item.date)}</span>
                       </div>
-                      {item.detail&&<div style={{fontSize:15,color:T.ink,lineHeight:1.6}}>{item.detail}</div>}
+                      {item.detail&&<div style={{fontSize:13,color:T.ink,lineHeight:1.6}}>{item.detail}</div>}
                     </div>
                   </div>
                 );
@@ -11588,49 +11588,49 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                     <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:3,flexWrap:"wrap"}}>
-                          <span style={{fontSize:14,fontWeight:700,color:dm.color,
+                          <span style={{fontSize:12,fontWeight:700,color:dm.color,
                             background:"#ffffff55",borderRadius:4,padding:"1px 6px",
                             border:`1px solid ${dm.color}33`}}>{dm.label}</span>
-                          <span style={{fontWeight:700,fontSize:16,color:T.ink,
+                          <span style={{fontWeight:700,fontSize:14,color:T.ink,
                             overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                             {item.subject||"Note"}
                           </span>
                         </div>
-                        {item.from_address&&<div style={{fontSize:14,color:T.sub,marginBottom:3}}>
+                        {item.from_address&&<div style={{fontSize:12,color:T.sub,marginBottom:3}}>
                           {item.direction==="inbound"?"From":"To"}: {item.from_address||item.to_address}
                         </div>}
                         {/* Locked note display */}
                         {item.is_locked && !isNoteVisible(item) ? (
                           <div style={{display:"flex",alignItems:"center",gap:8,marginTop:6,
                             background:T.bg,borderRadius:7,padding:"8px 12px",border:`1px solid ${T.border}`}}>
-                            <span style={{fontSize:20}}>🔒</span>
-                            <span style={{fontSize:15,color:T.muted,fontStyle:"italic"}}>This note is locked</span>
+                            <span style={{fontSize:18}}>🔒</span>
+                            <span style={{fontSize:13,color:T.muted,fontStyle:"italic"}}>This note is locked</span>
                             {isKristeena&&(
                               <button onClick={()=>setPinPrompt(item.id)}
                                 style={{marginLeft:"auto",background:"none",border:`1px solid ${T.border}`,
-                                  borderRadius:6,padding:"3px 9px",fontSize:14,cursor:"pointer",
+                                  borderRadius:6,padding:"3px 9px",fontSize:12,cursor:"pointer",
                                   color:T.accent,fontFamily:"DM Sans,sans-serif"}}>
                                 🔓 Unlock
                               </button>
                             )}
                           </div>
                         ) : (
-                          <div style={{fontSize:16,color:T.ink,lineHeight:1.65,whiteSpace:"pre-wrap",marginTop:4}}>
+                          <div style={{fontSize:14,color:T.ink,lineHeight:1.65,whiteSpace:"pre-wrap",marginTop:4}}>
                             {item.body}
                             {item.is_locked&&isNoteVisible(item)&&(
                               <span style={{display:"inline-flex",alignItems:"center",gap:4,marginLeft:8,
-                                fontSize:14,color:T.teal,fontWeight:700}}>
+                                fontSize:12,color:T.teal,fontWeight:700}}>
                                 🔓 Unlocked this session
                               </span>
                             )}
                           </div>
                         )}
-                        <div style={{fontSize:14,color:T.muted,marginTop:6,display:"flex",alignItems:"center",gap:8}}>
+                        <div style={{fontSize:12,color:T.muted,marginTop:6,display:"flex",alignItems:"center",gap:8}}>
                           {fmtTs(item.email_date||item.created_at)}
                           {isKristeena&&item.direction==="note"&&(
                             <button onClick={()=>toggleLock(item)}
                               style={{background:"none",border:`1px solid ${T.border}`,borderRadius:5,
-                                padding:"1px 7px",fontSize:12,cursor:"pointer",
+                                padding:"1px 7px",fontSize:11,cursor:"pointer",
                                 color:item.is_locked?T.warn:T.muted,fontFamily:"DM Sans,sans-serif"}}>
                               {item.is_locked?"🔒 Locked":"🔓 Lock"}
                             </button>
@@ -11641,7 +11641,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                         <button onClick={()=>deleteNote(item.id)}
                           title="Remove activity"
                           style={{flexShrink:0,background:"none",border:"none",
-                            color:T.muted,fontSize:18,cursor:"pointer",padding:"0 4px",lineHeight:1}}
+                            color:T.muted,fontSize:16,cursor:"pointer",padding:"0 4px",lineHeight:1}}
                           onMouseEnter={e=>e.currentTarget.style.color=T.red}
                           onMouseLeave={e=>e.currentTarget.style.color=T.muted}>✕</button>
                       )}
@@ -11713,7 +11713,7 @@ function EmailsModule({allUsers, currentUser}) {
 
   const TabBtn = ({id,label,icon}) => (
     <button onClick={()=>setTab(id)} style={{
-      padding:"8px 18px",borderRadius:8,fontSize:16,fontWeight:700,
+      padding:"8px 18px",borderRadius:8,fontSize:14,fontWeight:700,
       background: tab===id ? T.accent : T.bg,
       color: tab===id ? "#fff" : T.sub,
       border:`1.5px solid ${tab===id?T.accentD:T.border}`,
@@ -11732,19 +11732,19 @@ function EmailsModule({allUsers, currentUser}) {
         padding:"18px 22px",background:"#fff",borderRadius:14,
         border:`1.5px solid ${T.border}`,boxShadow:"0 2px 12px #00000008"}}>
         <div style={{width:48,height:48,borderRadius:12,background:T.accentL,
-          display:"flex",alignItems:"center",justifyContent:"center",fontSize:30,flexShrink:0}}>✉</div>
+          display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>✉</div>
         <div style={{flex:1}}>
-          <div style={{fontFamily:"DM Sans",fontSize:22,fontWeight:700,color:T.ink}}>
+          <div style={{fontFamily:"DM Sans",fontSize:19,fontWeight:700,color:T.ink}}>
             Email Tracking
           </div>
-          <div style={{fontSize:16,color:T.sub,marginTop:2}}>
+          <div style={{fontSize:14,color:T.sub,marginTop:2}}>
             Microsoft 365 inbox & sent mail · All contacts matched to KTA records
           </div>
         </div>
         <div style={{display:"flex",gap:8}}>
           <div style={{textAlign:"center",padding:"8px 14px",background:T.accentL,borderRadius:8}}>
-            <div style={{fontSize:22,fontWeight:700,color:T.accent,fontFamily:"DM Sans"}}>{emails.length}</div>
-            <div style={{fontSize:12,color:T.sub,fontWeight:700,textTransform:"uppercase"}}>Emails</div>
+            <div style={{fontSize:19,fontWeight:700,color:T.accent,fontFamily:"DM Sans"}}>{emails.length}</div>
+            <div style={{fontSize:11,color:T.sub,fontWeight:700,textTransform:"uppercase"}}>Emails</div>
           </div>
         </div>
       </div>
@@ -11760,10 +11760,10 @@ function EmailsModule({allUsers, currentUser}) {
       {tab==="setup"&&(
         <div>
           <Card style={{marginBottom:16}}>
-            <div style={{fontWeight:700,fontSize:19,marginBottom:14}}>Microsoft 365 Connection</div>
+            <div style={{fontWeight:700,fontSize:17,marginBottom:14}}>Microsoft 365 Connection</div>
 
             <div style={{background:T.accentL,border:`1px solid ${T.accent}33`,borderRadius:8,
-              padding:"12px 16px",marginBottom:16,fontSize:16,color:T.ink,lineHeight:1.7}}>
+              padding:"12px 16px",marginBottom:16,fontSize:14,color:T.ink,lineHeight:1.7}}>
               <strong>How it works:</strong> A Supabase Edge Function acts as a proxy between KTA and the Microsoft Graph API.
               It uses your M365 organisation credentials to read your inbox and sent mail, then returns emails matching any contact in the system.
               <br/><br/>
@@ -11778,20 +11778,20 @@ function EmailsModule({allUsers, currentUser}) {
               <FL>Supabase Edge Function URL</FL>
               <input value={proxyUrl} onChange={e=>setProxyUrl(e.target.value)}
                 placeholder="https://your-project.supabase.co/functions/v1/email-proxy"/>
-              <div style={{fontSize:14,color:T.muted,marginTop:3}}>
+              <div style={{fontSize:12,color:T.muted,marginTop:3}}>
                 The deployed email-proxy Edge Function URL
               </div>
             </div>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
               <Btn onClick={saveProxyUrl}>Save URL</Btn>
-              {savedUrl&&<span style={{fontSize:15,color:T.teal,fontWeight:700}}>✓ Saved</span>}
+              {savedUrl&&<span style={{fontSize:13,color:T.teal,fontWeight:700}}>✓ Saved</span>}
               {proxyConfigured&&<Btn v="ghost" sm onClick={()=>loadEmails("inbox")}>Test Connection</Btn>}
             </div>
           </Card>
 
           <Card>
-            <div style={{fontWeight:700,fontSize:19,marginBottom:12}}>📦 Supabase Edge Function</div>
-            <div style={{fontSize:16,color:T.sub,marginBottom:14,lineHeight:1.6}}>
+            <div style={{fontWeight:700,fontSize:17,marginBottom:12}}>📦 Supabase Edge Function</div>
+            <div style={{fontSize:14,color:T.sub,marginBottom:14,lineHeight:1.6}}>
               Download and deploy this Edge Function to Supabase. It handles M365 OAuth token refresh and proxies Microsoft Graph API calls.
             </div>
             <Btn v="ghost" onClick={()=>{
@@ -11901,9 +11901,9 @@ serve(async (req) => {
           {!proxyConfigured?(
             <Card>
               <div style={{textAlign:"center",padding:"32px 0",color:T.muted}}>
-                <div style={{fontSize:40,marginBottom:12}}>✉</div>
-                <div style={{fontWeight:700,fontSize:19,marginBottom:6}}>Email proxy not configured</div>
-                <div style={{fontSize:16}}>Go to the Setup tab to connect Microsoft 365.</div>
+                <div style={{fontSize:35,marginBottom:12}}>✉</div>
+                <div style={{fontWeight:700,fontSize:17,marginBottom:6}}>Email proxy not configured</div>
+                <div style={{fontSize:14}}>Go to the Setup tab to connect Microsoft 365.</div>
               </div>
             </Card>
           ) : (
@@ -11915,13 +11915,13 @@ serve(async (req) => {
                   style={{width:"100%",boxSizing:"border-box"}}/>
               </div>
 
-              {loading&&<div style={{textAlign:"center",padding:"32px 0",color:T.muted,fontSize:16}}>Loading emails…</div>}
-              {error&&<div style={{background:T.redL,border:`1px solid ${T.red}44`,borderRadius:8,padding:"10px 14px",fontSize:15,color:T.red,marginBottom:12}}>✕ {error}</div>}
+              {loading&&<div style={{textAlign:"center",padding:"32px 0",color:T.muted,fontSize:14}}>Loading emails…</div>}
+              {error&&<div style={{background:T.redL,border:`1px solid ${T.red}44`,borderRadius:8,padding:"10px 14px",fontSize:13,color:T.red,marginBottom:12}}>✕ {error}</div>}
 
               {!loading&&!error&&(
                 <Card style={{padding:0,overflow:"hidden"}}>
                   {filtered.length===0
-                    ? <div style={{textAlign:"center",padding:"32px 0",color:T.muted,fontStyle:"italic",fontSize:16}}>No emails found</div>
+                    ? <div style={{textAlign:"center",padding:"32px 0",color:T.muted,fontStyle:"italic",fontSize:14}}>No emails found</div>
                     : filtered.map((em,i)=>{
                         const isOpen = expanded[em.id];
                         const matched = matchPerson(em.from)||matchPerson(em.to);
@@ -11937,44 +11937,44 @@ serve(async (req) => {
                                 border:`1.5px solid ${em.isRead===false?T.accent:T.border}`}}/>
                               <div style={{flex:1,minWidth:0}}>
                                 <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                                  <span style={{fontWeight:em.isRead===false?700:500,fontSize:16,color:T.ink,
+                                  <span style={{fontWeight:em.isRead===false?700:500,fontSize:14,color:T.ink,
                                     overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:300}}>
                                     {em.subject||"(no subject)"}
                                   </span>
                                   {matched&&(
                                     <RolePill role={matched.role} size="sm"/>
                                   )}
-                                  <span style={{fontSize:14,padding:"1px 7px",borderRadius:4,fontWeight:700,
+                                  <span style={{fontSize:12,padding:"1px 7px",borderRadius:4,fontWeight:700,
                                     background:em.direction==="outbound"?T.accentL:T.tealL,
                                     color:em.direction==="outbound"?T.accent:T.teal}}>
                                     {em.direction==="outbound"?"↑ Sent":"↓ Received"}
                                   </span>
                                 </div>
-                                <div style={{fontSize:14,color:T.sub,marginTop:2,
+                                <div style={{fontSize:12,color:T.sub,marginTop:2,
                                   overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                                   {em.direction==="outbound"?`To: ${em.to}`:`From: ${em.from}`}
                                 </div>
                               </div>
-                              <div style={{fontSize:14,color:T.muted,flexShrink:0,textAlign:"right"}}>
+                              <div style={{fontSize:12,color:T.muted,flexShrink:0,textAlign:"right"}}>
                                 <div>{fmtTs(em.date)}</div>
-                                {matched&&<div style={{fontSize:12,color:T.accent,marginTop:2}}>{matched.name}</div>}
+                                {matched&&<div style={{fontSize:11,color:T.accent,marginTop:2}}>{matched.name}</div>}
                               </div>
                             </div>
                             {isOpen&&(
                               <div style={{padding:"14px 16px",background:"#fff",
                                 borderTop:`1px solid ${T.border}`}}>
-                                <div style={{display:"flex",gap:16,marginBottom:10,flexWrap:"wrap",fontSize:15,color:T.sub}}>
+                                <div style={{display:"flex",gap:16,marginBottom:10,flexWrap:"wrap",fontSize:13,color:T.sub}}>
                                   <span><strong>From:</strong> {em.from}</span>
                                   <span><strong>To:</strong> {em.to}</span>
                                   <span><strong>Date:</strong> {new Date(em.date).toLocaleString("en-NZ")}</span>
                                 </div>
-                                <div style={{fontSize:16,color:T.ink,lineHeight:1.7,
+                                <div style={{fontSize:14,color:T.ink,lineHeight:1.7,
                                   whiteSpace:"pre-wrap",padding:"10px 12px",
                                   background:T.bg,borderRadius:8,border:`1px solid ${T.border}`}}>
                                   {em.bodyPreview||"(no preview)"}
                                 </div>
                                 {matched&&(
-                                  <div style={{marginTop:10,fontSize:15,color:T.sub,fontStyle:"italic"}}>
+                                  <div style={{marginTop:10,fontSize:13,color:T.sub,fontStyle:"italic"}}>
                                     ↗ This email is linked to <strong style={{color:T.ink}}>{matched.name}</strong> ({matched.role}) and will appear in their activity timeline.
                                   </div>
                                 )}
@@ -12256,9 +12256,9 @@ export default function App() {
         background:`linear-gradient(135deg,${T.dark},${T.dark2},#2060a0)`}}>
         <div style={{textAlign:"center",color:"#fff"}}>
           <img src={KTA_LOGO} alt="KTA" style={{height:60,objectFit:"contain",filter:"brightness(0) invert(1)",marginBottom:20}} onError={e=>{e.target.style.display="none";}}/>
-          <div style={{fontFamily:"DM Sans",fontSize:25,fontWeight:700,marginBottom:8}}>Kiwi Trade Apprentices</div>
-          <div style={{fontSize:16,color:"#ffffff66"}}>Connecting to database…</div>
-          {dbError&&<div style={{fontSize:15,color:"#ff8888",marginTop:12,maxWidth:300}}>⚠ {dbError}</div>}
+          <div style={{fontFamily:"DM Sans",fontSize:22,fontWeight:700,marginBottom:8}}>Kiwi Trade Apprentices</div>
+          <div style={{fontSize:14,color:"#ffffff66"}}>Connecting to database…</div>
+          {dbError&&<div style={{fontSize:13,color:"#ff8888",marginTop:12,maxWidth:300}}>⚠ {dbError}</div>}
         </div>
       </div>
     </>
@@ -12283,13 +12283,13 @@ export default function App() {
               <img src={KTA_LOGO} alt="KTA" style={{height:50,objectFit:"contain",marginBottom:16}}
                 onError={e=>e.target.style.display="none"}/>
               <div style={{width:64,height:64,borderRadius:"50%",background:T.warnL,border:`3px solid ${T.warn}`,
-                display:"flex",alignItems:"center",justifyContent:"center",fontSize:35,margin:"0 auto 16px"}}>
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:31,margin:"0 auto 16px"}}>
                 🔔
               </div>
-              <h2 style={{fontFamily:"DM Sans",fontSize:28,fontWeight:700,color:T.ink,marginBottom:8}}>
+              <h2 style={{fontFamily:"DM Sans",fontSize:25,fontWeight:700,color:T.ink,marginBottom:8}}>
                 You have unread notifications
               </h2>
-              <p style={{fontSize:16,color:T.sub,lineHeight:1.6}}>
+              <p style={{fontSize:14,color:T.sub,lineHeight:1.6}}>
                 Please read and acknowledge your notifications before continuing.<br/>
                 You have <strong style={{color:T.warn}}>{unreadNotifs.length}</strong> unread message{unreadNotifs.length!==1?"s":""}.
               </p>
@@ -12306,17 +12306,17 @@ export default function App() {
                     background:T.warnL+"44",borderRadius:i===0?`10px 10px 0 0`:i===unreadNotifs.length-1?"0 0 10px 10px":"0"
                   }}>
                     <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
-                      <span style={{fontSize:20,color:typeColors[n.type]||T.sub,flexShrink:0,marginTop:1,display:"flex",alignItems:"center"}}>{n.type==="broadcast"?<BatSignal size={15}/>:(typeIcons[n.type]||"◈")}</span>
+                      <span style={{fontSize:18,color:typeColors[n.type]||T.sub,flexShrink:0,marginTop:1,display:"flex",alignItems:"center"}}>{n.type==="broadcast"?<BatSignal size={15}/>:(typeIcons[n.type]||"◈")}</span>
                       <div style={{flex:1}}>
-                        <div style={{fontWeight:700,fontSize:16,marginBottom:2}}>{n.title}</div>
-                        <div style={{fontSize:15,color:T.sub,lineHeight:1.5}}>{n.message}</div>
+                        <div style={{fontWeight:700,fontSize:14,marginBottom:2}}>{n.title}</div>
+                        <div style={{fontSize:13,color:T.sub,lineHeight:1.5}}>{n.message}</div>
                       </div>
                       <button onClick={()=>{
                         markNotifRead(n.id).catch(console.error);
                         setNotifications(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x));
                       }} style={{
                         background:T.accentL,border:`1px solid ${T.accent}44`,color:T.accent,
-                        borderRadius:6,padding:"4px 12px",fontSize:15,fontWeight:700,
+                        borderRadius:6,padding:"4px 12px",fontSize:13,fontWeight:700,
                         cursor:"pointer",fontFamily:"DM Sans,sans-serif",flexShrink:0
                       }}>✓ Read</button>
                     </div>
@@ -12332,7 +12332,7 @@ export default function App() {
 
             <div style={{textAlign:"center",marginTop:12}}>
               <button onClick={handleLogout} style={{
-                background:"none",border:"none",color:T.muted,fontSize:15,
+                background:"none",border:"none",color:T.muted,fontSize:13,
                 cursor:"pointer",fontFamily:"DM Sans,sans-serif"
               }}>Sign out</button>
             </div>
@@ -12391,7 +12391,7 @@ export default function App() {
                   <button key={n.id}
                     onClick={()=>{navigateTo(n.id);setViewingAppId(null);setShowAppList(false);}}
                     style={{
-                      padding:"8px 18px",borderRadius:9,fontSize:16,fontWeight:700,
+                      padding:"8px 18px",borderRadius:9,fontSize:14,fontWeight:700,
                       letterSpacing:"-.1px",
                       background: isActive ? "#ffffff" : "#ffffff15",
                       color: isActive ? T.dark : "#ffffffcc",
@@ -12403,7 +12403,7 @@ export default function App() {
                     }}
                     onMouseEnter={e=>{ if(!isActive){ e.currentTarget.style.background="#ffffff25"; e.currentTarget.style.color="#fff"; } }}
                     onMouseLeave={e=>{ if(!isActive){ e.currentTarget.style.background="#ffffff15"; e.currentTarget.style.color="#ffffffcc"; } }}>
-                    <span style={{fontSize:18}}>{navIcons[n.id]||"◈"}</span>
+                    <span style={{fontSize:16}}>{navIcons[n.id]||"◈"}</span>
                     <span>{navLabels[n.id]||n.label}</span>
                   </button>
                 );
@@ -12438,7 +12438,7 @@ export default function App() {
               }}
             />
             {window.__ktaSync?.running&&(
-                <div style={{fontSize:14,color:"#13b5ea",background:"#13b5ea18",border:"1px solid #13b5ea44",
+                <div style={{fontSize:12,color:"#13b5ea",background:"#13b5ea18",border:"1px solid #13b5ea44",
                   borderRadius:6,padding:"4px 10px",maxWidth:240,overflow:"hidden",textOverflow:"ellipsis",
                   whiteSpace:"nowrap",alignSelf:"center"}}>
                   ⏳ {window.__ktaSync.msg||"Syncing…"}
@@ -12448,12 +12448,12 @@ export default function App() {
               <button onClick={()=>{setShowBroadcast(s=>!s);setShowNotifs(false);}}
                 title="Contact Via App"
                 style={{background:showBroadcast?"#ffffff30":"#ffffff18",border:"1.5px solid #ffffff28",color:"#fff",
-                  borderRadius:9,padding:"7px 14px",fontSize:15,fontWeight:700,cursor:"pointer",
+                  borderRadius:9,padding:"7px 14px",fontSize:13,fontWeight:700,cursor:"pointer",
                   display:"flex",alignItems:"center",gap:6,transition:"all .14s",
                   fontFamily:"DM Sans,sans-serif",letterSpacing:"-.1px"}}
                 onMouseEnter={e=>{e.currentTarget.style.background="#ffffff30";}}
                 onMouseLeave={e=>{if(!showBroadcast)e.currentTarget.style.background="#ffffff18";}}>
-                <span style={{fontSize:18}}>✉</span> Notifications
+                <span style={{fontSize:16}}>✉</span> Notifications
               </button>
             )}
             {isAdmin1&&(
@@ -12462,22 +12462,22 @@ export default function App() {
                 style={{background: module==="xero"?"#13b5ea22":"#ffffff18",
                   border: module==="xero"?"1.5px solid #13b5ea88":"1.5px solid #ffffff28",
                   color: module==="xero"?"#13b5ea":"#ffffffcc",
-                  borderRadius:9,padding:"7px 12px",fontSize:15,fontWeight:700,
+                  borderRadius:9,padding:"7px 12px",fontSize:13,fontWeight:700,
                   cursor:"pointer",fontFamily:"DM Sans,sans-serif",
                   display:"flex",alignItems:"center",gap:5,transition:"all .14s"}}
                 onMouseEnter={e=>{e.currentTarget.style.background="#13b5ea22";e.currentTarget.style.color="#13b5ea";}}
                 onMouseLeave={e=>{if(module!=="xero"){e.currentTarget.style.background="#ffffff18";e.currentTarget.style.color="#ffffffcc";}}}>
-                <span style={{fontSize:18}}>𝕏</span> Xero
+                <span style={{fontSize:16}}>𝕏</span> Xero
               </button>
             )}
             <div className="desktop-user-name" style={{textAlign:"right",marginLeft:4}}>
-              <div style={{fontSize:16,fontWeight:700,color:"#fff",letterSpacing:"-.1px"}}>{currentUser.name}</div>
+              <div style={{fontSize:14,fontWeight:700,color:"#fff",letterSpacing:"-.1px"}}>{currentUser.name}</div>
               <div style={{marginTop:2}}><RolePill role={role} adminLevel={role==="Admin"?(currentUser?.adminLevel||1):null} size="sm"/></div>
             </div>
             <Avatar name={currentUser.name} role={role} size={34}/>
             <button className="desktop-signout" onClick={handleLogout}
               style={{background:"#ffffff15",border:"1.5px solid #ffffff28",borderRadius:9,
-                padding:"8px 14px",fontSize:15,color:"#ffffffbb",fontWeight:700,
+                padding:"8px 14px",fontSize:13,color:"#ffffffbb",fontWeight:700,
                 fontFamily:"DM Sans,sans-serif",cursor:"pointer",letterSpacing:"-.1px",transition:"all .14s"}}
               onMouseEnter={e=>{e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;e.currentTarget.style.borderColor=T.red+"66";}}
               onMouseLeave={e=>{e.currentTarget.style.background="#ffffff15";e.currentTarget.style.color="#ffffffbb";e.currentTarget.style.borderColor="#ffffff28";}}>
@@ -12526,7 +12526,7 @@ export default function App() {
               <div>
                 <button onClick={()=>setViewingAppId(null)} style={{
                   display:"inline-flex",alignItems:"center",gap:6,
-                  background:"none",border:"none",color:T.sub,fontSize:16,
+                  background:"none",border:"none",color:T.sub,fontSize:14,
                   fontFamily:"DM Sans,sans-serif",cursor:"pointer",marginBottom:10,padding:0,
                   fontWeight:700
                 }}
@@ -12537,7 +12537,7 @@ export default function App() {
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
                   <Avatar name={viewingApp.name} role="Apprentice" size={40}/>
                   <div>
-                    <h1 style={{fontFamily:"DM Sans",fontSize:30,fontWeight:700,letterSpacing:"-.4px"}}>
+                    <h1 style={{fontFamily:"DM Sans",fontSize:26,fontWeight:700,letterSpacing:"-.4px"}}>
                       {viewingApp.name}
                     </h1>
 
@@ -12548,7 +12548,7 @@ export default function App() {
               <div>
                 <button onClick={()=>setShowAppList(false)} style={{
                   display:"inline-flex",alignItems:"center",gap:6,
-                  background:"none",border:"none",color:T.sub,fontSize:16,
+                  background:"none",border:"none",color:T.sub,fontSize:14,
                   fontFamily:"DM Sans,sans-serif",cursor:"pointer",marginBottom:10,padding:0,
                   fontWeight:700
                 }}
@@ -12556,7 +12556,7 @@ export default function App() {
                   onMouseLeave={e=>e.currentTarget.style.color=T.sub}>
                   ← Back to Dashboard
                 </button>
-                <h1 style={{fontFamily:"DM Sans",fontSize:32,fontWeight:700,letterSpacing:"-.4px"}}>
+                <h1 style={{fontFamily:"DM Sans",fontSize:28,fontWeight:700,letterSpacing:"-.4px"}}>
                   {showAppList==="apprentices"?"Apprentices"
                   :showAppList==="hours"?"Hours This Week"
                   :showAppList==="submitted"?"Pending"
@@ -12567,7 +12567,7 @@ export default function App() {
                   :showAppList==="leave"?"Leave Requests"
                   :"Target Deals"}
                 </h1>
-                <p style={{fontSize:16,color:T.sub,marginTop:4}}>
+                <p style={{fontSize:14,color:T.sub,marginTop:4}}>
                   {showAppList==="apprentices"&&"Manage apprentice accounts — click a row to view their timesheet"}
                   {showAppList==="hours"&&"All entries this week, grouped by apprentice A–Z"}
                   {showAppList==="submitted"&&"Submitted timesheets awaiting approval, grouped by apprentice A–Z"}
@@ -12581,10 +12581,10 @@ export default function App() {
               </div>
             ) : (
               <div>
-                <h1 style={{fontFamily:"DM Sans",fontSize:32,fontWeight:700,letterSpacing:"-.4px"}}>
+                <h1 style={{fontFamily:"DM Sans",fontSize:28,fontWeight:700,letterSpacing:"-.4px"}}>
                   {activeMod==="dashboard"?"Dashboard":activeMod==="timesheet"?"Timesheet":activeMod==="crm"?"CRM":activeMod==="mentor"?"My Apprentices":"User Management"}
                 </h1>
-                <p style={{fontSize:16,color:T.sub,marginTop:4}}>
+                <p style={{fontSize:14,color:T.sub,marginTop:4}}>
                   {activeMod==="dashboard"&&"Overview of all apprentice timesheets"}
                   {activeMod==="timesheet"&&"Time entries — access enforced by role"}
                   {activeMod==="mentor"&&"Your apprentices, meeting reports and PPE records"}
@@ -12735,7 +12735,7 @@ export default function App() {
       {appToast&&(
         <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",
           background:appToast.ok?"#1a8a7a":"#bf2b2b",color:"#fff",
-          padding:"10px 20px",borderRadius:10,fontWeight:700,fontSize:16,
+          padding:"10px 20px",borderRadius:10,fontWeight:700,fontSize:14,
           boxShadow:"0 4px 16px #0004",zIndex:9999,fontFamily:"DM Sans,sans-serif",
           animation:"fadeIn .2s"}}>
           {appToast.msg}
