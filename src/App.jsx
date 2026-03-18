@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.35
+// KTA Workforce Management — v2.7.36
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.35
+          v2.7.36
         </div>
       </div>
     </div>
@@ -5229,20 +5229,6 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
   const mentors   = allUsers.filter(u=>u.role==="Mentor"  ||u.role==="Admin").sort((a,b)=>(a.name||"").localeCompare(b.name||""));
   const [hostCos, setHostCos] = useState([]);
   useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCos(rows.filter(r=>r.name).map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")))).catch(()=>{}); },[]);
-  const [companyContacts, setCompanyContacts] = useState([]);
-  useEffect(()=>{
-    const biz = form.hostBusiness;
-    if(!biz) { setCompanyContacts([]); return; }
-    loadTable('crm_contacts').then(rows=>{
-      const matched = rows.filter(r=>r.email&&r.name&&(
-        (r.company||"").toLowerCase().trim()===(biz||"").toLowerCase().trim() ||
-        (r.company||"").toLowerCase().includes((biz||"").toLowerCase()) ||
-        (biz||"").toLowerCase().includes((r.company||"").toLowerCase())
-      ));
-      setCompanyContacts(matched.map(r=>({id:r.id,name:r.name,email:r.email,jobTitle:r.job_title||""})));
-    }).catch(()=>{});
-  },[form.hostBusiness]);
-
   const nameParts = (user.name||"").split(" ");
   const [form, setForm] = useState({
     firstName:         user.firstName  || nameParts[0] || "",
@@ -5271,6 +5257,19 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
   const [saving,     setSaving]     = useState(false);
 
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+  const [companyContacts, setCompanyContacts] = useState([]);
+  useEffect(()=>{
+    const biz = form.hostBusiness;
+    if(!biz) { setCompanyContacts([]); return; }
+    loadTable('crm_contacts').then(rows=>{
+      const matched = rows.filter(r=>r.email&&r.name&&(
+        (r.company||"").toLowerCase().trim()===(biz||"").toLowerCase().trim() ||
+        (r.company||"").toLowerCase().includes((biz||"").toLowerCase()) ||
+        (biz||"").toLowerCase().includes((r.company||"").toLowerCase())
+      ));
+      setCompanyContacts(matched.map(r=>({id:r.id,name:r.name,email:r.email,jobTitle:r.job_title||""})));
+    }).catch(()=>{});
+  },[form.hostBusiness]);
   const isAdminL1 = viewer?.role==="Admin" && (viewer?.adminLevel||1)===1;
   const isAdmin   = viewer?.role==="Admin";
   const isMentor  = viewer?.role==="Mentor";
