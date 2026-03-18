@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.13
+// KTA Workforce Management — v2.7.14
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.13
+          v2.7.14
         </div>
       </div>
     </div>
@@ -9731,6 +9731,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
   const [xeroLeaveTypes, setXeroLeaveTypes] = useState([]); // leave types loaded from Xero
   const [xeroReimbursements, setXeroReimbursements] = useState([]); // reimbursements (Tool Allowance etc)
   const [savingMap, setSavingMap] = useState({});
+  const [submittingAll, setSubmittingAll] = useState(false);
 
 
   const apprentices = allUsers.filter(u=>u.role==="Apprentice").sort((a,b)=>a.name.localeCompare(b.name));
@@ -10404,6 +10405,43 @@ serve(async (req) => {
               <>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
                   <div style={{fontSize:13,color:T.sub}}>{pendingXero.length} approved {pendingXero.length===1?"entry":"entries"} ready to submit</div>
+                  <button
+                    disabled={submittingAll || pendingXero.filter(e=>{
+                      const a=allUsers.find(u=>u.id===e.userId);
+                      return !!a?.xeroEmployeeId && !!(settings.earningsRates?.[e.type]) && settings.edgeFunctionUrl && settings.tenantId;
+                    }).length===0}
+                    onClick={async()=>{
+                      setSubmittingAll(true);
+                      const submittable = pendingXero.filter(e=>{
+                        const a=allUsers.find(u=>u.id===e.userId);
+                        return !!a?.xeroEmployeeId && !!(settings.earningsRates?.[e.type]) && settings.edgeFunctionUrl && settings.tenantId && e.xeroStatus!=="submitting";
+                      });
+                      for(const e of submittable) {
+                        const app = allUsers.find(u=>u.id===e.userId);
+                        onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"submitting"}:x));
+                        const res = await submitEntryToXero(e, app, entries);
+                        if(res.ok){
+                          await updateRow("entries", e.id, { xero_status:"submitted", xero_timesheet_id:res.timesheetId||null }).catch(console.error);
+                          onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"submitted",xeroTimesheetId:res.timesheetId}:x));
+                        } else {
+                          await updateRow("entries", e.id, { xero_status:"error" }).catch(console.error);
+                          onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"error",xeroError:res.error}:x));
+                        }
+                      }
+                      setSubmittingAll(false);
+                    }}
+                    style={{fontSize:13,fontWeight:700,padding:"8px 18px",borderRadius:8,
+                      background: submittingAll?"#e6f7fd":xeroBlue,
+                      color: submittingAll?xeroBlueDark:"#fff",
+                      border:`1.5px solid ${xeroBlueDark}`,
+                      cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                      display:"flex",alignItems:"center",gap:6,
+                      opacity: submittingAll?0.7:1}}>
+                    {submittingAll
+                      ? <><span style={{fontSize:14}}>⏳</span> Submitting…</>
+                      : <><span style={{fontSize:14}}>𝕏</span> Submit All</>
+                    }
+                  </button>
                 </div>
                 <Card style={{padding:0,overflow:"hidden"}}>
                   <div style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 90px 80px 90px",
