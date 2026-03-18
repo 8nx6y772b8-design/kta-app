@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.14
+// KTA Workforce Management — v2.7.15
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.14
+          v2.7.15
         </div>
       </div>
     </div>
@@ -11865,11 +11865,14 @@ export default function App() {
             {["Admin","Mentor"].includes(role)&&(
               <button onClick={()=>{setShowBroadcast(s=>!s);setShowNotifs(false);}}
                 title="Contact Via App"
-                style={{background:"#ffffff18",border:"1.5px solid #ffffff28",color:"#fff",
-                  borderRadius:9,padding:"7px 10px",fontSize:16,cursor:"pointer",
-                  display:"flex",alignItems:"center",justifyContent:"center",transition:"all .14s"}}
+                style={{background:showBroadcast?"#ffffff30":"#ffffff18",border:"1.5px solid #ffffff28",color:"#fff",
+                  borderRadius:9,padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer",
+                  display:"flex",alignItems:"center",gap:6,transition:"all .14s",
+                  fontFamily:"DM Sans,sans-serif",letterSpacing:"-.1px"}}
                 onMouseEnter={e=>{e.currentTarget.style.background="#ffffff30";}}
-                onMouseLeave={e=>{e.currentTarget.style.background="#ffffff18";}}><BatSignal size={18}/></button>
+                onMouseLeave={e=>{if(!showBroadcast)e.currentTarget.style.background="#ffffff18";}}>
+                <span style={{fontSize:14}}>✉</span> Notifications
+              </button>
             )}
             {isAdmin1&&(
               <button onClick={()=>navigateTo("xero")}
