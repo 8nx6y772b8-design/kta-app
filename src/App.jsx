@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.28
+// KTA Workforce Management — v2.7.29
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.28
+          v2.7.29
         </div>
       </div>
     </div>
@@ -1969,7 +1969,7 @@ function UserManagement({users, setUsers, currentUser}) {
   const myLevel = currentUser?.adminLevel || 1;
   const [viewingUser, setViewingUser] = useState(null); // full-page user detail
   const [crmHostCompanies,setCrmHostCompanies]=useState([]);
-  useEffect(()=>{ loadTable('crm_companies').then(rows=>setCrmHostCompanies(rows.map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")))).catch(()=>{}); },[]);
+  useEffect(()=>{ loadTable('crm_companies').then(rows=>setCrmHostCompanies(rows.filter(r=>r.name).map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")))).catch(()=>{}); },[]);
 
   // Roles this admin level is allowed to create/edit
   // Admin 1: all roles. Admin 2: all except Admin 1.
@@ -2180,7 +2180,30 @@ function UserManagement({users, setUsers, currentUser}) {
             )}
             <div><FL req>Email</FL><input type="email" placeholder="jane@work.com" value={form.email} onChange={e=>sf("email",e.target.value)}/></div>
             <div><FL>Phone</FL><input placeholder="+64 4xx xxx xxx" value={form.phone} onChange={e=>sf("phone",e.target.value)}/></div>
-            <div><FL>Company / Organisation</FL><input placeholder="e.g. Sparks Electrical Ltd" value={form.company||""} onChange={e=>sf("company",e.target.value)}/></div>
+            <div>
+              <FL>Company / Organisation</FL>
+              {crmHostCompanies.length>0?(()=>{
+                const listed = crmHostCompanies.some(c=>c.name===(form.company||""));
+                const hostOnes  = crmHostCompanies.filter(c=>c.isHostBusiness);
+                const otherOnes = crmHostCompanies.filter(c=>!c.isHostBusiness);
+                return (
+                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                    <select
+                      value={listed?(form.company||""):"__custom__"}
+                      onChange={e=>{
+                        if(e.target.value==="__none__") sf("company","");
+                        else if(e.target.value!=="__custom__") sf("company",e.target.value);
+                      }}>
+                      <option value="__none__">— No company —</option>
+                      {hostOnes.length>0&&<optgroup label="🏢 Host Businesses">{hostOnes.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</optgroup>}
+                      {otherOnes.length>0&&<optgroup label="All Companies">{otherOnes.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}</optgroup>}
+                      <option value="__custom__">Other (type below)…</option>
+                    </select>
+                    {!listed&&<input placeholder="Type company name…" value={form.company||""} onChange={e=>sf("company",e.target.value)}/>}
+                  </div>
+                );
+              })():<input placeholder="e.g. Sparks Electrical Ltd" value={form.company||""} onChange={e=>sf("company",e.target.value)}/>}
+            </div>
             <div>
               <FL>{editId?"New Password (leave blank to keep)":"Password"}</FL>
               <div style={{position:"relative"}}>
