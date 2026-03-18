@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.40
+// KTA Workforce Management — v2.7.41
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -758,10 +758,10 @@ const notifyApprentice = async (apprentice, approver, entries, approved) => {
 // GLOBAL STYLES
 // ─────────────────────────────────────────────────────────────────────────────
 const CSS = `
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro.ttf') format('truetype'); font-weight:400; font-style:normal; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Italic.ttf') format('truetype'); font-weight:400; font-style:italic; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Light.ttf') format('truetype'); font-weight:300; font-style:normal; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-LightItalic.ttf') format('truetype'); font-weight:300; font-style:italic; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Italic.ttf') format('truetype'); font-weight:700; font-style:italic; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Light.ttf') format('truetype'); font-weight:700; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-LightItalic.ttf') format('truetype'); font-weight:700; font-style:italic; font-display:swap; }
   @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-News.ttf') format('truetype'); font-weight:450; font-style:normal; font-display:swap; }
   @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-NewsItalic.ttf') format('truetype'); font-weight:450; font-style:italic; font-display:swap; }
   @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Medium.ttf') format('truetype'); font-weight:500; font-style:normal; font-display:swap; }
@@ -770,13 +770,13 @@ const CSS = `
   @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-BoldItalic.ttf') format('truetype'); font-weight:700; font-style:italic; font-display:swap; }
   @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Black.ttf') format('truetype'); font-weight:900; font-style:normal; font-display:swap; }
   @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-BlackItalic.ttf') format('truetype'); font-weight:900; font-style:italic; font-display:swap; }
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-  html,body{background:${T.bg};font-family:"Good Headline Pro",sans-serif;color:${T.ink};font-size:14px;-webkit-tap-highlight-color:transparent;}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;font-weight:inherit;}
+  html,body{background:${T.bg};font-family:"Good Headline Pro",sans-serif;font-weight:700;color:${T.ink};font-size:14px;-webkit-tap-highlight-color:transparent;}
   ::-webkit-scrollbar{width:5px;height:5px;}
   ::-webkit-scrollbar-track{background:${T.border};}
   ::-webkit-scrollbar-thumb{background:${T.muted};border-radius:3px;}
   select,input,textarea{
-    font-family:"Good Headline Pro",sans-serif;background:${T.surface};
+    font-family:"Good Headline Pro",sans-serif;font-weight:700;background:${T.surface};
     border:1.5px solid ${T.border};color:${T.ink};border-radius:9px;
     padding:9px 12px;font-size:16px;outline:none;width:100%;
     transition:border-color .15s,box-shadow .15s;
@@ -789,7 +789,7 @@ const CSS = `
   select option{background:white;}
   input:focus,select:focus,textarea:focus{border-color:${T.accent};box-shadow:0 0 0 3px ${T.accentL};}
   input[type=date]{cursor:pointer;} input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer;width:20px;height:20px;} .ts-date-input::-webkit-calendar-picker-indicator{opacity:0;position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;cursor:pointer;}
-  button{cursor:pointer;font-family:"Good Headline Pro",sans-serif;border:none;transition:all .14s;}
+  button{cursor:pointer;font-family:"Good Headline Pro",sans-serif;font-weight:700;border:none;transition:all .14s;}
   textarea{resize:vertical;min-height:64px;line-height:1.55;font-size:16px;}
 
   @keyframes fadeUp  {from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
@@ -1172,7 +1172,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"Good Headline Pro,sans-serif",letterSpacing:".5px"}}>
-          v2.7.40
+          v2.7.41
         </div>
       </div>
     </div>
@@ -1273,7 +1273,7 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
       {showUser&&(
         <div style={{display:"flex",alignItems:"center",gap:7}}>
           <Avatar name={user?.name} role={user?.role} size={26}/>
-          <span style={{fontSize:12,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user?.name||"—"}</span>
+          <span style={{fontSize:12,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user?.name||"—"}</span>
         </div>
       )}
       <div style={{fontSize:12,color:entry.note?T.ink:T.muted,fontStyle:entry.note?"normal":"italic",
@@ -1783,7 +1783,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                           onMouseEnter={e=>e.currentTarget.style.opacity="0.85"}
                           onMouseLeave={e=>e.currentTarget.style.opacity="1"}>
                           ✓ Approve week ending {fmtWeekEnd(we)}
-                          <span style={{fontWeight:400,opacity:.8,fontSize:12}}>({cnt} {cnt===1?"entry":"entries"} · {hrs}h)</span>
+                          <span style={{fontWeight:700,opacity:.8,fontSize:12}}>({cnt} {cnt===1?"entry":"entries"} · {hrs}h)</span>
                         </button>
                       );
                     })}
@@ -2143,7 +2143,7 @@ function UserManagement({users, setUsers, currentUser}) {
             </div>
             {form.role==="Admin"&&(
               <div>
-                <FL>Secondary Role <span style={{fontWeight:400,color:T.muted}}>(optional — grants additional access)</span></FL>
+                <FL>Secondary Role <span style={{fontWeight:700,color:T.muted}}>(optional — grants additional access)</span></FL>
                 <select value={form.secondaryRole||""} onChange={e=>sf("secondaryRole",e.target.value||null)}>
                   <option value="">— None —</option>
                   <option value="Approver">Approver — can approve timesheets for allocated apprentices</option>
@@ -2178,7 +2178,7 @@ function UserManagement({users, setUsers, currentUser}) {
                           <span style={{fontSize:16}}>{lvl===1?"★":"☆"}</span>
                           <span>Admin Level {lvl}{locked?" (requires Admin 1)":""}</span>
                         </div>
-                        <div style={{fontSize:11,fontWeight:400,lineHeight:1.4,
+                        <div style={{fontSize:11,fontWeight:700,lineHeight:1.4,
                           color:locked?T.muted:(form.adminLevel||1)===lvl?T.accent:T.muted}}>
                           {lvl===1
                             ? "Full access — edit, delete & manage all data including message history"
@@ -2236,7 +2236,7 @@ function UserManagement({users, setUsers, currentUser}) {
           {/* Address fields — optional */}
           <div style={{borderTop:`1px dashed ${T.border}`,paddingTop:12,marginBottom:12}}>
             <div style={{fontSize:11,fontWeight:600,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:10}}>
-              Address <span style={{fontWeight:400,textTransform:"none",letterSpacing:0}}>(optional)</span>
+              Address <span style={{fontWeight:700,textTransform:"none",letterSpacing:0}}>(optional)</span>
             </div>
             <div className="fg-addr" style={{display:"grid",gap:12}}>
               <div><FL>Street Address</FL><input placeholder="123 Main Street" value={form.address} onChange={e=>sf("address",e.target.value)}/></div>
@@ -2364,7 +2364,7 @@ function UserManagement({users, setUsers, currentUser}) {
               {/* Approver / Viewer / Mentor */}
               <div className="fg2" style={{display:"grid",gap:16}}>
               <div>
-                <FL>Approver <span style={{fontWeight:400,color:T.muted}}>(approves timesheets)</span></FL>
+                <FL>Approver <span style={{fontWeight:700,color:T.muted}}>(approves timesheets)</span></FL>
                 <select value={appApprover} onChange={e=>setAppApprover(e.target.value)}>
                   <option value="">— None —</option>
                   {approverOptions.map(u=>(
@@ -2374,7 +2374,7 @@ function UserManagement({users, setUsers, currentUser}) {
                 </select>
               </div>
               <div>
-                <FL>Viewer <span style={{fontWeight:400,color:T.muted}}>(read-only access)</span></FL>
+                <FL>Viewer <span style={{fontWeight:700,color:T.muted}}>(read-only access)</span></FL>
                 <select value={appViewer} onChange={e=>setAppViewer(e.target.value)}>
                   <option value="">— None —</option>
                   {viewerOptions.map(u=>(
@@ -2384,7 +2384,7 @@ function UserManagement({users, setUsers, currentUser}) {
                 </select>
               </div>
               <div>
-                <FL>Mentor <span style={{fontWeight:400,color:T.muted}}>(assigned KTA mentor)</span></FL>
+                <FL>Mentor <span style={{fontWeight:700,color:T.muted}}>(assigned KTA mentor)</span></FL>
                 <select value={appMentor} onChange={e=>setAppMentor(e.target.value)}>
                   <option value="">— None —</option>
                   {users.filter(u=>u.role==="Mentor"||(u.role==="Admin")).map(u=>(
@@ -3639,7 +3639,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               <div>
                 <div style={{fontFamily:"Good Headline Pro",fontWeight:700,fontSize:22,color:T.ink}}>{co.name}</div>
                 <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
-                  {co.industry&&<span style={{fontSize:12,color:T.sub,fontWeight:500}}>{co.industry}</span>}
+                  {co.industry&&<span style={{fontSize:12,color:T.sub,fontWeight:700}}>{co.industry}</span>}
                   {co.city&&<span style={{fontSize:12,color:T.muted}}>📍 {co.city}{co.country&&co.country!=="New Zealand"?`, ${co.country}`:""}</span>}
                   {co.isHostBusiness&&<span style={{fontSize:11,fontWeight:700,color:T.teal,background:T.tealL,padding:"2px 10px",borderRadius:20,border:`1px solid ${T.teal}44`}}>🏢 Host Business</span>}
                   {co.status&&co.status!=="Active"&&<span style={{fontSize:11,fontWeight:700,color:T.warn,background:T.warnL,padding:"2px 10px",borderRadius:20}}>{co.status}</span>}
@@ -3667,7 +3667,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                   ? <a href={f.href} target="_blank" rel="noreferrer" style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>{f.val}</a>
                   : f.href
                     ? <a href={f.href} style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>{f.val}</a>
-                    : <div style={{fontSize:13,color:T.ink,fontWeight:500}}>{f.val}</div>
+                    : <div style={{fontSize:13,color:T.ink,fontWeight:700}}>{f.val}</div>
                 }
               </div>
             ))}
@@ -5459,7 +5459,7 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
             {mentors.map(m=><option key={m.id} value={m.id}>{m.name}{m.role==="Admin"?" (Admin)":""}</option>)}
           </select>
         </div>}
-        {canEditPassword&&<div><FL>New Password <span style={{fontWeight:400,color:T.muted}}>(blank = keep)</span></FL>
+        {canEditPassword&&<div><FL>New Password <span style={{fontWeight:700,color:T.muted}}>(blank = keep)</span></FL>
           <div style={{position:"relative"}}>
             <input type={showPw?"text":"password"} autoComplete="new-password" placeholder="Leave blank to keep"
               value={pwField} onChange={e=>setPwField(e.target.value)} style={{paddingRight:60}}/>
@@ -5698,21 +5698,21 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
               )}
             </div>
             <div>
-              <FL>Approver <span style={{fontWeight:400,color:T.muted}}>(can approve timesheets)</span></FL>
+              <FL>Approver <span style={{fontWeight:700,color:T.muted}}>(can approve timesheets)</span></FL>
               <select value={formApproverId} onChange={e=>setFormApproverId(e.target.value)}>
                 <option value="">— None —</option>
                 {approvers.map(a=><option key={a.id} value={a.id}>{a.name}{a.role==="Admin"?" (Admin)":""}</option>)}
               </select>
             </div>
             <div>
-              <FL>Viewer <span style={{fontWeight:400,color:T.muted}}>(read-only access)</span></FL>
+              <FL>Viewer <span style={{fontWeight:700,color:T.muted}}>(read-only access)</span></FL>
               <select value={formViewerId} onChange={e=>setFormViewerId(e.target.value)}>
                 <option value="">— None —</option>
                 {viewers.map(v=><option key={v.id} value={v.id}>{v.name}{v.role==="Admin"?" (Admin)":""}</option>)}
               </select>
             </div>
             <div>
-              <FL>Mentor <span style={{fontWeight:400,color:T.muted}}>(assigned KTA mentor)</span></FL>
+              <FL>Mentor <span style={{fontWeight:700,color:T.muted}}>(assigned KTA mentor)</span></FL>
               <select value={formMentorId} onChange={e=>setFormMentorId(e.target.value)}>
                 <option value="">— None —</option>
                 {mentors.map(m=><option key={m.id} value={m.id}>{m.name}{m.role==="Admin"?" (Admin)":""}</option>)}
@@ -5870,7 +5870,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
                     <div>
                       <div style={{fontSize:12,fontWeight:700,color:T.warn,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
                         <span>▲</span> Approvers
-                        <span style={{fontSize:11,fontWeight:400,color:T.sub}}>— can approve / decline this apprentice's timesheets</span>
+                        <span style={{fontSize:11,fontWeight:700,color:T.sub}}>— can approve / decline this apprentice's timesheets</span>
                       </div>
                       {approvers.length===0
                         ? <div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>No Approver accounts exist yet.</div>
@@ -5904,7 +5904,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
                     <div>
                       <div style={{fontSize:12,fontWeight:700,color:T.teal,marginBottom:10,display:"flex",alignItems:"center",gap:6}}>
                         <span>◆</span> Viewers
-                        <span style={{fontSize:11,fontWeight:400,color:T.sub}}>— can view all timesheet stages, read only</span>
+                        <span style={{fontSize:11,fontWeight:700,color:T.sub}}>— can view all timesheet stages, read only</span>
                       </div>
                       {viewers.length===0
                         ? <div style={{fontSize:12,color:T.muted,fontStyle:"italic"}}>No Viewer accounts exist yet.</div>
@@ -8170,7 +8170,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
               {ccEmails.map(r=>(
                 <div key={r.email} style={{display:"flex",alignItems:"center",gap:6,padding:"3px 10px",borderRadius:20,background:T.tealL,border:`1px solid ${T.teal}44`,fontSize:12,fontWeight:600,color:T.teal}}>
                   <span>{r.name}</span>
-                  <span style={{fontSize:10,fontWeight:400,color:T.muted}}>({r.email})</span>
+                  <span style={{fontSize:10,fontWeight:700,color:T.muted}}>({r.email})</span>
                   <button onClick={()=>removeCc(r.email)} style={{background:"none",border:"none",cursor:"pointer",color:T.teal,fontSize:13,lineHeight:1,padding:0,fontFamily:"Good Headline Pro,sans-serif"}}>✕</button>
                 </div>
               ))}
@@ -8949,7 +8949,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
       <button onClick={onBack} style={{
         display:"inline-flex",alignItems:"center",gap:6,background:"none",border:"none",
         color:T.sub,fontSize:13,fontFamily:"Good Headline Pro,sans-serif",cursor:"pointer",
-        marginBottom:16,padding:0,fontWeight:500}}
+        marginBottom:16,padding:0,fontWeight:700}}
         onMouseEnter={e=>e.currentTarget.style.color=T.ink}
         onMouseLeave={e=>e.currentTarget.style.color=T.sub}>
         ← {isAdmin?"Back to Dashboard":"Back to My Apprentices"}
@@ -12504,7 +12504,7 @@ export default function App() {
                   display:"inline-flex",alignItems:"center",gap:6,
                   background:"none",border:"none",color:T.sub,fontSize:13,
                   fontFamily:"Good Headline Pro,sans-serif",cursor:"pointer",marginBottom:10,padding:0,
-                  fontWeight:500
+                  fontWeight:700
                 }}
                   onMouseEnter={e=>e.currentTarget.style.color=T.ink}
                   onMouseLeave={e=>e.currentTarget.style.color=T.sub}>
@@ -12526,7 +12526,7 @@ export default function App() {
                   display:"inline-flex",alignItems:"center",gap:6,
                   background:"none",border:"none",color:T.sub,fontSize:13,
                   fontFamily:"Good Headline Pro,sans-serif",cursor:"pointer",marginBottom:10,padding:0,
-                  fontWeight:500
+                  fontWeight:700
                 }}
                   onMouseEnter={e=>e.currentTarget.style.color=T.ink}
                   onMouseLeave={e=>e.currentTarget.style.color=T.sub}>
