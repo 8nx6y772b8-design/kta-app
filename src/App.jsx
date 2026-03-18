@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.31
+// KTA Workforce Management — v2.7.32
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.31
+          v2.7.32
         </div>
       </div>
     </div>
@@ -5251,7 +5251,6 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
   const isAdminL1 = viewer?.role==="Admin" && (viewer?.adminLevel||1)===1;
   const isAdmin   = viewer?.role==="Admin";
   const isMentor  = viewer?.role==="Mentor";
-  // Mentors can edit core fields but not password or Xero settings
   const canEditPassword = isAdminL1 || isAdmin;
   const canEditXero     = isAdminL1;
   const canEditAllocs   = isAdminL1 || isAdmin;
@@ -6714,13 +6713,7 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
   const [done, setDone]       = useState(false);
   const [error, setError]     = useState("");
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
-  const isAdminL1 = viewer?.role==="Admin" && (viewer?.adminLevel||1)===1;
-  const isAdmin   = viewer?.role==="Admin";
-  const isMentor  = viewer?.role==="Mentor";
-  // Mentors can edit core fields but not password or Xero settings
-  const canEditPassword = isAdminL1 || isAdmin;
-  const canEditXero     = isAdminL1;
-  const canEditAllocs   = isAdminL1 || isAdmin;
+
 
   const handleSubmit = async () => {
     if(!form.dateFrom || !form.dateTo) { setError("Please select start and end dates."); return; }
@@ -7884,13 +7877,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
   const [emailStatus, setEmailStatus] = useState(null);
   const [prevGoalsSource, setPrevGoalsSource] = useState(null);
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
-  const isAdminL1 = viewer?.role==="Admin" && (viewer?.adminLevel||1)===1;
-  const isAdmin   = viewer?.role==="Admin";
-  const isMentor  = viewer?.role==="Mentor";
-  // Mentors can edit core fields but not password or Xero settings
-  const canEditPassword = isAdminL1 || isAdmin;
-  const canEditXero     = isAdminL1;
-  const canEditAllocs   = isAdminL1 || isAdmin;
+
   const fD = (iso) => { if(!iso) return "—"; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
 
   // On mount: fetch the most recent past report and pre-fill Previous Goals from its goals_this_meeting
