@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.26
+// KTA Workforce Management — v2.7.27
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.26
+          v2.7.27
         </div>
       </div>
     </div>
@@ -5321,7 +5321,7 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
   );
 }
 
-function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
+function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null}) {
   const apprentices = [...allUsers.filter(u => u.role === "Apprentice")].sort((a,b)=>(a.name||"").localeCompare(b.name||""));
   const approvers   = allUsers.filter(u => u.role === "Approver" || u.role === "Admin");
   const viewers     = allUsers.filter(u => u.role === "Viewer"   || u.role === "Admin");
@@ -5694,6 +5694,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet}) {
                     <ApprenticeEditForm
                       user={u}
                       allUsers={allUsers}
+                      viewer={currentUser}
                       title={`✎ Editing — ${u.name}`}
                       onSave={(updated) => {
                         setUsers(prev=>prev.map(x=>x.id===updated.id?updated:x));
@@ -12304,6 +12305,7 @@ export default function App() {
             <ApprenticeList
               allUsers={users}
               setUsers={updateUsers}
+              currentUser={currentUser}
               onViewTimesheet={(id)=>{setViewingAppId(id);setShowAppList(false);}}
             />
           )}
