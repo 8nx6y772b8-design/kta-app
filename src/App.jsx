@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.30
+// KTA Workforce Management — v2.7.31
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.30
+          v2.7.31
         </div>
       </div>
     </div>
@@ -2738,13 +2738,6 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
     job_title:c.job_title||c.jobTitle||"", status:c.status||"Active", notes:c.notes||"",
   });
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
-  const isAdminL1 = viewer?.role==="Admin" && (viewer?.adminLevel||1)===1;
-  const isAdmin   = viewer?.role==="Admin";
-  const isMentor  = viewer?.role==="Mentor";
-  // Mentors can edit core fields but not password or Xero settings
-  const canEditPassword = isAdminL1 || isAdmin;
-  const canEditXero     = isAdminL1;
-  const canEditAllocs   = isAdminL1 || isAdmin;
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -3593,14 +3586,13 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
       if(!c.companyId && c.company) {
         const cn = (c.company||"").toLowerCase().trim();
         const coN = (co.name||"").toLowerCase().trim();
-        // Only fuzzy match if both strings are meaningful (>2 chars) to avoid false positives
         if(!cn || !coN || coN.length < 3) return false;
         return cn===coN || (coN.length >= 5 && cn.includes(coN)) || (cn.length >= 5 && coN.includes(cn));
       }
       return false;
     });
 
-    // Auto-fix any contacts linked by name but missing the company_id FK
+    // Auto-link by name
     const unlinkFixed = linkedContacts.filter(c=>!c.companyId&&c.company);
     if(unlinkFixed.length>0){
       unlinkFixed.forEach(c=>{
@@ -3618,131 +3610,185 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
       setDetailCompany(updated);
     };
 
+    const [addingContact, setAddingContact] = React.useState(false);
+
     return (
       <div className="fu">
+        {/* ── Back + header ── */}
         <button onClick={()=>setDetailCompany(null)} style={{display:"flex",alignItems:"center",gap:6,background:"none",border:"none",color:T.accent,fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:16,padding:0,fontFamily:"DM Sans,sans-serif"}}>
           ← Back to Companies
         </button>
-        <Card style={{marginBottom:16}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
-            <div>
-              <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <div style={{fontWeight:800,fontSize:22,color:T.ink}}>{co.name}</div>
+
+        {/* ── Hero card ── */}
+        <div style={{background:"#fff",borderRadius:14,border:`1px solid ${T.border}`,marginBottom:16,overflow:"hidden"}}>
+          {/* Top bar */}
+          <div style={{background:`linear-gradient(135deg,${T.accent}18,${T.teal}12)`,borderBottom:`1px solid ${T.border}`,padding:"20px 24px",display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:14}}>
+              <div style={{width:52,height:52,borderRadius:12,background:T.accent,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,fontWeight:800,color:"#fff",flexShrink:0}}>
+                {(co.name||"?")[0].toUpperCase()}
               </div>
-              {co.industry&&<div style={{fontSize:13,color:T.sub,marginTop:4}}>{co.industry}</div>}
+              <div>
+                <div style={{fontFamily:"'Libre Baskerville'",fontWeight:700,fontSize:22,color:T.ink}}>{co.name}</div>
+                <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap",alignItems:"center"}}>
+                  {co.industry&&<span style={{fontSize:12,color:T.sub,fontWeight:500}}>{co.industry}</span>}
+                  {co.city&&<span style={{fontSize:12,color:T.muted}}>📍 {co.city}{co.country&&co.country!=="New Zealand"?`, ${co.country}`:""}</span>}
+                  {co.isHostBusiness&&<span style={{fontSize:11,fontWeight:700,color:T.teal,background:T.tealL,padding:"2px 10px",borderRadius:20,border:`1px solid ${T.teal}44`}}>🏢 Host Business</span>}
+                  {co.status&&co.status!=="Active"&&<span style={{fontSize:11,fontWeight:700,color:T.warn,background:T.warnL,padding:"2px 10px",borderRadius:20}}>{co.status}</span>}
+                </div>
+              </div>
             </div>
-            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <div style={{display:"flex",gap:8}}>
               {canEdit&&<Btn sm onClick={()=>{setCoForm({name:co.name,industry:co.industry||"",phone:co.phone||"",website:co.website||"",address:co.address||"",city:co.city||"",postcode:co.postcode||"",country:co.country||"New Zealand",notes:co.notes||"",status:co.status||"Active",isHostBusiness:co.isHostBusiness||false});setEditCoId(co.id);setShowCoForm(true);setDetailCompany(null);goTab("companies");}}>✎ Edit</Btn>}
               {canDelete&&<Btn sm v="danger" onClick={()=>{if(!window.confirm(`Delete ${co.name}?`))return;setCompanies(prev=>prev.filter(x=>x.id!==co.id));deleteRow("crm_companies",co.id).catch(console.error);setDetailCompany(null);}}>✕ Delete</Btn>}
             </div>
           </div>
 
-          {/* ── Host Business Toggle ── */}
-          {canEdit&&(
-            <div style={{
-              display:"flex",alignItems:"center",justifyContent:"space-between",
-              marginTop:16,padding:"12px 14px",borderRadius:10,
-              background:co.isHostBusiness?T.tealL:T.bg,
-              border:`1.5px solid ${co.isHostBusiness?T.teal:T.border}`,
-              transition:"background .2s, border-color .2s",
-            }}>
-              <div>
-                <div style={{fontWeight:700,fontSize:13,color:co.isHostBusiness?T.teal:T.ink}}>
-                  🏢 Host Business
-                </div>
-                <div style={{fontSize:11,color:co.isHostBusiness?T.teal:T.muted,marginTop:2}}>
-                  {co.isHostBusiness
-                    ?"This company is a host business — appears in apprentice host business dropdowns"
-                    :"Mark as a host business to link apprentices to this company"}
-                </div>
+          {/* Properties grid */}
+          <div style={{padding:"16px 24px",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:"16px 32px"}}>
+            {[
+              {icon:"📱",label:"Phone",     val:co.phone,    href:`tel:${co.phone}`},
+              {icon:"🌐",label:"Website",   val:co.website,  href:wsiteHref,  isLink:true},
+              {icon:"📍",label:"Address",   val:[co.address,co.city,co.postcode].filter(Boolean).join(", ")},
+              {icon:"🏭",label:"Industry",  val:co.industry},
+              {icon:"🌏",label:"Country",   val:co.country},
+            ].filter(f=>f.val).map(f=>(
+              <div key={f.label}>
+                <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:4}}>{f.icon} {f.label}</div>
+                {f.isLink
+                  ? <a href={f.href} target="_blank" rel="noreferrer" style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>{f.val}</a>
+                  : f.href
+                    ? <a href={f.href} style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>{f.val}</a>
+                    : <div style={{fontSize:13,color:T.ink,fontWeight:500}}>{f.val}</div>
+                }
               </div>
-              <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-                <span style={{fontSize:12,fontWeight:700,color:co.isHostBusiness?T.teal:T.muted}}>
-                  {co.isHostBusiness?"Yes":"No"}
-                </span>
-                <div onClick={toggleHostBusiness}
-                  style={{position:"relative",width:52,height:28,borderRadius:14,cursor:"pointer",
-                    background:co.isHostBusiness?T.teal:T.border,transition:"background .2s",flexShrink:0}}>
-                  <div style={{position:"absolute",top:3,left:co.isHostBusiness?26:3,width:22,height:22,
-                    borderRadius:"50%",background:"#fff",boxShadow:"0 1px 4px rgba(0,0,0,.25)",transition:"left .2s"}}/>
-                </div>
-              </div>
-            </div>
-          )}
-          {!canEdit&&co.isHostBusiness&&(
-            <div style={{marginTop:12,display:"inline-flex",alignItems:"center",gap:6,
-              padding:"4px 12px",borderRadius:20,background:T.tealL,border:`1px solid ${T.teal}44`}}>
-              <span style={{fontSize:13}}>🏢</span>
-              <span style={{fontSize:12,fontWeight:700,color:T.teal}}>Host Business</span>
-            </div>
-          )}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:"10px 24px",marginTop:16}}>
-            {co.phone&&<div><div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3}}>📱 Phone</div><a href={`tel:${co.phone}`} style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>{co.phone}</a></div>}
-            {co.website&&<div><div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3}}>🌐 Website</div><a href={wsiteHref} target="_blank" rel="noreferrer" style={{fontSize:13,color:T.accent,fontWeight:600,textDecoration:"none"}}>{co.website}</a></div>}
-            {(co.address||co.city)&&<div><div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3}}>📍 Address</div><div style={{fontSize:13,color:T.ink}}>{[co.address,co.city,co.postcode,co.country].filter(Boolean).join(", ")}</div></div>}
-            {co.notes&&<div style={{gridColumn:"1/-1"}}><div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:3}}>📝 Notes</div><div style={{fontSize:13,color:T.ink,lineHeight:1.5}}>{co.notes}</div></div>}
-          </div>
-        </Card>
-        {allocatedApprentices.length>0&&(
-          <Card style={{marginBottom:14}}>
-            <div style={{fontSize:11,fontWeight:700,color:T.teal,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>👷 Allocated Apprentices ({allocatedApprentices.length})</div>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {allocatedApprentices.map(app=>(
-                <div key={app.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:T.tealL,borderRadius:8}}>
-                  <Avatar name={app.name} role="Apprentice" size={32}/>
-                  <div>
-                    <div style={{fontWeight:700,fontSize:13}}>{app.name}</div>
-                    <div style={{fontSize:11,color:T.teal}}>{app.trade||"—"}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-        {/* ── Contacts associated with this company ── */}
-        <Card style={{marginBottom:14}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-            <div style={{fontSize:11,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px"}}>
-              👥 Contacts {linkedContacts.length>0&&`(${linkedContacts.length})`}
-            </div>
+            ))}
             {canEdit&&(
-              <Btn sm onClick={()=>{resetContactForm();setEditCId(null);setCForm(f=>({...f,company:co.name,companyId:co.id}));setShowCF(true);setDetailCompany(null);goTab("contacts");}}>
-                + Add Contact
-              </Btn>
+              <div>
+                <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:6}}>🏢 Host Business</div>
+                <div onClick={toggleHostBusiness} style={{display:"inline-flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+                  <div style={{position:"relative",width:44,height:24,borderRadius:12,background:co.isHostBusiness?T.teal:T.border,transition:"background .2s",flexShrink:0}}>
+                    <div style={{position:"absolute",top:2,left:co.isHostBusiness?22:2,width:20,height:20,borderRadius:"50%",background:"#fff",boxShadow:"0 1px 4px rgba(0,0,0,.2)",transition:"left .2s"}}/>
+                  </div>
+                  <span style={{fontSize:12,fontWeight:700,color:co.isHostBusiness?T.teal:T.muted}}>{co.isHostBusiness?"Yes":"No"}</span>
+                </div>
+              </div>
             )}
           </div>
-          {linkedContacts.length===0&&(
-            <div style={{fontSize:12,color:T.muted,fontStyle:"italic",padding:"8px 0"}}>
-              No contacts linked to this company yet.
+
+          {co.notes&&(
+            <div style={{padding:"0 24px 16px"}}>
+              <div style={{fontSize:10,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:6}}>📝 Notes</div>
+              <div style={{fontSize:13,color:T.ink,lineHeight:1.6,background:T.bg,borderRadius:8,padding:"10px 14px",border:`1px solid ${T.border}`}}>{co.notes}</div>
             </div>
           )}
-          <div style={{display:"flex",flexDirection:"column",gap:1}}>
-            {linkedContacts.map((c,i)=>(
-              <CompanyContactRow
-                key={c.id}
-                contact={c}
-                index={i}
-                total={linkedContacts.length}
-                canEdit={canEdit}
-                canDelete={canDelete}
-                isApprenticeContact={isApprenticeContact(c)}
-                onView={()=>{setDetailCompany(null);setDetailContact(c);}}
-                onEdit={()=>{startEditC(c);setDetailCompany(null);goTab("contacts");}}
-                onDelete={()=>{
-                  if(!window.confirm(`Delete ${c.name}? This cannot be undone.`)) return;
-                  setContacts(prev=>prev.filter(x=>x.id!==c.id));
-                  deleteRow("crm_contacts",c.id).catch(console.error);
-                }}
-                onSave={(updated)=>{
-                  setContacts(prev=>prev.map(x=>x.id===c.id?{...x,...updated}:x));
-                  upsertRow("crm_contacts",{id:c.id,...updated}).catch(console.error);
-                }}
-              />
-            ))}
-          </div>
-        </Card>
+        </div>
 
-        {linkedContacts.length===0&&allocatedApprentices.length===0&&null}
+        {/* ── Two-column layout ── */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:16,alignItems:"start"}}>
+
+          {/* LEFT — Contacts (main panel) */}
+          <div>
+            <div style={{background:"#fff",borderRadius:14,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+              <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{fontWeight:700,fontSize:15,color:T.ink}}>👥 Contacts</div>
+                  {linkedContacts.length>0&&<span style={{fontSize:11,fontWeight:700,color:"#fff",background:T.accent,borderRadius:20,padding:"1px 8px"}}>{linkedContacts.length}</span>}
+                </div>
+                {canEdit&&(
+                  <Btn sm onClick={()=>{resetContactForm();setEditCId(null);setCForm(f=>({...f,company:co.name,companyId:co.id}));setShowCF(true);setDetailCompany(null);goTab("contacts");}}>
+                    + Add Contact
+                  </Btn>
+                )}
+              </div>
+              {linkedContacts.length===0?(
+                <div style={{padding:"32px 20px",textAlign:"center",color:T.muted,fontSize:13,fontStyle:"italic"}}>
+                  No contacts linked to this company yet.<br/>
+                  <span style={{fontSize:12}}>Use "+ Add Contact" to create one.</span>
+                </div>
+              ):(
+                <div>
+                  {linkedContacts.map((c,i)=>(
+                    <div key={c.id}
+                      onClick={()=>{setDetailCompany(null);setDetailContact(c);}}
+                      style={{display:"flex",alignItems:"center",gap:12,padding:"12px 20px",
+                        borderBottom:i<linkedContacts.length-1?`1px solid ${T.border}44`:"none",
+                        cursor:"pointer",transition:"background .12s"}}
+                      onMouseEnter={e=>e.currentTarget.style.background=T.accentL+"55"}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <Avatar name={c.name} role="Approver" size={36}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{c.name}</div>
+                        <div style={{fontSize:11,color:T.muted,marginTop:2,display:"flex",gap:12,flexWrap:"wrap"}}>
+                          {(c.job_title||c.jobTitle)&&<span>💼 {c.job_title||c.jobTitle}</span>}
+                          {c.email&&<span>✉ {c.email}</span>}
+                          {c.phone&&<span>📞 {c.phone}</span>}
+                        </div>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:6,flexShrink:0}}>
+                        <span style={{fontSize:11,padding:"2px 8px",borderRadius:10,
+                          background:c.status==="Active"?T.accentL:T.slateL,
+                          color:c.status==="Active"?T.accent:T.muted}}>{c.status||"Active"}</span>
+                        {canEdit&&(
+                          <button onClick={e=>{e.stopPropagation();startEditC(c);setDetailCompany(null);goTab("contacts");}}
+                            style={{width:26,height:26,borderRadius:6,fontSize:11,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
+                            onMouseEnter={e=>{e.stopPropagation();e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
+                            onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
+                        )}
+                        {canDelete&&(
+                          <button onClick={e=>{e.stopPropagation();if(!window.confirm(`Delete ${c.name}?`))return;setContacts(prev=>prev.filter(x=>x.id!==c.id));deleteRow("crm_contacts",c.id).catch(console.error);}}
+                            style={{width:26,height:26,borderRadius:6,fontSize:11,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
+                            onMouseEnter={e=>{e.stopPropagation();e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;}}
+                            onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✕</button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT — sidebar */}
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+
+            {/* KTA Apprentices */}
+            {allocatedApprentices.length>0&&(
+              <div style={{background:"#fff",borderRadius:14,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+                <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,fontWeight:700,fontSize:13,color:T.teal}}>
+                  👷 KTA Apprentices ({allocatedApprentices.length})
+                </div>
+                <div style={{padding:"8px 0"}}>
+                  {allocatedApprentices.map(app=>(
+                    <div key={app.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px"}}>
+                      <Avatar name={app.name} role="Apprentice" size={30}/>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontWeight:600,fontSize:13,color:T.ink}}>{app.name}</div>
+                        <div style={{fontSize:11,color:T.teal}}>{app.trade||"—"}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Quick stats */}
+            <div style={{background:"#fff",borderRadius:14,border:`1px solid ${T.border}`,padding:"14px 16px"}}>
+              <div style={{fontWeight:700,fontSize:12,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>Summary</div>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {[
+                  {label:"Contacts",   val:linkedContacts.length,       color:T.accent},
+                  {label:"Apprentices",val:allocatedApprentices.length, color:T.teal},
+                  {label:"Status",     val:co.status||"Active",          color:T.ink},
+                ].map(s=>(
+                  <div key={s.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13}}>
+                    <span style={{color:T.muted}}>{s.label}</span>
+                    <span style={{fontWeight:700,color:s.color}}>{s.val}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
