@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.57
+// KTA Workforce Management — v2.7.59
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:13,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.57
+          v2.7.59
         </div>
       </div>
     </div>
@@ -1970,21 +1970,21 @@ function useSort(defaultField="name", defaultDir="asc") {
   const [sortField, setSortField] = useState(defaultField);
   const [sortDir,   setSortDir]   = useState(defaultDir);
 
-  const toggle = React.useCallback((field) => {
+  const toggle = useCallback((field) => {
     setSortField(prev => {
       if(prev === field) { setSortDir(d => d==="asc" ? "desc" : "asc"); return prev; }
       setSortDir("asc"); return field;
     });
   }, []);
 
-  const sortFn = React.useCallback((a,b) => {
+  const sortFn = useCallback((a,b) => {
     const av = (a[sortField]||"").toString().toLowerCase();
     const bv = (b[sortField]||"").toString().toLowerCase();
     return sortDir==="asc" ? av.localeCompare(bv) : bv.localeCompare(av);
   }, [sortField, sortDir]);
 
   // Stable ColHeader — use a data-field attr + event delegation to avoid recreating component
-  const SortColHeader = React.useCallback(({field, children, style={}}) => {
+  const SortColHeader = useCallback(({field, children, style={}}) => {
     const active = sortField===field;
     return (
       <span onClick={()=>toggle(field)}
@@ -4046,8 +4046,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               ||(c.email||"").toLowerCase().includes(q)
               ||(c.phone||"").toLowerCase().includes(q)
               ||(c.company||"").toLowerCase().includes(q);
-          }).sort(crmCtSort)
-          ).map((c,i)=>{
+          }).sort(crmCtSort).map((c,i)=>{
             const linkedCo = companies.find(co=>co.id===c.companyId);
             return (
             <div key={c.id}>
@@ -4232,8 +4231,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 ||(co.industry||"").toLowerCase().includes(q)
                 ||(co.city||"").toLowerCase().includes(q)
                 ||(co.phone||"").toLowerCase().includes(q);
-            }).sort(crmCoSort)
-            ).map((co,i)=>{
+            }).sort(crmCoSort).map((co,i)=>{
               const linkedContacts = contacts.filter(c=>c.companyId===co.id);
               return (
                 <div key={co.id} style={{borderBottom:i<companies.length-1?`1px solid ${T.border}44`:"none"}}>
