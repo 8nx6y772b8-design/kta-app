@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.50
+// KTA Workforce Management — v2.7.51
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:13,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.50
+          v2.7.51
         </div>
       </div>
     </div>
@@ -5355,33 +5355,78 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
         </div>
         <div style={{gridColumn:"1/-1"}}>
           <FL>Reports Go To (email)</FL>
-          {companyContacts.length>0?(
-            <div style={{display:"flex",flexDirection:"column",gap:4}}>
-              <select
-                value={companyContacts.some(c=>c.email===form.reportsEmail)?(form.reportsEmail||"__custom__"):(form.reportsEmail?"__custom__":"__none__")}
-                onChange={e=>{
-                  if(e.target.value==="__none__") sf("reportsEmail","");
-                  else if(e.target.value!=="__custom__") sf("reportsEmail",e.target.value);
-                }}>
-                <option value="__none__">— Leave blank (use approver) —</option>
-                {companyContacts.map(c=>(
-                  <option key={c.id} value={c.email}>{c.name}{c.jobTitle?` · ${c.jobTitle}`:""} — {c.email}</option>
-                ))}
-                <option value="__custom__">Other (type below)…</option>
-              </select>
-              {form.reportsEmail&&!companyContacts.some(c=>c.email===form.reportsEmail)&&(
-                <input type="email" placeholder="e.g. manager@company.co.nz"
-                  value={form.reportsEmail||""} onChange={e=>sf("reportsEmail",e.target.value)}/>
-              )}
-            </div>
-          ):(
-            <input type="email" placeholder="e.g. manager@company.co.nz"
-              value={form.reportsEmail||""} onChange={e=>sf("reportsEmail",e.target.value)}/>
-          )}
+          {(()=>{
+            // Parse comma-separated emails into array
+            const selectedEmails = (form.reportsEmail||"").split(",").map(e=>e.trim()).filter(Boolean);
+            const addEmail = (email) => {
+              if(!email||selectedEmails.includes(email)) return;
+              sf("reportsEmail", [...selectedEmails, email].join(","));
+            };
+            const removeEmail = (email) => {
+              sf("reportsEmail", selectedEmails.filter(e=>e!==email).join(","));
+            };
+            return (
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {/* Selected email tags */}
+                {selectedEmails.length>0&&(
+                  <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                    {selectedEmails.map(email=>{
+                      const contact = companyContacts.find(c=>c.email===email);
+                      return (
+                        <div key={email} style={{display:"flex",alignItems:"center",gap:5,
+                          padding:"3px 10px",borderRadius:20,background:T.accentL,
+                          border:`1px solid ${T.accent}44`,fontSize:12,fontWeight:700,color:T.accent}}>
+                          <span>{contact?contact.name:email}</span>
+                          {contact&&<span style={{fontWeight:700,opacity:0.6,fontSize:11}}>({email})</span>}
+                          <button onClick={()=>removeEmail(email)} style={{background:"none",border:"none",
+                            cursor:"pointer",color:T.accent,fontSize:13,lineHeight:1,padding:0,marginLeft:2}}>✕</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {/* Dropdown to add from company contacts */}
+                {companyContacts.length>0&&(
+                  <select value="" onChange={e=>{if(e.target.value){addCo(e.target.value);e.target.value="";}}}
+                    style={{fontSize:13}}>
+                    <option value="">
+                      {selectedEmails.length===0?"+ Select from company contacts…":"+ Add another contact…"}
+                    </option>
+                    {companyContacts.filter(c=>!selectedEmails.includes(c.email)).map(c=>(
+                      <option key={c.id} value={c.email}>
+                        {c.name}{c.jobTitle?` · ${c.jobTitle}`:""} — {c.email}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {/* Manual email entry */}
+                <div style={{display:"flex",gap:6}}>
+                  <input type="email" placeholder="Or type any email address…"
+                    id="reportsEmailInput"
+                    style={{flex:1,fontSize:13}}
+                    onKeyDown={e=>{
+                      if(e.key==="Enter"||e.key===","){
+                        e.preventDefault();
+                        const val=e.target.value.trim();
+                        if(val&&val.includes("@")){addEmail(val);e.target.value="";}
+                      }
+                    }}
+                  />
+                  <button type="button" onClick={()=>{
+                    const inp=document.getElementById("reportsEmailInput");
+                    if(inp&&inp.value.includes("@")){addEmail(inp.value.trim());inp.value="";}
+                  }} style={{padding:"6px 12px",borderRadius:7,border:`1px solid ${T.border}`,
+                    background:T.surface,color:T.sub,fontSize:12,fontWeight:700,cursor:"pointer",
+                    fontFamily:"DM Sans,sans-serif",whiteSpace:"nowrap"}}>
+                    + Add
+                  </button>
+                </div>
+              </div>
+            );
+            function addCo(email){addEmail(email);}
+          })()}
           <div style={{fontSize:11,color:T.muted,marginTop:2}}>
-            {companyContacts.length>0
-              ? `${companyContacts.length} contact${companyContacts.length!==1?"s":""} from ${form.hostBusiness||"host business"} — or type any email`
-              : "Visit reports emailed here + apprentice. Leave blank to use approver."}
+            Reports emailed to all selected addresses + apprentice. Leave empty to use approver.
           </div>
         </div>
         <div style={{gridColumn:"1/-1"}}>
@@ -7738,14 +7783,15 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver, ccEm
     `kta.org.nz`,
   ].join("\n");
 
-  // Use reportsEmail if set, otherwise fall back to approver
-  const reportRecipient = apprentice.reportsEmail
-    ? { email: apprentice.reportsEmail, name: "KTA Reports" }
-    : (approver ? { email: approver.email, name: approver.name } : null);
+  // Use reportsEmail (comma-separated) if set, otherwise fall back to approver
+  const reportsEmailList = apprentice.reportsEmail
+    ? apprentice.reportsEmail.split(",").map(e=>e.trim()).filter(Boolean)
+        .map(email=>({ email, name: "KTA Reports" }))
+    : (approver ? [{ email: approver.email, name: approver.name }] : []);
 
   const recipients = [
     { email: apprentice.email, name: apprentice.name },
-    reportRecipient,
+    ...reportsEmailList,
     ...(ccEmails||[]),
   ].filter(r => r && r.email && r.email.trim())
    .filter((r,i,arr)=>arr.findIndex(x=>x.email===r.email)===i); // dedupe
@@ -8138,7 +8184,9 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
           📧 On save this report will be emailed to:
           <strong> {apprentice.name}</strong>{apprentice.email?` (${apprentice.email})`:` — ⚠ no email set`}
           {apprentice.reportsEmail
-            ? <>, <strong>{apprentice.reportsEmail}</strong> (Reports Go To)</>
+            ? <>, {apprentice.reportsEmail.split(",").map(e=>e.trim()).filter(Boolean).map((e,i)=>(
+                <span key={e}>{i>0?", ":""}<strong>{e}</strong></span>
+              ))} (Reports Go To)</>
             : approver
               ? <>, <strong>{approver.name}</strong>{approver.email?` (${approver.email})`:` — ⚠ no email set`}</>
               : <span style={{color:T.warn}}> — ⚠ no approver linked to this apprentice</span>
@@ -9148,7 +9196,11 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             <div style={{background:T.accentL,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.accent}33`,height:"100%",boxSizing:"border-box"}}>
               <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>📧 Reports Go To</div>
               {apprentice.reportsEmail
-                ? <div style={{fontSize:14,fontWeight:700,color:T.accent}}>{apprentice.reportsEmail}</div>
+                ? <div style={{fontSize:13,fontWeight:700,color:T.accent}}>
+                    {apprentice.reportsEmail.split(",").map(e=>e.trim()).filter(Boolean).map((e,i)=>(
+                      <div key={e}>{e}</div>
+                    ))}
+                  </div>
                 : <div style={{fontSize:13,color:T.muted,fontStyle:"italic"}}>Not set — reports go to approver</div>
               }
             </div>
