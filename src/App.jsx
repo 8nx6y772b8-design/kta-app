@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.42
+// KTA Workforce Management — v2.7.43
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -758,18 +758,8 @@ const notifyApprentice = async (apprentice, approver, entries, approved) => {
 // GLOBAL STYLES
 // ─────────────────────────────────────────────────────────────────────────────
 const CSS = `
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro.ttf') format('truetype'); font-weight:800; font-style:normal; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Italic.ttf') format('truetype'); font-weight:800; font-style:italic; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Light.ttf') format('truetype'); font-weight:800; font-style:normal; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-LightItalic.ttf') format('truetype'); font-weight:800; font-style:italic; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-News.ttf') format('truetype'); font-weight:450; font-style:normal; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-NewsItalic.ttf') format('truetype'); font-weight:450; font-style:italic; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Medium.ttf') format('truetype'); font-weight:500; font-style:normal; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-MediumItalic.ttf') format('truetype'); font-weight:500; font-style:italic; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Bold.ttf') format('truetype'); font-weight:800; font-style:normal; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-BoldItalic.ttf') format('truetype'); font-weight:800; font-style:italic; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Black.ttf') format('truetype'); font-weight:900; font-style:normal; font-display:swap; }
-  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-BlackItalic.ttf') format('truetype'); font-weight:900; font-style:italic; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-Black.ttf') format('truetype'); font-weight:100 900; font-style:normal; font-display:swap; }
+  @font-face { font-family:'Good Headline Pro'; src:url('/fonts/GoodHeadPro-BlackItalic.ttf') format('truetype'); font-weight:100 900; font-style:italic; font-display:swap; }
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;font-weight:inherit;}
   html,body{background:${T.bg};font-family:"Good Headline Pro",sans-serif;font-weight:800;color:${T.ink};font-size:14px;-webkit-tap-highlight-color:transparent;}
   ::-webkit-scrollbar{width:5px;height:5px;}
@@ -1172,7 +1162,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"Good Headline Pro,sans-serif",letterSpacing:".5px"}}>
-          v2.7.42
+          v2.7.43
         </div>
       </div>
     </div>
