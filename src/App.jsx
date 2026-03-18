@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.51
+// KTA Workforce Management — v2.7.52
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:13,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.51
+          v2.7.52
         </div>
       </div>
     </div>
@@ -1969,6 +1969,7 @@ function UserManagement({users, setUsers, currentUser}) {
   const myLevel = currentUser?.adminLevel || 1;
   const [viewingUser, setViewingUser] = useState(null); // full-page user detail
   const [crmHostCompanies,setCrmHostCompanies]=useState([]);
+  const {sortFn:umSort, ColHeader:UMCol} = useSort("name","asc");
   useEffect(()=>{ loadTable('crm_companies').then(rows=>setCrmHostCompanies(rows.filter(r=>r.name).map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")))).catch(()=>{}); },[]);
 
   // Roles this admin level is allowed to create/edit
@@ -2441,14 +2442,14 @@ function UserManagement({users, setUsers, currentUser}) {
                 fontSize:12,color:T.muted,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div style={{display:"grid",gridTemplateColumns:"44px 1fr 130px 170px 1fr 72px",gap:8,flex:1,
                   fontWeight:700,textTransform:"uppercase",letterSpacing:".6px"}}>
-                  <span/><span>Name</span><span>Role</span><span>Email</span><span>Allocated To</span><span/>
+                  <span/><UMCol field="name">Name</UMCol><UMCol field="role">Role</UMCol><UMCol field="email">Email</UMCol><span>Allocated To</span><span/>
                 </div>
               </div>
               {groupUsers.length===0 ? (
                 <div style={{padding:32,textAlign:"center",color:T.muted,fontSize:14,fontStyle:"italic"}}>
                   No users in this group yet.
                 </div>
-              ) : groupUsers.map((u,i)=>{
+              ) : [...groupUsers].sort(umSort).map((u,i)=>{
                 const isEditing = editId===u.id && showForm;
                 return (
                   <div key={u.id} className="ri" style={{
@@ -3184,6 +3185,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
   const [companySearch,setCompanySearch]=useState("");
   const [contactSort,setContactSort]=useState("az");   // "az" | "za"
   const [companySort,setCompanySort]=useState("az");   // "az" | "za"
+  const {sortFn:crmCtSort, ColHeader:CRMCtCol, sortField:crmCtField} = useSort("name","asc");
+  const {sortFn:crmCoSort, ColHeader:CRMCoCol, sortField:crmCoField} = useSort("name","asc");
   const [showHostsOnly,setShowHostsOnly]=useState(()=>{
     try{ const v=localStorage.getItem("wos_crm_hosts_only"); localStorage.removeItem("wos_crm_hosts_only"); return v==="1"; }catch{ return false; }
   });
@@ -3995,11 +3998,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           <div style={{display:"grid",gridTemplateColumns:"1fr 140px 160px 100px 60px",
             padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
             fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
-            <span onClick={()=>setContactSort(s=>s==="az"?"za":"az")}
-              style={{cursor:"pointer",userSelect:"none",display:"flex",alignItems:"center",gap:4}}>
-              Name <span style={{fontSize:11}}>{contactSort==="az"?"▲":"▼"}</span>
-            </span>
-            <span>Email</span><span>Phone</span><span>Status</span><span/>
+            <CRMCtCol field="name">Name</CRMCtCol>
+            <CRMCtCol field="email">Email</CRMCtCol><CRMCtCol field="phone">Phone</CRMCtCol><CRMCtCol field="status">Status</CRMCtCol><span/>
           </div>
           {contacts.length===0&&<div style={{padding:"40px",textAlign:"center",color:T.muted}}>No contacts yet.</div>}
           {[...contacts].filter(c=>{
@@ -4009,7 +4009,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               ||(c.email||"").toLowerCase().includes(q)
               ||(c.phone||"").toLowerCase().includes(q)
               ||(c.company||"").toLowerCase().includes(q);
-          }).sort((a,b)=>contactSort==="az"
+          }).sort(crmCtSort)
             ?(a.name||"").localeCompare(b.name||"")
             :(b.name||"").localeCompare(a.name||"")
           ).map((c,i)=>{
@@ -4187,11 +4187,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
             <div style={{display:"grid",gridTemplateColumns:"1fr 120px 150px 150px 60px",
               padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
               fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
-              <span onClick={()=>setCompanySort(s=>s==="az"?"za":"az")}
-                style={{cursor:"pointer",userSelect:"none",display:"flex",alignItems:"center",gap:4}}>
-                Company <span style={{fontSize:11}}>{companySort==="az"?"▲":"▼"}</span>
-              </span>
-              <span>Industry</span><span>Phone</span><span>City</span><span/>
+              <CRMCoCol field="name">Company</CRMCoCol>
+              <CRMCoCol field="industry">Industry</CRMCoCol><span>Phone</span><CRMCoCol field="city">City</CRMCoCol><span/>
             </div>
             {[...companies].filter(co=>showHostsOnly?co.isHostBusiness:true).filter(co=>{
               if(!companySearch.trim()) return true;
@@ -4200,9 +4197,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 ||(co.industry||"").toLowerCase().includes(q)
                 ||(co.city||"").toLowerCase().includes(q)
                 ||(co.phone||"").toLowerCase().includes(q);
-            }).sort((a,b)=>companySort==="az"
-              ?(a.name||"").localeCompare(b.name||"")
-              :(b.name||"").localeCompare(a.name||"")
+            }).sort(crmCoSort)
             ).map((co,i)=>{
               const linkedContacts = contacts.filter(c=>c.companyId===co.id);
               return (
@@ -5032,9 +5027,10 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
 // HOURS THIS WEEK LIST  — all entries this week, grouped by apprentice A-Z
 // ─────────────────────────────────────────────────────────────────────────────
 function WeeklyHoursList({allUsers, entries}) {
+  const {sortFn:whlSort, ColHeader:WHLCol} = useSort("name","asc");
   const ws = ()=>{ const d=new Date(); d.setDate(d.getDate()-d.getDay()); return d.toISOString().slice(0,10); };
   const wsDate = ws();
-  const apprentices = [...allUsers.filter(u=>u.role==="Apprentice")].sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  const apprentices = [...allUsers.filter(u=>u.role==="Apprentice")].sort(whlSort);
   const weekEntries = entries.filter(e=>e.date>=wsDate);
 
   // Total hours by type across all apprentices this week
@@ -5084,6 +5080,9 @@ function WeeklyHoursList({allUsers, entries}) {
         </Card>
       )}
 
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+        <WHLCol field="name" style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px"}}>Sorted by Name</WHLCol>
+      </div>
       {apprentices.length===0 && <Card><div style={{color:T.muted,textAlign:"center",padding:24}}>No apprentices found.</div></Card>}
       {apprentices.map(app=>{
         const appEntries = weekEntries.filter(e=>e.userId===app.id).sort((a,b)=>b.date.localeCompare(a.date));
@@ -5159,7 +5158,8 @@ function WeeklyHoursList({allUsers, entries}) {
 // PENDING / APPROVED ENTRIES LIST  — grouped by apprentice A-Z
 // ─────────────────────────────────────────────────────────────────────────────
 function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
-  const apprentices = [...allUsers.filter(u=>u.role==="Apprentice")].sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  const {sortFn:aplSort, ColHeader:APLCol} = useSort("name","asc");
+  const apprentices = [...allUsers.filter(u=>u.role==="Apprentice")].sort(aplSort);
   const filtered = entries.filter(e=>e.approval===status);
   const isPending = status==="submitted";
 
@@ -5488,7 +5488,9 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
 }
 
 function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null}) {
-  const apprentices = [...allUsers.filter(u => u.role === "Apprentice")].sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  const {sortFn:alSort, ColHeader:ALCol} = useSort("name","asc");
+  const apprenticesRaw = [...allUsers.filter(u => u.role === "Apprentice")];
+  const apprentices = apprenticesRaw.sort(alSort);
   const approvers   = allUsers.filter(u => u.role === "Approver" || u.role === "Admin");
   const viewers     = allUsers.filter(u => u.role === "Viewer"   || u.role === "Admin");
   const mentors     = allUsers.filter(u => u.role === "Mentor"   || u.role === "Admin");
@@ -5749,7 +5751,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
           gridTemplateColumns:"36px 1fr 140px 130px 120px 110px 110px 72px",
           padding:"10px 16px", background:T.bg, borderBottom:`1.5px solid ${T.border}`,
           fontSize:12, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:".6px", gap:8}}>
-          <span/><span>Name</span><span>Email</span><span>Phone</span>
+          <span/><ALCol field="name">Name</ALCol><ALCol field="email">Email</ALCol><ALCol field="phone">Phone</ALCol>
           <span>Trade</span><span>Licence Exp.</span><span>Allocations</span>
           <span style={{textAlign:"right"}}>Actions</span>
         </div>
@@ -5959,6 +5961,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
 // CONTACTS LIST  (business/other contacts, not system users)
 // ─────────────────────────────────────────────────────────────────────────────
 function ContactsList() {
+  const {sortFn:clSort, ColHeader:CLCol} = useSort("name","asc");
   const [items, setItems] = useState([]);
   const [dashLoading_dash_contacts, setDashLoading_dash_contacts] = useState(true);
   useEffect(()=>{
@@ -6022,10 +6025,10 @@ function ContactsList() {
         <div style={{display:"grid",gridTemplateColumns:"1fr 160px 100px 160px 160px 68px",
           padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
           fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
-          <span>Name</span><span>Organisation</span><span>Type</span><span>Email</span><span>Phone</span><span/>
+          <CLCol field="name">Name</CLCol><CLCol field="company">Organisation</CLCol><span>Type</span><CLCol field="email">Email</CLCol><span>Phone</span><span/>
         </div>
         {items.length===0&&<div style={{padding:"40px",textAlign:"center",color:T.muted}}>No contacts yet.</div>}
-        {[...items].sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map((x,i)=>(
+        {[...items].sort(clSort).sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map((x,i)=>(
           <div key={x.id} className="ri" style={{display:"grid",gridTemplateColumns:"1fr 160px 100px 160px 160px 68px",
             padding:"12px 16px",borderBottom:i<items.length-1?`1px solid ${T.border}44`:"none",
             background:i%2===0?T.surface:T.bg,alignItems:"center",gap:8,animationDelay:`${i*.03}s`}}>
@@ -6056,6 +6059,7 @@ function ContactsList() {
 // HOST BUSINESS LIST  (companies that host apprentices)
 // ─────────────────────────────────────────────────────────────────────────────
 function HostBusinessList() {
+  const {sortFn:hlSort, ColHeader:HLCol} = useSort("name","asc");
   const [items, setItems] = useState([]);
   const [dashLoading_dash_hosts, setDashLoading_dash_hosts] = useState(true);
   useEffect(()=>{
@@ -6125,10 +6129,10 @@ function HostBusinessList() {
         <div style={{display:"grid",gridTemplateColumns:"1fr 120px 140px 140px 60px 80px 68px",
           padding:"10px 16px",background:T.bg,borderBottom:`1.5px solid ${T.border}`,
           fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",gap:8}}>
-          <span>Business</span><span>Industry</span><span>Contact</span><span>Email</span><span style={{textAlign:"center"}}>Cap.</span><span>Status</span><span/>
+          <HLCol field="name">Business</HLCol><HLCol field="industry">Industry</HLCol><span>Contact</span><span>Email</span><span style={{textAlign:"center"}}>Cap.</span><HLCol field="status">Status</HLCol><span/>
         </div>
         {items.length===0&&<div style={{padding:"40px",textAlign:"center",color:T.muted}}>No host businesses yet.</div>}
-        {[...items].sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map((x,i)=>(
+        {[...items].sort(hlSort).map((x,i)=>(
           <div key={x.id} className="ri" style={{display:"grid",gridTemplateColumns:"1fr 120px 140px 140px 60px 80px 68px",
             padding:"12px 16px",borderBottom:i<items.length-1?`1px solid ${T.border}44`:"none",
             background:i%2===0?T.surface:T.bg,alignItems:"center",gap:8,animationDelay:`${i*.03}s`}}>
@@ -6275,6 +6279,33 @@ function TargetDealsList() {
 // ─────────────────────────────────────────────────────────────────────────────
 // DRAGGABLE CARD ORDER — persists per user in localStorage
 // ─────────────────────────────────────────────────────────────────────────────
+// ── Reusable sort hook ────────────────────────────────────────────────────────
+function useSort(defaultField="name", defaultDir="asc") {
+  const [sortField, setSortField] = useState(defaultField);
+  const [sortDir,   setSortDir]   = useState(defaultDir);
+  const toggle = (field) => {
+    if(sortField===field) setSortDir(d=>d==="asc"?"desc":"asc");
+    else { setSortField(field); setSortDir("asc"); }
+  };
+  const sortFn = (a,b) => {
+    const av = (a[sortField]||"").toString().toLowerCase();
+    const bv = (b[sortField]||"").toString().toLowerCase();
+    return sortDir==="asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+  };
+  const SortIcon = ({field}) => (
+    <span style={{marginLeft:3,fontSize:10,opacity:sortField===field?1:0.3}}>
+      {sortField===field ? (sortDir==="asc"?"▲":"▼") : "▲"}
+    </span>
+  );
+  const ColHeader = ({field, children, style={}}) => (
+    <span onClick={()=>toggle(field)}
+      style={{cursor:"pointer",userSelect:"none",display:"inline-flex",alignItems:"center",gap:2,...style}}>
+      {children}<SortIcon field={field}/>
+    </span>
+  );
+  return {sortField, sortDir, toggle, sortFn, ColHeader};
+}
+
 function useDraggableOrder(userId, defaultOrder) {
   const key = `kta_card_order_${userId}`;
   const [order, setOrder] = useState(() => {
