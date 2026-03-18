@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.33
+// KTA Workforce Management — v2.7.34
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.33
+          v2.7.34
         </div>
       </div>
     </div>
@@ -3968,8 +3968,14 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               </div>
             </div>
             <div style={{marginBottom:12}}><FL>Notes</FL><textarea value={cForm.notes} onChange={e=>sc("notes",e.target.value)} placeholder="Notes…"/></div>
-            <div style={{display:"flex",gap:8}}>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               <Btn onClick={saveContact}>{editCId?"Update":"Save Contact"}</Btn>
+              {isAdmin1CRM&&editCId&&!isExistingUser(contacts.find(c=>c.id===editCId)||{})&&(
+                <Btn v="ghost" onClick={()=>{
+                  const c=contacts.find(x=>x.id===editCId);
+                  if(c){setDetailContact(c);setShowCF(false);setEditCId(null);resetContactForm();goTab("contacts");}
+                }}>👤 Make KTA User…</Btn>
+              )}
               <Btn v="ghost" onClick={()=>{setShowCF(false);setEditCId(null);resetContactForm();}}>Cancel</Btn>
             </div>
           </>)}
@@ -4030,6 +4036,12 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                   <button onClick={()=>startEditC(c)} style={{width:26,height:26,borderRadius:6,fontSize:12,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
                     onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
                     onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
+                  {isAdmin1CRM&&!isExistingUser(c)&&(
+                    <button onClick={()=>setDetailContact(c)} title="Make KTA User"
+                      style={{width:26,height:26,borderRadius:6,fontSize:12,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
+                      onMouseEnter={e=>{e.currentTarget.style.background=T.accentL;e.currentTarget.style.color=T.accent;}}
+                      onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>👤</button>
+                  )}
                   {canDelete&&(()=>{
                     const isApp = isApprenticeContact(c);
                     return (
