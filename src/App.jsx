@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.27
+// KTA Workforce Management — v2.7.28
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:12,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.27
+          v2.7.28
         </div>
       </div>
     </div>
@@ -1991,7 +1991,7 @@ function UserManagement({users, setUsers, currentUser}) {
 
   const blank={name:"",role:"Apprentice",email:"",phone:"",password:"",allocatedTo:[],
     address:"",suburb:"",city:"",postcode:"",approverUserId:null,viewerUserId:null,secondaryRole:null,adminLevel:1,
-    hostBusiness:"",overtimeType:null,overtimeThreshold:"",overtimeRateId:"",reportsEmail:""};
+    hostBusiness:"",overtimeType:null,overtimeThreshold:"",overtimeRateId:"",reportsEmail:"",company:""};
   const [form,setForm]=useState(blank);
   const [showForm,setShowForm]=useState(false);
   const [editId,setEditId]=useState(null);
@@ -2054,7 +2054,7 @@ function UserManagement({users, setUsers, currentUser}) {
       approverUserId:u.approverUserId||null,viewerUserId:u.viewerUserId||null,
       secondaryRole:u.secondaryRole||null,adminLevel:u.adminLevel||1,
       hostBusiness:u.hostBusiness||"",overtimeType:u.overtimeType||null,
-      overtimeThreshold:u.overtimeThreshold||"",overtimeRateId:u.overtimeRateId||"",reportsEmail:u.reportsEmail||""});
+      overtimeThreshold:u.overtimeThreshold||"",overtimeRateId:u.overtimeRateId||"",reportsEmail:u.reportsEmail||"",company:u.company||""});
     setPwField(""); setEditId(u.id); setShowForm(true);
     if(u.role==="Apprentice") {
       // Prefer the value stored directly on the apprentice record (new approach)
@@ -2180,6 +2180,7 @@ function UserManagement({users, setUsers, currentUser}) {
             )}
             <div><FL req>Email</FL><input type="email" placeholder="jane@work.com" value={form.email} onChange={e=>sf("email",e.target.value)}/></div>
             <div><FL>Phone</FL><input placeholder="+64 4xx xxx xxx" value={form.phone} onChange={e=>sf("phone",e.target.value)}/></div>
+            <div><FL>Company / Organisation</FL><input placeholder="e.g. Sparks Electrical Ltd" value={form.company||""} onChange={e=>sf("company",e.target.value)}/></div>
             <div>
               <FL>{editId?"New Password (leave blank to keep)":"Password"}</FL>
               <div style={{position:"relative"}}>
@@ -2561,6 +2562,7 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
           <div style={{fontSize:11,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>📋 Details</div>
           <Field icon="✉" label="Email"  value={user.email}  href={user.email?`mailto:${user.email}`:null}/>
           <Field icon="📞" label="Phone"  value={user.phone}  href={user.phone?`tel:${user.phone}`:null}/>
+          {user.company&&<Field icon="🏢" label="Company" value={user.company}/>}
           <Field icon="📅" label="Start Date"    value={user.startDate?fmtDate(user.startDate):null}/>
           <Field icon="🎂" label="Date of Birth" value={user.dateOfBirth?fmtDate(user.dateOfBirth):null}/>
           <Field icon="⚧"  label="Gender"        value={user.gender}/>
