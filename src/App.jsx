@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.61
+// KTA Workforce Management — v2.7.62
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:13,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.61
+          v2.7.62
         </div>
       </div>
     </div>
@@ -12566,7 +12566,10 @@ export default function App() {
   const isAdmin2 = role==="Admin" && (currentUser?.adminLevel||1) === 2;
 
   // Persist module navigation
-  const navigateTo = (mod) => { setModule(mod); try{localStorage.setItem("wos_module",mod);}catch{} };
+  const navigateTo = (mod) => {
+    setModule(mod);
+    try{localStorage.setItem("wos_module",mod);}catch{}
+  };
 
   // Global navigation event — allows any module to navigate to another (e.g. Email Capture → CRM)
   useEffect(()=>{
@@ -12698,14 +12701,18 @@ export default function App() {
     {id:"timesheet", label:"⏱ Timesheet",  roles:["Apprentice","Approver","Viewer"]},
     {id:"crm",       label:"◈ CRM",         roles:["Mentor","Admin"]},
     {id:"users",     label:"★ Users",       roles:["Admin"]},
-    // {id:"emails",    label:"✉ Emails",      roles:["Admin","Mentor"]}, // DISABLED — uncomment to re-enable
+    {id:"emails",    label:"✉ Emails",      roles:["Admin","Mentor"]},
   ].filter(n=>n.roles.includes(role));
 
   const validMods=navItems.map(n=>n.id);
   // "xero" is a special admin-only module not in navItems but valid for Admin L1
   const allValidMods = isAdmin1 ? [...validMods, "xero", "timesheet"] : [...validMods, "timesheet"];
   // Use saved module if valid, otherwise fall back — but only for rendering (don't reset state)
+  // Always persist the current module so page refresh returns to same place
   const activeMod = allValidMods.includes(module) ? module : (role ? validMods[0] : module);
+
+  // Persist the resolved activeMod so refresh always returns to same page
+  useEffect(()=>{ try{localStorage.setItem("wos_module",activeMod);}catch{} },[activeMod]);
 
   // When admin drills into an apprentice — use the full ApprenticeDetailView
   const viewingApp = viewingAppId ? users.find(u=>u.id===viewingAppId) : null;
