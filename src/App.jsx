@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.65
+// KTA Workforce Management — v2.7.67
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:13,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.65
+          v2.7.67
         </div>
       </div>
     </div>
@@ -12633,7 +12633,7 @@ export default function App() {
   },[]);
 
   // Silent auto-renew Graph mail capture subscriptions on every login/load
-  // Microsoft enforces 3-day max — this keeps them rolling automatically
+  // Microsoft enforces 3-day max — any logged-in user keeps them rolling
   useEffect(()=>{
     if(!currentUser) return;
     const capUrl = (() => { try{ return localStorage.getItem("kta_graph_capture_url")||""; }catch{ return ""; } })();
