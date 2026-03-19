@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.63
+// KTA Workforce Management — v2.7.65
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:13,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.63
+          v2.7.65
         </div>
       </div>
     </div>
@@ -11797,7 +11797,6 @@ function EmailsModule({allUsers, currentUser}) {
   const loadCapture = async () => {
     setCaptureLoading(true);
     try {
-      // Load subscriptions
       const capUrl = getCaptureUrl();
       if(capUrl) {
         const res = await fetch(capUrl+"/manage-subscriptions", {
@@ -11806,13 +11805,43 @@ function EmailsModule({allUsers, currentUser}) {
         });
         if(res.ok) { const d = await res.json(); setCaptureSubs(d.subscriptions||[]); }
       }
-      // Load unknown contacts queue from Supabase
       const { data } = await sb.from("unknown_email_contacts")
         .select("*").eq("dismissed",false).order("last_seen",{ascending:false});
       setCaptureUnknown(data||[]);
     } catch(e) { console.error(e); }
     setCaptureLoading(false);
   };
+
+  // Auto-renew subscriptions silently — runs every time the app loads
+  // Renews anything expiring within 36h so there's always a buffer
+  const autoRenew = async () => {
+    try {
+      const capUrl = getCaptureUrl();
+      if(!capUrl) return;
+      // Get current subscriptions
+      const listRes = await fetch(capUrl+"/manage-subscriptions", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({action:"list"})
+      });
+      if(!listRes.ok) return;
+      const { subscriptions=[] } = await listRes.json();
+      // Check if any expire within 36 hours
+      const expiringSoon = subscriptions.filter(s => {
+        if(!s.expirationDateTime) return true;
+        const hoursLeft = (new Date(s.expirationDateTime) - Date.now()) / 3600000;
+        return hoursLeft < 36;
+      });
+      if(expiringSoon.length === 0) return;
+      // Renew them all
+      await fetch(capUrl+"/manage-subscriptions", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({action:"renew-all"})
+      });
+    } catch(e) { /* silent — don't bother the user */ }
+  };
+
+  // Run auto-renew on mount (every time the Emails module loads)
+  useEffect(()=>{ autoRenew(); },[]);
 
   useEffect(()=>{ if(tab==="capture") loadCapture(); },[tab]);
 
@@ -12109,6 +12138,31 @@ serve(async (req) => {
                   } catch(e){ setCaptureMsg("Error: "+e.message); }
                   setCaptureLoading(false);
                 }}>+ Add</Btn>
+                <Btn sm onClick={async()=>{
+                  const capUrl = getCaptureUrl()||captureUrl;
+                  if(!capUrl){setCaptureMsg("Save the edge function URL first");return;}
+                  const unmonitored = allUsers.filter(u=>
+                    u.email&&u.email.toLowerCase().endsWith("@kta.org.nz")&&
+                    !captureSubs.some(s=>s.resource?.includes(u.email))
+                  );
+                  if(!unmonitored.length){setCaptureMsg("All KTA staff are already being monitored");return;}
+                  setCaptureLoading(true);
+                  let added=0, failed=0;
+                  for(const u of unmonitored){
+                    try{
+                      const res = await fetch(capUrl+"/manage-subscriptions",{
+                        method:"POST",headers:{"Content-Type":"application/json"},
+                        body:JSON.stringify({action:"create",userEmail:u.email,notificationUrl:capUrl})
+                      });
+                      const d = await res.json();
+                      if(d.ok) added++;
+                      else { failed++; console.error("Failed:",u.email,d.error); }
+                    }catch(e){ failed++; console.error("Error:",u.email,e.message); }
+                  }
+                  setCaptureMsg(`✓ Added ${added} mailbox${added!==1?"es":""} ${failed>0?`(${failed} failed — check console)`:"— all KTA staff now monitored"}`);
+                  await loadCapture();
+                  setCaptureLoading(false);
+                }} style={{whiteSpace:"nowrap"}}>⚡ Add All KTA Staff</Btn>
               </div>
 
               {/* Active subscriptions */}
@@ -12577,6 +12631,36 @@ export default function App() {
     window.addEventListener("kta-navigate", handler);
     return () => window.removeEventListener("kta-navigate", handler);
   },[]);
+
+  // Silent auto-renew Graph mail capture subscriptions on every login/load
+  // Microsoft enforces 3-day max — this keeps them rolling automatically
+  useEffect(()=>{
+    if(!currentUser) return;
+    const capUrl = (() => { try{ return localStorage.getItem("kta_graph_capture_url")||""; }catch{ return ""; } })();
+    if(!capUrl) return;
+    // Run after a short delay so it doesn't compete with initial data load
+    const t = setTimeout(async () => {
+      try {
+        const listRes = await fetch(capUrl+"/manage-subscriptions", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({action:"list"})
+        });
+        if(!listRes.ok) return;
+        const { subscriptions=[] } = await listRes.json();
+        const expiringSoon = subscriptions.filter(s => {
+          if(!s.expirationDateTime) return true;
+          return (new Date(s.expirationDateTime) - Date.now()) / 3600000 < 36;
+        });
+        if(expiringSoon.length > 0) {
+          await fetch(capUrl+"/manage-subscriptions", {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({action:"renew-all"})
+          });
+        }
+      } catch(e) { /* silent */ }
+    }, 3000);
+    return () => clearTimeout(t);
+  },[currentUser]);
 
   // Global sync state on window so sync survives CRMModule unmount
   if(!window.__ktaSync) window.__ktaSync = { running:false, msg:"" };
