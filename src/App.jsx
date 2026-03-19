@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.59
+// KTA Workforce Management — v2.7.60
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:13,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.59
+          v2.7.60
         </div>
       </div>
     </div>
@@ -1589,7 +1589,9 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
               setWeekPickerDrafts(null);
               setWeekPickerSelected(null);
               const approvers = allUsers.filter(u=>
-                (u.allocatedTo||[]).includes(currentUser.id) || currentUser.approverUserId===u.id
+                (u.role==="Approver"||u.role==="Admin")&&(
+                  (u.allocatedTo||[]).includes(currentUser.id) || currentUser.approverUserId===u.id
+                )
               );
               if(!approvers.length){
                 showToast("Submitted — no approver assigned yet, no email sent",false);
