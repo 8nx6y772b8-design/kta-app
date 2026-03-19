@@ -1,4 +1,4 @@
-// KTA Workforce Management — v2.7.60
+// KTA Workforce Management — v2.7.61
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -1161,7 +1161,7 @@ function LoginScreen({users, onLogin}) {
         </div>
         {/* Version */}
         <div style={{marginTop:24,textAlign:"center",fontSize:13,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.60
+          v2.7.61
         </div>
       </div>
     </div>
@@ -3279,6 +3279,32 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
   const [hsEmail,setHsEmail]=useState("");
   const [hsStatus,setHsStatus]=useState(null); // null | "searching" | "found" | "notfound" | "error"
   const [hsSource,setHsSource]=useState(false); // true if form was populated from HubSpot
+
+  // Listen for navigation events from other modules (e.g. Email Capture "Add to CRM")
+  useEffect(()=>{
+    const handler = (e) => {
+      const {module, tab, action} = e.detail||{};
+      if(module==="crm") {
+        if(tab) goTab(tab);
+        if(action==="add") {
+          // Check for prefilled contact from sessionStorage
+          try{
+            const prefill = sessionStorage.getItem("kta_prefill_contact");
+            if(prefill){
+              const data = JSON.parse(prefill);
+              sessionStorage.removeItem("kta_prefill_contact");
+              setCForm({name:data.name||"",company:data.company||"",companyId:"",
+                email:data.email||"",phone:data.phone||"",status:"Active",notes:""});
+              setEditCId(null);
+              setShowCF(true);
+            }
+          }catch{}
+        }
+      }
+    };
+    window.addEventListener("kta-navigate", handler);
+    return () => window.removeEventListener("kta-navigate", handler);
+  },[]);
 
   useEffect(()=>{
     (async()=>{
@@ -11757,6 +11783,38 @@ function EmailsModule({allUsers, currentUser}) {
   const [proxyUrl, setProxyUrl] = useState(()=>getEmailProxyUrl());
   const [savedUrl, setSavedUrl] = useState(false);
   const [search, setSearch]     = useState("");
+  const [captureSubs, setCaptureSubs]         = useState([]);
+  const [captureUnknown, setCaptureUnknown]   = useState([]);
+  const [captureLoading, setCaptureLoading]   = useState(false);
+  const [captureMsg, setCaptureMsg]           = useState("");
+  const [addingEmail, setAddingEmail]         = useState("");
+  const [captureUrl, setCaptureUrl]           = useState("");
+
+  const CAPTURE_FN_KEY = "kta_graph_capture_url";
+  const getCaptureUrl  = () => { try{ return localStorage.getItem(CAPTURE_FN_KEY)||""; }catch{ return ""; } };
+  const saveCaptureUrl = (url) => { try{ localStorage.setItem(CAPTURE_FN_KEY, url); }catch{} };
+
+  const loadCapture = async () => {
+    setCaptureLoading(true);
+    try {
+      // Load subscriptions
+      const capUrl = getCaptureUrl();
+      if(capUrl) {
+        const res = await fetch(capUrl+"/manage-subscriptions", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({action:"list"})
+        });
+        if(res.ok) { const d = await res.json(); setCaptureSubs(d.subscriptions||[]); }
+      }
+      // Load unknown contacts queue from Supabase
+      const { data } = await sb.from("unknown_email_contacts")
+        .select("*").eq("dismissed",false).order("last_seen",{ascending:false});
+      setCaptureUnknown(data||[]);
+    } catch(e) { console.error(e); }
+    setCaptureLoading(false);
+  };
+
+  useEffect(()=>{ if(tab==="capture") loadCapture(); },[tab]);
 
   const saveProxyUrl = () => {
     try{ localStorage.setItem(EMAIL_PROXY_KEY, proxyUrl.trim()); }catch{}
@@ -11841,9 +11899,10 @@ function EmailsModule({allUsers, currentUser}) {
 
       {/* Tabs */}
       <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-        <TabBtn id="inbox"  label="Inbox"    icon="↓"/>
-        <TabBtn id="sent"   label="Sent"     icon="↑"/>
-        <TabBtn id="setup"  label="⚙ Setup"  icon=""/>
+        <TabBtn id="inbox"   label="Inbox"         icon="↓"/>
+        <TabBtn id="sent"    label="Sent"          icon="↑"/>
+        <TabBtn id="capture" label="📧 Email Capture" icon=""/>
+        <TabBtn id="setup"   label="⚙ Setup"        icon=""/>
       </div>
 
       {/* Setup tab */}
@@ -11982,6 +12041,196 @@ serve(async (req) => {
               const a = document.createElement("a"); a.href=url; a.download="index.ts"; a.click();
             }}>⬇ Download Edge Function (index.ts)</Btn>
           </Card>
+        </div>
+      )}
+
+      {/* ── Email Capture Tab ─────────────────────────────────────────────── */}
+      {tab==="capture"&&(
+        <div>
+          {/* Info banner */}
+          <div style={{background:"#e6f7fd",border:"1.5px solid #1b7ab8",borderRadius:10,padding:"14px 18px",marginBottom:18,display:"flex",gap:12,alignItems:"flex-start"}}>
+            <span style={{fontSize:24,flexShrink:0}}>📧</span>
+            <div>
+              <div style={{fontWeight:700,fontSize:15,color:"#1b4f8c",marginBottom:3}}>Automatic Email Capture</div>
+              <div style={{fontSize:13,color:"#4a5a72",lineHeight:1.6}}>
+                Monitors the Sent Items of each KTA staff mailbox and automatically logs emails to the CRM contact timeline.
+                Staff can add <strong>[private]</strong> to any email subject to skip logging.
+                Internal kta.org.nz → kta.org.nz emails are never captured.
+              </div>
+            </div>
+          </div>
+
+          {/* Edge function URL */}
+          <Card style={{marginBottom:16}}>
+            <div style={{fontWeight:700,fontSize:15,marginBottom:10}}>⚙ Edge Function URL</div>
+            <div style={{fontSize:13,color:T.sub,marginBottom:8}}>
+              Deploy the <strong>graph-mail-capture</strong> edge function to Supabase, then paste its URL here.
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <input placeholder="https://xxx.supabase.co/functions/v1/graph-mail-capture"
+                value={captureUrl||getCaptureUrl()}
+                onChange={e=>setCaptureUrl(e.target.value)}
+                style={{flex:1,fontSize:13}}/>
+              <Btn sm onClick={()=>{saveCaptureUrl(captureUrl);setCaptureMsg("✓ Saved");setTimeout(()=>setCaptureMsg(""),2000);}}>
+                Save
+              </Btn>
+            </div>
+            {captureMsg&&<div style={{fontSize:13,color:T.teal,marginTop:6,fontWeight:700}}>{captureMsg}</div>}
+          </Card>
+
+          {/* Monitored mailboxes */}
+          <Card style={{marginBottom:16,padding:0,overflow:"hidden"}}>
+            <div style={{padding:"14px 18px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <div style={{fontWeight:700,fontSize:15}}>👤 Monitored Mailboxes</div>
+              <Btn sm onClick={loadCapture} disabled={captureLoading}>{captureLoading?"Loading…":"↺ Refresh"}</Btn>
+            </div>
+            <div style={{padding:"12px 18px"}}>
+              {/* Add mailbox */}
+              <div style={{display:"flex",gap:8,marginBottom:14}}>
+                <select value={addingEmail} onChange={e=>setAddingEmail(e.target.value)} style={{flex:1,fontSize:13}}>
+                  <option value="">— Select staff member to monitor —</option>
+                  {allUsers.filter(u=>u.email&&u.email.toLowerCase().endsWith("@kta.org.nz")&&!captureSubs.some(s=>s.resource?.includes(u.email))).map(u=>(
+                    <option key={u.id} value={u.email}>{u.name} ({u.email})</option>
+                  ))}
+                </select>
+                <Btn sm onClick={async()=>{
+                  if(!addingEmail){setCaptureMsg("Select a staff member first");return;}
+                  const capUrl = getCaptureUrl()||captureUrl;
+                  if(!capUrl){setCaptureMsg("Save the edge function URL first");return;}
+                  setCaptureLoading(true);
+                  try {
+                    const res = await fetch(capUrl+"/manage-subscriptions",{
+                      method:"POST",headers:{"Content-Type":"application/json"},
+                      body:JSON.stringify({action:"create",userEmail:addingEmail,notificationUrl:capUrl})
+                    });
+                    const d = await res.json();
+                    if(d.ok){ setCaptureMsg(`✓ Monitoring ${addingEmail}`); setAddingEmail(""); await loadCapture(); }
+                    else setCaptureMsg("Error: "+(d.error||"Unknown"));
+                  } catch(e){ setCaptureMsg("Error: "+e.message); }
+                  setCaptureLoading(false);
+                }}>+ Add</Btn>
+              </div>
+
+              {/* Active subscriptions */}
+              {captureSubs.length===0
+                ? <div style={{textAlign:"center",padding:"20px 0",color:T.muted,fontSize:13,fontStyle:"italic"}}>
+                    No mailboxes being monitored yet
+                  </div>
+                : captureSubs.map(sub=>{
+                    const expiresAt = sub.expirationDateTime ? new Date(sub.expirationDateTime) : null;
+                    const daysLeft  = expiresAt ? Math.round((expiresAt-Date.now())/86400000) : null;
+                    const expColor  = daysLeft!==null&&daysLeft<1 ? T.red : daysLeft<2 ? T.warn : T.teal;
+                    return (
+                      <div key={sub.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:`1px solid ${T.border}44`}}>
+                        <div style={{width:36,height:36,borderRadius:"50%",background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>👤</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontWeight:700,fontSize:14}}>{sub.clientState||sub.resource?.split("/")[1]||"Unknown"}</div>
+                          <div style={{fontSize:12,color:T.muted,marginTop:1}}>
+                            Sent Items · 
+                            {daysLeft!==null
+                              ? <span style={{color:expColor,fontWeight:700}}> Renews in {daysLeft}d</span>
+                              : " Active"}
+                          </div>
+                        </div>
+                        <div style={{display:"flex",gap:6}}>
+                          <button onClick={async()=>{
+                            const capUrl=getCaptureUrl()||captureUrl;
+                            if(!capUrl) return;
+                            await fetch(capUrl+"/manage-subscriptions",{
+                              method:"POST",headers:{"Content-Type":"application/json"},
+                              body:JSON.stringify({action:"delete",subscriptionId:sub.id})
+                            });
+                            await loadCapture();
+                          }} style={{fontSize:12,padding:"4px 10px",borderRadius:6,cursor:"pointer",background:T.redL,color:T.red,border:`1px solid ${T.red}44`,fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+              }
+
+              {/* Renew all button */}
+              {captureSubs.length>0&&(
+                <div style={{marginTop:14,display:"flex",justifyContent:"flex-end"}}>
+                  <Btn sm onClick={async()=>{
+                    const capUrl=getCaptureUrl()||captureUrl;
+                    if(!capUrl) return;
+                    setCaptureLoading(true);
+                    const res = await fetch(capUrl+"/manage-subscriptions",{
+                      method:"POST",headers:{"Content-Type":"application/json"},
+                      body:JSON.stringify({action:"renew-all"})
+                    });
+                    const d = await res.json();
+                    setCaptureMsg(d.ok?`✓ Renewed ${d.results?.length||0} subscriptions`:"Renew failed");
+                    await loadCapture();
+                    setCaptureLoading(false);
+                  }}>↺ Renew All Subscriptions</Btn>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Unknown contacts queue */}
+          {captureUnknown.length>0&&(
+            <Card style={{padding:0,overflow:"hidden",border:`1.5px solid ${T.warn}44`}}>
+              <div style={{padding:"14px 18px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:32,height:32,borderRadius:8,background:T.warnL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>❓</div>
+                <div>
+                  <div style={{fontWeight:700,fontSize:15,color:T.warn}}>Unknown Email Addresses</div>
+                  <div style={{fontSize:12,color:T.muted,marginTop:1}}>{captureUnknown.length} email{captureUnknown.length!==1?"s":""} sent to addresses not in CRM — add them or dismiss</div>
+                </div>
+              </div>
+              {captureUnknown.map((u,i)=>(
+                <div key={u.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 18px",
+                  borderBottom:i<captureUnknown.length-1?`1px solid ${T.border}44`:"none",
+                  background:i%2===0?T.surface:T.bg}}>
+                  <div style={{width:36,height:36,borderRadius:"50%",background:T.warnL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>✉</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:14}}>{u.name||u.email}</div>
+                    <div style={{fontSize:13,color:T.muted}}>{u.email}</div>
+                    <div style={{fontSize:12,color:T.sub,marginTop:2}}>
+                      Last email: <em>{u.last_subject||"(no subject)"}</em> · {u.encounter_count} email{u.encounter_count!==1?"s":""} captured
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:6,flexShrink:0}}>
+                    <button onClick={async()=>{
+                      // Dismiss
+                      await sb.from("unknown_email_contacts").update({dismissed:true}).eq("id",u.id);
+                      setCaptureUnknown(prev=>prev.filter(x=>x.id!==u.id));
+                    }} style={{fontSize:12,padding:"5px 10px",borderRadius:6,cursor:"pointer",
+                      background:T.bg,color:T.muted,border:`1px solid ${T.border}`,
+                      fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
+                      Dismiss
+                    </button>
+                    <button onClick={()=>{
+                      // Navigate to CRM Add Contact with email pre-filled
+                      // Store pending contact in sessionStorage for CRM to pick up
+                      try{ sessionStorage.setItem("kta_prefill_contact", JSON.stringify({
+                        name: u.name||u.email, email: u.email, status:"Active"
+                      })); }catch{}
+                      // Also mark as dismissed so it doesn't keep appearing
+                      sb.from("unknown_email_contacts").update({dismissed:true}).eq("id",u.id);
+                      setCaptureUnknown(prev=>prev.filter(x=>x.id!==u.id));
+                      // Navigate to CRM contacts tab
+                      window.dispatchEvent(new CustomEvent("kta-navigate",{detail:{module:"crm",tab:"contacts",action:"add"}}));
+                    }} style={{fontSize:12,padding:"5px 12px",borderRadius:6,cursor:"pointer",
+                      background:T.accentL,color:T.accent,border:`1px solid ${T.accent}44`,
+                      fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
+                      + Add to CRM →
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </Card>
+          )}
+          {captureUnknown.length===0&&!captureLoading&&(
+            <Card>
+              <div style={{textAlign:"center",padding:"20px 0",color:T.teal,fontWeight:700,fontSize:14}}>
+                ✓ No unknown contacts — all captured emails are matched to CRM records
+              </div>
+            </Card>
+          )}
         </div>
       )}
 
@@ -12318,6 +12567,16 @@ export default function App() {
 
   // Persist module navigation
   const navigateTo = (mod) => { setModule(mod); try{localStorage.setItem("wos_module",mod);}catch{} };
+
+  // Global navigation event — allows any module to navigate to another (e.g. Email Capture → CRM)
+  useEffect(()=>{
+    const handler = (e) => {
+      const {module} = e.detail||{};
+      if(module) navigateTo(module);
+    };
+    window.addEventListener("kta-navigate", handler);
+    return () => window.removeEventListener("kta-navigate", handler);
+  },[]);
 
   // Global sync state on window so sync survives CRMModule unmount
   if(!window.__ktaSync) window.__ktaSync = { running:false, msg:"" };
