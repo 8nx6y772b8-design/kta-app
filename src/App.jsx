@@ -1,4 +1,267 @@
-// KTA Workforce Management — v2.7.67
+// KTA Workforce Management — v4.0.0-beta (CRM Enhanced)
+// Changelog:
+//   v3.5.0 — matchApprentice: added name alias table (50+ common nickname↔legal
+//             pairs). "Billy Pilbrow" in KTA now matches "William Pilbrow" on ETCO
+//             report. Works both directions — stored nickname matched against legal
+//             name in doc, and stored legal name matched against nickname in doc.
+//             All matching still uses whole-word boundary regex to prevent false
+//             partial matches like Jordan Lee vs Jordan Leete.
+//   v3.4.9 — Fix: whole-word boundary matching to prevent substring false matches
+//             String.includes(), preventing "Jordan Lee" from matching inside
+//             "Jordan Leete". New scoring system: full name exact match = 100pts,
+//             full name in filename = 80pts, first+last both present = 60pts,
+//             last name in filename = 40pts. Minimum score of 40 required before
+//             accepting a match — ambiguous partials return no_match instead of
+//             a wrong match.
+//   v3.4.8 — Fix: call stack overflow on large PDF base64 encoding
+//             progress snapshots. btoa(String.fromCharCode(...Uint8Array)) blows
+//             the stack on large files. Replaced with chunked arrayBufferToBase64()
+//             helper (8KB chunks) across all three upload paths.
+//   v3.4.7 — Progress snapshots store source PDF; apprentice My Progress card
+//             Apprentice dashboard: new "My Progress" card — opens panel showing
+//             their own snapshots with progress bar, on-track indicator, and a
+//             "📄 View PDF →" button per snapshot that opens in a new tab.
+//             SnapshotsByApprenticeCard (Admin/Mentor): tiles are now clickable to
+//             open the latest snapshot PDF. Shows "📄 PDF" badge if attached.
+//             ProgressSnapshotPanel (ApprenticeDetailView): each snapshot pill gets
+//             a 📄 button to open its source PDF. All access levels can open PDFs.
+//             Requires SQL: ALTER TABLE progress_snapshots ADD COLUMN pdf_data text;
+//                           ALTER TABLE progress_report_queue ADD COLUMN pdf_data text;
+//   v3.4.6 — Fix: build error in parseEarnLearnText isETCO section
+//             percentages block was missing the etcoSection() function definition
+//             due to a corrupted str_replace during v3.4.3. Restored correctly.
+//   v3.4.5 — All user-facing EarnLearn labels updated to include ETCO and Skills
+//             upload buttons, drop zones, empty states, error messages, graph prompts,
+//             and PDF report subtitle. No functional changes.
+//   v3.4.4 — Progress Snapshots card on Admin (toggleable) and Mentor (permanent) dashboards
+//             Admin L1/L2: "Show Progress Snapshots" toggle button below dashboard
+//             stats — click to expand/collapse, preference saved to localStorage.
+//             Mentor dashboard: Snapshots by Apprentice is permanent — shows only
+//             the mentor's allocated apprentices, draggable like other sections.
+//             Both use shared SnapshotsByApprenticeCard component with on-track/
+//             behind indicator and dual progress bar (actual vs expected).
+//   v3.4.3 — Progress PDF parser: Skills Learner Progression Report format added
+//             Report (skillsbank.skills.org.nz). Detection: "Learner Progression
+//             Report" + "Version: N" + "skillsbank.skills.org.nz". Date from
+//             footer "Date: 25-Mar-2026". Start/end from enrolment row. Overall
+//             % taken directly from "Confirmed 16 42". Section % calculated by
+//             counting awarded/RPL/exempt credits per Year 1/2/3/On-job section.
+//             Upload button updated to "EarnLearn / ETCO / Skills PDF".
+//   v3.4.2 — Progress PDF parser: ETCO Academic Transcript format added
+//             1. EarnLearn Account (Booklet Data as at / Totals table)
+//             2. EarnLearn Trainee Progress Report (Training Agreement Start Date)
+//             3. ETCO Academic Transcript (etco/Learner Details marker,
+//                "Credits Achieved N of N" per section, date from footer,
+//                months derived from earliest achievement date, 42-month duration)
+//             ETCO section mapping: Trade Start → skills_week,
+//             Year 1+2 avg → off_job_l3, Year 3 → off_job_l4,
+//             On-Job Mandatory → on_job_core, Dom/Commercial or Industrial → spec.
+//             Upload button updated to "EarnLearn / ETCO PDF".
+//   v3.4.1 — Sick leave form: supervisor SMS, absence@kta.org.nz notification, 48hr reminder
+//             - Only shows "Sick Leave" and "Leave Without Pay" leave types
+//             - Supervisor SMS picker: shows supervisors at apprentice's company,
+//               falls back to assigned supervisors; custom number input if none
+//               on file; sends SMS via send-sms Edge Function (requires setup)
+//             - On submit: notifies absence@kta.org.nz with sick alert email
+//             - 48hr reminder: LeaveRequestsListPage checks on load/refresh for
+//               pending requests >48hrs without reminder, emails approver AND
+//               apprentice, marks reminder_sent=true to prevent repeat sends
+//             Requires SQL:
+//               ALTER TABLE leave_requests ADD COLUMN supervisor_id uuid;
+//               ALTER TABLE leave_requests ADD COLUMN supervisor_phone text;
+//               ALTER TABLE leave_requests ADD COLUMN absence_notified boolean DEFAULT false;
+//               ALTER TABLE leave_requests ADD COLUMN reminder_due_at timestamptz;
+//               ALTER TABLE leave_requests ADD COLUMN reminder_sent boolean DEFAULT false;
+//   v3.4.0 — Timesheet: Processed (Xero) stat card; Xero-submitted entries locked
+//             "Processed (Xero)" showing count of Xero-submitted entries.
+//             Xero-submitted entries removed from Visible Entries count and
+//             entry list — they move to the Processed card. Footer shows
+//             "N processed ✓" alongside active entry count.
+//             Xero-submitted entries are locked (no edit/delete) for all roles
+//             except Admin L1 who retains full control.
+//   v3.3.9 — Week start fixed to Monday across all three week calculations
+//             stat, WeeklyHoursList dashboard, and AdminDashboard. All three were
+//             using d.getDay() (Sunday=0) instead of (d.getDay()+6)%7 (Monday=0).
+//             Saturday entries now correctly fall in the prior week, not current.
+//   v3.3.8 — Xero retry on failure; bulk password reset by group
+//             (3s, 6s) before marking as error. 2s pause between entries kept.
+//             User Management: bulk password reset panel — type a new password
+//             and reset all users in the current group tab at once.
+//             Groups: Apprentices / Host Staff / Office Staff. Confirm dialog
+//             before applying. Admin L1 and L2 both have access.
+//   v3.3.7 — Xero: 2 second pause between Submit All entries
+//             avoid Xero API rate limiting errors.
+//   v3.3.6 — Timesheet: entry creation timestamp shown under status pill
+//             created_at already exists in entries table — now mapped back
+//             through rowToEntry and displayed as "24 Mar, 04:15 pm".
+//             No SQL migration needed. Removed submittedAt complexity.
+//   v3.3.5 — Draft approval for Admin L1; approve button fix in EntryRow
+//             (EntryRow was hardcoded to submitted only — now respects canApprove).
+//             Decline button only shows for submitted entries (not drafts).
+//             submittedAt ISO timestamp recorded when apprentice submits (single
+//             and batch). Displayed under status pill in entry row.
+//             Requires: ALTER TABLE timesheet_entries ADD COLUMN submitted_at timestamptz;
+//   v3.3.4 — Admin L1 can create/approve entries on behalf of apprentices
+//             apprentices in one step. EntryForm shows "Save as Draft" and
+//             "✓ Save & Approve" when Admin L1 is in an apprentice's view.
+//             canApprove now allows draft entries for Admin L1 (not just submitted).
+//             handleSave accepts approvalOverride param for direct approval path.
+//   v3.3.3 — Past Reports: import legacy PDFs for apprentice records
+//             PDFs stored as base64 in meeting_reports (status: 'imported').
+//             Imported reports show with 📎 icon, amber border, View + Download
+//             buttons. Date auto-detected from filename if present.
+//             Requires: ALTER TABLE meeting_reports ADD COLUMN pdf_attachment text;
+//   v3.3.2 — Progress PDF parser handles both Account and Trainee Progress formats
+//             Account format (Booklet Data as at / Totals table) and
+//             Trainee Progress Report format (Training Agreement Start Date /
+//             Total Credits for Compulsory). Months calculated from start date
+//             for Trainee format. Both parsers (ProgressSnapshotPanel and
+//             ProgressReportsModule) updated identically.
+//   v3.3.1 — Progress Reports: removed bulk PDF, one file = one apprentice
+//             apprentice. If no match, hint to rename file to apprentice's name.
+//             Retains improved name matching and worker race condition fix.
+//   v3.3.0 — Progress Reports bulk PDF split (removed)
+//             Previous version split on "Booklet Data as at" which appears in
+//             the footer of EVERY page — now correctly splits on the summary page
+//             boundary ("Unit Standard Achievement Summary" + "Totals NNN%").
+//             For the 8-apprentice 40-page PDF format, produces exactly 8 sections
+//             of 5 pages each. matchApprentice now searches first 2000 chars
+//             (first page) to avoid false positives from unit standard text.
+//   v3.2.9 — Progress Reports: combined PDF support (initial attempt)
+//   v3.2.8 — Progress graph label overlap fix; PDF drop zone worker race fix
+//             vertically when they overlap (within 40px x, 24px y).
+//             Progress Reports drop zone: pdf.js worker race condition fixed;
+//             matchApprentice now uses 3 strategies (text scan, filename, regex)
+//             and passes filename for better matching; clearer error messages.
+//   v3.2.7 — Timesheet: Approve All Submitted button for Admin L1
+//             Shows count of submitted entries, requires confirm dialog,
+//             approves all in one click bypassing approver workflow.
+//             Hard-coded expiry: hidden after 30 Apr 2026.
+//   v3.2.6 — Fix white screen: nameSortDir useState declared after use
+//             (line 1923 vs line 1851). Moved to top of TimesheetModule with other hooks.
+//   v3.2.5 — ApprenticeDetailView: Timesheet Summary now second by default
+//             (after actions bar) so Admin L1 sees it without scrolling.
+//             Existing custom drag orders are preserved from localStorage.
+//   v3.2.4 — Timesheet filter dropdown: apprentices only, A–Z sort toggle
+//             Entries sorted by apprentice name A→Z by default; toggle button
+//             flips to Z→A. Secondary sort within each person is newest-date-first.
+//   v3.2.3 — Fix: Admin L1 can add timesheet entries for apprentices
+//             ApprenticeDetailView. canAdd was false when forcedApprenticeId set;
+//             new entries were saving with admin's userId instead of apprentice's.
+//   v3.2.2 — Security hardening (session expiry, SHA-256 passwords, HMAC env var,
+//             1. Timesheet "+ Add Entry" button moved into Timesheet Summary card
+//                header (Admin L1 only); removed from actions grid
+//             2. Session expiry: 8hr TTL stored alongside session ID; activity
+//                (click/keydown) refreshes the TTL; idle timeout auto-logs out
+//             3. CONF_OWNER_EMAIL hardcoded string replaced with is_conf_owner
+//                boolean DB column — no email address in source code
+//             4. HMAC secrets moved to VITE_HMAC_SECRET env var (fallback to
+//                old value so existing tokens still work during transition)
+//             5. HubSpot API token removed from browser — lookupHubspot() now
+//                routes through the existing hubspot-proxy Edge Function
+//                (proxy needs a "lookup" action handler added — see below)
+//             6. Password hash upgraded from reversible XOR to SHA-256 + random
+//                salt ("salt:hash" hex format). Legacy XOR hashes still accepted
+//                on login and transparently upgraded to SHA-256 on first sign-in
+//             7. Password hashes no longer loaded into edit form state — blank
+//                on load, existing hash preserved server-side when no new
+//                password is typed
+//   v3.2.1 — ApprenticeDetailView: Timesheet button added to actions grid (superseded)
+//   v3.2.0 — Apprentice dashboard: "My Documents" SharePoint card auto-generated
+//             from apprentice name + trade — no manual URL entry needed.
+//             Trade→folder mapping: Electrical→"Electrical Trainees",
+//             Mechanical Engineering / Refrigeration→"Engineering Trainees",
+//             Construction / Carpentry / Joinery etc→"Construction Trainees".
+//             Card hidden for trades with no matching SharePoint folder.
+//   v3.1.9 — Apprentice dashboard: OneDrive card added (manual URL, now superseded)
+//   v3.1.8 — PPE Request email: unified traffic-light table (✗ To Order first in red,
+//             ✓ Issued below in green); summary line shows counts of each
+//   v3.1.7 — CRM contact detail: Mobile card shown next to Email
+//             saveContact syncs phone+mobile back to linked KTA user in Supabase
+//   v3.1.6 — Mobile field added to all contact/user forms and display views
+//             CRM contacts, user edit, add user, apprentice detail all updated
+//   v3.1.5 — Graph: right padding increased, dot always inside boundary, labels fixed
+//   v3.1.4 — Graph: tight X axis (max+4m), smart tick interval, no vertical lines,
+//             programme end tick highlighted in navy with star
+//   v3.1.3 — Graph: compressed X axis, adaptive tick interval, black expected-pace dot,
+//             programme end marked with ✦ tick label, no grey overrun lines
+//   v3.1.2 — Graph: months back on X axis, % on Y; expected line stops at programme end
+//             No grey horizontal lines — only a short end-date tick mark
+//   v3.1.1 — Fix white screen: isPastEnd used before declaration (moved to before statusLabel)
+//   v3.1.0 — Fix white screen: bad regex escape in parseEarnLearnText crashed render
+//   v3.0.9 — Progress Reports admin page: bulk PDF drop, auto-match by name,
+//             queue table, process now or auto on 1st via pg_cron SQL
+//   v3.0.8 — Graph: Y axis always leaves headroom; past-end-date handled gracefully
+//             Current month dashed line removed; dot label repositions away from edge
+//             Status banner shows "past programme end" when overdue
+//   v3.0.7 — Graph: gap bar removed; label repositions to avoid edge clipping
+//   v3.0.6 — Graph: current month line clipped to actual % position (no full-width grey line)
+//   v3.0.5 — PDF compact 2-col meta layout; sections auto-fit single page; overflow only when needed
+//             Empty sections skipped; spacing tightened to match app card style
+//   v3.0.4 — PDF colours match app theme (navy/teal/ink); KTA wordmark on all pages
+//             Graph Y axis: month 0 at bottom; expected line clipped to graph edge
+//             Email report HTML redesigned with app colours and teal row accents
+//   v3.0.3 — Admin L1 can revert completed visit reports back to draft
+//   v3.0.2 — Graph axes swapped: % complete on X, months on Y (top→bottom)
+//             Data point % labels on overall line; current position marker updated
+//   v3.0.1 — PDF date uses NZ local time (fixes UTC off-by-one)
+//             Progress snapshot delete shown for all Admin roles
+//             Visit report delete already available to Admin L1+L2 (confirmed)
+//   v3.0.0 — Fix corrupted PDF: dynamic /Parent reference (was hardcoded to obj 5)
+//   v2.9.9 — "Booklets" tile renamed to "On Job Books"; graph lines boldened
+//   v2.9.8 — Progress graph: status banner (green/yellow/red vs expected pace)
+//             Linear timeline bar showing time elapsed vs actual progress
+//             Expected pace diagonal line on graph; current position large dot
+//             Gap shading between actual and expected at current month
+//   v2.9.7 — Progress graph included as page 2 of emailed and downloaded PDFs
+//             generateReportPDF accepts snapshots param; draws line graph + bar summary
+//   v2.9.6 — EarnLearn parsing now fully local using pdf.js (no API credits needed)
+//             Regex extracts credits/booklets from consistent EarnLearn format
+//   v2.9.5 — EarnLearn PDF parsing routed through email-proxy (fixes CORS error)
+//             ANTHROPIC_API_KEY secret needed on email-proxy edge function
+//   v2.9.4 — EarnLearn progress snapshot uploader in New Report form
+//             AI parses PDF monthly, stores snapshots in progress_snapshots table
+//             Line graph shows overall/section % complete vs months in training
+//             Mini progress bars for each section from latest snapshot
+//   v2.9.3 — report email sent from creator's login email (not payroll@)
+//             past reports: Download PDF button on every expanded report
+//   v2.9.2 — report email: clean cover note + PDF attachment only (no inline body)
+//             "Also send to" label removed — only "+ Add recipient" button shown
+//   v2.9.1 — leave-action edge fn redirects to crmkta.com with result params
+//             LeaveResultScreen shows styled approve/decline result inside the app
+//   v2.9.0 — Apprentice dashboard: card-grid home screen (timesheet, sick leave, leave,
+//             contact us, past reports, past PPE, past HSE) replaces flat page
+//             Leave email flow fixed: approver notified on submit; KTA notified on approver
+//             approval; approver notified on KTA final approval; correct decline routing
+//             Leave emails sent from leaverequests@kta.org.nz (separate shared mailbox)
+//             leave-action edge fn rewritten: proper HTML response pages, RLS bypass via
+//             service role key, styled approve/decline/expired/already-actioned screens
+//             email-proxy edge fn rewritten: client credentials (never expires, no refresh
+//             token rotation), supports per-email from-address override
+//             Admin L1 delete button fixed on leave cards (Number() cast for adminLevel)
+//             Reports email sends only to "Reports Go To" addresses, not apprentice
+//             Stale reportsEmail synced in ApprenticeDetailView after allUsers loads
+//             PPE fully-issued email to admin@kta.org.nz on markComplete + saveEditReq
+//             Browser back button intercepts app-wide (CRM, UserManagement, Mentor,
+//             Admin drill-ins) — never navigates out of the app
+//             Apprentice lands on Home tab by default (not Timesheet)
+//             window.confirm replaced app-wide with ktaConfirm() React modal (fixes
+//             Chrome PWA blocking native dialogs silently)
+//             handleSubmit / approve / submitDecline wrapped in try/catch — button never
+//             freezes on email failure, DB errors surface as user-visible messages
+//             Apprentice user guide Word document generated (9 sections, screenshot placeholders)
+//   v2.8.0 — Supervisor role (view reports, HSE, leave; timesheet if approver)
+//             Native HSE Check In form (23 questions, stored in Supabase)
+//             Past HSE Check In history with expand/collapse
+//             PPE replacing picker in HSE form (auto-creates PPE order)
+//             Hard hat expiry date field in HSE form
+//             Past meeting reports visible to all allocated users
+//             RLS enabled on all Supabase tables
+//             PWA + TWA pipeline (Play Store ready)
+//             Date inputs fully clickable across entire app
+//             Personal details layout improved
+//             Apprentices tab renamed in Users
+//             Pencil opens full ApprenticeDetailView from Users tab
 // Changelog:
 //   v1.4.6 — one-click approve/decline leave from email (HMAC tokens, edge fn)
 //   v1.4.7 — leave status stepper all views, 4-tab panel, 30s polling,
@@ -53,6 +316,8 @@ import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry
 const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/email-proxy";
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
+
+const APP_VERSION = "v4.0.0-beta";
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
 // Maps leave request types to timesheet entry types
@@ -264,7 +529,7 @@ const sendCalendarInvite = async (toEmail, toName, apprenticeName, leaveType, da
   }).catch(e => console.error("Calendar invite failed for", toEmail, e));
 };
 
-const LEAVE_TOKEN_SECRET = "kta-leave-action-secret-v1"; // must match LEAVE_TOKEN_SECRET in Supabase secrets
+const LEAVE_TOKEN_SECRET = import.meta.env.VITE_HMAC_SECRET || "kta-leave-action-secret-v1";
 
 // HMAC-SHA256 token for one-click email approve/decline (browser SubtleCrypto)
 const signLeaveToken = async (payload) => {
@@ -283,17 +548,17 @@ const leaveActionUrl = async (leaveId, action, actorId, actorRole) => {
   const token   = await signLeaveToken({ id: leaveId, action, actorId, actorRole, exp });
   return `${LEAVE_ACTION_URL}?token=${token}`;
 };
-const sendKTAEmail = async ({ to, subject, html, attachments }) => {
+const sendKTAEmail = async ({ to, subject, html, attachments, from }) => {
   const res = await fetch(EMAIL_PROXY, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "sendEmail", to, subject, html, attachments }),
+    body: JSON.stringify({ action: "sendEmail", to, subject, html, attachments, ...(from ? { from } : {}) }),
   });
   if (!res.ok) throw new Error("Email send failed: " + await res.text());
 };
 
 // Generate a meeting report PDF — pure JS, no library required
-const generateReportPDF = (report, apprentice, mentor) => {
+const generateReportPDF = (report, apprentice, mentor, snapshots=[]) => {
   const W = 595, H = 842, margin = 50, contentW = 495;
   const fD = (iso) => { if(!iso) return "TBC"; const [y,m,d]=(iso||"").split('-'); return `${d||"?"}/${m||"?"}/${y||"?"}`; };
   const esc = (s) => String(s||"N/a").replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)");
@@ -313,49 +578,119 @@ const generateReportPDF = (report, apprentice, mentor) => {
   let id = 0;
   const add = (c) => { objs.push({ id:++id, c }); return id; };
 
+  // App theme colours in PDF operator format (r g b)
+  const NAVY   = "0.106 0.310 0.549";  // #1b4f8c
+  const TEAL   = "0.102 0.541 0.478";  // #1a8a7a
+  const INK    = "0.051 0.106 0.180";  // #0d1b2e
+  const SUB    = "0.290 0.353 0.443";  // #4a5a72
+  const MUTED  = "0.561 0.627 0.722";  // #8fa0b8
+  const BGROW1 = "0.941 0.957 0.976";  // #f0f4f9
+  const BGROW2 = "0.969 0.980 0.992";  // #f8fafc
+  const WHITE  = "1 1 1";
+  const BORDER = "0.816 0.855 0.918";  // #d0daea
+
+  // NZ local date
+  const _nzNow = new Date(Date.now() + (13 * 60 * 60 * 1000));
+  const dateStr = _nzNow.toISOString().slice(0,10).split('-').reverse().join('/');
+
+  // Shared page header helper — navy banner + KTA wordmark top-left
+  const pageHeader = (S, title, sub) => {
+    // Full-width navy banner
+    S.push(`${NAVY} rg 0 ${H - 68} ${W} 68 re f`);
+    // KTA wordmark (white, large, top-left)
+    S.push(`${WHITE} rg BT /F1 20 Tf ${margin} ${H - 36} Td (KTA) Tj ET`);
+    // Title and subtitle
+    S.push(`${WHITE} rg BT /F1 13 Tf ${margin + 46} ${H - 30} Td (${esc(title)}) Tj ET`);
+    S.push(`BT /F2 8 Tf ${NAVY} rg`);  // reset color for sub (will be overridden)
+    S.push(`0.753 0.859 0.965 rg BT /F2 8 Tf ${margin + 46} ${H - 44} Td (${esc(sub)}) Tj ET`);
+    // Teal accent strip below banner
+    S.push(`${TEAL} rg 0 ${H - 72} ${W} 4 re f`);
+  };
+
+  // Page footer helper
+  const pageFooter = (S, left, right) => {
+    S.push(`${NAVY} rg 0 0 ${W} 28 re f`);
+    S.push(`${WHITE} rg BT /F2 7 Tf ${margin} 10 Td (${esc(left)}) Tj ET`);
+    S.push(`${WHITE} rg BT /F2 7 Tf ${W - margin - 60} 10 Td (${esc(right)}) Tj ET`);
+  };
+
   const S = [];
-  let y = H - 60;
 
-  // Navy header bar
-  S.push("0.106 0.310 0.549 rg");
-  S.push(`${margin - 10} ${H - 70} ${W - 80} 50 re f`);
-  S.push("1 1 1 rg");
-  S.push(`BT /F1 14 Tf ${margin} ${H - 45} Td (${esc("Apprentice Check In Report")}) Tj ET`);
-  S.push(`BT /F2 8 Tf 1 1 1 rg ${margin} ${H - 58} Td (${esc("Kiwi Trade Apprentices  -  kta.org.nz  -  payroll@kta.org.nz")}) Tj ET`);
+  // Page 1 header
+  pageHeader(S, "Apprentice Check In Report", "Kiwi Trade Apprentices  ·  kta.org.nz");
+  let y = H - 88;
 
-  y = H - 90;
-
-  // Meta rows
-  const meta = [
-    ["Trainee Name",       apprentice.name],
-    ["Trade",              apprentice.trade || "Not specified"],
-    ["Host Business",      apprentice.hostBusiness || "Not specified"],
-    ["Location",           report.location || "Not specified"],
+  // ── Meta table (2-column grid, compact) ─────────────────────────────────
+  // Left column: Trainee / Trade / Host / Location   Right column: Date / KTA rep / Licence / Next visit
+  const metaL = [
+    ["Trainee",      apprentice.name],
+    ["Trade",        apprentice.trade || "Not specified"],
+    ["Host Business",apprentice.hostBusiness || "Not specified"],
+    ["Location",     report.location || "Not specified"],
+  ];
+  const metaR = [
     ["Date of Visit",      fD(report.date)],
     ["KTA Representative", mentor?.name||"—"],
     ["Licence Expiry",     apprentice.licenceExpiry ? fD(apprentice.licenceExpiry) : "Not set"],
     ["Next Visit",         fD(report.next_visit_date)],
   ];
-  meta.forEach(([label, val], i) => {
-    const bg = i % 2 === 0 ? "0.941 0.957 0.976" : "0.969 0.980 0.992";
-    S.push(`${bg} rg ${margin} ${y - 2} ${contentW} 14 re f`);
-    S.push(`0.290 0.353 0.443 rg BT /F1 8 Tf ${margin + 2} ${y + 4} Td (${esc(label)}) Tj ET`);
-    S.push(`0.051 0.106 0.180 rg BT /F2 8 Tf ${margin + 105} ${y + 4} Td (${esc(String(val||""))}) Tj ET`);
-    y -= 15;
+  const COL = contentW / 2 - 4;
+  const ROW_H = 14;
+  metaL.forEach(([label, val], i) => {
+    const bg = i % 2 === 0 ? BGROW1 : BGROW2;
+    const lx = margin, rx = margin + COL + 8;
+    const ry = y - 2;
+    // Left cell
+    S.push(`${bg} rg ${lx} ${ry} ${COL} ${ROW_H} re f`);
+    S.push(`${TEAL} rg ${lx} ${ry} 2 ${ROW_H} re f`);
+    S.push(`${SUB} rg BT /F1 7 Tf ${lx + 5} ${ry + 4} Td (${esc(label)}) Tj ET`);
+    S.push(`${INK} rg BT /F2 7 Tf ${lx + 80} ${ry + 4} Td (${esc(String(metaL[i][1]||""))}) Tj ET`);
+    // Right cell
+    S.push(`${bg} rg ${rx} ${ry} ${COL} ${ROW_H} re f`);
+    S.push(`${TEAL} rg ${rx} ${ry} 2 ${ROW_H} re f`);
+    S.push(`${SUB} rg BT /F1 7 Tf ${rx + 5} ${ry + 4} Td (${esc(metaR[i][0])}) Tj ET`);
+    S.push(`${INK} rg BT /F2 7 Tf ${rx + 80} ${ry + 4} Td (${esc(String(metaR[i][1]||""))}) Tj ET`);
+    y -= (ROW_H + 2);
   });
   y -= 8;
 
+  // ── Sections — compact, app-style ──────────────────────────────────────
+  // Estimate height needed for a section before rendering
+  const estimateH = (body) => {
+    const lines = wrap(body, 95);
+    return 14 + lines.length * 11 + 6; // header + lines + gap
+  };
+
+  // Check if all remaining sections fit; if not, start new page
+  let pages = [S];
+  let curPage = S;
+  let overflowed = false;
+
   const section = (title, body) => {
-    if(y < 120) { S.push(""); y = H - 60; } // new page not needed for typical reports
-    S.push(`0.102 0.541 0.478 rg ${margin} ${y - 2} ${contentW} 14 re f`);
-    S.push(`1 1 1 rg BT /F1 9 Tf ${margin + 2} ${y + 4} Td (${esc(title)}) Tj ET`);
-    y -= 18;
-    const wrapped = wrap(body, 90);
+    if(!body || !body.trim()) return; // skip empty sections
+    const needed = estimateH(body);
+    if(y - needed < 44 && !overflowed) {
+      // Overflow — write footer on current page and start page 2
+      pageFooter(curPage, "KTA Workforce Management  ·  kta.org.nz", "Generated " + dateStr);
+      const S2c = [];
+      pages.push(S2c);
+      curPage = S2c;
+      pageHeader(curPage, "Apprentice Check In Report (cont.)", "Kiwi Trade Apprentices  ·  kta.org.nz");
+      y = H - 88;
+      overflowed = true;
+    }
+    // Teal section header pill
+    curPage.push(`${TEAL} rg ${margin} ${y - 1} ${contentW} 13 re f`);
+    curPage.push(`${WHITE} rg BT /F1 8 Tf ${margin + 4} ${y + 4} Td (${esc(title)}) Tj ET`);
+    y -= 15;
+    const wrapped = wrap(body, 95);
     for(const line of wrapped) {
-      S.push(`0.051 0.106 0.180 rg BT /F2 8 Tf ${margin + 2} ${y + 2} Td (${esc(line)}) Tj ET`);
-      y -= 12;
+      curPage.push(`${INK} rg BT /F2 8 Tf ${margin + 4} ${y + 1} Td (${esc(line)}) Tj ET`);
+      y -= 11;
     }
     y -= 6;
+    // Subtle teal rule
+    curPage.push(`0.863 0.949 0.941 rg ${margin} ${y + 3} ${contentW} 1 re f`);
   };
 
   section("Off Job Progress Since Last Visit",  report.off_job_progress);
@@ -364,18 +699,163 @@ const generateReportPDF = (report, apprentice, mentor) => {
   section("Goals Before Next Visit",            report.goals_this_meeting);
   section("Comments and Feedback",              report.comments_feedback);
 
-  // Footer
-  S.push(`0.106 0.310 0.549 rg 0 0 ${W} 24 re f`);
-  S.push(`1 1 1 rg BT /F2 7 Tf ${margin} 9 Td (${esc("KTA Workforce Management  ·  payroll@kta.org.nz")}) Tj ET`);
-  const dateStr = new Date().toLocaleDateString("en-NZ");
-  S.push(`1 1 1 rg BT /F2 7 Tf ${W - margin - 55} 9 Td (${esc("Generated " + dateStr)}) Tj ET`);
+  // Footer on last content page
+  pageFooter(curPage, "KTA Workforce Management  ·  kta.org.nz", "Generated " + dateStr);
 
-  const stream = S.join("\n");
-  const contentId = add(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
-  const f1Id      = add(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>`);
-  const f2Id      = add(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`);
-  const pageId    = add(`<< /Type /Page /Parent 5 0 R /MediaBox [0 0 ${W} ${H}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${f1Id} 0 R /F2 ${f2Id} 0 R >> >> >>`);
-  const pagesId   = add(`<< /Type /Pages /Kids [${pageId} 0 R] /Count 1 >>`);
+  const f1Id = add(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>`);
+  const f2Id = add(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`);
+  // Reserve the pagesId slot NOW so page objects can reference it correctly
+  const pagesSlot = ++id; objs.push({ id: pagesSlot, c: "PLACEHOLDER" });
+
+  // Render each content page (1 or 2 if overflow)
+  const contentPageIds = pages.map(pg => {
+    const stream = pg.join("\n");
+    const cId = add(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+    return add(`<< /Type /Page /Parent ${pagesSlot} 0 R /MediaBox [0 0 ${W} ${H}] /Contents ${cId} 0 R /Resources << /Font << /F1 ${f1Id} 0 R /F2 ${f2Id} 0 R >> >> >>`);
+  });
+  const pageId = contentPageIds[0];
+
+  // ── Page 2: Programme Progress graph (only if snapshots available) ────────
+  let page2Id = null;
+  if(snapshots && snapshots.length > 0) {
+    const sorted = [...snapshots].sort((a,b) => a.months_in_training - b.months_in_training);
+    const S2 = [];
+
+    // Page 2 header — reuse same helper
+    pageHeader(S2, "Programme Progress — " + apprentice.name, "Kiwi Trade Apprentices  ·  Progress Report");
+
+    // Graph area
+    const GX = margin, GY = 280, GW = contentW, GH = 340;
+    const maxMo = Math.max(...sorted.map(s => s.months_in_training), sorted[0]?.programme_duration || 42);
+    const xS = (m) => GX + (m / maxMo) * GW;
+    const yS = (p) => GY + (p / 100) * GH;
+
+    // Grid background
+    S2.push("0.953 0.961 0.976 rg");
+    S2.push(`${GX} ${GY} ${GW} ${GH} re f`);
+
+    // Gridlines + Y labels
+    [0,25,50,75,100].forEach(t => {
+      S2.push("0.843 0.863 0.894 rg");
+      S2.push(`${GX} ${yS(t) - 0.5} ${GW} 0.5 re f`);
+      S2.push(`0.565 0.627 0.710 rg BT /F2 7 Tf ${GX - 25} ${yS(t) - 3} Td (${esc(t + "%")}) Tj ET`);
+    });
+
+    // X axis labels (every 6 months)
+    for(let m = 0; m <= maxMo; m += 6) {
+      S2.push("0.843 0.863 0.894 rg");
+      S2.push(`${xS(m) - 0.25} ${GY} 0.5 ${GH} re f`);
+      S2.push(`0.565 0.627 0.710 rg BT /F2 7 Tf ${xS(m) - 6} ${GY - 14} Td (${esc(m + "m")}) Tj ET`);
+    }
+
+    // Programme end dashed line
+    if(sorted[0]?.programme_duration) {
+      const ex = xS(sorted[0].programme_duration);
+      S2.push("0.749 0.169 0.169 rg");
+      for(let yy = GY; yy < GY + GH; yy += 8) {
+        S2.push(`${ex - 0.5} ${yy} 1 4 re f`);
+      }
+      S2.push(`0.749 0.169 0.169 rg BT /F2 6 Tf ${ex - 10} ${GY + GH + 6} Td (${esc("End")}) Tj ET`);
+    }
+
+    // Lines and dots for each metric
+    const LINES = [
+      { key:"overall_percent",     label:"Overall",     r:0.106, g:0.310, b:0.549 },
+      { key:"off_job_l3_percent",  label:"Off-Job L3",  r:0.102, g:0.541, b:0.478 },
+      { key:"off_job_l4_percent",  label:"Off-Job L4",  r:0.627, g:0.471, b:0.125 },
+      { key:"on_job_core_percent", label:"On-Job Core", r:0.420, g:0.310, b:0.627 },
+      { key:"on_job_spec_percent", label:"On-Job Spec", r:0.749, g:0.169, b:0.169 },
+    ];
+
+    LINES.forEach(({ key, label, r, g, b }) => {
+      const pts = sorted.filter(s => s[key] != null);
+      if(pts.length === 0) return;
+      S2.push(`${r} ${g} ${b} RG`);
+      S2.push("1.5 w");
+      // Line
+      pts.forEach((s, i) => {
+        const px = xS(s.months_in_training), py = yS(s[key]);
+        S2.push(i === 0 ? `${px} ${py} m` : `${px} ${py} l`);
+      });
+      S2.push("S");
+      // Dots
+      pts.forEach(s => {
+        const px = xS(s.months_in_training), py = yS(s[key]);
+        // Filled circle approximation using 4 bezier arcs
+        const r2 = 3;
+        S2.push(`${r} ${g} ${b} rg`);
+        S2.push(`${px - r2} ${py} m ${px - r2} ${py + r2 * 0.552} ${px - r2 * 0.552} ${py + r2} ${px} ${py + r2} c`);
+        S2.push(`${px + r2 * 0.552} ${py + r2} ${px + r2} ${py + r2 * 0.552} ${px + r2} ${py} c`);
+        S2.push(`${px + r2} ${py - r2 * 0.552} ${px + r2 * 0.552} ${py - r2} ${px} ${py - r2} c`);
+        S2.push(`${px - r2 * 0.552} ${py - r2} ${px - r2} ${py - r2 * 0.552} ${px - r2} ${py} c f`);
+        // Value label
+        S2.push(`0.051 0.106 0.180 rg BT /F2 6 Tf ${px - 4} ${py + 5} Td (${esc(Math.round(s[key]) + "%")}) Tj ET`);
+      });
+    });
+
+    // Axes border
+    S2.push("0.565 0.627 0.710 RG 0.5 w");
+    S2.push(`${GX} ${GY} m ${GX + GW} ${GY} l ${GX + GW} ${GY + GH} l ${GX} ${GY + GH} l ${GX} ${GY} l S`);
+
+    // Axis labels
+    S2.push(`0.290 0.353 0.443 rg BT /F2 8 Tf ${GX + GW/2 - 40} ${GY - 26} Td (${esc("Months in Training")}) Tj ET`);
+
+    // Legend
+    let lx = margin, ly = GY + GH + 36;
+    S2.push(`0.290 0.353 0.443 rg BT /F1 8 Tf ${lx} ${ly} Td (${esc("Legend:")}) Tj ET`);
+    lx += 40;
+    LINES.forEach(({ label, r, g, b }) => {
+      if(!sorted.some(s => s[label.toLowerCase().replace(/-/g,"_")+"_percent"] != null)) {
+        // check by key
+      }
+      S2.push(`${r} ${g} ${b} rg ${lx} ${ly + 1} 16 4 re f`);
+      S2.push(`0.051 0.106 0.180 rg BT /F2 7 Tf ${lx + 19} ${ly} Td (${esc(label)}) Tj ET`);
+      lx += 65;
+    });
+
+    // Section summary bars (latest snapshot)
+    const latest = sorted[sorted.length - 1];
+    const bars = [
+      { label:"Skills Week",  val:latest.skills_week_percent,  r:0.102, g:0.541, b:0.478 },
+      { label:"Off-Job L3",   val:latest.off_job_l3_percent,   r:0.102, g:0.541, b:0.478 },
+      { label:"Off-Job L4",   val:latest.off_job_l4_percent,   r:0.627, g:0.471, b:0.125 },
+      { label:"On-Job Core",  val:latest.on_job_core_percent,  r:0.420, g:0.310, b:0.627 },
+      { label:"On-Job Spec",  val:latest.on_job_spec_percent,  r:0.749, g:0.169, b:0.169 },
+      { label:"On Job Books", val:latest.booklets_percent,      r:0.106, g:0.310, b:0.549 },
+    ].filter(b => b.val != null);
+
+    if(bars.length > 0) {
+      let by = GY - 60;
+      S2.push(`0.102 0.541 0.478 rg ${margin} ${by + 4} ${contentW} 14 re f`);
+      S2.push(`1 1 1 rg BT /F1 9 Tf ${margin + 2} ${by + 8} Td (${esc("Latest Progress Snapshot — " + (latest.report_date||""))}) Tj ET`);
+      by -= 18;
+
+      const BW = (contentW - (bars.length - 1) * 8) / bars.length;
+      bars.forEach((bar, i) => {
+        const bx = margin + i * (BW + 8);
+        const fillH = Math.max(2, ((bar.val || 0) / 100) * 40);
+        // Background
+        S2.push(`0.902 0.914 0.933 rg ${bx} ${by - 40} ${BW} 40 re f`);
+        // Fill
+        S2.push(`${bar.r} ${bar.g} ${bar.b} rg ${bx} ${by - 40} ${BW} ${fillH} re f`);
+        // Label
+        S2.push(`0.290 0.353 0.443 rg BT /F2 6 Tf ${bx + 2} ${by - 48} Td (${esc(bar.label)}) Tj ET`);
+        S2.push(`0.051 0.106 0.180 rg BT /F1 7 Tf ${bx + BW/2 - 8} ${by - 35 + fillH} Td (${esc(Math.round(bar.val) + "%")}) Tj ET`);
+      });
+    }
+
+    pageFooter(S2, "KTA Workforce Management  ·  Programme Progress", "Generated " + dateStr);
+
+    const s2 = S2.join("\n");
+    const c2Id = add(`<< /Length ${s2.length} >>\nstream\n${s2}\nendstream`);
+    page2Id    = add(`<< /Type /Page /Parent ${pagesSlot} 0 R /MediaBox [0 0 ${W} ${H}] /Contents ${c2Id} 0 R /Resources << /Font << /F1 ${f1Id} 0 R /F2 ${f2Id} 0 R >> >> >>`);
+  }
+
+  // Fill in the reserved pagesId slot with all page IDs
+  const allPageIds = [...contentPageIds, ...(page2Id ? [page2Id] : [])];
+  const kidsList   = allPageIds.map(pid => `${pid} 0 R`).join(" ");
+  const pagesId    = pagesSlot;
+  objs[objs.findIndex(o => o.id === pagesSlot)].c = `<< /Type /Pages /Kids [${kidsList}] /Count ${allPageIds.length} >>`;
   const catalogId = add(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
 
   let pdf = "%PDF-1.4\n";
@@ -433,64 +913,27 @@ const T = {
 const KTA_LOGO = "https://images.squarespace-cdn.com/content/v1/682fe0a84dcaf578b10d7882/cca16351-c2c6-4895-be1c-24f4a540ee3c/Copy+of+KTA+LOGO+BLUE+No+Background.png?format=300w";
 
 // Confidential notes — only this email can see the card (checked at render + inside component)
-const CONF_OWNER_EMAIL = "kristeena@kta.org.nz";
+// Confidential notes access: driven by `is_conf_owner` boolean on the user record
+// (set this column to true in Supabase for the relevant admin user — no email hardcoding needed)
+const isConfOwner = (user) => !!user?.isConfOwner;
 
 // ─── HubSpot lookup ──────────────────────────────────────────────────────────
+// Routes through the hubspot-proxy Edge Function so the HubSpot API token
+// never touches the browser. The proxy reads HUBSPOT_TOKEN from Supabase secrets.
+const HUBSPOT_PROXY_URL = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/hubspot-proxy";
+
 const lookupHubspot = async (value) => {
-  const token = import.meta.env.VITE_HUBSPOT_TOKEN;
-  if(!token) return null;
   const isPhone = /^[+\d\s\-()]{6,}$/.test(value) && !/[@.]/.test(value);
-  const property = isPhone ? "phone" : "email";
   try {
-    // HubSpot search — try exact match first
-    const res = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
+    const res = await fetch(HUBSPOT_PROXY_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-      body: JSON.stringify({
-        filterGroups: [{ filters: [{ propertyName: property, operator: "EQ", value: value.trim() }] }],
-        properties: ["firstname","lastname","email","phone","company","jobtitle"],
-        limit: 1,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "lookup", value: value.trim(), type: isPhone ? "phone" : "email" }),
     });
     if(!res.ok) return null;
     const data = await res.json();
-    // If phone search returned nothing, try searching all and matching
-    if(!data.results?.length && isPhone) {
-      const res2 = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body: JSON.stringify({
-          filterGroups: [{ filters: [{ propertyName: "phone", operator: "CONTAINS_TOKEN", value: value.replace(/\D/g,"").slice(-8) }] }],
-          properties: ["firstname","lastname","email","phone","company","jobtitle"],
-          limit: 1,
-        }),
-      });
-      if(res2.ok) {
-        const data2 = await res2.json();
-        if(data2.results?.length) {
-          const p = data2.results[0].properties;
-          return {
-            name:    [p.firstname, p.lastname].filter(Boolean).join(" ") || "",
-            email:   p.email || "",
-            phone:   p.phone || value,
-            company: p.company || "",
-            notes:   p.jobtitle ? `Job title: ${p.jobtitle}` : "",
-            status:  "Active",
-          };
-        }
-      }
-      return null;
-    }
-    if(!data.results?.length) return null;
-    const p = data.results[0].properties;
-    return {
-      name:    [p.firstname, p.lastname].filter(Boolean).join(" ") || "",
-      email:   p.email || (isPhone ? "" : value),
-      phone:   p.phone || (isPhone ? value : ""),
-      company: p.company || "",
-      notes:   p.jobtitle ? `Job title: ${p.jobtitle}` : "",
-      status:  "Active",
-    };
+    if(!data.result) return null;
+    return data.result;
   } catch(e) {
     console.warn("HubSpot lookup failed:", e);
     return null;
@@ -499,12 +942,13 @@ const lookupHubspot = async (value) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
-const ROLES = ["Apprentice","Approver","Viewer","Mentor","Admin"];
+const ROLES = ["Apprentice","Approver","Viewer","Mentor","Supervisor","Admin"];
 const ROLE_META = {
   Apprentice: { color: T.blue,   bg: T.blueL,  symbol: "◑", desc: "View & edit own timesheets (last 14 days)" },
   Approver:   { color: T.warn,   bg: T.warnL,  symbol: "▲", desc: "Approve or decline submitted timesheets for allocated apprentices" },
   Viewer:     { color: T.teal,   bg: T.tealL,  symbol: "◆", desc: "View all timesheet stages for allocated apprentices — read only" },
   Mentor:     { color: T.gold,   bg: T.goldL,  symbol: "✦", desc: "View allocated apprentice timesheets (read-only) and full CRM access" },
+  Supervisor: { color: T.teal,   bg: T.tealL,  symbol: "⚙", desc: "View meeting reports, HSE check ins and leave requests. Timesheet access only if set as approver." },
   Admin:      { color: T.accent, bg: T.accentL,symbol: "★", desc: "Full access — manage all users, timesheets & CRM" },
   "Admin 1":  { color: T.accent, bg: T.accentL,symbol: "★", desc: "Full access including message history management" },
   "Admin 2":  { color: "#6d5fc7", bg: "#ede9ff",symbol: "☆", desc: "User management, timesheet view — cannot edit or delete messages" },
@@ -533,20 +977,80 @@ for(let h=0;h<24;h++) for(let m=0;m<60;m+=15)
   TIME_OPTIONS.push(`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`);
 
 const TRADES = ["Electrical","Plumbing","Construction","Carpentry","HVAC","Civil","Other"];
+
+// ─── SharePoint folder URL builder ───────────────────────────────────────────
+// Builds the KTA SharePoint URL for an apprentice's folder based on their
+// name and trade. Returns null if trade can't be mapped to a known folder.
+const SHAREPOINT_BASE = "https://kiwitradeapprenticesnz-my.sharepoint.com/shared";
+const SHAREPOINT_LIST = "https://kiwitradeapprenticesnz.sharepoint.com/sites/CompanySharedDrive/Shared Documents";
+const TRADE_FOLDER_MAP = {
+  "Electrical":                  "Electrical Trainees",
+  "Electrical Apprentice":       "Electrical Trainees",
+  "Mechanical Engineering":      "Engineering Trainees",
+  "Refrigeration & Air Conditioning": "Engineering Trainees",
+  "Construction":                "Construction Trainees",
+  "Carpentry":                   "Construction Trainees",
+  "Joinery":                     "Construction Trainees",
+  "Bricklaying":                 "Construction Trainees",
+  "Plastering":                  "Construction Trainees",
+  "Tiling":                      "Construction Trainees",
+};
+const getSharePointUrl = (user) => {
+  if (!user?.name || !user?.trade) return null;
+  const folder = TRADE_FOLDER_MAP[user.trade];
+  if (!folder) return null;
+  const folderPath = `/sites/CompanySharedDrive/Shared Documents/Trainees Drives/${folder}/${user.name}`;
+  const id  = encodeURIComponent(folderPath);
+  const lurl = encodeURIComponent(`${SHAREPOINT_LIST}`);
+  return `${SHAREPOINT_BASE}?id=${id}&listurl=${lurl}`;
+};
 const STAGES = ["Lead","Qualified","Proposal","Negotiation","Won","Lost"];
 const STAGE_C = { Lead:T.muted, Qualified:T.blue, Proposal:T.warn, Negotiation:T.hol, Won:T.accent, Lost:T.red };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AUTH HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
-// Simple hash: XOR + encode so passwords aren't plaintext in storage
-const hashPw = (pw) => btoa([...pw].map((c,i)=>String.fromCharCode(c.charCodeAt(0)^(42+i%7))).join(""));
-const checkPw = (pw, hash) => hashPw(pw) === hash;
+// ─── Password hashing ─────────────────────────────────────────────────────────
+// SHA-256 with a per-password random salt stored as "salt:hash" (hex).
+// Legacy XOR hashes (no colon) are detected and still accepted on login,
+// then transparently upgraded to SHA-256 on next successful sign-in.
+const _sha256hex = async (str) => {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+};
+const hashPw = async (pw) => {
+  const salt = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+    .map(b=>b.toString(16).padStart(2,"0")).join("");
+  const hash = await _sha256hex(salt + pw);
+  return `${salt}:${hash}`;
+};
+const checkPw = async (pw, stored) => {
+  if(!stored) return false;
+  if(stored.includes(":")) {
+    // SHA-256 path
+    const [salt, hash] = stored.split(":");
+    return (await _sha256hex(salt + pw)) === hash;
+  }
+  // Legacy XOR path — accept but caller should upgrade
+  const legacy = btoa([...pw].map((c,i)=>String.fromCharCode(c.charCodeAt(0)^(42+i%7))).join(""));
+  return legacy === stored;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UTILS
 // ─────────────────────────────────────────────────────────────────────────────
 const uid      = () => Math.random().toString(36).slice(2,9);
+// Safe base64 encoding for large ArrayBuffers — avoids call stack overflow
+// from spreading large Uint8Arrays into String.fromCharCode
+const arrayBufferToBase64 = (buf) => {
+  const bytes = new Uint8Array(buf);
+  const CHUNK = 8192;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
+};
 const tod      = () => new Date().toISOString().slice(0,10);
 const toMin    = t => { const[h,m]=t.split(":").map(Number); return h*60+m; };
 const calcNet  = (s,e,b) => { const d=toMin(e)-toMin(s)-b; return d>0?+(d/60).toFixed(2):0; };
@@ -559,7 +1063,7 @@ const daysAgoStr = n => { const d=new Date(); d.setDate(d.getDate()-n); return d
 // Send email notification to approvers when apprentice submits timesheets
 // Sign a timesheet action token
 const TIMESHEET_ACTION_URL = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/timesheet-action";
-const TIMESHEET_TOKEN_SECRET = "kta-leave-action-secret-v1"; // reuse same secret
+const TIMESHEET_TOKEN_SECRET = import.meta.env.VITE_HMAC_SECRET || "kta-leave-action-secret-v1"; // same secret, same env var
 
 const signTimesheetToken = async (payload) => {
   const enc = new TextEncoder();
@@ -626,7 +1130,7 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
   const toolAllowanceAmt = ((normalHrs + overtimeHrs) * 0.50).toFixed(2);
 
   for(const approver of approvers) {
-    const isAdminL1 = approver.role === "Admin" && (approver.adminLevel||1) === 1;
+    const isAdminL1 = approver.role === "Admin" && Number(approver.adminLevel ?? 1) === 1;
     const toolAllowanceBox = isAdminL1 ? `
   <div style="border-left:2px solid #d0daea;padding-left:20px"><div style="font-size:12.1px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">Tool Allowance</div><div style="font-size:22px;font-weight:700;color:#6b46c1">$${toolAllowanceAmt}</div><div style="font-size:11px;color:#8fa0b8;margin-top:2px">Add manually in Xero</div></div>` : "";
     const summaryBox = `
@@ -777,7 +1281,26 @@ const CSS = `
   }
   select option{background:white;}
   input:focus,select:focus,textarea:focus{border-color:${T.accent};box-shadow:0 0 0 3px ${T.accentL};}
-  input[type=date]{cursor:pointer;} input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer;width:20px;height:20px;} .ts-date-input::-webkit-calendar-picker-indicator{opacity:0;position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;cursor:pointer;}
+  input[type=date]{
+    cursor:pointer;
+    position:relative;
+  }
+  input[type=date]::-webkit-calendar-picker-indicator{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    margin:0;
+    padding:0;
+    opacity:0;
+    cursor:pointer;
+    z-index:1;
+  }
+  input[type=date]::before{
+    content:attr(data-display);
+  }
+  .ts-date-input::-webkit-calendar-picker-indicator{opacity:0;position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;cursor:pointer;}
+  input[type=date]::-webkit-datetime-edit{pointer-events:none;}
   button{cursor:pointer;font-family:"DM Sans",sans-serif;border:none;transition:all .14s;}
   textarea{resize:vertical;min-height:64px;line-height:1.55;font-size:17.6px;}
 
@@ -1016,12 +1539,17 @@ function LoginScreen({users, onLogin}) {
     setErr("");
     if(!email.trim()||!pw) { setErr("Please enter your email and password."); return; }
     setLoading(true);
-    setTimeout(() => {
-      const user = users.find(u=>u.email.toLowerCase()===email.trim().toLowerCase());
-      if(!user) { setErr("No account found with that email address."); setLoading(false); trigShake(); return; }
-      if(!checkPw(pw, user.password)) { setErr("Incorrect password. Please try again."); setLoading(false); trigShake(); return; }
+    const user = users.find(u=>u.email.toLowerCase()===email.trim().toLowerCase());
+    if(!user) { setErr("No account found with that email address."); setLoading(false); trigShake(); return; }
+    checkPw(pw, user.password).then(async (ok) => {
+      if(!ok) { setErr("Incorrect password. Please try again."); setLoading(false); trigShake(); return; }
+      // Transparently upgrade legacy XOR hash to SHA-256 on successful login
+      if(user.password && !user.password.includes(":")) {
+        const newHash = await hashPw(pw);
+        upsertUser({...user, password: newHash}).catch(()=>{});
+      }
       onLogin(user.id);
-    }, 600);
+    }).catch(()=>{ setErr("Login error. Please try again."); setLoading(false); });
   };
 
   const trigShake = () => { setShaking(true); setTimeout(()=>setShaking(false),400); };
@@ -1160,15 +1688,19 @@ function LoginScreen({users, onLogin}) {
           )}
         </div>
         {/* Version */}
-        <div style={{marginTop:24,textAlign:"center",fontSize:13,color:T.muted,fontFamily:"DM Sans,sans-serif",letterSpacing:".5px"}}>
-          v2.7.67
+        <div style={{marginTop:24,textAlign:"center",fontFamily:"DM Sans,sans-serif"}}>
+          <div style={{display:"inline-block",background:T.accentL,border:`1.5px solid ${T.accent}44`,
+            borderRadius:99,padding:"4px 16px",fontSize:13,fontWeight:700,
+            color:T.accent,letterSpacing:".5px"}}>
+            {APP_VERSION}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 // ─────────────────────────────────────────────────────────────────────────────
-function EntryForm({onSave,onCancel,initial=null,minDate=null,maxDate=null,usedDates=[]}) {
+function EntryForm({onSave,onCancel,initial=null,minDate=null,maxDate=null,usedDates=[],onSaveApproved=null}) {
   const blank = {date:tod(),type:"Normal Hours",start:"09:00",end:"17:00",breakMins:30,note:""};
   const [f,setF] = useState(initial||blank);
   const [err,setErr] = useState({});
@@ -1177,13 +1709,21 @@ function EntryForm({onSave,onCancel,initial=null,minDate=null,maxDate=null,usedD
   const netH = calcNet(f.start,f.end,Number(f.breakMins));
   const gross = toMin(f.end)-toMin(f.start);
 
-  const submit = () => {
+  const validate = () => {
     const e={};
     if(gross<=0) e.time="End must be after start";
     else if(netH<=0) e.time="Net hours must be > 0 after break";
-    if(Object.keys(e).length){setErr(e);return;}
-    if(dateConflict) return;
+    if(Object.keys(e).length){setErr(e);return false;}
+    if(dateConflict) return false;
+    return true;
+  };
+  const submit = () => {
+    if(!validate()) return;
     onSave({...f,breakMins:Number(f.breakMins),netHours:netH,approval:initial?f.approval:"draft"});
+  };
+  const submitApproved = () => {
+    if(!validate()) return;
+    onSaveApproved({...f,breakMins:Number(f.breakMins),netHours:netH,approval:"approved"});
   };
 
   return (
@@ -1235,8 +1775,13 @@ function EntryForm({onSave,onCancel,initial=null,minDate=null,maxDate=null,usedD
         <FL>Note</FL>
         <textarea placeholder="Optional note…" value={f.note} onChange={e=>sf("note",e.target.value)}/>
       </div>
-      <div style={{display:"flex",gap:8}}>
-        <Btn onClick={submit}>{initial?"Update Entry":"Save Entry"}</Btn>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <Btn onClick={submit}>{initial?"Update Entry":"Save as Draft"}</Btn>
+        {onSaveApproved&&!initial&&(
+          <Btn onClick={submitApproved} v="primary" style={{background:T.teal,borderColor:T.teal}}>
+            ✓ Save & Approve
+          </Btn>
+        )}
         {onCancel&&<Btn v="ghost" onClick={onCancel}>Cancel</Btn>}
       </div>
     </Card>
@@ -1286,15 +1831,22 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
       })()}
       <div style={{textAlign:"center",fontSize:12,color:T.sub}}>{entry.breakMins>0?`${entry.breakMins}m`:"—"}</div>
       <div style={{textAlign:"center",fontSize:12,color:T.muted,fontFamily:"monospace"}}>{entry.start}–{entry.end}</div>
-      <AppvPill status={entry.approval}/>
+      <div>
+        <AppvPill status={entry.approval}/>
+        {entry.createdAt && (
+          <div style={{fontSize:10,color:T.muted,marginTop:2,whiteSpace:"nowrap"}}>
+            {new Date(entry.createdAt).toLocaleString("en-NZ",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}
+          </div>
+        )}
+      </div>
       <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
-        {canApprove&&entry.approval==="submitted"&&(<>
+        {canApprove&&(entry.approval==="submitted"||entry.approval==="draft")&&(<>
           <button onClick={()=>onApprove(entry.id)} title="Approve" style={{
             width:26,height:26,borderRadius:6,fontSize:13,background:T.accentL,color:T.accent,
             border:`1px solid ${T.accent}44`,display:"flex",alignItems:"center",justifyContent:"center"}}>✓</button>
-          <button onClick={()=>onDecline(entry.id)} title="Decline" style={{
+          {entry.approval==="submitted"&&<button onClick={()=>onDecline(entry.id)} title="Decline" style={{
             width:26,height:26,borderRadius:6,fontSize:13,background:T.redL,color:T.red,
-            border:`1px solid ${T.red}44`,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+            border:`1px solid ${T.red}44`,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>}
         </>)}
         {canSubmitXero && entry.approval==="approved" && !entry.xeroStatus && (
           <button onClick={()=>onSubmitXero&&onSubmitXero(entry.id)}
@@ -1393,8 +1945,10 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   const [showForm,setShowForm] = useState(false);
   const [editEntry,setEditEntry] = useState(null);
   const [filterUid,setFilterUid] = useState(forcedApprenticeId||"all");
-  const [toast,setToast] = useState(null); // {msg, ok}
-  const [weekPickerDrafts, setWeekPickerDrafts] = useState(null); // null | {weeks:[...], draftsPerWeek:{}}
+  const [toast,setToast] = useState(null);
+  const [nameSortDir, setNameSortDir] = useState("asc");
+  const [approvingAll, setApprovingAll] = useState(false);
+  const [weekPickerDrafts, setWeekPickerDrafts] = useState(null);
   const [weekPickerSelected, setWeekPickerSelected] = useState(null);
   const role=currentUser.role;
 
@@ -1415,12 +1969,17 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
         .map(u=>u.id);
       return [...new Set([currentUser.id,...fromAlloc,...fromApprentice])];
     }
+    if(role==="Supervisor") {
+      return allUsers
+        .filter(u=>u.role==="Apprentice"&&(u.supervisorIds||[]).includes(currentUser.id))
+        .map(u=>u.id);
+    }
     if(role==="Mentor") {
       // Legacy: allocatedTo on the mentor record
       const fromAlloc = currentUser.allocatedTo||[];
       // New: apprentices who have this user set as their mentor
       const fromApprentice = allUsers
-        .filter(u=>u.role==="Apprentice"&&u.mentorUserId===currentUser.id)
+        .filter(u=>u.role==="Apprentice"&&(u.mentorUserId===currentUser.id||(u.supervisorIds||[]).includes(currentUser.id)))
         .map(u=>u.id);
       return [...new Set([...fromAlloc,...fromApprentice])];
     }
@@ -1430,58 +1989,75 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   // Helper: effective roles this user has (Admin may also have a secondaryRole)
   const hasRole = (r) => role===r || (role==="Admin" && currentUser.secondaryRole===r);
 
+  const isAdmin1ts = role==="Admin" && Number(currentUser?.adminLevel ?? 1)===1;
+  const isXeroLocked = (entry) => entry.xeroStatus==="submitted" && !isAdmin1ts;
+
   const canEdit=(entry)=>{
+    if(isXeroLocked(entry)) return false;
     if(role==="Admin") return true;
-    // Apprentice: only draft entries within 21 days are editable
-    // Submitted entries are locked until declined, approved entries are permanently locked
     if(role==="Apprentice"&&entry.userId===currentUser.id&&entry.approval==="draft"&&entry.date>=daysAgoStr(21)) return true;
     return false;
   };
-  const isAdmin1ts = role==="Admin" && (currentUser?.adminLevel||1)===1;
   const canDelete=(entry)=>{
-    // Only Admin L1 can delete any entry
+    if(isXeroLocked(entry)) return false;
     if(isAdmin1ts) return true;
-    // Apprentice can delete own draft entries only
     if(role==="Apprentice"&&entry.userId===currentUser.id&&entry.approval==="draft") return true;
     return false;
   };
   const canApprove=(entry)=>{
+    // Admin L1 can approve both submitted AND draft entries (on behalf of apprentice)
+    if(isAdmin1ts && (entry.approval==="submitted"||entry.approval==="draft")) return true;
     if(entry.approval!=="submitted") return false;
     if(role==="Admin") return true;
     if(role==="Approver") {
       const apprentice = allUsers.find(u=>u.id===entry.userId);
       if((currentUser.allocatedTo||[]).includes(entry.userId)) return true;
       if(apprentice?.approverUserId===currentUser.id) return true;
+    if(role==="Supervisor" && apprentice?.approverUserId===currentUser.id) return true;
     }
     return false;
   };
-  const canAdd=forcedApprenticeId ? false : (role==="Admin"||role==="Apprentice");
+  const canAdd = forcedApprenticeId
+    ? (role==="Admin")          // Admin can add on behalf of apprentice
+    : (role==="Admin"||role==="Apprentice");
 
   const vids=visibleIds();
   let shown=entries.filter(e=>vids.includes(e.userId));
   if(!forcedApprenticeId && filterUid!=="all") shown=shown.filter(e=>e.userId===filterUid);
   if(role==="Apprentice") shown=shown.filter(e=>e.date>=daysAgoStr(60)||e.approval!=="draft");
-  shown=[...shown].sort((a,b)=>b.date.localeCompare(a.date));
+  shown=[...shown].sort((a,b)=>{
+    const aName = (allUsers.find(u=>u.id===a.userId)?.name||"").toLowerCase();
+    const bName = (allUsers.find(u=>u.id===b.userId)?.name||"").toLowerCase();
+    const nameCompare = nameSortDir==="asc" ? aName.localeCompare(bName) : bName.localeCompare(aName);
+    if(nameCompare!==0) return nameCompare;
+    return b.date.localeCompare(a.date);
+  });
 
   const myE=entries.filter(e=>e.userId===currentUser.id);
   const todayEntries=myE.filter(e=>e.date===tod());
   const todayH=todayEntries.length>0?todayEntries.reduce((a,e)=>a+e.netHours,0).toFixed(2):null;
-  const ws=()=>{const d=new Date();d.setDate(d.getDate()-d.getDay());return d.toISOString().slice(0,10);};
+  const ws=()=>{const d=new Date();d.setDate(d.getDate()-((d.getDay()+6)%7));return d.toISOString().slice(0,10);};
   const weekH=myE.filter(e=>e.date>=ws()).reduce((a,e)=>a+e.netHours,0).toFixed(2);
   const pending=entries.filter(e=>vids.includes(e.userId)&&e.approval==="submitted").length;
 
-  const handleSave=(data)=>{
+  // Xero-submitted entries: processed and locked from edit/delete (except Admin L1)
+  const processedCount = shown.filter(e=>e.xeroStatus==="submitted").length;
+  const activeShown = shown.filter(e=>e.xeroStatus!=="submitted");
+
+  const handleSave=(data, approvalOverride=null)=>{
+    // When admin adds on behalf of an apprentice, use the apprentice's ID not the admin's
+    const targetUserId = forcedApprenticeId || currentUser.id;
+    const approvalStatus = approvalOverride || data.approval || "draft";
     if(editEntry){
-      const updated = {...editEntry,...data};
+      const updated = {...editEntry,...data, approval: approvalOverride || editEntry.approval};
       setEntries(prev=>prev.map(e=>e.id===editEntry.id?updated:e));
       upsertEntry(updated).catch(err=>alert('Save failed: '+err.message));
     } else {
-      // Block duplicate date for apprentices
       if(role==="Apprentice"){
         const already=entries.some(e=>e.userId===currentUser.id&&e.date===data.date);
         if(already){ showToast("You already have an entry for this date. Edit the existing one instead.",false); return; }
       }
-      const newEntry = {id:uid(),userId:currentUser.id,...data,createdAt:new Date().toISOString()};
+      const newEntry = {id:uid(),userId:targetUserId,...data,approval:approvalStatus,createdAt:new Date().toISOString()};
       setEntries(prev=>[newEntry,...prev]);
       upsertEntry(newEntry).catch(err=>alert('Save failed: '+err.message));
     }
@@ -1525,7 +2101,9 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   };
   const handleEdit=(entry)=>{setEditEntry(entry);setShowForm(true);};
 
-  const filterableUsers=allUsers.filter(u=>vids.includes(u.id));
+  const filterableUsers=allUsers
+    .filter(u=>vids.includes(u.id) && u.role==="Apprentice")
+    .sort((a,b)=>(a.name||"").localeCompare(b.name||""));
   const showUserCol=role!=="Apprentice";
   const tcols=showUserCol
     ?"130px 130px 1fr 130px 64px 64px 64px 60px 70px 100px 100px"
@@ -1550,9 +2128,14 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
         <span style={{fontSize:14,color:T.sub}}>{ROLE_META[role]?.desc||""}</span>
       </div>
       <div className="stat-grid-4">
-        <StatCard label="Today (mine)" value={todayH?`${todayH}h`:"—"} color={todayH?T.accent:T.muted}/>
-        <StatCard label="This Week (mine)" value={`${weekH}h`} color={T.warn}/>
-        <StatCard label="Visible Entries" value={shown.length} color={T.blue}/>
+        {role==="Admin" ? (<>
+          <StatCard label="Processed (Xero)" value={processedCount} sub="submitted to Xero" color={processedCount>0?T.teal:T.muted}/>
+          <StatCard label="This Week (mine)" value={`${weekH}h`} color={T.warn}/>
+        </>) : (<>
+          <StatCard label="Today (mine)" value={todayH?`${todayH}h`:"—"} color={todayH?T.accent:T.muted}/>
+          <StatCard label="This Week (mine)" value={`${weekH}h`} color={T.warn}/>
+        </>)}
+        <StatCard label="Visible Entries" value={activeShown.length} color={T.blue}/>
         <StatCard label="Pending Approval" value={pending} sub="in your scope" color={pending>0?T.warn:T.muted}/>
       </div>
       {canAdd&&(
@@ -1586,6 +2169,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
               const toSubmit = weekEnding ? draftsPerWeek[weekEnding] : myDrafts;
               const ids = toSubmit.map(e=>e.id);
               setEntries(prev=>prev.map(e=>ids.includes(e.id)?{...e,approval:"submitted"}:e));
+              await Promise.all(toSubmit.map(e=>upsertEntry({...e,approval:"submitted"}).catch(console.error)));
               setWeekPickerDrafts(null);
               setWeekPickerSelected(null);
               const approvers = allUsers.filter(u=>
@@ -1678,20 +2262,69 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
         </div>
       )}
       {showForm&&<div style={{marginBottom:20}}>
-        <EntryForm onSave={handleSave} onCancel={()=>{setShowForm(false);setEditEntry(null);}} initial={editEntry}
+        <EntryForm
+          onSave={handleSave}
+          onSaveApproved={isAdmin1ts && forcedApprenticeId ? (data)=>handleSave(data,"approved") : null}
+          onCancel={()=>{setShowForm(false);setEditEntry(null);}}
+          initial={editEntry}
           minDate={role==="Apprentice"?daysAgoStr(21):null}
           maxDate={role==="Apprentice"?tod():null}
           usedDates={role==="Apprentice"?entries.filter(e=>e.userId===currentUser.id).map(e=>e.date):[]}/>
       </div>}
       {filterableUsers.length>1&&(
-        <div style={{display:"flex",gap:10,marginBottom:14}}>
+        <div style={{display:"flex",gap:10,marginBottom:14,alignItems:"center"}}>
           <select value={filterUid} onChange={e=>setFilterUid(e.target.value)}
             style={{width:220,fontSize:13,padding:"7px 28px 7px 11px"}}>
-            <option value="all">All Visible Users</option>
-            {filterableUsers.map(u=><option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
+            <option value="all">All Apprentices</option>
+            {filterableUsers.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
+          {role!=="Apprentice" && filterUid==="all" && (
+            <button
+              onClick={()=>setNameSortDir(d=>d==="asc"?"desc":"asc")}
+              style={{display:"flex",alignItems:"center",gap:5,padding:"7px 12px",
+                background:T.surface,border:`1.5px solid ${T.border}`,borderRadius:8,
+                fontSize:13,fontWeight:700,color:T.sub,cursor:"pointer",
+                fontFamily:"DM Sans,sans-serif",whiteSpace:"nowrap"}}>
+              A–Z {nameSortDir==="asc"?"▲":"▼"}
+            </button>
+          )}
         </div>
       )}
+      {/* ── Approve All Submitted — Admin L1 only, expires 30 Apr 2026 ── */}
+      {role==="Admin" && Number(currentUser?.adminLevel??1)===1 && new Date() < new Date("2026-05-01") && (()=>{
+        const allSubmitted = shown.filter(e=>e.approval==="submitted");
+        if(!allSubmitted.length) return null;
+        const handleApproveAll = async () => {
+          if(!await ktaConfirm(`Approve all ${allSubmitted.length} submitted ${allSubmitted.length===1?"entry":"entries"} across all apprentices? This bypasses individual approver sign-off.`)) return;
+          setApprovingAll(true);
+          const ids = allSubmitted.map(e=>e.id);
+          setEntries(prev=>prev.map(e=>ids.includes(e.id)?{...e,approval:"approved"}:e));
+          await Promise.all(allSubmitted.map(e=>upsertEntry({...e,approval:"approved"}).catch(console.error)));
+          showToast(`✓ ${allSubmitted.length} ${allSubmitted.length===1?"entry":"entries"} approved`);
+          setApprovingAll(false);
+        };
+        return (
+          <div style={{marginBottom:14,padding:"10px 14px",background:"#fff8e6",
+            border:"1.5px solid #e6a817",borderRadius:10,
+            display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+            <div>
+              <span style={{fontWeight:700,fontSize:13,color:"#7a5000"}}>⚡ Admin Override</span>
+              <span style={{fontSize:13,color:"#7a5000",marginLeft:8}}>
+                {allSubmitted.length} submitted {allSubmitted.length===1?"entry":"entries"} across all apprentices
+              </span>
+              <span style={{fontSize:11,color:"#b07030",marginLeft:8}}>· Expires 30 Apr 2026</span>
+            </div>
+            <button
+              onClick={handleApproveAll}
+              disabled={approvingAll}
+              style={{padding:"7px 18px",background:"#e6a817",border:"none",borderRadius:8,
+                fontWeight:700,fontSize:13,color:"#fff",cursor:approvingAll?"not-allowed":"pointer",
+                fontFamily:"DM Sans,sans-serif",opacity:approvingAll?0.7:1,whiteSpace:"nowrap"}}>
+              {approvingAll?"Approving…":"✓ Approve All Submitted"}
+            </button>
+          </div>
+        );
+      })()}
       {/* ── Approver view: grouped by apprentice with per-day + approve-week actions ── */}
       {/* ── Entry list — split by role ── */}
       {(()=>{
@@ -1763,8 +2396,8 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                       const cnt = submitted.filter(e=>getWeekEnding(e.date)===we).length;
                       const hrs = submitted.filter(e=>getWeekEnding(e.date)===we).reduce((a,e)=>a+e.netHours,0).toFixed(2);
                       return (
-                        <button key={we} onClick={()=>{
-                          if(window.confirm(`Approve week ending ${fmtWeekEnd(we)} for ${app.name}?\n${cnt} ${cnt===1?"entry":"entries"} · ${hrs}h total`))
+                        <button key={we} onClick={async ()=>{
+                          if(await ktaConfirm(`Approve week ending ${fmtWeekEnd(we)} for ${app.name}?\n${cnt} ${cnt===1?"entry":"entries"} · ${hrs}h total`))
                             approveWeek(we);
                         }} style={{
                           padding:"9px 16px",borderRadius:8,fontSize:14,fontWeight:700,
@@ -1779,8 +2412,8 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                       );
                     })}
                     {weeks.filter(we=>submitted.some(e=>getWeekEnding(e.date)===we)).length > 1 && (
-                      <button onClick={()=>{
-                        if(window.confirm(`Approve ALL ${submitted.length} pending entries for ${app.name}?`))
+                      <button onClick={async ()=>{
+                        if(await ktaConfirm(`Approve ALL ${submitted.length} pending entries for ${app.name}?`))
                           approveAllWeeks();
                       }} style={{
                         padding:"9px 16px",borderRadius:8,fontSize:14,fontWeight:700,
@@ -1903,20 +2536,20 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
               <span style={{textAlign:"center"}}>Time</span><span>Status</span>
               <span style={{textAlign:"right"}}>Actions</span>
             </div>
-            {shown.length===0&&(
+            {activeShown.length===0&&(
               <div style={{padding:"48px 24px",textAlign:"center",color:T.muted}}>
                 <div style={{fontSize:35,marginBottom:8}}>◈</div>
                 <div style={{fontWeight:700}}>No entries to display</div>
-                <div style={{fontSize:13,marginTop:4}}>{canAdd?"Use the button above to log your first entry.":"No entries in your scope yet."}</div>
+                <div style={{fontSize:13,marginTop:4}}>{canAdd?"Use the button above to log your first entry.":"No entries in your scope yet."}{processedCount>0?` (${processedCount} processed entries hidden — submitted to Xero)`:""}</div>
               </div>
             )}
-            {shown.map((e,i)=>(
+            {activeShown.map((e,i)=>(
               <EntryRow key={e.id} entry={e} idx={i}
                 canEdit={canEdit(e)} canApprove={canApprove(e)}
                 onDelete={handleDelete} onApprove={handleApprove}
                 onDecline={handleDecline} onEdit={handleEdit}
                 canDelete={canDelete(e)}
-                canSubmitXero={role==="Admin" && (currentUser?.adminLevel||1)===1}
+                canSubmitXero={role==="Admin" && Number(currentUser?.adminLevel ?? 1)===1}
                 onSubmitXero={async(id)=>{
                   const en = entries.find(x=>x.id===id);
                   if(!en) return;
@@ -1933,6 +2566,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                   setEntries(prev=>prev.map(x=>x.id===id?{...x,approval:"submitted"}:x));
                   const entry=entries.find(x=>x.id===id);
                   if(entry){
+                    await upsertEntry({...entry,approval:"submitted"}).catch(console.error);
                     const approvers=allUsers.filter(u=>
                       (u.role==="Approver"||(u.role==="Admin"&&u.secondaryRole==="Approver"))&&(
                         (u.allocatedTo||[]).includes(currentUser.id)||
@@ -1953,9 +2587,10 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                 showUser={showUserCol} users={allUsers}/>
             ))}
           </Card>
-          {shown.length>0&&(
+          {activeShown.length>0&&(
             <div style={{textAlign:"right",fontSize:13,color:T.sub,marginTop:10}}>
-              {shown.length} entr{shown.length===1?"y":"ies"} · <strong style={{color:T.accent}}>{shown.reduce((a,e)=>a+e.netHours,0).toFixed(2)}h</strong> net
+              {activeShown.length} entr{activeShown.length===1?"y":"ies"} · <strong style={{color:T.accent}}>{activeShown.reduce((a,e)=>a+e.netHours,0).toFixed(2)}h</strong> net
+              {processedCount>0&&<span style={{marginLeft:8,color:T.teal}}>· {processedCount} processed ✓</span>}
             </div>
           )}
         </>);
@@ -2004,7 +2639,7 @@ function useSort(defaultField="name", defaultDir="asc") {
   return {sortField, sortDir, toggle, sortFn, ColHeader: SortColHeader};
 }
 
-function UserManagement({users, setUsers, currentUser}) {
+function UserManagement({users, setUsers, currentUser, entries=[]}) {
   const myLevel = currentUser?.adminLevel || 1;
   const [viewingUser, setViewingUser] = useState(null); // full-page user detail
   const [crmHostCompanies,setCrmHostCompanies]=useState([]);
@@ -2021,34 +2656,46 @@ function UserManagement({users, setUsers, currentUser}) {
   const canEditUser = (u) => {
     if(myLevel===1) return true;
     // Admin 2 cannot edit Admin 1 users
-    if(u.role==="Admin" && (u.adminLevel||1)===1) return false;
+    if(u.role==="Admin" && Number(u.adminLevel ?? 1)===1) return false;
     return true;
   };
   const canDeleteUser = (u) => canEditUser(u);
   const canCreateUsers = true; // both admin levels can create users
 
-  const [umTab, setUmTab] = useState("employees"); // "employees"|"host"|"office"
+  const [umTab, setUmTab] = useState("employees");
+  const [bulkPw, setBulkPw] = useState("");
+  const [bulkResetting, setBulkResetting] = useState(false);
+  const [bulkDone, setBulkDone] = useState(null);
+  const switchUmTab = (tab) => { setUmTab(tab); setBulkPw(""); setBulkDone(null); };
 
-  const blank={name:"",role:"Apprentice",email:"",phone:"",password:"",allocatedTo:[],
-    address:"",suburb:"",city:"",postcode:"",approverUserId:null,viewerUserId:null,secondaryRole:null,adminLevel:1,
-    hostBusiness:"",overtimeType:null,overtimeThreshold:"",overtimeRateId:"",reportsEmail:"",company:""};
+  const blank={name:"",role:"Apprentice",email:"",phone:"",mobile:"",password:"",allocatedTo:[],
+    address:"",suburb:"",city:"",postcode:"",approverUserId:null,viewerUserId:null,secondaryRole:null,adminLevel:1,isSupervisor:false,
+    hostBusiness:"",overtimeType:null,overtimeThreshold:"",overtimeRateId:"",reportsEmail:"",company:"",
+    startDate:"",dateOfBirth:""};
   const [form,setForm]=useState(blank);
   const [formKey,setFormKey]=useState(0);
   const [showForm,setShowForm]=useState(false);
   const [editId,setEditId]=useState(null);
   const [pwField,setPwField]=useState("");
   const [showPw,setShowPw]=useState(false);
-  const [appApprover, setAppApprover] = useState("");
-  const [appViewer,   setAppViewer]   = useState("");
-  const [appMentor,   setAppMentor]   = useState("");
+  const [appApprover,   setAppApprover]   = useState("");
+  const [appViewer,     setAppViewer]     = useState("");
+  const [appMentor,     setAppMentor]     = useState("");
+  const [appSupervisors,setAppSupervisors] = useState([]);
   const sf=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   const toggleAlloc=(uid)=>setForm(f=>({...f,allocatedTo:f.allocatedTo.includes(uid)?f.allocatedTo.filter(x=>x!==uid):[...f.allocatedTo,uid]}));
 
-  const submit=()=>{
+  const submit=async ()=>{
     if(!form.name.trim()||!form.email.trim()) return;
     const finalForm={...form};
-    if(pwField.trim()) finalForm.password=hashPw(pwField.trim());
+    if(pwField.trim()) {
+      finalForm.password=await hashPw(pwField.trim());
+    } else if(editId) {
+      // No new password typed — preserve the existing hash from the users array
+      const existing = users.find(u=>u.id===editId);
+      finalForm.password = existing?.password || "";
+    }
     const targetId = editId || uid();
 
     // Always bake approver/viewer into finalForm for apprentices
@@ -2056,6 +2703,7 @@ function UserManagement({users, setUsers, currentUser}) {
       finalForm.approverUserId = appApprover||null;
       finalForm.viewerUserId   = appViewer||null;
       finalForm.mentorUserId   = appMentor||null;
+      finalForm.supervisorIds  = appSupervisors;
     }
     // Clear secondaryRole if not Admin; default adminLevel to 1 for non-admins
     if(finalForm.role!=="Admin") { finalForm.secondaryRole = null; finalForm.adminLevel = null; }
@@ -2064,14 +2712,15 @@ function UserManagement({users, setUsers, currentUser}) {
 
     setUsers(prev=>{
       let next = editId
-        ? prev.map(u=>u.id===editId?{...u,...finalForm}:u)
+        ? prev.map(u=>u.id===editId?{...u,...finalForm, role: finalForm.role||u.role}:u)
         : [...prev,{id:targetId,...finalForm}];
 
       if(finalForm.role==="Apprentice") {
         // Sync allocatedTo on approver/viewer users (legacy support)
         next = next.map(u => {
           if(u.id === targetId) return u;
-          if(!["Approver","Viewer","Admin"].includes(u.role)) return u;
+          if(!["Approver","Viewer","Admin","Supervisor"].includes(u.role)) return u;
+          if(u.role==="Supervisor") return u; // Supervisors managed via supervisorIds, not allocatedTo
           const isApprover = appApprover === u.id;
           const isViewer   = appViewer   === u.id;
           const shouldHave = isApprover || isViewer;
@@ -2085,17 +2734,25 @@ function UserManagement({users, setUsers, currentUser}) {
     });
     setEditId(null);
     setForm(blank);setPwField("");setShowForm(false);
-    setAppApprover("");setAppViewer("");setAppMentor("");
+    setAppApprover("");setAppViewer("");setAppMentor("");setAppSupervisors([]);
   };
 
   const startEdit=(u)=>{
-    setForm({name:u.name,role:u.role,email:u.email||"",phone:u.phone||"",password:u.password,
+    // Apprentices use ApprenticeDetailView (full edit experience)
+    if(u.role==="Apprentice") {
+      if(!window.__ktaBackHandlers) window.__ktaBackHandlers=[];
+      window.__ktaBackHandlers.push(()=>setViewingUser(null));
+      window.history.pushState({ktaNav:true},"");
+      setViewingUser(u); return;
+    }
+    setForm({name:u.name,role:u.role,email:u.email||"",phone:u.phone||"",mobile:u.mobile||"",password:"",
       allocatedTo:u.allocatedTo||[],address:u.address||"",suburb:u.suburb||"",
       city:u.city||"",postcode:u.postcode||"",
       approverUserId:u.approverUserId||null,viewerUserId:u.viewerUserId||null,
       secondaryRole:u.secondaryRole||null,adminLevel:u.adminLevel||1,
       hostBusiness:u.hostBusiness||"",overtimeType:u.overtimeType||null,
-      overtimeThreshold:u.overtimeThreshold||"",overtimeRateId:u.overtimeRateId||"",reportsEmail:u.reportsEmail||"",company:(typeof u.company==="string"?u.company:"")});
+      overtimeThreshold:u.overtimeThreshold||"",overtimeRateId:u.overtimeRateId||"",reportsEmail:u.reportsEmail||"",company:(typeof u.company==="string"?u.company:""),
+      isSupervisor:u.isSupervisor||false,startDate:u.startDate||"",dateOfBirth:u.dateOfBirth||""});
     setPwField(""); setEditId(u.id); setShowForm(true); setFormKey(k=>k+1);
     if(u.role==="Apprentice") {
       // Prefer the value stored directly on the apprentice record (new approach)
@@ -2107,27 +2764,35 @@ function UserManagement({users, setUsers, currentUser}) {
       setAppApprover(approverFromRecord||approverFromAlloc);
       setAppViewer(viewerFromRecord||viewerFromAlloc);
       setAppMentor(u.mentorUserId||"");
+      setAppSupervisors(u.supervisorIds||[]);
     }
     setTimeout(()=>document.getElementById("um-form")?.scrollIntoView({behavior:"smooth",block:"start"}),50);
   };
-  const deleteUser=(id)=>{if(window.confirm("Remove this user?"))setUsers(prev=>prev.filter(u=>u.id!==id));};
+  const deleteUser=async (id)=>{if(await ktaConfirm("Remove this user?"))setUsers(prev=>prev.filter(u=>u.id!==id));};
 
   // For Approver/Viewer/Mentor: allocatable = apprentices (or apprentices+viewers for mentor)
   const allocatable=users.filter(u=>u.id!==(editId||"__")&&
-    (["Approver","Viewer"].includes(form.role)?u.role==="Apprentice":
-     form.role==="Mentor"?["Apprentice","Viewer"].includes(u.role):false));
+    (["Approver","Viewer","Supervisor"].includes(form.role)?u.role==="Apprentice":
+     form.role==="Mentor"?["Apprentice","Viewer"].includes(u.role):false)&&
+    // Filter by same company if the user has a company set
+    (!form.company || !u.hostBusiness || 
+     u.hostBusiness.toLowerCase().trim()===form.company.toLowerCase().trim() ||
+     form.allocatedTo.includes(u.id)) // always show already-allocated
+  );
 
   // For Apprentice approver/viewer dropdowns: include Admins with matching secondary role too
   const approverOptions = users.filter(u=>u.role==="Approver"||u.role==="Admin");
-  const viewerOptions   = users.filter(u=>u.role==="Viewer"  ||u.role==="Admin");
+  const viewerOptions      = users.filter(u=>u.role==="Viewer"  ||u.role==="Admin");
+  const supervisorOptions  = users.filter(u=>["Supervisor","Approver","Viewer"].includes(u.role));
 
   if(viewingUser) {
+    if(!viewingUser) return null;
     return viewingUser.role==="Apprentice"
       ? <ApprenticeDetailView
           apprentice={viewingUser}
           viewer={currentUser}
           allUsers={users}
-          entries={[]}
+          entries={entries||[]}
           isAdmin={true}
           canEditExpiry={true}
           onBack={()=>setViewingUser(null)}
@@ -2145,6 +2810,10 @@ function UserManagement({users, setUsers, currentUser}) {
             setTimeout(()=>document.getElementById("um-form")?.scrollIntoView({behavior:"smooth",block:"start"}),80);
           }}
           onBack={()=>setViewingUser(null)}
+          onViewCompany={(companyName)=>{
+            setViewingUser(null);
+            navigateTo("crm", {openCompany: companyName});
+          }}
         />;
   }
 
@@ -2170,6 +2839,25 @@ function UserManagement({users, setUsers, currentUser}) {
               </select>
               <div style={{marginTop:6}}><RolePill role={form.role}/></div>
             </div>
+            {["Approver","Viewer","Mentor"].includes(form.role)&&(
+              <div style={{marginTop:4}}>
+                <label style={{display:"flex",alignItems:"center",gap:12,cursor:"pointer",userSelect:"none"}}>
+                  <div onClick={()=>sf("isSupervisor",!form.isSupervisor)}
+                    style={{position:"relative",width:44,height:24,borderRadius:12,flexShrink:0,
+                      background:form.isSupervisor?T.teal:"#e05c5c",
+                      transition:"background .2s",cursor:"pointer"}}>
+                    <div style={{position:"absolute",top:3,
+                      left:form.isSupervisor?22:3,
+                      width:18,height:18,borderRadius:"50%",background:"#fff",
+                      transition:"left .2s",boxShadow:"0 1px 3px #0003"}}/>
+                  </div>
+                  <span style={{fontSize:14,color:T.ink,fontWeight:500}}>
+                    Also a <strong>Supervisor</strong>
+                    <span style={{fontWeight:400,color:T.muted,marginLeft:6}}>— can be allocated as a site supervisor to apprentices</span>
+                  </span>
+                </label>
+              </div>
+            )}
             {form.role==="Admin"&&(
               <div>
                 <FL>Secondary Role <span style={{fontWeight:700,color:T.muted}}>(optional — grants additional access)</span></FL>
@@ -2221,6 +2909,7 @@ function UserManagement({users, setUsers, currentUser}) {
             )}
             <div><FL req>Email</FL><input type="email" placeholder="jane@work.com" value={form.email} onChange={e=>sf("email",e.target.value)}/></div>
             <div><FL>Phone</FL><input placeholder="+64 4xx xxx xxx" value={form.phone} onChange={e=>sf("phone",e.target.value)}/></div>
+            <div><FL>Mobile</FL><input placeholder="+64 2x xxx xxxx" value={form.mobile||""} onChange={e=>sf("mobile",e.target.value)}/></div>
             <div>
               <FL>Company / Organisation</FL>
               {crmHostCompanies.length>0?(()=>{
@@ -2355,6 +3044,23 @@ function UserManagement({users, setUsers, currentUser}) {
               {/* Overtime Settings */}
               <div style={{borderTop:`1px solid ${T.border}`,paddingTop:12,marginBottom:12}}>
                 <div style={{fontWeight:700,fontSize:13,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8}}>
+                  Apprenticeship Dates
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                  <div>
+                    <FL>Apprenticeship Start Date ★</FL>
+                    <input type="date" value={form.startDate||""} onChange={e=>sf("startDate",e.target.value||null)}/>
+                    <div style={{fontSize:11,color:T.accent,marginTop:3}}>★ Used to calculate months in training on progress snapshots</div>
+                  </div>
+                  <div>
+                    <FL>Date of Birth</FL>
+                    <input type="date" value={form.dateOfBirth||""} onChange={e=>sf("dateOfBirth",e.target.value||null)}/>
+                  </div>
+                </div>
+              </div>
+              {/* Overtime Settings */}
+              <div style={{borderTop:`1px solid ${T.border}`,paddingTop:12,marginBottom:12}}>
+                <div style={{fontWeight:700,fontSize:13,color:T.sub,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8}}>
                   Overtime Settings
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
@@ -2380,7 +3086,7 @@ function UserManagement({users, setUsers, currentUser}) {
                 <div style={{marginTop:12}}>
                   <FL>Reports Go To (email)</FL>
                   <input type="email" placeholder="e.g. manager@company.co.nz" value={form.reportsEmail||""} onChange={e=>sf("reportsEmail",e.target.value)}/>
-                  <div style={{fontSize:11,color:T.muted,marginTop:2}}>Visit reports will be emailed here instead of to the approver. Leave blank to use approver.</div>
+                  <div style={{fontSize:11,color:T.muted,marginTop:2}}>Reports will be sent ONLY to these addresses. Leave blank to send to the approver.</div>
                 </div>
                 {form.overtimeType&&(
                   <div style={{marginTop:8,padding:"8px 12px",background:T.accentL,borderRadius:7,fontSize:13,color:T.accent}}>
@@ -2421,6 +3127,27 @@ function UserManagement({users, setUsers, currentUser}) {
                   ))}
                 </select>
               </div>
+              <div>
+                <FL>Supervisors <span style={{fontWeight:700,color:T.muted}}>(from host business, multiple allowed)</span></FL>
+                {supervisorOptions.length===0
+                  ? <div style={{fontSize:13,color:T.muted,fontStyle:"italic",marginTop:4}}>No Supervisor users yet — create them in Host Management tab</div>
+                  : <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
+                      {supervisorOptions.map(u=>{
+                        const sel = appSupervisors.includes(u.id);
+                        return (
+                          <button key={u.id} type="button"
+                            onClick={()=>setAppSupervisors(prev=>sel?prev.filter(id=>id!==u.id):[...prev,u.id])}
+                            style={{padding:"4px 12px",borderRadius:8,fontSize:13,fontWeight:sel?700:400,
+                              border:`1.5px solid ${sel?T.teal:T.border}`,
+                              background:sel?T.tealL:T.surface,color:sel?T.teal:T.ink,
+                              cursor:"pointer",fontFamily:"DM Sans,sans-serif",transition:"all .14s"}}>
+                            {u.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                }
+              </div>
             </div>
             </div>
           )}
@@ -2435,8 +3162,8 @@ function UserManagement({users, setUsers, currentUser}) {
       {/* ── Group tabs ── */}
       {(()=>{
         const groups = {
-          employees: { label:"👷 Employees",      roles:["Apprentice"],                  desc:"Apprentices enrolled with KTA" },
-          host:      { label:"🏢 Host Management", roles:["Approver","Viewer"],           desc:"Approvers and Viewers at host businesses" },
+          employees: { label:"👷 Apprentices",     roles:["Apprentice"],                  desc:"Apprentices enrolled with KTA" },
+          host:      { label:"🏢 Host Management", roles:["Approver","Viewer","Supervisor"], desc:"Approvers, Viewers and Supervisors at host businesses" },
           office:    { label:"🏛 KTA Office Staff", roles:["Admin","Mentor"],             desc:"KTA administrators, office staff and mentors" },
         };
         return (
@@ -2445,7 +3172,7 @@ function UserManagement({users, setUsers, currentUser}) {
               const count = users.filter(u=>g.roles.includes(u.role)).length;
               const active = umTab===key;
               return (
-                <button key={key} onClick={()=>setUmTab(key)} style={{
+                <button key={key} onClick={()=>switchUmTab(key)} style={{
                   padding:"7px 16px",borderRadius:99,fontSize:14,fontWeight:700,
                   border:`1.5px solid ${active?T.accent:T.border}`,
                   background:active?T.accentL:T.surface,
@@ -2462,17 +3189,77 @@ function UserManagement({users, setUsers, currentUser}) {
         );
       })()}
 
+      {/* ── Bulk Password Reset ── */}
+      {(()=>{
+        const groupRolesForReset = {
+          employees: ["Apprentice"],
+          host:      ["Approver","Viewer","Supervisor"],
+          office:    ["Admin","Mentor"],
+        }[umTab] || [];
+        const groupUsers = users.filter(u=>groupRolesForReset.includes(u.role));
+        const groupLabel = {employees:"Apprentices",host:"Host Staff",office:"Office Staff"}[umTab];
+        const handleBulkReset = async () => {
+          if(!bulkPw.trim()) return;
+          if(!await ktaConfirm(`Reset passwords for ALL ${groupUsers.length} ${groupLabel} to "${bulkPw}"? This cannot be undone.`)) return;
+          setBulkResetting(true);
+          setBulkDone(null);
+          try {
+            const hashed = await hashPw(bulkPw.trim());
+            await Promise.all(groupUsers.map(u=>upsertUser({...u, password: hashed}).catch(console.error)));
+            setUsers(prev=>prev.map(u=>groupRolesForReset.includes(u.role)?{...u,password:hashed}:u));
+            setBulkDone(`✓ Reset ${groupUsers.length} ${groupLabel} passwords`);
+            setBulkPw("");
+          } catch(e) {
+            setBulkDone(`❌ Failed: ${e.message}`);
+          }
+          setBulkResetting(false);
+        };
+        return (
+          <div style={{marginBottom:14,padding:"10px 14px",background:T.bg,
+            border:`1.5px solid ${T.border}`,borderRadius:10,
+            display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <span style={{fontSize:13,fontWeight:700,color:T.sub,whiteSpace:"nowrap"}}>
+              🔑 Bulk reset {groupLabel} passwords:
+            </span>
+            <input
+              type="text"
+              value={bulkPw}
+              onChange={e=>setBulkPw(e.target.value)}
+              placeholder={`New password for all ${groupUsers.length} ${groupLabel}…`}
+              style={{flex:1,minWidth:200,fontSize:13,padding:"6px 10px",
+                border:`1.5px solid ${T.border}`,borderRadius:7,fontFamily:"DM Sans,sans-serif"}}
+            />
+            <button
+              onClick={handleBulkReset}
+              disabled={bulkResetting||!bulkPw.trim()}
+              style={{padding:"6px 14px",background:bulkResetting||!bulkPw.trim()?T.border:T.warn,
+                color:"#fff",border:"none",borderRadius:7,fontSize:13,fontWeight:700,
+                cursor:bulkResetting||!bulkPw.trim()?"not-allowed":"pointer",
+                fontFamily:"DM Sans,sans-serif",whiteSpace:"nowrap",
+                opacity:bulkResetting||!bulkPw.trim()?0.6:1}}>
+              {bulkResetting?"Resetting…":"Reset All"}
+            </button>
+            {bulkDone&&(
+              <span style={{fontSize:13,fontWeight:700,
+                color:bulkDone.startsWith("✓")?T.teal:T.red}}>
+                {bulkDone}
+              </span>
+            )}
+          </div>
+        );
+      })()}
+
       <Card style={{padding:0,overflow:"hidden"}}>
         {(()=>{
           const groupRoles = {
             employees: ["Apprentice"],
-            host:      ["Approver","Viewer"],
+            host:      ["Approver","Viewer","Supervisor"],
             office:    ["Admin","Mentor"],
           }[umTab] || [];
           const groupUsers = users.filter(u=>groupRoles.includes(u.role));
           const groupDesc = {
             employees: "Apprentices enrolled with KTA",
-            host:      "Approvers and Viewers at host businesses",
+            host:      "Approvers, Viewers and Supervisors at host businesses",
             office:    "KTA administrators, office staff and mentors",
           }[umTab];
           return (
@@ -2498,7 +3285,12 @@ function UserManagement({users, setUsers, currentUser}) {
                     background:isEditing?T.blueL:i%2===0?T.surface:T.bg,
                     alignItems:"center",gap:8,animationDelay:`${i*.03}s`,
                     cursor:"pointer"}}
-                    onClick={()=>setViewingUser(u)}
+                    onClick={()=>{
+                      if(!window.__ktaBackHandlers) window.__ktaBackHandlers=[];
+                      window.__ktaBackHandlers.push(()=>setViewingUser(null));
+                      window.history.pushState({ktaNav:true},"");
+                      setViewingUser(u);
+                    }}
                     onMouseEnter={e=>{if(!isEditing)e.currentTarget.style.background=T.blueL+"99";}}
                     onMouseLeave={e=>{e.currentTarget.style.background=isEditing?T.blueL:i%2===0?T.surface:T.bg;}}>
                     <Avatar name={u.name} role={u.role}/>
@@ -2527,7 +3319,12 @@ function UserManagement({users, setUsers, currentUser}) {
                     </div>
                     <div style={{display:"flex",gap:5,justifyContent:"flex-end"}} onClick={e=>e.stopPropagation()}>
                       {canEditUser(u)&&(
-                        <button onClick={()=>setViewingUser(u)} style={{width:26,height:26,borderRadius:6,fontSize:13,
+                        <button onClick={()=>{
+                          if(!window.__ktaBackHandlers) window.__ktaBackHandlers=[];
+                          window.__ktaBackHandlers.push(()=>setViewingUser(null));
+                          window.history.pushState({ktaNav:true},"");
+                          setViewingUser(u);
+                        }} style={{width:26,height:26,borderRadius:6,fontSize:13,
                           background:isEditing?T.blueL:"transparent",color:isEditing?T.blue:T.muted,
                           border:`1px solid ${isEditing?T.blue+"66":T.border}`,
                           display:"flex",alignItems:"center",justifyContent:"center"}}
@@ -2563,7 +3360,7 @@ function UserManagement({users, setUsers, currentUser}) {
 // USER DETAIL VIEW — full detail page for non-Apprentice users (Approver, Viewer, Mentor, Admin)
 // Apprentices use ApprenticeDetailView instead
 // ─────────────────────────────────────────────────────────────────────────────
-function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }) {
+function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack, onViewCompany }) {
   const fmtDate = (iso) => { if(!iso) return null; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
   const daysUntil = (iso) => { if(!iso) return null; const t=new Date(); t.setHours(0,0,0,0); return Math.round((new Date(iso+"T00:00:00")-t)/86400000); };
   const expiryColor = (days) => days===null?T.muted:days<0?T.red:days<=30?T.warn:T.teal;
@@ -2575,17 +3372,20 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
     u.mentorUserId===user.id
   );
 
-  const roleColor = {Admin:T.accent,Mentor:T.teal,Approver:T.warn,Viewer:T.blue,Apprentice:T.sub}[user.role]||T.muted;
-  const roleBg    = {Admin:T.accentL,Mentor:T.tealL,Approver:T.warnL,Viewer:T.blueL,Apprentice:T.slateL}[user.role]||T.bg;
+  const roleColor = {Admin:T.accent,Mentor:T.teal,Approver:T.warn,Viewer:T.blue,Apprentice:T.sub,Supervisor:T.teal}[user.role]||T.muted;
+  const roleBg    = {Admin:T.accentL,Mentor:T.tealL,Approver:T.warnL,Viewer:T.blueL,Apprentice:T.slateL,Supervisor:T.tealL}[user.role]||T.bg;
 
-  const Field = ({icon, label, value, href}) => value ? (
-    <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",borderBottom:`1px solid ${T.border}`}}>
+  const Field = ({icon, label, value, href, onClick}) => value ? (
+    <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 0",borderBottom:`1px solid ${T.border}`,
+      cursor:onClick?"pointer":"default"}} onClick={onClick||undefined}>
       <span style={{fontSize:17,width:20,textAlign:"center",flexShrink:0,marginTop:1}}>{icon}</span>
       <div style={{flex:1}}>
         <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
         {href
           ? <a href={href} style={{fontSize:14,color:T.accent,fontWeight:700,textDecoration:"none"}}>{value}</a>
-          : <div style={{fontSize:14,color:T.ink,lineHeight:1.5}}>{value}</div>}
+          : onClick
+            ? <div style={{fontSize:14,color:T.accent,fontWeight:700,lineHeight:1.5,textDecoration:"underline dotted"}}>{value}</div>
+            : <div style={{fontSize:14,color:T.ink,lineHeight:1.5}}>{value}</div>}
       </div>
     </div>
   ) : null;
@@ -2626,7 +3426,9 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
           <div style={{fontSize:12,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:12}}>📋 Details</div>
           <Field icon="✉" label="Email"  value={user.email}  href={user.email?`mailto:${user.email}`:null}/>
           <Field icon="📞" label="Phone"  value={user.phone}  href={user.phone?`tel:${user.phone}`:null}/>
-          {user.company&&<Field icon="🏢" label="Company" value={user.company}/>}
+          <Field icon="📱" label="Mobile" value={user.mobile} href={user.mobile?`tel:${user.mobile}`:null}/>
+          {user.company&&<Field icon="🏢" label="Company" value={user.company}
+            onClick={onViewCompany ? ()=>onViewCompany(user.company) : null}/>}
           <Field icon="📅" label="Start Date"    value={user.startDate?fmtDate(user.startDate):null}/>
           <Field icon="🎂" label="Date of Birth" value={user.dateOfBirth?fmtDate(user.dateOfBirth):null}/>
           <Field icon="⚧"  label="Gender"        value={user.gender}/>
@@ -2720,7 +3522,7 @@ function UserDetailView({ user, allUsers, currentUser, canEdit, onEdit, onBack }
 function CRMUsersPanel({allUsers, navigateTo}) {
   const [open, setOpen] = useState(false);
   const sorted = [...(allUsers||[])].sort((a,b)=>{
-    const rank = {Admin:0,Mentor:1,Approver:2,Viewer:3,Apprentice:4};
+    const rank = {Admin:0,Mentor:1,Approver:2,Viewer:3,Supervisor:3,Apprentice:4};
     const ra = rank[a.role]??5, rb = rank[b.role]??5;
     return ra!==rb ? ra-rb : a.name.localeCompare(b.name);
   });
@@ -2774,7 +3576,7 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
   const [expanded, setExpanded] = useState(false);
   const [editing,  setEditing]  = useState(false);
   const [form, setForm] = useState({
-    name:c.name||"", email:c.email||"", phone:c.phone||"",
+    name:c.name||"", email:c.email||"", phone:c.phone||"", mobile:c.mobile||"",
     job_title:c.job_title||c.jobTitle||"", status:c.status||"Active", notes:c.notes||"",
   });
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
@@ -2799,6 +3601,7 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
           <div style={{fontSize:12,color:T.muted,display:"flex",gap:10,marginTop:1,flexWrap:"wrap"}}>
             {c.email&&<span>✉ {c.email}</span>}
             {c.phone&&<span>📞 {c.phone}</span>}
+            {c.mobile&&<span>📱 {c.mobile}</span>}
             {(c.job_title||c.jobTitle)&&<span>💼 {c.job_title||c.jobTitle}</span>}
           </div>
         </div>
@@ -2807,7 +3610,7 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
             background:c.status==="Active"?T.accentL:T.slateL,
             color:c.status==="Active"?T.accent:T.muted}}>{c.status||"Active"}</span>
           {canEdit&&!editing&&(
-            <button onClick={()=>{setEditing(true);setExpanded(true);setForm({name:c.name||"",email:c.email||"",phone:c.phone||"",job_title:c.job_title||c.jobTitle||"",status:c.status||"Active",notes:c.notes||""});}}
+            <button onClick={()=>{setEditing(true);setExpanded(true);setForm({name:c.name||"",email:c.email||"",phone:c.phone||"",mobile:c.mobile||"",job_title:c.job_title||c.jobTitle||"",status:c.status||"Active",notes:c.notes||""});}}
               style={{width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",
                 color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}
               onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
@@ -2834,7 +3637,7 @@ function CompanyContactRow({ contact:c, index:i, total, canEdit, canDelete, isAp
           {editing ? (
             <div style={{background:T.blueL+"33",borderRadius:8,padding:"12px 14px",border:`1px solid ${T.blue}33`}}>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10,marginBottom:10}}>
-                {[["name","Name"],["email","Email"],["phone","Phone"],["job_title","Job Title"]].map(([k,lbl])=>(
+                {[["name","Name"],["email","Email"],["phone","Phone"],["mobile","Mobile"],["job_title","Job Title"]].map(([k,lbl])=>(
                   <div key={k}>
                     <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".4px",marginBottom:3}}>{lbl}</div>
                     <input value={form[k]} onChange={e=>sf(k,e.target.value)}
@@ -3088,8 +3891,8 @@ function DuplicateFinder({ items, type, onDelete, onView, canDelete, onMerge }) 
                           </button>
                         )}
                         {canDelete&&(
-                          <button onClick={()=>{
-                            if(!window.confirm(`Delete "${item.name}"? This cannot be undone.`)) return;
+                          <button onClick={async ()=>{
+                            if(!await ktaConfirm(`Delete "${item.name}"? This cannot be undone.`)) return;
                             onDelete(item.id);
                           }}
                             style={{fontSize:12,padding:"4px 10px",borderRadius:6,cursor:"pointer",
@@ -3212,7 +4015,375 @@ function HubSpotPropertyInspector({ hsToken, hsFetch }) {
   );
 }
 
+// ── CRM Tasks Panel ──────────────────────────────────────────────────────────
+function CRMTasksPanel({ personId=null, personEmail=null, personName=null, compact=false, currentUser }) {
+  const [tasks, setTasks]       = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving]     = useState(false);
+  const [form, setForm]         = useState({ title:"", due_date:"", assignee:"", notes:"", priority:"Normal" });
+  const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  useEffect(()=>{
+    setLoading(true);
+    loadTable("crm_tasks")
+      .then(rows=>{
+        let filtered = rows||[];
+        if(personId)    filtered = filtered.filter(r=>r.person_id===personId);
+        else if(personEmail) filtered = filtered.filter(r=>r.person_email===personEmail);
+        setTasks(filtered.sort((a,b)=>(a.due_date||"9999").localeCompare(b.due_date||"9999")));
+      })
+      .catch(()=>setTasks([]))
+      .finally(()=>setLoading(false));
+  },[personId, personEmail]);
+
+  const saveTask = async () => {
+    if(!form.title.trim()) return;
+    setSaving(true);
+    const task = {
+      id: uid(), person_id: personId||null, person_email: personEmail||null,
+      person_name: personName||null, title: form.title.trim(),
+      due_date: form.due_date||null, assignee: form.assignee||currentUser?.name||"",
+      notes: form.notes||"", priority: form.priority||"Normal",
+      status: "open", created_at: new Date().toISOString(),
+      created_by: currentUser?.name||"",
+    };
+    try {
+      await upsertRow("crm_tasks", task);
+      setTasks(prev=>[...prev, task].sort((a,b)=>(a.due_date||"9999").localeCompare(b.due_date||"9999")));
+      setForm({ title:"", due_date:"", assignee:"", notes:"", priority:"Normal" });
+      setShowForm(false);
+    } catch(e) { alert("Failed to save task: "+e.message); }
+    setSaving(false);
+  };
+
+  const toggleDone = async (task) => {
+    const updated = {...task, status: task.status==="done" ? "open" : "done", completed_at: task.status==="done"?null:new Date().toISOString()};
+    await upsertRow("crm_tasks", updated).catch(console.error);
+    setTasks(prev=>prev.map(t=>t.id===task.id?updated:t));
+  };
+
+  const deleteTask = async (id) => {
+    await deleteRow("crm_tasks", id).catch(console.error);
+    setTasks(prev=>prev.filter(t=>t.id!==id));
+  };
+
+  const open   = tasks.filter(t=>t.status!=="done");
+  const done   = tasks.filter(t=>t.status==="done");
+  const today  = new Date().toISOString().slice(0,10);
+  const fmtD   = iso => { if(!iso) return null; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
+
+  const PRIORITY_C = { High: T.red, Normal: T.blue, Low: T.muted };
+
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:16}}>✅</span>
+          <span style={{fontWeight:700,fontSize:15}}>Tasks</span>
+          {open.length>0&&<span style={{background:T.red,color:"#fff",borderRadius:99,fontSize:11,fontWeight:700,padding:"1px 7px"}}>{open.length}</span>}
+        </div>
+        <button onClick={()=>setShowForm(s=>!s)} style={{background:T.accentL,color:T.accent,border:`1px solid ${T.accent}33`,borderRadius:6,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+          {showForm?"✕ Cancel":"+ Task"}
+        </button>
+      </div>
+
+      {showForm&&(
+        <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:8,padding:12,marginBottom:12}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+            <div style={{gridColumn:"1/-1"}}>
+              <input value={form.title} onChange={e=>sf("title",e.target.value)} placeholder="Task title…"
+                style={{width:"100%",padding:"7px 10px",borderRadius:6,border:`1px solid ${T.border}`,fontSize:13,fontFamily:"DM Sans,sans-serif"}}/>
+            </div>
+            <div>
+              <input type="date" value={form.due_date} onChange={e=>sf("due_date",e.target.value)}
+                style={{width:"100%",padding:"7px 10px",borderRadius:6,border:`1px solid ${T.border}`,fontSize:13,fontFamily:"DM Sans,sans-serif"}}/>
+            </div>
+            <div>
+              <select value={form.priority} onChange={e=>sf("priority",e.target.value)}
+                style={{width:"100%",padding:"7px 10px",borderRadius:6,border:`1px solid ${T.border}`,fontSize:13,fontFamily:"DM Sans,sans-serif"}}>
+                {["High","Normal","Low"].map(p=><option key={p}>{p}</option>)}
+              </select>
+            </div>
+            <div style={{gridColumn:"1/-1"}}>
+              <input value={form.notes} onChange={e=>sf("notes",e.target.value)} placeholder="Notes (optional)…"
+                style={{width:"100%",padding:"7px 10px",borderRadius:6,border:`1px solid ${T.border}`,fontSize:13,fontFamily:"DM Sans,sans-serif"}}/>
+            </div>
+          </div>
+          <button onClick={saveTask} disabled={saving||!form.title.trim()} style={{background:T.accent,color:"#fff",border:"none",borderRadius:6,padding:"6px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif",opacity:(!form.title.trim()||saving)?0.5:1}}>
+            {saving?"Saving…":"Save Task"}
+          </button>
+        </div>
+      )}
+
+      {loading ? <div style={{color:T.muted,fontSize:13}}>Loading…</div> : (
+        <>
+          {open.length===0&&!showForm&&<div style={{color:T.muted,fontSize:13,fontStyle:"italic"}}>No open tasks</div>}
+          {open.map(task=>{
+            const overdue = task.due_date && task.due_date < today && task.status!=="done";
+            return (
+              <div key={task.id} style={{display:"flex",alignItems:"flex-start",gap:8,padding:"8px 0",borderBottom:`1px solid ${T.border}33`}}>
+                <button onClick={()=>toggleDone(task)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${T.border}`,background:"#fff",cursor:"pointer",flexShrink:0,marginTop:2,display:"flex",alignItems:"center",justifyContent:"center"}}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:700,color:T.ink}}>{task.title}</div>
+                  <div style={{display:"flex",gap:8,marginTop:3,flexWrap:"wrap"}}>
+                    {task.due_date&&<span style={{fontSize:11,color:overdue?T.red:T.muted,fontWeight:overdue?700:400}}>
+                      {overdue?"⚠ Overdue: ":""}{fmtD(task.due_date)}
+                    </span>}
+                    {task.priority&&task.priority!=="Normal"&&<span style={{fontSize:11,fontWeight:700,color:PRIORITY_C[task.priority]}}>{task.priority}</span>}
+                    {task.notes&&<span style={{fontSize:11,color:T.muted,fontStyle:"italic"}}>{task.notes}</span>}
+                  </div>
+                </div>
+                <button onClick={()=>deleteTask(task.id)} style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:13,padding:"0 2px",flexShrink:0}}>✕</button>
+              </div>
+            );
+          })}
+          {done.length>0&&!compact&&(
+            <details style={{marginTop:8}}>
+              <summary style={{fontSize:12,color:T.muted,cursor:"pointer",fontWeight:700}}>{done.length} completed</summary>
+              {done.map(task=>(
+                <div key={task.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",opacity:.5}}>
+                  <button onClick={()=>toggleDone(task)} style={{width:18,height:18,borderRadius:4,border:`2px solid ${T.teal}`,background:T.teal,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:10}}>✓</button>
+                  <span style={{fontSize:13,textDecoration:"line-through",color:T.muted}}>{task.title}</span>
+                  <button onClick={()=>deleteTask(task.id)} style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:13,padding:"0 2px",marginLeft:"auto"}}>✕</button>
+                </div>
+              ))}
+            </details>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── CRM Document Tracker ─────────────────────────────────────────────────────
+function CRMDocTracker({ personId=null, personEmail=null, personName=null, currentUser }) {
+  const [docs, setDocs]         = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving]     = useState(false);
+  const [form, setForm]         = useState({ title:"", url:"", notes:"" });
+  const sf = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  useEffect(()=>{
+    setLoading(true);
+    loadTable("crm_documents")
+      .then(rows=>{
+        let filtered = rows||[];
+        if(personId)    filtered = filtered.filter(r=>r.person_id===personId);
+        else if(personEmail) filtered = filtered.filter(r=>r.person_email===personEmail);
+        setDocs(filtered.sort((a,b)=>b.created_at.localeCompare(a.created_at)));
+      })
+      .catch(()=>setDocs([]))
+      .finally(()=>setLoading(false));
+  },[personId, personEmail]);
+
+  const saveDoc = async () => {
+    if(!form.title.trim()) return;
+    setSaving(true);
+    const doc = {
+      id: uid(), person_id: personId||null, person_email: personEmail||null,
+      person_name: personName||null, title: form.title.trim(),
+      url: form.url||null, notes: form.notes||"",
+      view_count: 0, last_viewed: null,
+      created_at: new Date().toISOString(), created_by: currentUser?.name||"",
+    };
+    try {
+      await upsertRow("crm_documents", doc);
+      setDocs(prev=>[doc,...prev]);
+      setForm({ title:"", url:"", notes:"" });
+      setShowForm(false);
+    } catch(e) { alert("Failed to save: "+e.message); }
+    setSaving(false);
+  };
+
+  const deleteDoc = async (id) => {
+    if(!await ktaConfirm("Remove this document?")) return;
+    await deleteRow("crm_documents", id).catch(console.error);
+    setDocs(prev=>prev.filter(d=>d.id!==id));
+  };
+
+  // Increment view count when link is opened
+  const trackOpen = async (doc) => {
+    const updated = {...doc, view_count:(doc.view_count||0)+1, last_viewed:new Date().toISOString()};
+    await upsertRow("crm_documents", updated).catch(console.error);
+    setDocs(prev=>prev.map(d=>d.id===doc.id?updated:d));
+  };
+
+  const fmtDT = iso => { if(!iso) return null; const d=new Date(iso); return d.toLocaleDateString("en-NZ",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}); };
+
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:16}}>📄</span>
+          <span style={{fontWeight:700,fontSize:15}}>Documents</span>
+          {docs.length>0&&<span style={{background:T.slateL,color:T.slate,borderRadius:99,fontSize:11,fontWeight:700,padding:"1px 7px"}}>{docs.length}</span>}
+        </div>
+        <button onClick={()=>setShowForm(s=>!s)} style={{background:T.accentL,color:T.accent,border:`1px solid ${T.accent}33`,borderRadius:6,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+          {showForm?"✕ Cancel":"+ Document"}
+        </button>
+      </div>
+
+      {showForm&&(
+        <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:8,padding:12,marginBottom:12}}>
+          <div style={{display:"grid",gap:8,marginBottom:8}}>
+            <input value={form.title} onChange={e=>sf("title",e.target.value)} placeholder="Document name…"
+              style={{padding:"7px 10px",borderRadius:6,border:`1px solid ${T.border}`,fontSize:13,fontFamily:"DM Sans,sans-serif"}}/>
+            <input value={form.url} onChange={e=>sf("url",e.target.value)} placeholder="URL (optional — paste a link to track opens)…"
+              style={{padding:"7px 10px",borderRadius:6,border:`1px solid ${T.border}`,fontSize:13,fontFamily:"DM Sans,sans-serif"}}/>
+            <input value={form.notes} onChange={e=>sf("notes",e.target.value)} placeholder="Notes (optional)…"
+              style={{padding:"7px 10px",borderRadius:6,border:`1px solid ${T.border}`,fontSize:13,fontFamily:"DM Sans,sans-serif"}}/>
+          </div>
+          <button onClick={saveDoc} disabled={saving||!form.title.trim()} style={{background:T.accent,color:"#fff",border:"none",borderRadius:6,padding:"6px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"DM Sans,sans-serif",opacity:(!form.title.trim()||saving)?0.5:1}}>
+            {saving?"Saving…":"Save"}
+          </button>
+        </div>
+      )}
+
+      {loading ? <div style={{color:T.muted,fontSize:13}}>Loading…</div> : (
+        docs.length===0&&!showForm
+          ? <div style={{color:T.muted,fontSize:13,fontStyle:"italic"}}>No documents yet</div>
+          : docs.map(doc=>(
+            <div key={doc.id} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 0",borderBottom:`1px solid ${T.border}33`}}>
+              <span style={{fontSize:20,flexShrink:0,marginTop:1}}>📄</span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontWeight:700,fontSize:13,color:T.ink}}>{doc.title}</div>
+                {doc.notes&&<div style={{fontSize:12,color:T.muted,marginTop:2}}>{doc.notes}</div>}
+                <div style={{display:"flex",gap:10,marginTop:4,flexWrap:"wrap"}}>
+                  {doc.url&&(
+                    <a href={doc.url} target="_blank" rel="noreferrer"
+                      onClick={()=>trackOpen(doc)}
+                      style={{fontSize:12,color:T.accent,fontWeight:700,textDecoration:"none"}}>
+                      🔗 Open document
+                    </a>
+                  )}
+                  {doc.view_count>0&&(
+                    <span style={{fontSize:11,color:T.teal,fontWeight:700}}>
+                      👁 {doc.view_count} view{doc.view_count!==1?"s":""}
+                      {doc.last_viewed&&` · Last: ${fmtDT(doc.last_viewed)}`}
+                    </span>
+                  )}
+                  <span style={{fontSize:11,color:T.muted}}>{fmtDT(doc.created_at)}</span>
+                </div>
+              </div>
+              <button onClick={()=>deleteDoc(doc.id)} style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:13,flexShrink:0}}>✕</button>
+            </div>
+          ))
+      )}
+    </div>
+  );
+}
+
+// ── CRM Reporting Dashboard ───────────────────────────────────────────────────
+function CRMReportingDashboard({ contacts, companies, deals }) {
+  const fmtMoney = v => v>=1000000?`$${(v/1000000).toFixed(1)}M`:v>=1000?`$${(v/1000).toFixed(0)}k`:`$${v.toLocaleString()}`;
+  const today = new Date().toISOString().slice(0,10);
+  const thisMonth = today.slice(0,7);
+
+  const totalContacts  = contacts.length;
+  const newThisMonth   = contacts.filter(c=>(c.created_at||"").startsWith(thisMonth)).length;
+  const totalCompanies = companies.length;
+  const hostBizCount   = companies.filter(c=>c.isHostBusiness).length;
+
+  const openDeals  = deals.filter(d=>!["Won","Lost"].includes(d.stage));
+  const wonDeals   = deals.filter(d=>d.stage==="Won");
+  const lostDeals  = deals.filter(d=>d.stage==="Lost");
+  const totalOpen  = openDeals.reduce((a,d)=>a+(parseFloat(d.value)||0),0);
+  const totalWon   = wonDeals.reduce((a,d)=>a+(parseFloat(d.value)||0),0);
+  const winRate    = (wonDeals.length+lostDeals.length)>0
+    ? Math.round(wonDeals.length/(wonDeals.length+lostDeals.length)*100)
+    : null;
+
+  const stageBreakdown = ["Lead","Qualified","Proposal","Negotiation","Won","Lost"].map(s=>({
+    stage: s,
+    count: deals.filter(d=>d.stage===s).length,
+    value: deals.filter(d=>d.stage===s).reduce((a,d)=>a+(parseFloat(d.value)||0),0),
+    color: STAGE_C[s]||T.muted,
+  })).filter(s=>s.count>0);
+
+  const overdueTasks_placeholder = 0; // would load from crm_tasks
+
+  const KPI = ({label,value,sub,color}) => (
+    <div style={{background:"#fff",borderRadius:10,border:`1px solid ${T.border}`,padding:"14px 18px"}}>
+      <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:6}}>{label}</div>
+      <div style={{fontSize:26,fontWeight:800,color:color||T.ink,fontFamily:"DM Sans,sans-serif"}}>{value}</div>
+      {sub&&<div style={{fontSize:12,color:T.muted,marginTop:3}}>{sub}</div>}
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{fontWeight:700,fontSize:17,marginBottom:14,color:T.ink}}>📊 CRM Overview</div>
+
+      {/* KPI grid */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,marginBottom:20}}>
+        <KPI label="Contacts"      value={totalContacts}         sub={newThisMonth>0?`+${newThisMonth} this month`:null} color={T.accent}/>
+        <KPI label="Companies"     value={totalCompanies}        sub={`${hostBizCount} host businesses`}                color={T.teal}/>
+        <KPI label="Open Pipeline" value={fmtMoney(totalOpen)}   sub={`${openDeals.length} deals`}                      color={T.hol}/>
+        <KPI label="Won"           value={fmtMoney(totalWon)}    sub={`${wonDeals.length} deals closed`}                color={T.teal}/>
+        {winRate!==null&&<KPI label="Win Rate" value={`${winRate}%`} sub={`${wonDeals.length}W / ${lostDeals.length}L`} color={winRate>50?T.teal:T.warn}/>}
+      </div>
+
+      {/* Pipeline by stage */}
+      {stageBreakdown.length>0&&(
+        <div style={{background:"#fff",borderRadius:10,border:`1px solid ${T.border}`,padding:"14px 18px",marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:12}}>Pipeline by Stage</div>
+          {stageBreakdown.map(s=>{
+            const pct = totalOpen>0 ? Math.round(s.value/Math.max(totalOpen,1)*100) : 0;
+            return (
+              <div key={s.stage} style={{marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                  <span style={{fontSize:13,fontWeight:700,color:s.color}}>{s.stage}</span>
+                  <span style={{fontSize:13,color:T.muted}}>{s.count} deal{s.count!==1?"s":""} · {s.value>0?fmtMoney(s.value):"—"}</span>
+                </div>
+                {s.value>0&&(
+                  <div style={{height:6,borderRadius:3,background:T.border,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${pct}%`,borderRadius:3,background:s.color,transition:"width .4s"}}/>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Activity summary */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div style={{background:"#fff",borderRadius:10,border:`1px solid ${T.border}`,padding:"14px 18px"}}>
+          <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:8}}>By Industry</div>
+          {[...new Set(companies.map(c=>c.industry).filter(Boolean))].slice(0,5).map(ind=>(
+            <div key={ind} style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}>
+              <span style={{color:T.ink}}>{ind}</span>
+              <span style={{fontWeight:700,color:T.accent}}>{companies.filter(c=>c.industry===ind).length}</span>
+            </div>
+          ))}
+          {companies.filter(c=>!c.industry).length>0&&(
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}>
+              <span style={{color:T.muted}}>No industry</span>
+              <span style={{fontWeight:700,color:T.muted}}>{companies.filter(c=>!c.industry).length}</span>
+            </div>
+          )}
+        </div>
+        <div style={{background:"#fff",borderRadius:10,border:`1px solid ${T.border}`,padding:"14px 18px"}}>
+          <div style={{fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".7px",marginBottom:8}}>Contact Status</div>
+          {["Active","Prospect","Inactive"].map(st=>{
+            const cnt = contacts.filter(c=>c.status===st).length;
+            return cnt>0?(
+              <div key={st} style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}}>
+                <span style={{color:T.ink}}>{st}</span>
+                <span style={{fontWeight:700,color:st==="Active"?T.teal:st==="Prospect"?T.warn:T.muted}}>{cnt}</span>
+              </div>
+            ):null;
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
+  // Auto-open company if navigated from elsewhere (e.g. UserDetailView)
   const fmtDateNZ = (iso) => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
   const [contacts,setContacts]=useState([]);
   const [companies,setCompanies]=useState([]);
@@ -3242,6 +4413,18 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
   const [showCoForm,setShowCoForm]=useState(false);
   const [detailContact,setDetailContact]=useState(null); // contact object for full-page view
   const [detailCompany,setDetailCompany]=useState(null); // company object for full-page view
+
+  // Auto-open company when navigated from another module (e.g. UserDetailView)
+  useEffect(()=>{
+    try {
+      const pending = sessionStorage.getItem("crm_open_company");
+      if(pending && companies.length > 0) {
+        sessionStorage.removeItem("crm_open_company");
+        const co = companies.find(c=>c.name===pending);
+        if(co){ if(!window.__ktaBackHandlers) window.__ktaBackHandlers=[]; window.__ktaBackHandlers.push(()=>setDetailCompany(null)); window.history.pushState({ktaNav:true},""); setDetailCompany(co); }
+      }
+    } catch{}
+  },[companies]);
   const [convertContact,setConvertContact]=useState(null);   // contact being converted to user
   const [convertRole,setConvertRole]=useState("Approver");   // selected role for new user
   const [convertAlloc,setConvertAlloc]=useState([]);          // allocated apprentice IDs
@@ -3259,13 +4442,18 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
     const id=editCoId||uid();
     const row={id,name:coForm.name.trim(),industry:coForm.industry,phone:coForm.phone,website:coForm.website,
       address:coForm.address,city:coForm.city,postcode:coForm.postcode,country:coForm.country,
-      notes:coForm.notes,status:coForm.status,hubspot_id:"",is_host_business:coForm.isHostBusiness?true:false};
+      notes:coForm.notes,status:coForm.status,is_host_business:coForm.isHostBusiness?true:false};
     try {
-      await upsertRow("crm_companies",row);
+      if(editCoId) {
+        // Use updateRow (patch) so we only overwrite what's in the form — preserves any DB columns not in form
+        await updateRow("crm_companies", editCoId, row);
+      } else {
+        await upsertRow("crm_companies", {...row, hubspot_id:""});
+      }
       const mapped={id,name:coForm.name.trim(),industry:coForm.industry,phone:coForm.phone,website:coForm.website,
         address:coForm.address,city:coForm.city,postcode:coForm.postcode,country:coForm.country,
         notes:coForm.notes,status:coForm.status,hubspotId:"",isHostBusiness:coForm.isHostBusiness?true:false};
-      if(editCoId) setCompanies(prev=>prev.map(c=>c.id===editCoId?mapped:c));
+      if(editCoId) setCompanies(prev=>prev.map(c=>c.id===editCoId?{...c,...mapped}:c));
       else setCompanies(prev=>[mapped,...prev]);
       setShowCoForm(false);setEditCoId(null);setCoForm(coBlank);
     } catch(e) {
@@ -3273,8 +4461,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
     }
     setCoSaving(false);
   };
-  const [cForm,setCForm]=useState({name:"",company:"",companyId:"",email:"",phone:"",status:"Active",notes:""});
-  const [dForm,setDForm]=useState({title:"",contact:"",value:"",stage:"Lead",closeDate:"",notes:""});
+  const [cForm,setCForm]=useState({name:"",company:"",companyId:"",email:"",phone:"",mobile:"",status:"Active",notes:""});
+  const [dForm,setDForm]=useState({title:"",contact:"",contactId:"",companyId:"",value:"",stage:"Lead",closeDate:"",notes:""});
   const [editCId,setEditCId]=useState(null);
   const [hsEmail,setHsEmail]=useState("");
   const [hsStatus,setHsStatus]=useState(null); // null | "searching" | "found" | "notfound" | "error"
@@ -3311,7 +4499,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
       try{
         const [c,d,co]=await Promise.all([loadTable('crm_contacts'),loadTable('crm_deals'),loadTable('crm_companies').catch(()=>[])]);
         setContacts(c.map(x=>({id:x.id,name:x.name,company:x.company||"",companyId:x.company_id||"",email:x.email||"",phone:x.phone||"",status:x.status||"Active",notes:x.notes||""})));
-        setDeals(d.map(x=>({id:x.id,title:x.title,contact:x.contact||"",value:x.value||"",stage:x.stage||"Lead",closeDate:x.close_date||"",notes:x.notes||""})));
+        setDeals(d.map(x=>({id:x.id,title:x.title,contact:x.contact||"",contactId:x.contact_id||"",companyId:x.company_id||"",value:x.value||"",stage:x.stage||"Lead",closeDate:x.close_date||"",notes:x.notes||""})));
         setCompanies(co.map(x=>({id:x.id,name:x.name,industry:x.industry||"",phone:x.phone||"",website:x.website||"",address:x.address||"",city:x.city||"",country:x.country||"",hubspotId:x.hubspot_id||"",notes:x.notes||"",status:x.status||"Active",isHostBusiness:x.is_host_business||false,postcode:x.postcode||""})));
       }catch(e){console.error('CRM load',e);}
       finally{setCrmLoading(false);}
@@ -3321,8 +4509,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
   const role=currentUser.role;
   const fullAccess=role==="Admin"||role==="Mentor";
   const canEdit=role==="Admin"||role==="Mentor";
-  const canDelete=role==="Admin"&&(currentUser.adminLevel||1)===1;
-  const isAdmin1CRM = role==="Admin"&&(currentUser.adminLevel||1)===1;
+  const canDelete=role==="Admin"&&Number(currentUser.adminLevel ?? 1)===1;
+  const isAdmin1CRM = role==="Admin"&&Number(currentUser.adminLevel ?? 1)===1;
 
   const isApprenticeContact = (c) => allUsers && allUsers.some(u=>u.role==="Apprentice"&&u.email&&c.email&&u.email.toLowerCase()===c.email.toLowerCase());
   const isExistingUser = (c) => allUsers && allUsers.some(u=>u.email&&c.email&&u.email.toLowerCase()===c.email.toLowerCase());
@@ -3340,7 +4528,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         email:         convertContact.email||"",
         phone:         convertContact.phone||"",
         role:          convertRole,
-        password:      Math.random().toString(36).slice(2,10),
+        password:      await hashPw(Math.random().toString(36).slice(2,10)),
         allocatedTo:   [...convertAlloc],   // copy the array
         trade:         convertContact.trade||"",
         address:       convertContact.address||"",
@@ -3413,27 +4601,48 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
   const saveContact=()=>{
     if(!cForm.name.trim()) return;
     const row={...cForm};
+
+    // If this contact matches a KTA user, sync phone/mobile/company back to their user record
+    const syncToUser = (email, phone, mobile, company) => {
+      if(!email||!allUsers) return;
+      const linkedUser = allUsers.find(u=>u.email&&u.email.toLowerCase()===email.toLowerCase());
+      if(!linkedUser) return;
+      const updates = {};
+      if(phone  && !linkedUser.phone)  updates.phone  = phone;
+      if(mobile && !linkedUser.mobile) updates.mobile = mobile;
+      if(company && !linkedUser.hostBusiness) updates.hostBusiness = company;
+      // Always overwrite phone/mobile if explicitly set
+      if(phone)  updates.phone  = phone;
+      if(mobile) updates.mobile = mobile;
+      if(Object.keys(updates).length === 0) return;
+      const updatedUser = {...linkedUser, ...updates};
+      updateRow("users", linkedUser.id, updates).catch(console.error);
+      // Note: in-memory allUsers will update on next sync tick
+    };
+
     if(editCId){
       setContacts(prev=>prev.map(c=>c.id===editCId?{...c,...row,companyId:row.companyId||c.companyId}:c));
-      upsertRow('crm_contacts',{id:editCId,name:row.name,company:row.company||"",company_id:row.companyId||null,email:row.email||"",phone:row.phone||"",status:row.status||"Active",notes:row.notes||""}).catch(console.error);
+      upsertRow("crm_contacts",{id:editCId,name:row.name,company:row.company||"",company_id:row.companyId||null,email:row.email||"",phone:row.phone||"",mobile:row.mobile||"",status:row.status||"Active",notes:row.notes||""}).catch(console.error);
+      syncToUser(row.email, row.phone, row.mobile, row.company);
       setEditCId(null);
     } else {
       const id=uid();
       setContacts(prev=>[{id,...row},...prev]);
-      upsertRow('crm_contacts',{id,name:row.name,company:row.company||"",company_id:row.companyId||null,email:row.email||"",phone:row.phone||"",status:row.status||"Active",notes:row.notes||""}).catch(console.error);
+      upsertRow("crm_contacts",{id,name:row.name,company:row.company||"",company_id:row.companyId||null,email:row.email||"",phone:row.phone||"",mobile:row.mobile||"",status:row.status||"Active",notes:row.notes||""}).catch(console.error);
     }
-    setCForm({name:"",company:"",companyId:"",email:"",phone:"",status:"Active",notes:""});resetContactForm();setShowCF(false);
+    setCForm({name:"",company:"",companyId:"",email:"",phone:"",mobile:"",status:"Active",notes:""});resetContactForm();setShowCF(false);
   };
   const saveDeal=()=>{
     if(!dForm.title.trim()) return;
     const id=uid();
-    const row={id,...dForm};
+    const contactName = dForm.contactId ? (contacts.find(c=>c.id===dForm.contactId)?.name||"") : dForm.contact||"";
+    const row={id,...dForm,contact:contactName};
     setDeals(prev=>[row,...prev]);
-    upsertRow('crm_deals',{id,title:dForm.title,contact:dForm.contact||"",value:dForm.value||"",stage:dForm.stage||"Lead",close_date:dForm.closeDate||null,notes:dForm.notes||""}).catch(console.error);
-    setDForm({title:"",contact:"",value:"",stage:"Lead",closeDate:"",notes:""});setShowDF(false);
+    upsertRow('crm_deals',{id,title:dForm.title,contact:contactName,contact_id:dForm.contactId||null,company_id:dForm.companyId||null,value:dForm.value||"",stage:dForm.stage||"Lead",close_date:dForm.closeDate||null,notes:dForm.notes||""}).catch(console.error);
+    setDForm({title:"",contact:"",contactId:"",companyId:"",value:"",stage:"Lead",closeDate:"",notes:""});setShowDF(false);
   };
   const moveDeal=(id,stage)=>{ setDeals(prev=>prev.map(d=>d.id===id?{...d,stage}:d)); upsertRow("crm_deals",{id,stage}).catch(console.error); };
-  const startEditC=(c)=>{setCForm({name:c.name,company:c.company||"",companyId:c.companyId||c.company_id||"",email:c.email||"",phone:c.phone||"",status:c.status,notes:c.notes||""});setEditCId(c.id);setHsStatus(null);setHsSource(false);setHsEmail("");setShowCF(true);};
+  const startEditC=(c)=>{setCForm({name:c.name,company:c.company||"",companyId:c.companyId||c.company_id||"",email:c.email||"",phone:c.phone||"",mobile:c.mobile||"",status:c.status,notes:c.notes||""});setEditCId(c.id);setHsStatus(null);setHsSource(false);setHsEmail("");setShowCF(true);};
 
   const pipeline=STAGES.map(s=>({stage:s,color:STAGE_C[s],
     items:deals.filter(d=>d.stage===s),
@@ -3454,7 +4663,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
             <div>
               <div style={{fontWeight:700,fontSize:25,color:T.ink}}>{detailContact.name}</div>
-              {co&&<div style={{fontSize:14,color:T.accent,fontWeight:700,marginTop:2,cursor:"pointer"}} onClick={()=>{setDetailContact(null);setDetailCompany(co);}}>{co.name}</div>}
+              {co&&<div style={{fontSize:14,color:T.accent,fontWeight:700,marginTop:2,cursor:"pointer"}} onClick={()=>{ if(!window.__ktaBackHandlers) window.__ktaBackHandlers=[]; window.__ktaBackHandlers.push(()=>{setDetailCompany(null);setDetailContact(detailContact);}); window.history.pushState({ktaNav:true},""); setDetailContact(null); setDetailCompany(co); }}>{co.name}</div>}
               {!co&&detailContact.company&&<div style={{fontSize:14,color:T.sub,marginTop:2}}>{detailContact.company}</div>}
             </div>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -3568,7 +4777,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:14}}>
           {[
             {label:"📧 Email",val:detailContact.email,href:detailContact.email?`mailto:${detailContact.email}`:null},
-            {label:"📱 Phone",val:detailContact.phone,href:detailContact.phone?`tel:${detailContact.phone}`:null},
+            {label:"📱 Mobile",val:detailContact.mobile,href:detailContact.mobile?`tel:${detailContact.mobile}`:null},
+            {label:"📞 Phone",val:detailContact.phone,href:detailContact.phone?`tel:${detailContact.phone}`:null},
             {label:"💼 Job Title",val:detailContact.job_title||detailContact.jobTitle||""},
             {label:"🏢 Company",val:co?co.name:detailContact.company},
             {label:"🏭 Industry",val:co?.industry},
@@ -3642,6 +4852,51 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
             </div>
           </Card>
         )}
+
+        {/* ── Deals linked to this contact ── */}
+        {(()=>{
+          const contactDeals = deals.filter(d=>d.contactId===detailContact.id||d.contact_id===detailContact.id);
+          if(contactDeals.length===0) return null;
+          return (
+            <Card style={{marginTop:14}}>
+              <div style={{fontSize:12,fontWeight:700,color:T.warn,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>💼 Deals ({contactDeals.length})</div>
+              {contactDeals.map(d=>(
+                <div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${T.border}33`}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13}}>{d.title}</div>
+                    {d.notes&&<div style={{fontSize:12,color:T.muted}}>{d.notes}</div>}
+                  </div>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                    {d.value&&<span style={{fontWeight:700,fontSize:14,color:STAGE_C[d.stage]||T.muted}}>${parseFloat(d.value).toLocaleString()}</span>}
+                    <span style={{padding:"2px 8px",borderRadius:99,fontSize:11,fontWeight:700,background:(STAGE_C[d.stage]||T.muted)+"22",color:STAGE_C[d.stage]||T.muted}}>{d.stage}</span>
+                  </div>
+                </div>
+              ))}
+            </Card>
+          );
+        })()}
+
+        {/* ── Three-column bottom section: Tasks | Documents | Activity ── */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginTop:14}}>
+          <Card>
+            <CRMTasksPanel personId={detailContact.id} personEmail={detailContact.email} personName={detailContact.name} currentUser={currentUser}/>
+          </Card>
+          <Card>
+            <CRMDocTracker personId={detailContact.id} personEmail={detailContact.email} personName={detailContact.name} currentUser={currentUser}/>
+          </Card>
+        </div>
+
+        {/* ── Unified Activity Timeline ── */}
+        <Card style={{marginTop:14}}>
+          <div style={{fontSize:12,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>🕐 Activity Timeline</div>
+          <EmailActivityFeed
+            personEmail={detailContact.email}
+            personName={detailContact.name}
+            personId={detailContact.id}
+            canEdit={canEdit}
+          />
+        </Card>
+
       </div>
     );
   }
@@ -3705,7 +4960,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
             </div>
             <div style={{display:"flex",gap:8}}>
               {canEdit&&<Btn sm onClick={()=>{setCoForm({name:co.name,industry:co.industry||"",phone:co.phone||"",website:co.website||"",address:co.address||"",city:co.city||"",postcode:co.postcode||"",country:co.country||"New Zealand",notes:co.notes||"",status:co.status||"Active",isHostBusiness:co.isHostBusiness||false});setEditCoId(co.id);setShowCoForm(true);setDetailCompany(null);goTab("companies");}}>✎ Edit</Btn>}
-              {canDelete&&<Btn sm v="danger" onClick={()=>{if(!window.confirm(`Delete ${co.name}?`))return;setCompanies(prev=>prev.filter(x=>x.id!==co.id));deleteRow("crm_companies",co.id).catch(console.error);setDetailCompany(null);}}>✕ Delete</Btn>}
+              {canDelete&&<Btn sm v="danger" onClick={async ()=>{if(!await ktaConfirm(`Delete ${co.name}?`))return;setCompanies(prev=>prev.filter(x=>x.id!==co.id));deleteRow("crm_companies",co.id).catch(console.error);setDetailCompany(null);}}>✕ Delete</Btn>}
             </div>
           </div>
 
@@ -3775,7 +5030,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                 <div>
                   {linkedContacts.map((c,i)=>(
                     <div key={c.id}
-                      onClick={()=>{setDetailCompany(null);setDetailContact(c);}}
+                      onClick={()=>{ if(!window.__ktaBackHandlers) window.__ktaBackHandlers=[]; window.__ktaBackHandlers.push(()=>{setDetailContact(null);setDetailCompany(co);}); window.history.pushState({ktaNav:true},""); setDetailCompany(null); setDetailContact(c); }}
                       style={{display:"flex",alignItems:"center",gap:12,padding:"12px 20px",
                         borderBottom:i<linkedContacts.length-1?`1px solid ${T.border}44`:"none",
                         cursor:"pointer",transition:"background .12s"}}
@@ -3801,7 +5056,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                             onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
                         )}
                         {canDelete&&(
-                          <button onClick={e=>{e.stopPropagation();if(!window.confirm(`Delete ${c.name}?`))return;setContacts(prev=>prev.filter(x=>x.id!==c.id));deleteRow("crm_contacts",c.id).catch(console.error);}}
+                          <button onClick={async e=>{e.stopPropagation();if(!await ktaConfirm(`Delete ${c.name}?`))return;setContacts(prev=>prev.filter(x=>x.id!==c.id));deleteRow("crm_contacts",c.id).catch(console.error);}}
                             style={{width:26,height:26,borderRadius:6,fontSize:12,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
                             onMouseEnter={e=>{e.stopPropagation();e.currentTarget.style.background=T.redL;e.currentTarget.style.color=T.red;}}
                             onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✕</button>
@@ -3837,6 +5092,33 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               </div>
             )}
 
+            {/* Deals linked to this company */}
+            {(()=>{
+              const companyDeals = deals.filter(d=>d.companyId===co.id||d.company_id===co.id);
+              if(companyDeals.length===0) return null;
+              return (
+                <div style={{background:"#fff",borderRadius:14,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+                  <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,fontWeight:700,fontSize:14,color:T.warn}}>
+                    💼 Deals ({companyDeals.length})
+                  </div>
+                  <div style={{padding:"8px 0"}}>
+                    {companyDeals.map(d=>(
+                      <div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 16px"}}>
+                        <div>
+                          <div style={{fontWeight:700,fontSize:13}}>{d.title}</div>
+                          {d.contact&&<div style={{fontSize:12,color:T.muted}}>{d.contact}</div>}
+                        </div>
+                        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                          {d.value&&<span style={{fontWeight:700,fontSize:13,color:STAGE_C[d.stage]||T.muted}}>${parseFloat(d.value).toLocaleString()}</span>}
+                          <span style={{padding:"2px 7px",borderRadius:99,fontSize:11,fontWeight:700,background:(STAGE_C[d.stage]||T.muted)+"22",color:STAGE_C[d.stage]||T.muted}}>{d.stage}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Quick stats */}
             <div style={{background:"#fff",borderRadius:14,border:`1px solid ${T.border}`,padding:"14px 16px"}}>
               <div style={{fontWeight:700,fontSize:13,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>Summary</div>
@@ -3855,6 +5137,28 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
             </div>
           </div>
         </div>
+
+        {/* Tasks + Documents row */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginTop:14}}>
+          <Card>
+            <CRMTasksPanel personId={co.id} personName={co.name} currentUser={currentUser}/>
+          </Card>
+          <Card>
+            <CRMDocTracker personId={co.id} personName={co.name} currentUser={currentUser}/>
+          </Card>
+        </div>
+
+        {/* Activity Timeline */}
+        <Card style={{marginTop:14}}>
+          <div style={{fontSize:12,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:10}}>🕐 Activity Timeline</div>
+          <EmailActivityFeed
+            personId={co.id}
+            personName={co.name}
+            personEmail={co.phone||null}
+            canEdit={canEdit}
+          />
+        </Card>
+
       </div>
     );
   }
@@ -3879,12 +5183,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         <span style={{fontWeight:700,color:ROLE_META[role].color,fontSize:14}}>{role} View — </span>
         <span style={{fontSize:14,color:T.sub}}>{canEdit?"Full CRM access — edit contacts and deals":"Read-only CRM view"}</span>
       </div>
-      <div className="stat-grid-4">
-        <StatCard label="Contacts" value={contacts.length} color={T.blue}/>
-        <StatCard label="Active Deals" value={deals.filter(d=>!["Won","Lost"].includes(d.stage)).length} color={T.warn}/>
-       
       <div style={{display:"flex",gap:8,marginBottom:20}}>
-        {["contacts","companies","pipeline","deals","import"].map(t=>(
+        {["contacts","companies","pipeline","deals","reports","import"].map(t=>(
           <button key={t} onClick={()=>goTab(t)} style={{
             padding:"7px 16px",borderRadius:8,fontSize:14,fontWeight:700,
             background:tab===t?T.accent:T.surface,color:tab===t?"#fff":T.sub,
@@ -3905,7 +5205,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           items={contacts}
           type="contacts"
           canDelete={canDelete}
-          onView={(c)=>setDetailContact(c)}
+          onView={(c)=>{ if(!window.__ktaBackHandlers) window.__ktaBackHandlers=[]; window.__ktaBackHandlers.push(()=>setDetailContact(null)); window.history.pushState({ktaNav:true},""); setDetailContact(c); }}
           onDelete={(id)=>{ setContacts(prev=>prev.filter(x=>x.id!==id)); deleteRow("crm_contacts",id).catch(console.error); }}
           onMerge={async(master, victimIds)=>{
             await upsertRow("crm_contacts",{
@@ -4027,6 +5327,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               </div>
               <div><FL>Email</FL><input value={cForm.email} onChange={e=>sc("email",e.target.value)} placeholder="email@co.com"/></div>
               <div><FL>Phone</FL><input value={cForm.phone} onChange={e=>sc("phone",e.target.value)} placeholder="+64…"/></div>
+              <div><FL>Mobile</FL><input value={cForm.mobile||""} onChange={e=>sc("mobile",e.target.value)} placeholder="+64 2x xxx xxxx"/></div>
               <div><FL>Status</FL>
                 <select value={cForm.status} onChange={e=>sc("status",e.target.value)}>
                   {["Active","Prospect","Inactive"].map(s=><option key={s}>{s}</option>)}
@@ -4071,12 +5372,13 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
             return (c.name||"").toLowerCase().includes(q)
               ||(c.email||"").toLowerCase().includes(q)
               ||(c.phone||"").toLowerCase().includes(q)
+      ||(c.mobile||"").toLowerCase().includes(q)
               ||(c.company||"").toLowerCase().includes(q);
           }).sort(crmCtSort).map((c,i)=>{
             const linkedCo = companies.find(co=>co.id===c.companyId);
             return (
             <div key={c.id}>
-              <div className="ri" onClick={()=>setDetailContact(c)}
+              <div className="ri" onClick={()=>{ if(!window.__ktaBackHandlers) window.__ktaBackHandlers=[]; window.__ktaBackHandlers.push(()=>setDetailContact(null)); window.history.pushState({ktaNav:true},""); setDetailContact(c); }}
                 style={{display:"grid",gridTemplateColumns:"1fr 140px 160px 100px 60px",
                   padding:"12px 16px",borderBottom:i<contacts.length-1?`1px solid ${T.border}44`:"none",
                   background:i%2===0?T.surface:T.bg,
@@ -4097,7 +5399,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                     onMouseEnter={e=>{e.currentTarget.style.background=T.blueL;e.currentTarget.style.color=T.blue;}}
                     onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
                   {isAdmin1CRM&&!isExistingUser(c)&&(
-                    <button onClick={()=>setDetailContact(c)} title="Make KTA User"
+                    <button onClick={()=>{ if(!window.__ktaBackHandlers) window.__ktaBackHandlers=[]; window.__ktaBackHandlers.push(()=>setDetailContact(null)); window.history.pushState({ktaNav:true},""); setDetailContact(c); }} title="Make KTA User"
                       style={{width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",color:T.muted,border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
                       onMouseEnter={e=>{e.currentTarget.style.background=T.accentL;e.currentTarget.style.color=T.accent;}}
                       onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>👤</button>
@@ -4106,9 +5408,9 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                     const isApp = isApprenticeContact(c);
                     return (
                       <button
-                        onClick={()=>{
+                        onClick={async ()=>{
                           if(isApp){ alert("This contact is linked to an apprentice and cannot be deleted."); return; }
-                          if(!window.confirm(`Delete ${c.name}? This cannot be undone.`)) return;
+                          if(!await ktaConfirm(`Delete ${c.name}? This cannot be undone.`)) return;
                           setContacts(prev=>prev.filter(x=>x.id!==c.id));
                           deleteRow("crm_contacts",c.id).catch(console.error);
                         }}
@@ -4161,7 +5463,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           items={companies}
           type="companies"
           canDelete={canDelete}
-          onView={(co)=>setDetailCompany(co)}
+          onView={(co)=>{ if(!window.__ktaBackHandlers) window.__ktaBackHandlers=[]; window.__ktaBackHandlers.push(()=>setDetailCompany(null)); window.history.pushState({ktaNav:true},""); setDetailCompany(co); }}
           onDelete={(id)=>{ setCompanies(prev=>prev.filter(x=>x.id!==id)); deleteRow("crm_companies",id).catch(console.error); }}
           onMerge={async(master, victimIds)=>{
             // Update master record
@@ -4261,7 +5563,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               const linkedContacts = contacts.filter(c=>c.companyId===co.id);
               return (
                 <div key={co.id} style={{borderBottom:i<companies.length-1?`1px solid ${T.border}44`:"none"}}>
-                  <div onClick={()=>setDetailCompany(co)}
+                  <div onClick={()=>{ if(!window.__ktaBackHandlers) window.__ktaBackHandlers=[]; window.__ktaBackHandlers.push(()=>setDetailCompany(null)); window.history.pushState({ktaNav:true},""); setDetailCompany(co); }}
                     style={{display:"grid",gridTemplateColumns:"1fr 120px 150px 150px 60px",
                       padding:"11px 16px",gap:8,alignItems:"center",cursor:"pointer",
                       background:i%2===0?T.surface:T.bg}}
@@ -4290,8 +5592,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                           onMouseLeave={e=>{e.currentTarget.style.background="transparent";e.currentTarget.style.color=T.muted;}}>✎</button>
                       )}
                       {canDelete&&(
-                        <button onClick={()=>{
-                          if(!window.confirm(`Delete ${co.name}?`)) return;
+                        <button onClick={async ()=>{
+                          if(!await ktaConfirm(`Delete ${co.name}?`)) return;
                           setCompanies(prev=>prev.filter(x=>x.id!==co.id));
                           deleteRow("crm_companies",co.id).catch(console.error);
                         }} style={{width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",
@@ -4345,6 +5647,9 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           ))}
         </div>
       </div>}
+      {tab==="reports"&&(
+        <CRMReportingDashboard contacts={contacts} companies={companies} deals={deals}/>
+      )}
       {tab==="import"&&(()=>{
         const PROXY_URL = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/hubspot-proxy";
 
@@ -4401,7 +5706,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         // ── Full HubSpot Sync ────────────────────────────────────────────────
         const fullSync = async () => {
           if(!hsToken.trim()){setHsMsg("Please enter your HubSpot token."); return;}
-          if(!window.confirm("This will DELETE all existing CRM contacts and companies, then re-import everything fresh from HubSpot. Continue?")) return;
+          if(!await ktaConfirm("This will DELETE all existing CRM contacts and companies, then re-import everything fresh from HubSpot. Continue?")) return;
           setHsImporting(true);
           const syncMsg = (msg) => {
             setHsMsg(msg);
@@ -4775,7 +6080,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         // ── Sync Activity (Notes, Calls, Meetings, Emails, Tasks) ────────────
         const syncActivity = async () => {
           if(!hsToken.trim()){setHsMsg("Please enter your HubSpot token."); return;}
-          if(!window.confirm("This will import all HubSpot activity (notes, calls, meetings, emails, tasks) for all contacts and companies. Existing activity records with the same HubSpot ID will be skipped. Continue?")) return;
+          if(!await ktaConfirm("This will import all HubSpot activity (notes, calls, meetings, emails, tasks) for all contacts and companies. Existing activity records with the same HubSpot ID will be skipped. Continue?")) return;
           setHsImporting(true);
           const syncMsg = (msg) => { setHsMsg(msg); if(onSyncTick) onSyncTick(); };
 
@@ -5009,8 +6314,8 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
                   Permanently deletes <strong>all CRM contacts and companies</strong> from the database. This cannot be undone.
                 </div>
                 <button onClick={async()=>{
-                  if(!window.confirm("DELETE ALL contacts and companies? This cannot be undone.")) return;
-                  if(!window.confirm("Are you absolutely sure? All CRM data will be lost.")) return;
+                  if(!await ktaConfirm("DELETE ALL contacts and companies? This cannot be undone.")) return;
+                  if(!await ktaConfirm("Are you absolutely sure? All CRM data will be lost.")) return;
                   setHsMsg("🗑 Deleting…");
                   try {
                     await deleteAllRows("crm_contacts");
@@ -5035,7 +6340,24 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         {showDF&&<Card style={{marginBottom:16,border:`1.5px solid ${T.warn}44`}}>
           <div className="fg3" style={{display:"grid",gap:12,marginBottom:12}}>
             <div><FL req>Title</FL><input value={dForm.title} onChange={e=>sd("title",e.target.value)} placeholder="Deal name"/></div>
-            <div><FL>Contact</FL><input value={dForm.contact} onChange={e=>sd("contact",e.target.value)} placeholder="Name / Company"/></div>
+            <div>
+              <FL>Contact</FL>
+              <select value={dForm.contactId||""} onChange={e=>sd("contactId",e.target.value)}>
+                <option value="">— Select contact —</option>
+                {[...contacts].sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(c=>(
+                  <option key={c.id} value={c.id}>{c.name}{c.company?` (${c.company})`:""}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <FL>Company</FL>
+              <select value={dForm.companyId||""} onChange={e=>sd("companyId",e.target.value)}>
+                <option value="">— Select company —</option>
+                {[...companies].sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(c=>(
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
             <div><FL>Value ($)</FL><input type="number" value={dForm.value} onChange={e=>sd("value",e.target.value)} placeholder="10000"/></div>
             <div><FL>Stage</FL><select value={dForm.stage} onChange={e=>sd("stage",e.target.value)}>{STAGES.map(s=><option key={s}>{s}</option>)}</select></div>
             <div><FL>Close Date</FL><input type="date" value={dForm.closeDate} onChange={e=>sd("closeDate",e.target.value)}/></div>
@@ -5061,7 +6383,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               <div style={{width:8,height:34,borderRadius:3,background:STAGE_C[d.stage]||T.muted}}/>
               <div><div style={{fontWeight:700,fontSize:14}}>{d.title}</div>
                 {d.notes&&<div style={{fontSize:12,color:T.muted,marginTop:1}}>{d.notes}</div>}</div>
-              <div style={{fontSize:13,color:T.sub}}>{d.contact||"—"}</div>
+              <div style={{fontSize:13,color:T.sub}}>{d.contact||companies.find(c=>c.id===d.companyId)?.name||"—"}</div>
               <div style={{textAlign:"right",fontFamily:"DM Sans",fontWeight:700,fontSize:16,color:STAGE_C[d.stage]||T.muted}}>
                 {d.value?`$${parseFloat(d.value).toLocaleString()}`:"—"}</div>
               <Pill label={d.stage} size="sm" color={STAGE_C[d.stage]||T.muted} bg={(STAGE_C[d.stage]||T.muted)+"1a"}/>
@@ -5087,7 +6409,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
 // ─────────────────────────────────────────────────────────────────────────────
 function WeeklyHoursList({allUsers, entries}) {
   const {sortFn:whlSort, ColHeader:WHLCol} = useSort("name","asc");
-  const ws = ()=>{ const d=new Date(); d.setDate(d.getDate()-d.getDay()); return d.toISOString().slice(0,10); };
+  const ws = ()=>{ const d=new Date(); d.setDate(d.getDate()-((d.getDay()+6)%7)); return d.toISOString().slice(0,10); };
   const wsDate = ws();
   const apprentices = [...allUsers.filter(u=>u.role==="Apprentice")].sort(whlSort);
   const weekEntries = entries.filter(e=>e.date>=wsDate);
@@ -5242,6 +6564,70 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
       {apprentices.map(app=>{
         const appEntries = filtered.filter(e=>e.userId===app.id).sort((a,b)=>b.date.localeCompare(a.date));
         if(appEntries.length===0) return null;
+        // Calculate total hours for this apprentice using overtime logic
+        let normalHrs = 0, overtimeHrs = 0;
+        const overtimeType = app.overtimeType;
+        const overtimeThreshold = app.overtimeThreshold;
+        if (overtimeType && overtimeThreshold) {
+          if (overtimeType === "daily") {
+            const threshold = parseFloat(overtimeThreshold);
+            appEntries.forEach(e => {
+              if (e.type === "Normal Hours") {
+                normalHrs   += Math.min(e.netHours, threshold);
+                overtimeHrs += Math.max(0, e.netHours - threshold);
+              } else if (e.type === "Overtime") {
+                overtimeHrs += e.netHours;
+              } else {
+                normalHrs += e.netHours;
+              }
+            });
+          } else if (overtimeType === "weekly") {
+            const threshold = parseFloat(overtimeThreshold);
+            // Group entries by week
+            const weeks = {};
+            appEntries.forEach(e => {
+              const d = new Date(e.date + "T00:00:00");
+              const day = d.getDay();
+              const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
+              const weekKey = mon.toISOString().slice(0,10);
+              if (!weeks[weekKey]) weeks[weekKey] = [];
+              weeks[weekKey].push(e);
+            });
+            Object.values(weeks).forEach(weekEntries => {
+              let weekNormal = 0, weekOvertime = 0, weekTotal = 0;
+              weekEntries.sort((a, b) => a.date.localeCompare(b.date));
+              weekEntries.forEach(e => {
+                if (e.type === "Normal Hours") {
+                  const remainingNormal = Math.max(0, threshold - weekNormal);
+                  const thisNormal = Math.min(e.netHours, remainingNormal);
+                  const thisOvertime = Math.max(0, e.netHours - remainingNormal);
+                  weekNormal += thisNormal;
+                  weekOvertime += thisOvertime;
+                } else if (e.type === "Overtime") {
+                  weekOvertime += e.netHours;
+                } else {
+                  weekNormal += e.netHours;
+                }
+                weekTotal += e.netHours;
+              });
+              normalHrs += weekNormal;
+              overtimeHrs += weekOvertime;
+            });
+          } else {
+            // Unknown overtime type, just sum all
+            appEntries.forEach(e => {
+              if (e.type === "Overtime") overtimeHrs += e.netHours;
+              else normalHrs += e.netHours;
+            });
+          }
+        } else {
+          // No overtime config, just sum all
+          appEntries.forEach(e => {
+            if (e.type === "Overtime") overtimeHrs += e.netHours;
+            else normalHrs += e.netHours;
+          });
+        }
+        const totalHours = normalHrs + overtimeHrs;
         return (
           <Card key={app.id} style={{marginBottom:14}}>
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
@@ -5251,24 +6637,14 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
                 <div style={{fontSize:13,color:T.sub}}>{appEntries.length} {status} entr{appEntries.length===1?"y":"ies"}</div>
               </div>
             </div>
-            <div style={{borderTop:`1px solid ${T.border}`,paddingTop:10}}>
-              {appEntries.map((e,i)=>(
-                <div key={e.id} style={{display:"grid",
-                  gridTemplateColumns:isPending?"110px 1fr 120px 60px 80px":"110px 1fr 120px 60px",
-                  gap:8,padding:"8px 4px",borderBottom:i<appEntries.length-1?`1px solid ${T.border}44`:"none",
-                  alignItems:"center",fontSize:13}}>
-                  <div style={{fontWeight:700}}>{fmtD(e.date)}</div>
-                  <div style={{color:e.note?T.ink:T.muted,fontStyle:e.note?"normal":"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.note||"No note"}</div>
-                  <TypePill type={e.type} size="sm"/>
-                  <div style={{fontWeight:700,color:TYPE_META[e.type]?.color||T.accent,textAlign:"center"}}>{e.netHours}h</div>
-                  {isPending && (
-                    <div style={{display:"flex",gap:4}}>
-                      <button onClick={()=>onApprove(e.id)} style={{width:28,height:28,borderRadius:6,fontSize:14,background:T.accentL,color:T.accent,border:`1px solid ${T.accent}44`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} title="Approve">✓</button>
-                      <button onClick={()=>onDecline(e.id)} style={{width:28,height:28,borderRadius:6,fontSize:14,background:T.redL,color:T.red,border:`1px solid ${T.red}44`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} title="Decline">✕</button>
-                    </div>
-                  )}
-                </div>
-              ))}
+            <div style={{borderTop:`1px solid ${T.border}`,paddingTop:10, display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
+              <div style={{fontWeight:700, fontSize:16, color:T.accent, padding:'10px 4px 0 4px'}}>
+                Total: {totalHours}h
+              </div>
+              <div style={{fontWeight:400, fontSize:15, color:T.muted, padding:'2px 4px 10px 4px'}}>
+                Normal Hours: {normalHrs}h<br/>
+                Overtime Hours: {overtimeHrs}h
+              </div>
             </div>
           </Card>
         );
@@ -5285,7 +6661,8 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
   const TRADES = ["Electrical Apprentice","Electrical","Plumbing & Gasfitting","Plumbing","Gasfitting","Drain Laying","Roofing","Carpentry","Joinery","Painting & Decorating","Mechanical Engineering","Refrigeration & Air Conditioning","Bricklaying","Plastering","Tiling","Other"];
   const approvers = allUsers.filter(u=>u.role==="Approver"||u.role==="Admin").sort((a,b)=>(a.name||"").localeCompare(b.name||""));
   const viewers   = allUsers.filter(u=>u.role==="Viewer"  ||u.role==="Admin").sort((a,b)=>(a.name||"").localeCompare(b.name||""));
-  const mentors   = allUsers.filter(u=>u.role==="Mentor"  ||u.role==="Admin").sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  const mentors      = allUsers.filter(u=>u.role==="Mentor"  ||u.role==="Admin").sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  // supervisors filtered by host business - computed at render via useMemo equivalent below
   const [hostCos, setHostCos] = useState([]);
   useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCos(rows.filter(r=>r.name).map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")))).catch(()=>{}); },[]);
   const nameParts = (user.name||"").split(" ");
@@ -5294,6 +6671,7 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
     lastName:          user.lastName   || nameParts.slice(1).join(" ") || "",
     email:             user.email      || "",
     phone:             user.phone      || "",
+    mobile:            user.mobile     || "",
     trade:             user.trade      || "",
     licenceExpiry:     user.licenceExpiry    || "",
     siteSafeExpiry:    user.siteSafeExpiry   || "",
@@ -5310,7 +6688,8 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
   const [viewerId,   setViewerId]   = useState(
     user.viewerUserId   || allUsers.find(x=>(x.role==="Viewer"  ||x.role==="Admin")&&(x.allocatedTo||[]).includes(user.id))?.id || ""
   );
-  const [mentorId,   setMentorId]   = useState(user.mentorUserId || "");
+  const [mentorId,      setMentorId]      = useState(user.mentorUserId || "");
+  const [supervisorIds, setSupervisorIds] = useState(user.supervisorIds || []);
   const [pwField,    setPwField]    = useState("");
   const [showPw,     setShowPw]     = useState(false);
   const [saving,     setSaving]     = useState(false);
@@ -5331,7 +6710,7 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
       setCompanyContacts(matched.map(r=>({id:r.id,name:r.name,email:r.email,jobTitle:r.job_title||""})));
     }).catch(()=>{});
   },[form.hostBusiness]);
-  const isAdminL1 = viewer?.role==="Admin" && (viewer?.adminLevel||1)===1;
+  const isAdminL1 = viewer?.role==="Admin" && Number(viewer?.adminLevel ?? 1)===1;
   const isAdmin   = viewer?.role==="Admin";
   const isMentor  = viewer?.role==="Mentor";
   const canEditPassword = isAdminL1 || isAdmin;
@@ -5350,6 +6729,7 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
       lastName:          form.lastName.trim(),
       email:             form.email.trim(),
       phone:             form.phone.trim(),
+      mobile:            form.mobile.trim(),
       trade:             form.trade,
       licenceExpiry:     form.licenceExpiry  || null,
       siteSafeExpiry:    form.siteSafeExpiry || null,
@@ -5362,7 +6742,8 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
       approverUserId:    approverId || null,
       viewerUserId:      viewerId   || null,
       mentorUserId:      mentorId   || null,
-      ...(pwField.trim() ? {password: hashPw(pwField.trim())} : {}),
+      supervisorIds:     supervisorIds,
+      ...(pwField.trim() ? {password: await hashPw(pwField.trim())} : {}),
     };
     try {
       await upsertUser(updated);
@@ -5390,6 +6771,7 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
         <div><FL req>Last Name</FL><input autoComplete="nope" placeholder="Smith" value={form.lastName} onChange={e=>sf("lastName",e.target.value)}/></div>
         <div><FL req>Email</FL><input autoComplete="nope" type="text" placeholder="jamie@work.com" value={form.email} onChange={e=>sf("email",e.target.value)}/></div>
         <div><FL>Phone</FL><input autoComplete="nope" type="text" placeholder="+64 2x xxx xxxx" value={form.phone} onChange={e=>sf("phone",e.target.value)}/></div>
+        <div><FL>Mobile</FL><input autoComplete="nope" type="text" placeholder="+64 2x xxx xxxx" value={form.mobile||""} onChange={e=>sf("mobile",e.target.value)}/></div>
         <div><FL>Trade</FL>
           <select value={form.trade} onChange={e=>sf("trade",e.target.value)}>
             <option value="">Select trade…</option>
@@ -5525,6 +6907,33 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
             {mentors.map(m=><option key={m.id} value={m.id}>{m.name}{m.role==="Admin"?" (Admin)":""}</option>)}
           </select>
         </div>}
+        {canEditAllocs&&<div style={{gridColumn:"1/-1"}}>
+          <FL>Supervisors <span style={{fontWeight:700,color:T.muted}}>(host business supervisors)</span></FL>
+          {(()=>{
+            const hb = (form.hostBusiness||"").toLowerCase().trim();
+            const filteredSups = allUsers.filter(u=>
+              ["Supervisor","Approver","Viewer"].includes(u.role) &&
+              (!hb || (u.company||"").toLowerCase().trim()===hb)
+            ).sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+            if(!hb) return <div style={{fontSize:13,color:T.muted,fontStyle:"italic",marginTop:4}}>Select a host business first</div>;
+            if(filteredSups.length===0) return <div style={{fontSize:13,color:T.muted,fontStyle:"italic",marginTop:4}}>No users linked to this company yet</div>;
+            return <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
+                {filteredSups.map(u=>{
+                  const sel = supervisorIds.includes(u.id);
+                  return (
+                    <button key={u.id} type="button"
+                      onClick={()=>setSupervisorIds(prev=>sel?prev.filter(id=>id!==u.id):[...prev,u.id])}
+                      style={{padding:"6px 14px",borderRadius:8,fontSize:13,fontWeight:sel?700:400,
+                        border:`1.5px solid ${sel?T.teal:T.border}`,
+                        background:sel?T.tealL:T.surface,color:sel?T.teal:T.ink,
+                        cursor:"pointer",fontFamily:"DM Sans,sans-serif",transition:"all .14s"}}>
+                      {u.name}
+                    </button>
+                  );
+                })}
+              </div>;
+          })()}
+        </div>}
         {canEditPassword&&<div><FL>New Password <span style={{fontWeight:700,color:T.muted}}>(blank = keep)</span></FL>
           <div style={{position:"relative"}}>
             <input type={showPw?"text":"password"} autoComplete="new-password" placeholder="Leave blank to keep"
@@ -5552,6 +6961,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
   const approvers   = allUsers.filter(u => u.role === "Approver" || u.role === "Admin");
   const viewers     = allUsers.filter(u => u.role === "Viewer"   || u.role === "Admin");
   const mentors     = allUsers.filter(u => u.role === "Mentor"   || u.role === "Admin");
+  const getSupervisorsForApprenticee = (hostBiz) => allUsers.filter(u => ["Supervisor","Approver","Viewer"].includes(u.role) && (!hostBiz || (u.company||"").toLowerCase().trim()===(hostBiz||"").toLowerCase().trim()));
 
   const blank = {firstName:"", lastName:"", email:"", phone:"", trade:"", licenceExpiry:"", siteSafeExpiry:"", firstAidExpiry:"", hostBusiness:"", role:"Apprentice", allocatedTo:[], password:"", overtimeType:null, overtimeThreshold:"", overtimeRateId:"", reportsEmail:""};
   const [form, setForm]         = useState(blank);
@@ -5560,9 +6970,10 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
   const [pwField, setPwField]   = useState("");
   const [showPw, setShowPw]     = useState(false);
   const [expandId, setExpandId] = useState(null);
-  const [formApproverId, setFormApproverId] = useState("");
-  const [formViewerId,   setFormViewerId]   = useState("");
-  const [formMentorId,   setFormMentorId]   = useState("");
+  const [formApproverId,    setFormApproverId]    = useState("");
+  const [formViewerId,      setFormViewerId]      = useState("");
+  const [formMentorId,      setFormMentorId]      = useState("");
+  const [formSupervisorIds, setFormSupervisorIds] = useState([]);
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
   const [hostCos, setHostCos] = useState([]);
   useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCos(rows.filter(r=>r.name).map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")))).catch(()=>{}); },[]);
@@ -5587,6 +6998,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
   const toggleAlloc = (staffId, appId) => {
     setUsers(prev => prev.map(u => {
       if(u.id !== staffId) return u;
+      if(u.role === "Supervisor") return u; // Supervisors use supervisorIds not allocatedTo
       const has = (u.allocatedTo||[]).includes(appId);
       return {...u, allocatedTo: has
         ? (u.allocatedTo||[]).filter(x=>x!==appId)
@@ -5594,7 +7006,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
     }));
   };
 
-  const submit = () => {
+  const submit = async () => {
     const firstName = form.firstName.trim();
     const lastName  = form.lastName.trim();
     if(!firstName||!form.email.trim()) return;
@@ -5603,11 +7015,18 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
       approverUserId: formApproverId||null,
       viewerUserId:   formViewerId||null,
       mentorUserId:   formMentorId||null,
+      supervisorIds:  formSupervisorIds,
     };
-    if(pwField.trim()) finalForm.password = hashPw(pwField.trim());
+    if(pwField.trim()) {
+      finalForm.password = await hashPw(pwField.trim());
+    } else if(editId) {
+      const existing = users.find(u=>u.id===editId);
+      finalForm.password = existing?.password || "";
+    }
     let appId = editId;
     if(editId) {
-      setUsers(prev => prev.map(u => u.id===editId ? {...u,...finalForm} : u));
+      // Preserve existing role — never overwrite with hardcoded "Apprentice" from blank form
+      setUsers(prev => prev.map(u => u.id===editId ? {...u,...finalForm, role: u.role} : u));
       setEditId(null);
     } else {
       appId = uid();
@@ -5616,6 +7035,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
     // Sync allocatedTo on approver/viewer/admin users
     setUsers(prev => prev.map(u => {
       if(!["Approver","Viewer","Admin"].includes(u.role)) return u;
+      if(u.role==="Supervisor") return u; // Supervisors use supervisorIds not allocatedTo
       const isApprover = u.id === formApproverId;
       const isViewer   = u.id === formViewerId;
       const shouldHave = isApprover || isViewer;
@@ -5624,7 +7044,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
       if(!shouldHave && has) return {...u, allocatedTo:(u.allocatedTo||[]).filter(x=>x!==appId)};
       return u;
     }));
-    setForm(blank); setPwField(""); setFormApproverId(""); setFormViewerId(""); setFormMentorId("");
+    setForm(blank); setPwField(""); setFormApproverId(""); setFormViewerId(""); setFormMentorId(""); setFormSupervisorIds([]);
     setShowForm(false); setEditId(null); setExpandId(null);
   };
 
@@ -5635,7 +7055,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
       lastName:  u.lastName  || parts.slice(1).join(" ") || "",
       email: u.email||"", phone: u.phone||"",
       trade: u.trade||"", licenceExpiry: u.licenceExpiry||"", siteSafeExpiry: u.siteSafeExpiry||"", firstAidExpiry: u.firstAidExpiry||"", hostBusiness: u.hostBusiness||"",
-      role:"Apprentice", allocatedTo:[], password:u.password,
+      role:"Apprentice", allocatedTo:[], password:"",
       overtimeType: u.overtimeType||null, overtimeThreshold: u.overtimeThreshold||"", overtimeRateId: u.overtimeRateId||"",
       reportsEmail: u.reportsEmail||"",
     });
@@ -5646,11 +7066,12 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
     setFormApproverId(curApprover);
     setFormViewerId(curViewer);
     setFormMentorId(curMentor);
+    setFormSupervisorIds(u.supervisorIds||[]);
     setPwField(""); setEditId(u.id); setExpandId(u.id); setShowForm(false);
   };
 
-  const deleteUser = (id) => {
-    if(window.confirm("Remove this apprentice?")) setUsers(prev => prev.filter(u => u.id !== id));
+  const deleteUser = async (id) => {
+    if(await ktaConfirm("Remove this apprentice?")) setUsers(prev => prev.filter(u => u.id !== id));
   };
 
   // licence expiry colour
@@ -5692,6 +7113,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
             <div><FL req>Last Name</FL><input autoComplete="nope" name="kta-lastname" placeholder="Smith" value={form.lastName} onChange={e=>sf("lastName",e.target.value)}/></div>
             <div><FL req>Email</FL><input autoComplete="nope" name="kta-email" type="text" placeholder="jamie@work.com" value={form.email} onChange={e=>sf("email",e.target.value)}/></div>
             <div><FL>Phone</FL><input autoComplete="nope" name="kta-phone" type="text" placeholder="+64 2x xxx xxxx" value={form.phone} onChange={e=>sf("phone",e.target.value)}/></div>
+            <div><FL>Mobile</FL><input autoComplete="nope" type="text" placeholder="+64 2x xxx xxxx" value={form.mobile||""} onChange={e=>sf("mobile",e.target.value)}/></div>
             <div><FL>Trade</FL>
               <select value={form.trade} onChange={e=>sf("trade",e.target.value)}>
                 <option value="">Select trade…</option>
@@ -5723,7 +7145,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
               <input type="email" placeholder="e.g. manager@company.co.nz"
                 value={form.reportsEmail||""}
                 onChange={e=>sf("reportsEmail",e.target.value)}/>
-              <div style={{fontSize:11,color:T.muted,marginTop:2}}>Visit reports emailed here + apprentice. Leave blank to use approver.</div>
+              <div style={{fontSize:11,color:T.muted,marginTop:2}}>Reports will be sent ONLY to these addresses. Leave blank to send to the approver.</div>
             </div>
             {/* ── Overtime Settings ── */}
             <div style={{gridColumn:"1/-1"}}>
@@ -5786,6 +7208,29 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
                 {mentors.map(m=><option key={m.id} value={m.id}>{m.name}{m.role==="Admin"?" (Admin)":""}</option>)}
               </select>
             </div>
+            <div style={{gridColumn:"1/-1"}}>
+                <FL>Supervisors <span style={{fontWeight:700,color:T.muted}}>(host business supervisors, multiple allowed)</span></FL>
+                {(()=>{
+                  const filteredSups = getSupervisorsForApprenticee(form.hostBusiness);
+                  if(!form.hostBusiness) return <div style={{fontSize:13,color:T.muted,fontStyle:"italic",marginTop:4}}>Select a host business first</div>;
+                  if(filteredSups.length===0) return <div style={{fontSize:13,color:T.muted,fontStyle:"italic",marginTop:4}}>No users linked to this company yet</div>;
+                  return <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
+                    {filteredSups.map(u=>{
+                      const sel = formSupervisorIds.includes(u.id);
+                      return (
+                        <button key={u.id} type="button"
+                          onClick={()=>setFormSupervisorIds(prev=>sel?prev.filter(id=>id!==u.id):[...prev,u.id])}
+                          style={{padding:"6px 14px",borderRadius:8,fontSize:13,fontWeight:sel?700:400,
+                            border:`1.5px solid ${sel?T.teal:T.border}`,
+                            background:sel?T.tealL:T.surface,color:sel?T.teal:T.ink,
+                            cursor:"pointer",fontFamily:"DM Sans,sans-serif",transition:"all .14s"}}>
+                          {u.name}
+                        </button>
+                      );
+                    })}
+                  </div>;
+                })()}
+              </div>
             <div>
               <FL>{editId?"New Password (blank = keep)":"Password"}</FL>
               <div style={{position:"relative"}}>
@@ -5798,7 +7243,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
           </div>
           <div style={{display:"flex", gap:8}}>
             <Btn onClick={submit}>{editId?"Update":"Add Apprentice"}</Btn>
-            <Btn v="ghost" onClick={()=>{setShowForm(false);setEditId(null);setFormApproverId("");setFormViewerId("");setFormMentorId("");}}>Cancel</Btn>
+            <Btn v="ghost" onClick={()=>{setShowForm(false);setEditId(null);setFormApproverId("");setFormViewerId("");setFormMentorId("");setFormSupervisorIds([]);}}>Cancel</Btn>
           </div>
         </Card>
       )}
@@ -6045,7 +7490,7 @@ function ContactsList() {
     setForm(blank); setShowForm(false);
   };
   const startEdit = (x)=>{setForm({name:x.name,company:x.company||"",email:x.email||"",phone:x.phone||"",type:x.type||"General",notes:x.notes||""});setEditId(x.id);setShowForm(true);};
-  const del = (id)=>{ if(window.confirm("Remove this contact?")){ setItems(prev=>prev.filter(x=>x.id!==id)); deleteRow('dash_contacts',id).catch(console.error); } };
+  const del = async (id)=>{ if(await ktaConfirm("Remove this contact?")){ setItems(prev=>prev.filter(x=>x.id!==id)); deleteRow('dash_contacts',id).catch(console.error); } };
 
   return (
     <div className="fu">
@@ -6142,7 +7587,7 @@ function HostBusinessList() {
     setForm(blank); setShowForm(false);
   };
   const startEdit = (x)=>{setForm({name:x.name,industry:x.industry||"",contact:x.contact||"",phone:x.phone||"",email:x.email||"",capacity:x.capacity||"",status:x.status||"Active",notes:x.notes||""});setEditId(x.id);setShowForm(true);};
-  const del = (id)=>{ if(window.confirm("Remove this host business?")){ setItems(prev=>prev.filter(x=>x.id!==id)); deleteRow('dash_hosts',id).catch(console.error); } };
+  const del = async (id)=>{ if(await ktaConfirm("Remove this host business?")){ setItems(prev=>prev.filter(x=>x.id!==id)); deleteRow('dash_hosts',id).catch(console.error); } };
 
   return (
     <div className="fu">
@@ -6249,7 +7694,7 @@ function TargetDealsList() {
     setForm(blank); setShowForm(false);
   };
   const startEdit = (x)=>{setForm({title:x.title,contact:x.contact||"",org:x.org||"",value:x.value||"",stage:x.stage||"Prospecting",dueDate:x.due_date||x.dueDate||"",priority:x.priority||"Medium",notes:x.notes||""});setEditId(x.id);setShowForm(true);};
-  const del = (id)=>{ if(window.confirm("Remove this deal?")){ setItems(prev=>prev.filter(x=>x.id!==id)); deleteRow('dash_deals',id).catch(console.error); } };
+  const del = async (id)=>{ if(await ktaConfirm("Remove this deal?")){ setItems(prev=>prev.filter(x=>x.id!==id)); deleteRow('dash_deals',id).catch(console.error); } };
   const move = (id,stage)=>{ setItems(prev=>prev.map(x=>x.id===id?{...x,stage}:x)); upsertRow('dash_deals',{id,stage}).catch(console.error); };
 
   const totalValue = items.filter(x=>!["Won","Lost"].includes(x.stage)).reduce((a,x)=>a+(parseFloat(x.value)||0),0);
@@ -6431,9 +7876,340 @@ function DraggableSection({ id, dragProps, children, style = {} }) {
   );
 }
 
+
+// ── Snapshots By Apprentice Card — shared between Admin, Mentor, and Apprentice dashboards ──
+const openSnapshotPDF = (snap) => {
+  if (!snap?.pdf_data) { alert("No PDF stored for this snapshot. Re-upload the PDF to attach it."); return; }
+  try {
+    const binary = atob(snap.pdf_data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener");
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch(e) { alert("Could not open PDF: " + e.message); }
+};
+
+function SnapshotsByApprenticeCard({ apprentices }) {
+  const [snapByApp, setSnapByApp] = useState({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadTable("progress_snapshots")
+      .then(rows => {
+        const map = {};
+        (rows||[]).forEach(r => {
+          if (!map[r.apprentice_id]) map[r.apprentice_id] = [];
+          map[r.apprentice_id].push(r);
+        });
+        setSnapByApp(map);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const fmtD = (iso) => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
+  const appsWithSnaps = apprentices.filter(a => snapByApp[a.id]);
+
+  return (
+    <Card>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+        <div style={{width:38,height:38,borderRadius:11,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>📈</div>
+        <div>
+          <div style={{fontWeight:700,fontSize:18}}>Snapshots by Apprentice</div>
+          <div style={{fontSize:13,color:T.sub}}>
+            {loading ? "Loading…" : `${appsWithSnaps.length} of ${apprentices.length} apprentice${apprentices.length!==1?"s":""} have progress data`}
+          </div>
+        </div>
+      </div>
+      {loading ? (
+        <div style={{textAlign:"center",padding:24,color:T.muted,fontSize:14}}>Loading snapshots…</div>
+      ) : appsWithSnaps.length === 0 ? (
+        <div style={{textAlign:"center",padding:"24px 0",color:T.muted,fontSize:14,fontStyle:"italic"}}>
+          No progress snapshots yet — upload EarnLearn / ETCO / Skills PDFs via the Progress tab
+        </div>
+      ) : (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:10}}>
+          {appsWithSnaps.map(a => {
+            const snaps = (snapByApp[a.id]||[]).sort((x,y)=>x.months_in_training-y.months_in_training);
+            const latest = snaps[snaps.length-1];
+            const pct = Math.round(latest.overall_percent || 0);
+            const dur = latest.programme_duration || 42;
+            const monthsPct = Math.min((latest.months_in_training / dur) * 100, 100);
+            const pctColor = pct >= 75 ? T.teal : pct >= 50 ? T.accent : T.warn;
+            const onTrack = pct >= Math.round((latest.months_in_training / dur) * 100);
+
+            const attachPDF = async (file, snapId) => {
+              if (!file) return;
+              try {
+                const buf = await file.arrayBuffer();
+                const b64 = arrayBufferToBase64(buf);
+                await updateRow("progress_snapshots", snapId, { pdf_data: b64 });
+                setSnapByApp(prev => {
+                  const updated = {...prev};
+                  updated[a.id] = (prev[a.id]||[]).map(s =>
+                    s.id === snapId ? {...s, pdf_data: b64} : s
+                  );
+                  return updated;
+                });
+              } catch(e) { alert("Failed to attach PDF: " + e.message); }
+            };
+
+            return (
+              <div key={a.id} style={{background:T.bg,borderRadius:10,padding:"12px 14px",
+                border:`1.5px solid ${pctColor}33`}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                  <Avatar name={a.name} role="Apprentice" size={32}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:13,color:T.ink,
+                      whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{a.name}</div>
+                    <div style={{fontSize:11,color:T.muted,marginTop:1}}>
+                      {snaps.length} snapshot{snaps.length!==1?"s":""} · m{latest.months_in_training}{latest.programme_duration?` / ${latest.programme_duration}`:""}
+                    </div>
+                  </div>
+                  <div style={{textAlign:"right",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
+                    <div style={{fontWeight:800,fontSize:20,color:pctColor,lineHeight:1}}>{pct}%</div>
+                    <div style={{fontSize:10,color:onTrack?T.teal:T.warn,fontWeight:700}}>
+                      {onTrack?"✓ on track":"⚠ behind"}
+                    </div>
+                  </div>
+                </div>
+                <div style={{position:"relative",height:6,background:T.border,borderRadius:3,marginBottom:8}}>
+                  <div style={{position:"absolute",top:-1,bottom:-1,width:2,borderRadius:1,
+                    background:T.muted,left:`${monthsPct}%`,transform:"translateX(-50%)"}}/>
+                  <div style={{height:6,borderRadius:3,width:`${Math.min(pct,100)}%`,
+                    background:pctColor,transition:"width .4s"}}/>
+                </div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <div style={{fontSize:11,color:T.muted}}>Latest: {fmtD(latest.report_date)}</div>
+                  {latest.pdf_data ? (
+                    <button onClick={() => openSnapshotPDF(latest)}
+                      style={{background:"none",border:`1px solid ${T.accent}44`,borderRadius:6,
+                        padding:"2px 8px",fontSize:11,color:T.accent,fontWeight:700,cursor:"pointer",
+                        fontFamily:"DM Sans,sans-serif",display:"flex",alignItems:"center",gap:4}}>
+                      📄 View PDF
+                    </button>
+                  ) : (
+                    <label style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,
+                      padding:"2px 8px",fontSize:11,color:T.muted,cursor:"pointer",
+                      fontFamily:"DM Sans,sans-serif",display:"flex",alignItems:"center",gap:4}}
+                      title="Attach the source PDF to this snapshot">
+                      📎 Attach PDF
+                      <input type="file" accept="application/pdf" style={{display:"none"}}
+                        onChange={e => attachPDF(e.target.files?.[0], latest.id)}/>
+                    </label>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ── Chargeable Hours Card — Admin L1 only, weekly totals by host company ────────
+function ChargeableHoursCard({ allUsers, entries }) {
+  const CHARGEABLE = ["Normal Hours", "Overtime"];
+
+  const getWeekStart = (dateStr) => {
+    const d = new Date(dateStr + "T00:00:00");
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return d.toISOString().slice(0,10);
+  };
+
+  // Current week start (Monday)
+  const wsDate = getWeekStart(new Date().toISOString().slice(0,10));
+
+  // Default to most recent week that has approved chargeable entries
+  const mostRecentApprovedWeek = (() => {
+    const approvedEntries = entries.filter(e =>
+      CHARGEABLE.includes(e.type) &&
+      (e.approval === "approved" || e.xeroStatus === "submitted")
+    );
+    if (approvedEntries.length === 0) return wsDate;
+    const latestDate = approvedEntries.map(e => e.date).sort().reverse()[0];
+    return getWeekStart(latestDate);
+  })();
+
+  const [weekStart, setWeekStart] = useState(mostRecentApprovedWeek);
+
+  const weekEnd = (() => {
+    const d = new Date(weekStart + "T00:00:00");
+    d.setDate(d.getDate() + 6);
+    return d.toISOString().slice(0,10);
+  })();
+
+  const fmtD = iso => { const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
+
+  const prevWeek = () => {
+    const d = new Date(weekStart + "T00:00:00");
+    d.setDate(d.getDate() - 7);
+    setWeekStart(d.toISOString().slice(0,10));
+  };
+  const nextWeek = () => {
+    const d = new Date(weekStart + "T00:00:00");
+    d.setDate(d.getDate() + 7);
+    const next = d.toISOString().slice(0,10);
+    if (next <= wsDate) setWeekStart(next);
+  };
+  const isCurrentWeek = weekStart === wsDate;
+
+  // All approved chargeable entries — no week filter, matches Submitted-Approved view exactly
+  const weekEntries = entries.filter(e =>
+    CHARGEABLE.includes(e.type) &&
+    (e.approval === "approved" || e.xeroStatus === "submitted")
+  );
+
+  // Simply sum hours by type — entries already have the correct type from timesheet entry
+  // Normal Hours entries → normalHrs, Overtime entries → overtimeHrs
+  const apprentices = allUsers.filter(u => u.role === "Apprentice");
+  const companies = {};
+
+  apprentices.forEach(app => {
+    const appEntries = weekEntries.filter(e => e.userId === app.id);
+    if (appEntries.length === 0) return;
+    let normalHrs = 0, overtimeHrs = 0;
+    const overtimeType = app.overtimeType;
+    const overtimeThreshold = app.overtimeThreshold;
+    if (overtimeType && overtimeThreshold) {
+      const threshold = parseFloat(overtimeThreshold);
+      if (overtimeType === "daily") {
+        appEntries.forEach(e => {
+          if (e.type === "Normal Hours") {
+            normalHrs   += Math.min(e.netHours, threshold);
+            overtimeHrs += Math.max(0, e.netHours - threshold);
+          } else if (e.type === "Overtime") { overtimeHrs += e.netHours; }
+          else { normalHrs += e.netHours; }
+        });
+      } else if (overtimeType === "weekly") {
+        const weeks = {};
+        appEntries.forEach(e => {
+          const d = new Date(e.date + "T00:00:00");
+          const mon = new Date(d); mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+          const wk = mon.toISOString().slice(0,10);
+          if (!weeks[wk]) weeks[wk] = [];
+          weeks[wk].push(e);
+        });
+        Object.values(weeks).forEach(wEntries => {
+          let weekNormal = 0, weekOvertime = 0;
+          wEntries.sort((a,b) => a.date.localeCompare(b.date));
+          wEntries.forEach(e => {
+            if (e.type === "Normal Hours") {
+              const remainingNormal = Math.max(0, threshold - weekNormal);
+              weekNormal   += Math.min(e.netHours, remainingNormal);
+              weekOvertime += Math.max(0, e.netHours - remainingNormal);
+            } else if (e.type === "Overtime") { weekOvertime += e.netHours; }
+            else { weekNormal += e.netHours; }
+          });
+          normalHrs   += weekNormal;
+          overtimeHrs += weekOvertime;
+        });
+      } else {
+        appEntries.forEach(e => {
+          if (e.type === "Overtime") overtimeHrs += e.netHours;
+          else normalHrs += e.netHours;
+        });
+      }
+    } else {
+      appEntries.forEach(e => {
+        if (e.type === "Overtime") overtimeHrs += e.netHours;
+        else normalHrs += e.netHours;
+      });
+    }
+    const company = app.hostBusiness || "— No host business";
+    if (!companies[company]) companies[company] = {};
+    companies[company][app.name] = { normalHrs, overtimeHrs, total: normalHrs + overtimeHrs };
+  });
+
+  const companyKeys = Object.keys(companies).sort();
+  const grandTotal = companyKeys.reduce((sum, co) =>
+    sum + Object.values(companies[co]).reduce((s, d) => s + d.total, 0), 0);
+  const grandNormal = companyKeys.reduce((sum, co) =>
+    sum + Object.values(companies[co]).reduce((s, d) => s + d.normalHrs, 0), 0);
+  const grandOvertime = companyKeys.reduce((sum, co) =>
+    sum + Object.values(companies[co]).reduce((s, d) => s + d.overtimeHrs, 0), 0);
+
+  return (
+    <Card>
+      <div style={{display:"flex",alignItems:"center",marginBottom:14,gap:10}}>
+        <div style={{width:38,height:38,borderRadius:11,background:T.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🏢</div>
+        <div>
+          <div style={{fontWeight:700,fontSize:18}}>Chargeable Hours by Company</div>
+          <div style={{fontSize:13,color:T.sub}}>All approved entries — Normal Hours &amp; Overtime</div>
+        </div>
+      </div>
+
+      {companyKeys.length === 0 ? (
+        <div style={{textAlign:"center",padding:"24px 0",color:T.muted,fontSize:14,fontStyle:"italic"}}>
+          No approved chargeable entries yet
+        </div>
+      ) : (
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {companyKeys.map(company => {
+            const appMap = companies[company];
+            const companyTotal = Object.values(appMap).reduce((a, v) => a + v.total, 0);
+            const companyOvertime = Object.values(appMap).reduce((a, v) => a + v.overtimeHrs, 0);
+            return (
+              <div key={company} style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
+                {/* Company header */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                  padding:"9px 14px",background:T.bg,borderBottom:`1px solid ${T.border}44`}}>
+                  <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{company}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    {companyOvertime > 0 && (
+                      <span style={{fontSize:11,color:T.gold,fontWeight:700}}>⚡ {companyOvertime.toFixed(1)}h OT</span>
+                    )}
+                    <div style={{fontWeight:800,fontSize:16,color:T.teal}}>{companyTotal.toFixed(1)}h</div>
+                  </div>
+                </div>
+                {/* Apprentice rows */}
+                {Object.entries(appMap).sort(([a],[b])=>a.localeCompare(b)).map(([name, data], i, arr) => (
+                  <div key={name} style={{display:"flex",alignItems:"center",gap:10,
+                    padding:"8px 14px",
+                    borderBottom: i < arr.length-1 ? `1px solid ${T.border}22` : "none",
+                    background: T.surface}}>
+                    <div style={{flex:1,fontSize:13,color:T.ink,fontWeight:500}}>{name}</div>
+                    <div style={{display:"flex",gap:5,flexWrap:"wrap",justifyContent:"flex-end"}}>
+                      <span style={{fontSize:11,padding:"2px 8px",borderRadius:99,
+                        background:T.accentL,color:T.accent,fontWeight:700}}>
+                        Normal {data.normalHrs.toFixed(1)}h
+                      </span>
+                      {data.overtimeHrs > 0 && (
+                        <span style={{fontSize:11,padding:"2px 8px",borderRadius:99,
+                          background:T.goldL,color:T.gold,fontWeight:700}}>
+                          ⚡ OT {data.overtimeHrs.toFixed(1)}h
+                        </span>
+                      )}
+                    </div>
+                    <div style={{fontWeight:700,fontSize:14,color:T.ink,minWidth:44,textAlign:"right"}}>
+                      {data.total.toFixed(1)}h
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+          {/* Grand total */}
+          <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:12,
+            padding:"8px 4px",borderTop:`1.5px solid ${T.border}`,marginTop:4}}>
+            <span style={{fontSize:12,color:T.sub}}>Normal <strong>{grandNormal.toFixed(1)}h</strong></span>
+            {grandOvertime > 0 && <span style={{fontSize:12,color:T.gold}}>⚡ OT <strong>{grandOvertime.toFixed(1)}h</strong></span>}
+            <span style={{fontSize:13,color:T.sub,fontWeight:700}}>Total</span>
+            <span style={{fontSize:20,fontWeight:800,color:T.teal}}>{grandTotal.toFixed(1)}h</span>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeList, onViewList, onViewTimesheets, onViewLeave, currentUser, navigateTo}) {
   const apprentices = allUsers.filter(u=>u.role==="Apprentice");
-  const wsStart = ()=>{ const d=new Date(); d.setDate(d.getDate()-d.getDay()); return d.toISOString().slice(0,10); };
+  const myLevel = Number(currentUser?.adminLevel ?? 1);
+  const wsStart = ()=>{ const d=new Date(); d.setDate(d.getDate()-((d.getDay()+6)%7)); return d.toISOString().slice(0,10); };
   const ws = wsStart();
 
   // Global stats
@@ -6577,6 +8353,26 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
     else onViewList(id);
   };
 
+  // Snapshots panel — optional, toggled by Admin, persisted to localStorage
+  const [showSnapshots, setShowSnapshots] = useState(() => {
+    try { return localStorage.getItem("wos_admin_show_snapshots") === "1"; } catch { return false; }
+  });
+  const toggleSnapshots = () => setShowSnapshots(v => {
+    const next = !v;
+    try { localStorage.setItem("wos_admin_show_snapshots", next?"1":"0"); } catch {}
+    return next;
+  });
+
+  // Chargeable hours panel — Admin L1 only, toggleable
+  const [showChargeable, setShowChargeable] = useState(() => {
+    try { return localStorage.getItem("wos_admin_show_chargeable") === "1"; } catch { return false; }
+  });
+  const toggleChargeable = () => setShowChargeable(v => {
+    const next = !v;
+    try { localStorage.setItem("wos_admin_show_chargeable", next?"1":"0"); } catch {}
+    return next;
+  });
+
   const sections = {
     stats: (
       <DraggableSection id="stats" dragProps={dragProps}>
@@ -6616,6 +8412,37 @@ function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeLi
   return (
     <div className="fu">
       {order.map(id => sections[id] || null)}
+      {/* Toggle buttons row — Admin L1 only for chargeable */}
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8,flexWrap:"wrap"}}>
+        {myLevel === 1 && (
+          <button onClick={toggleChargeable} style={{
+            padding:"6px 14px",borderRadius:99,fontSize:13,fontWeight:700,cursor:"pointer",
+            fontFamily:"DM Sans,sans-serif",transition:"all .15s",
+            background:showChargeable?T.tealL:T.surface,
+            color:showChargeable?T.teal:T.sub,
+            border:`1.5px solid ${showChargeable?T.teal:T.border}`}}>
+            {showChargeable ? "▲ Hide Chargeable Hours" : "🏢 Chargeable Hours"}
+          </button>
+        )}
+        <button onClick={toggleSnapshots} style={{
+          padding:"6px 14px",borderRadius:99,fontSize:13,fontWeight:700,cursor:"pointer",
+          fontFamily:"DM Sans,sans-serif",transition:"all .15s",
+          background:showSnapshots?T.accentL:T.surface,
+          color:showSnapshots?T.accent:T.sub,
+          border:`1.5px solid ${showSnapshots?T.accent:T.border}`}}>
+          {showSnapshots ? "▲ Hide Progress Snapshots" : "📈 Show Progress Snapshots"}
+        </button>
+      </div>
+      {myLevel === 1 && showChargeable && (
+        <div style={{marginTop:10}}>
+          <ChargeableHoursCard allUsers={allUsers} entries={entries}/>
+        </div>
+      )}
+      {showSnapshots && (
+        <div style={{marginTop:10}}>
+          <SnapshotsByApprenticeCard apprentices={apprentices}/>
+        </div>
+      )}
     </div>
   );
 }
@@ -6781,27 +8608,28 @@ const LeaveStatusStepper = ({ status }) => {
       {steps.map((s, i) => {
         const done    = !declined && currentStep >= i;
         const current = !declined && currentStep === i;
-        const color   = done ? (i===2?"#1b4f8c":i===1?"#1a8a7a":"#b86e1a") : "#d0daea";
+        const pending_ahead = !declined && currentStep < i;
+        const color   = done ? "#1a8a7a" : pending_ahead ? "#e05c5c" : "#d0daea";
         const textCol = done ? "#fff" : "#aaa";
         return (
           <div key={s.key} style={{display:"flex",alignItems:"center",flex:1,minWidth:0}}>
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",flex:1}}>
               <div style={{width:26,height:26,borderRadius:"50%",
-                background: declined && i===0 ? "#fde8e8" : done ? color : "#f0f4f9",
-                border:`2px solid ${declined&&i===0?"#bf2b2b":done?color:"#d0daea"}`,
+                background: declined && i===0 ? "#fde8e8" : done ? color : pending_ahead ? "#fff0f0" : "#f0f4f9",
+                border:`2px solid ${declined&&i===0?"#bf2b2b":done?color:pending_ahead?"#e05c5c":"#d0daea"}`,
                 display:"flex",alignItems:"center",justifyContent:"center",
-                fontSize:12,fontWeight:700,color:declined&&i===0?"#bf2b2b":textCol,
+                fontSize:12,fontWeight:700,color:declined&&i===0?"#bf2b2b":pending_ahead?"#e05c5c":textCol,
                 boxShadow:current?"0 0 0 3px "+color+"33":"none",
                 transition:"all .2s",
               }}>
                 {declined && i===0 ? "✕" : done ? (i===currentStep ? s.sym : "✓") : i+1}
               </div>
-              <div style={{fontSize:10,color:done?color:"#aaa",marginTop:3,textAlign:"center",fontWeight:done?700:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:64}}>
+              <div style={{fontSize:10,color:done?color:pending_ahead?"#e05c5c":"#aaa",marginTop:3,textAlign:"center",fontWeight:done?700:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:64}}>
                 {declined && i===0 ? "Declined" : s.label}
               </div>
             </div>
             {i < steps.length-1 && (
-              <div style={{height:2,flex:1,background:!declined&&currentStep>i?color:"#e5e7eb",margin:"0 2px",marginBottom:16,transition:"background .3s"}}/>
+              <div style={{height:2,flex:1,background:!declined&&currentStep>i?color:(!declined&&currentStep>=0?"#e05c5c":"#e5e7eb"),margin:"0 2px",marginBottom:16,transition:"background .3s"}}/>
             )}
           </div>
         );
@@ -6812,11 +8640,12 @@ const LeaveStatusStepper = ({ status }) => {
 
 const sendLeaveEmail = async ({ to, toName, subject, html }) => {
   // Throws on failure — callers should catch individually
-  await sendKTAEmail({ to, subject, html });
+  // Leave emails are always sent from leaverequests@kta.org.nz
+  await sendKTAEmail({ to, subject, html, from: "leaverequests@kta.org.nz" });
 };
 
 const leaveEmailHtml = (title, body) => `
-<div style="font-family:"DM Sans",sans-serif;max-width:600px;margin:0 auto;background:#f0f4f9;padding:24px">
+<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#f0f4f9;padding:24px">
   <div style="background:#1b4f8c;borderRadius:10px;padding:18px 24px;margin-bottom:0;border-radius:10px 10px 0 0">
     <div style="color:#fff;font-size:19.8px;font-weight:700">KTA Leave Request</div>
     <div style="color:#dce8f7;font-size:13.2px;margin-top:4px">Kiwi Trade Apprentices</div>
@@ -6825,7 +8654,7 @@ const leaveEmailHtml = (title, body) => `
     <p style="font-size:16.5px;color:#0d1b2e;margin-top:0">${title}</p>
     ${body}
     <hr style="border:none;border-top:1px solid #d0daea;margin:20px 0">
-    <p style="font-size:12.1px;color:#8fa0b8">KTA Workforce Management · payroll@kta.org.nz</p>
+    <p style="font-size:12.1px;color:#8fa0b8">KTA Workforce Management · leaverequests@kta.org.nz</p>
   </div>
 </div>`;
 
@@ -6858,63 +8687,146 @@ const fmtDateNZ = (iso) => {
 };
 
 // ── Leave Application Form (Apprentice) ──────────────────────────────────────
-function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
+const ABSENCE_EMAIL = "absence@kta.org.nz";
+const SICK_LEAVE_TYPES = ["Sick Leave", "Leave Without Pay"];
+
+function LeaveRequestForm({ currentUser, allUsers, onSubmitted, defaultLeaveType="Annual Leave", isSickForm=false }) {
+  const leaveTypeOptions = isSickForm ? SICK_LEAVE_TYPES : LEAVE_TYPES;
+
   const approver = allUsers.find(u =>
     u.id === currentUser.approverUserId ||
     (u.role === "Approver" && (u.allocatedTo||[]).includes(currentUser.id))
   );
+
+  // Supervisors at the same company as the apprentice
+  const companySupervisors = allUsers.filter(u =>
+    (u.role === "Supervisor" || u.role === "Approver") &&
+    u.hostBusiness && currentUser.hostBusiness &&
+    u.hostBusiness.trim().toLowerCase() === currentUser.hostBusiness.trim().toLowerCase()
+  );
+  // Fall back to supervisors assigned to this apprentice via supervisorIds
+  const assignedSupervisors = allUsers.filter(u =>
+    (u.role === "Supervisor" || u.role === "Approver") &&
+    (currentUser.supervisorIds||[]).includes(u.id)
+  );
+  const supervisorOptions = companySupervisors.length > 0 ? companySupervisors : assignedSupervisors;
+
   const [form, setForm] = useState({
-    dateFrom: "", dateTo: "", leaveType: "Annual Leave", notes: "",
+    dateFrom: "", dateTo: "", leaveType: defaultLeaveType, notes: "",
   });
+  const [supervisorId, setSupervisorId] = useState(supervisorOptions[0]?.id || "");
+  const [customPhone, setCustomPhone] = useState("");
   const [saving, setSaving]   = useState(false);
   const [done, setDone]       = useState(false);
   const [error, setError]     = useState("");
   const sf = (k,v) => setForm(f=>({...f,[k]:v}));
 
-
   const handleSubmit = async () => {
     if(!form.dateFrom || !form.dateTo) { setError("Please select start and end dates."); return; }
     if(form.dateTo < form.dateFrom)    { setError("End date must be after start date."); return; }
     setError(""); setSaving(true);
+
+    const selectedSupervisor = supervisorOptions.find(u=>u.id===supervisorId);
+    const smsPhone = customPhone.trim() || selectedSupervisor?.phone || "";
+
     const req = {
       id: uid(),
-      apprentice_id:  currentUser.id,
-      approver_id:    approver?.id || null,
-      date_from:      form.dateFrom,
-      date_to:        form.dateTo,
-      leave_type:     form.leaveType,
-      notes:          form.notes.trim(),
-      status:         "pending",
-      created_at:     new Date().toISOString(),
+      apprentice_id:        currentUser.id,
+      approver_id:          approver?.id || null,
+      supervisor_id:        supervisorId || null,
+      supervisor_phone:     smsPhone || null,
+      date_from:            form.dateFrom,
+      date_to:              form.dateTo,
+      leave_type:           form.leaveType,
+      notes:                form.notes.trim(),
+      status:               "pending",
+      created_at:           new Date().toISOString(),
+      absence_notified:     false,
+      reminder_due_at:      new Date(Date.now() + 48*60*60*1000).toISOString(),
+      reminder_sent:        false,
     };
-    await upsertRow("leave_requests", req).catch(console.error);
 
-    // Email to approver (with one-click approve/decline buttons)
+    try {
+      await upsertRow("leave_requests", req);
+    } catch(e) {
+      setError("Could not save your request. Please check your connection and try again.");
+      setSaving(false);
+      return;
+    }
+
+    let emailWarning = "";
+
+    // 1. Email to approver (with one-click approve/decline buttons)
     if(approver?.email) {
-      const buttons = await leaveActionButtons(req.id, approver.id, "approver");
-      await sendLeaveEmail({
-        to: approver.email,
-        subject: `Leave Request — ${currentUser.name} (${form.leaveType})`,
-        html: leaveEmailHtml(
-          `<strong>${currentUser.name}</strong> has submitted a leave request requiring your approval.`,
-          leaveDetailTable(req, currentUser.name, approver.name) + buttons
-        ),
-      });
-    }
-    // Confirmation email to apprentice
-    if(currentUser.email) {
-      await sendLeaveEmail({
-        to: currentUser.email,
-        subject: `Leave Request Submitted — ${form.leaveType}`,
-        html: leaveEmailHtml(
-          `Your leave request has been submitted and is awaiting approval from <strong>${approver?.name || "your approver"}</strong>.`,
-          leaveDetailTable(req, currentUser.name, approver?.name || "Not assigned")
-        ),
-      });
+      try {
+        const buttons = await leaveActionButtons(req.id, approver.id, "approver");
+        await sendLeaveEmail({
+          to: approver.email,
+          subject: `Leave Request — ${currentUser.name} (${form.leaveType})`,
+          html: leaveEmailHtml(
+            `<strong>${currentUser.name}</strong> has submitted a leave request requiring your approval.`,
+            leaveDetailTable(req, currentUser.name, approver.name) + buttons
+          ),
+        });
+      } catch(e) {
+        console.error("Approver email failed:", e);
+        emailWarning = `Request saved, but the notification email to ${approver.name} could not be sent. Please let them know directly.`;
+      }
     }
 
-    setSaving(false); setDone(true);
-    setTimeout(() => onSubmitted(req), 1500);
+    // 2. Confirmation email to apprentice
+    if(currentUser.email) {
+      try {
+        await sendLeaveEmail({
+          to: currentUser.email,
+          subject: `Leave Request Submitted — ${form.leaveType}`,
+          html: leaveEmailHtml(
+            `Your leave request has been submitted and is awaiting approval from <strong>${approver?.name || "your approver"}</strong>.`,
+            leaveDetailTable(req, currentUser.name, approver?.name || "Not assigned")
+          ),
+        });
+      } catch(e) { console.error("Apprentice confirmation email failed:", e); }
+    }
+
+    // 3. Sick leave only: notify absence@kta.org.nz
+    if(isSickForm) {
+      try {
+        await sendLeaveEmail({
+          to: ABSENCE_EMAIL,
+          subject: `Sick Leave Notification — ${currentUser.name}`,
+          html: leaveEmailHtml(
+            `<strong>${currentUser.name}</strong> is off work sick today and has submitted a leave application.`,
+            leaveDetailTable(req, currentUser.name, approver?.name || "Not assigned")
+          ),
+        });
+        await upsertRow("leave_requests", {...req, absence_notified: true});
+      } catch(e) { console.error("Absence notification email failed:", e); }
+
+      // 4. SMS to supervisor via SMS Everyone
+      if(smsPhone) {
+        try {
+          const approverName = approver?.name || "your KTA approver";
+          const smsUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms`;
+          await fetch(smsUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify({
+              to: smsPhone,
+              message: `KTA: ${currentUser.name} is sick today. They have completed a leave form that has been emailed to your company approver ${approverName}.`
+            })
+          }).catch(e=>console.warn("SMS send failed:", e));
+        } catch(e) { console.warn("SMS failed:", e); }
+      }
+    }
+
+    setSaving(false);
+    if(emailWarning) setError(emailWarning);
+    setDone(true);
+    setTimeout(() => onSubmitted(req), emailWarning ? 3000 : 1500);
   };
 
   if(done) return (
@@ -6923,6 +8835,7 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
       <div style={{fontWeight:700,fontSize:18,color:T.teal}}>Leave request submitted!</div>
       <div style={{fontSize:14,color:T.sub,marginTop:6}}>
         {approver?.email ? `An email has been sent to ${approver.name}.` : "No approver email found — please notify your approver directly."}
+        {isSickForm && <div style={{marginTop:4}}>KTA has been notified at {ABSENCE_EMAIL}.</div>}
       </div>
     </div>
   );
@@ -6943,6 +8856,58 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
         </div>
       </div>
 
+      {/* Sick leave: supervisor SMS notification */}
+      {isSickForm && (
+        <div style={{marginBottom:14,padding:"10px 14px",background:"#fff8e6",border:"1.5px solid #e6a817",borderRadius:8}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#7a5000",marginBottom:8}}>📱 Notify Supervisor by SMS</div>
+          {supervisorOptions.length > 0 ? (
+            <div style={{marginBottom:8}}>
+              <label style={{fontSize:12,fontWeight:700,color:T.sub,display:"block",marginBottom:4}}>Select Supervisor</label>
+              <select value={supervisorId} onChange={e=>{setSupervisorId(e.target.value);setCustomPhone("");}}
+                style={{width:"100%",fontSize:13,padding:"7px 10px",border:`1.5px solid ${T.border}`,borderRadius:7,fontFamily:"DM Sans,sans-serif"}}>
+                <option value="">-- Don't send SMS --</option>
+                {supervisorOptions.map(u=>(
+                  <option key={u.id} value={u.id}>
+                    {u.name}{u.phone?` · ${u.phone}`:" (no phone on file)"}
+                  </option>
+                ))}
+                <option value="__custom">+ Enter a different number</option>
+              </select>
+            </div>
+          ) : (
+            <div style={{marginBottom:8}}>
+              <label style={{fontSize:12,fontWeight:700,color:T.sub,display:"block",marginBottom:4}}>
+                No supervisors set up for your company — enter a mobile number to notify
+              </label>
+            </div>
+          )}
+          {/* Always show manual input when no supervisors, or when custom selected, or when selected has no phone */}
+          {(supervisorOptions.length === 0 || supervisorId === "__custom" ||
+            (!supervisorOptions.find(u=>u.id===supervisorId)?.phone && supervisorId && supervisorId !== "__custom")) && (
+            <div>
+              <label style={{fontSize:12,fontWeight:700,color:T.sub,display:"block",marginBottom:4}}>
+                {supervisorId === "__custom" ? "Enter mobile number" :
+                 supervisorOptions.length === 0 ? "Supervisor mobile number" :
+                 "No phone on file — enter number"}
+              </label>
+              <input type="tel" value={customPhone} onChange={e=>setCustomPhone(e.target.value)}
+                placeholder="+64 21 123 4567"
+                style={{width:"100%",fontSize:13,padding:"7px 10px",border:`1.5px solid ${T.border}`,borderRadius:7,fontFamily:"DM Sans,sans-serif",boxSizing:"border-box"}}/>
+            </div>
+          )}
+          {supervisorId && supervisorId !== "__custom" && supervisorOptions.find(u=>u.id===supervisorId)?.phone && !customPhone && (
+            <div style={{fontSize:12,color:"#7a5000"}}>
+              SMS will be sent to: <strong>{supervisorOptions.find(u=>u.id===supervisorId).phone}</strong>
+            </div>
+          )}
+          {supervisorOptions.length === 0 && !customPhone && (
+            <div style={{fontSize:11,color:"#7a5000",marginTop:4,fontStyle:"italic"}}>
+              Leave blank to skip SMS — the form will still submit.
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Dates */}
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
         <div>
@@ -6957,11 +8922,11 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted }) {
         </div>
       </div>
 
-      {/* Leave type */}
+      {/* Leave type — limited for sick form */}
       <div style={{marginBottom:14}}>
         <label style={{fontSize:13,fontWeight:700,color:T.sub,display:"block",marginBottom:5}}>Type of Leave *</label>
         <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-          {LEAVE_TYPES.map(t=>(
+          {leaveTypeOptions.map(t=>(
             <button key={t} onClick={()=>sf("leaveType",t)}
               style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${form.leaveType===t?T.accent:T.border}`,
                 background:form.leaveType===t?T.accentL:T.surface,
@@ -7015,12 +8980,18 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
     setFillMsg("");
     const newStatus = isApprover ? "approver_approved" : "kta_approved";
     const updated   = { ...req, status: newStatus };
-    await updateRow("leave_requests", req.id, { status: newStatus }).catch(console.error);
+    try {
+      await updateRow("leave_requests", req.id, { status: newStatus });
+    } catch(e) {
+      console.error("DB update failed:", e);
+      setFillMsg("⚠ Could not update status. Please try again.");
+      setActing(false); return;
+    }
 
     if(isApprover) {
       // 1. Notify apprentice their request moved forward
       if(apprentice.email) {
-        await sendLeaveEmail({
+        try { await sendLeaveEmail({
           to: apprentice.email,
           subject: `Leave Request Approved by Approver — ${req.leave_type}`,
           html: leaveEmailHtml(
@@ -7031,7 +9002,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
               <div style="font-size:13.2px;color:#0d1b2e">Approver approved. Awaiting KTA final approval.</div>
             </div>`
           ),
-        });
+        }); } catch(e) { console.error("Apprentice notify email failed:", e); }
       }
       // 2. Email KTA admin(s) with approve/decline buttons
       for(const adminEmail of ktaAdminEmails) {
@@ -7054,9 +9025,9 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
         }
       }
     } else {
-      // Admin giving final KTA approval — notify apprentice + add to team calendar
+      // Admin giving final KTA approval — notify apprentice + approver + add to team calendar
       if(apprentice.email) {
-        await sendLeaveEmail({
+        try { await sendLeaveEmail({
           to: apprentice.email,
           subject: `Leave Fully Approved by KTA — ${req.leave_type}`,
           html: leaveEmailHtml(
@@ -7067,7 +9038,22 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
               <div style="font-size:13.2px;color:#0d1b2e">Both approver and KTA have approved your leave.</div>
             </div>`
           ),
-        });
+        }); } catch(e) { console.error("KTA approval apprentice email failed:", e); }
+      }
+      // Notify approver that KTA has given final approval
+      if(approver.email && approver.id !== "No approver") {
+        await sendLeaveEmail({
+          to: approver.email,
+          subject: `Leave Fully Approved by KTA — ${apprentice.name} (${req.leave_type})`,
+          html: leaveEmailHtml(
+            `The leave request from <strong>${apprentice.name}</strong> has been <strong>fully approved by KTA</strong>.`,
+            leaveDetailTable(req, apprentice.name, approver.name) +
+            `<div style="background:#dce8f7;border-radius:8px;padding:12px 16px;margin:14px 0;border-left:4px solid #1b4f8c">
+              <div style="font-weight:700;font-size:13.2px;color:#1b4f8c;margin-bottom:4px">★ KTA Final Approval Granted</div>
+              <div style="font-size:13.2px;color:#0d1b2e">${apprentice.name}'s leave has been fully approved. A calendar invite is attached below.</div>
+            </div>`
+          ),
+        }).catch(e => console.error("Approver KTA-approval notification failed:", e));
       }
       // Add to KTA team calendar
       await addLeaveToCalendar(apprentice.name, req.leave_type, req.date_from, req.date_to);
@@ -7097,9 +9083,15 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
     setReasonErr("");
     setActing(true);
     const updated = { ...req, status: "declined", decline_reason: declineReason.trim() };
-    await updateRow("leave_requests", req.id, { status: "declined", decline_reason: declineReason.trim() }).catch(console.error);
+    try {
+      await updateRow("leave_requests", req.id, { status: "declined", decline_reason: declineReason.trim() });
+    } catch(e) {
+      console.error("DB update failed:", e);
+      setReasonErr("Could not save. Please try again.");
+      setActing(false); return;
+    }
     if(apprentice.email) {
-      await sendLeaveEmail({
+      try { await sendLeaveEmail({
         to: apprentice.email,
         subject: `Leave Request Declined — ${req.leave_type}`,
         html: leaveEmailHtml(
@@ -7111,29 +9103,48 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
           </div>
           <p style="font-size:13.2px;color:#4a5a72">Please contact <strong>${currentUser.name}</strong> for further information.</p>`
         ),
-      });
+      }); } catch(e) { console.error("Apprentice decline email failed:", e); }
     }
-    // Notify admin@kta.org.nz when anyone declines
-    await sendLeaveEmail({
-      to: "admin@kta.org.nz",
-      subject: `Leave Request Declined — ${apprentice.name} (${req.leave_type})`,
-      html: leaveEmailHtml(
-        `A leave request from <strong>${apprentice.name}</strong> has been <strong>declined</strong> by <strong>${currentUser.name}</strong>.`,
-        leaveDetailTable(req, apprentice.name, approver.name) +
-        `<div style="background:#fde8e8;border-radius:8px;padding:12px 16px;margin:14px 0;border-left:4px solid #bf2b2b">
-          <div style="font-weight:700;font-size:13.2px;color:#bf2b2b;margin-bottom:4px">Reason for Decline</div>
-          <div style="font-size:13.2px;color:#0d1b2e">${declineReason.trim()}</div>
-        </div>
-        <p style="font-size:13.2px;color:#4a5a72">The apprentice has been notified.</p>`
-      ),
-    }).catch(()=>{});
+    if(isApprover) {
+      // Approver declined — notify admin@kta.org.nz so KTA is aware (CC-style)
+      await sendLeaveEmail({
+        to: "admin@kta.org.nz",
+        subject: `Leave Request Declined by Approver — ${apprentice.name} (${req.leave_type})`,
+        html: leaveEmailHtml(
+          `A leave request from <strong>${apprentice.name}</strong> has been <strong>declined</strong> by their approver, <strong>${currentUser.name}</strong>.`,
+          leaveDetailTable(req, apprentice.name, approver.name) +
+          `<div style="background:#fde8e8;border-radius:8px;padding:12px 16px;margin:14px 0;border-left:4px solid #bf2b2b">
+            <div style="font-weight:700;font-size:13.2px;color:#bf2b2b;margin-bottom:4px">Reason for Decline</div>
+            <div style="font-size:13.2px;color:#0d1b2e">${declineReason.trim()}</div>
+          </div>
+          <p style="font-size:13.2px;color:#4a5a72">The apprentice has been notified. No further action required.</p>`
+        ),
+      }).catch(()=>{});
+    } else {
+      // Admin (KTA) declined — notify the approver so they are informed
+      if(approver.email && approver.id !== "No approver") {
+        await sendLeaveEmail({
+          to: approver.email,
+          subject: `Leave Request Declined by KTA — ${apprentice.name} (${req.leave_type})`,
+          html: leaveEmailHtml(
+            `The leave request from <strong>${apprentice.name}</strong> has been <strong>declined by KTA</strong> (<strong>${currentUser.name}</strong>).`,
+            leaveDetailTable(req, apprentice.name, approver.name) +
+            `<div style="background:#fde8e8;border-radius:8px;padding:12px 16px;margin:14px 0;border-left:4px solid #bf2b2b">
+              <div style="font-weight:700;font-size:13.2px;color:#bf2b2b;margin-bottom:4px">Reason for Decline</div>
+              <div style="font-size:13.2px;color:#0d1b2e">${declineReason.trim()}</div>
+            </div>
+            <p style="font-size:13.2px;color:#4a5a72">The apprentice has also been notified of this decision.</p>`
+          ),
+        }).catch(()=>{});
+      }
+    }
     setReq(updated);
     onUpdate(updated);
     setActing(false);
     setDeclineMode(false);
   };
 
-  const isAdmin1   = isAdmin && (currentUser?.adminLevel||1) === 1;
+  const isAdmin1   = isAdmin && Number(currentUser?.adminLevel ?? 1) === 1;
   // Admin can approve/decline from any non-final status (pending OR approver_approved)
   const canApprove = (isApprover && req.status==="pending") ||
                      (isAdmin1  && (req.status==="pending" || req.status==="approver_approved"));
@@ -7182,7 +9193,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
             )}
             {isAdmin1 && onDelete && !acting && (
               <button onClick={async ()=>{
-                if(!window.confirm(`Delete this leave request from ${apprentice.name}? This cannot be undone.`)) return;
+                if(!await ktaConfirm(`Delete this leave request from ${apprentice.name}? This cannot be undone.`)) return;
                 await deleteRow("leave_requests", req.id).catch(console.error);
                 onDelete(req.id);
               }}
@@ -7281,15 +9292,61 @@ function LeaveRequestsListPage({ currentUser, allUsers, entries, setEntries }) {
 
   const load = () => {
     loadTable("leave_requests")
-      .then(rows => {
+      .then(async rows => {
         const sorted = (rows||[]).sort((a,b) => {
-          // Sort order: awaiting_kta first, then pending, then approved, then declined, then by date desc
           const rank = { approver_approved:0, pending:1, kta_approved:2, declined:3 };
           const ra = rank[a.status]??2, rb = rank[b.status]??2;
           if(ra !== rb) return ra - rb;
           return b.created_at.localeCompare(a.created_at);
         });
         setRequests(sorted);
+
+        // ── 48hr reminder check ───────────────────────────────────────────────
+        // Find pending requests past 48hrs that haven't had a reminder sent yet
+        const now = new Date();
+        const overdue = sorted.filter(r =>
+          r.status === "pending" &&
+          !r.reminder_sent &&
+          r.reminder_due_at &&
+          new Date(r.reminder_due_at) <= now
+        );
+        for(const r of overdue) {
+          const apprentice = allUsers.find(u=>u.id===r.apprentice_id);
+          const approver   = allUsers.find(u=>u.id===r.approver_id);
+          if(!apprentice) continue;
+          try {
+            const fmtD = d => { if(!d) return ""; const[y,m,dy]=d.split("-"); return `${dy}/${m}/${y}`; };
+            const reminderHtml = leaveEmailHtml(
+              `⏰ Reminder: Leave request for <strong>${apprentice.name}</strong> has not yet been actioned.`,
+              `<p style="font-size:14px;color:#0d1b2e">This leave request has been pending for more than 48 hours and still requires approver action.</p>
+               ${leaveDetailTable(r, apprentice.name, approver?.name || "Not assigned")}`
+            );
+            // Email approver
+            if(approver?.email) {
+              await sendLeaveEmail({
+                to: approver.email,
+                subject: `⏰ Reminder: Leave for ${apprentice.name} not yet actioned`,
+                html: reminderHtml,
+              }).catch(e=>console.error("Reminder to approver failed:", e));
+            }
+            // Email apprentice
+            if(apprentice.email) {
+              await sendLeaveEmail({
+                to: apprentice.email,
+                subject: `⏰ Reminder: Your leave request is still pending`,
+                html: leaveEmailHtml(
+                  `Your leave request is still awaiting a response from <strong>${approver?.name || "your approver"}</strong>.`,
+                  leaveDetailTable(r, apprentice.name, approver?.name || "Not assigned")
+                ),
+              }).catch(e=>console.error("Reminder to apprentice failed:", e));
+            }
+            // Mark reminder sent so we don't keep re-sending
+            await updateRow("leave_requests", r.id, { reminder_sent: true }).catch(console.error);
+            setRequests(prev=>prev.map(x=>x.id===r.id?{...x,reminder_sent:true}:x));
+          } catch(e) {
+            console.error("48hr reminder failed for", r.id, e);
+          }
+        }
       })
       .catch(()=>setRequests([]))
       .finally(()=>setLoading(false));
@@ -7470,7 +9527,7 @@ function LeaveRequestsPanel({ currentUser, allUsers, entries=[], setEntries=null
         if(isMentor) {
           const myIds = allUsers
             .filter(u => u.role==="Apprentice" && (
-              u.allocatedTo === currentUser.id ||
+              (u.allocatedTo||[]).includes(currentUser.id) ||
               u.mentorUserId === currentUser.id
             ))
             .map(u=>u.id);
@@ -7507,6 +9564,61 @@ function LeaveRequestsPanel({ currentUser, allUsers, entries=[], setEntries=null
   const shown = TAB_CONFIG.find(t=>t.id===tab)?.list || [];
 
   if(loading) return <div style={{textAlign:"center",padding:20,color:T.muted,fontSize:14}}>Loading leave requests…</div>;
+
+  // Mentors only need to see who is currently on leave or upcoming — not the approval workflow
+  if(isMentor) {
+    const today = new Date().toISOString().slice(0,10);
+    const fmtD = iso => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
+    const onLeave  = requests.filter(r => (r.status==="kta_approved"||r.status==="approver_approved") && r.date_from<=today && r.date_to>=today);
+    const upcoming = requests.filter(r => (r.status==="kta_approved"||r.status==="approver_approved") && r.date_from>today)
+      .sort((a,b)=>a.date_from.localeCompare(b.date_from));
+    const getName = id => allUsers.find(u=>u.id===id)?.name || "Unknown";
+    if(onLeave.length===0 && upcoming.length===0) return null;
+    return (
+      <Card style={{marginBottom:16,border:`1.5px solid ${T.border}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+          <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19}}>🏖️</div>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:"DM Sans",fontWeight:700,fontSize:18}}>Leave</div>
+            <div style={{fontSize:13,color:T.sub,marginTop:2}}>Your apprentices on or approaching leave</div>
+          </div>
+        </div>
+        {onLeave.length > 0 && (
+          <div style={{marginBottom:10}}>
+            <div style={{fontSize:12,fontWeight:700,color:T.red,textTransform:"uppercase",letterSpacing:".6px",marginBottom:6}}>Currently on leave</div>
+            {onLeave.map(r=>(
+              <div key={r.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                padding:"10px 12px",background:T.redL,borderRadius:8,marginBottom:6,
+                border:`1px solid ${T.red}22`}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{getName(r.apprentice_id)}</div>
+                  <div style={{fontSize:12,color:T.sub,marginTop:2}}>{r.leave_type}</div>
+                </div>
+                <div style={{fontSize:13,color:T.red,fontWeight:700}}>{fmtD(r.date_from)} – {fmtD(r.date_to)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {upcoming.length > 0 && (
+          <div>
+            <div style={{fontSize:12,fontWeight:700,color:T.gold,textTransform:"uppercase",letterSpacing:".6px",marginBottom:6}}>Upcoming approved leave</div>
+            {upcoming.slice(0,5).map(r=>(
+              <div key={r.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                padding:"10px 12px",background:T.goldL,borderRadius:8,marginBottom:6,
+                border:`1px solid ${T.gold}22`}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:14,color:T.ink}}>{getName(r.apprentice_id)}</div>
+                  <div style={{fontSize:12,color:T.sub,marginTop:2}}>{r.leave_type}</div>
+                </div>
+                <div style={{fontSize:13,color:T.gold,fontWeight:700}}>{fmtD(r.date_from)} – {fmtD(r.date_to)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    );
+  }
+
   if(requests.length === 0) return null;
 
   return (
@@ -7629,8 +9741,8 @@ function ContactUs({currentUser, allUsers, onSend}) {
     .sort((a, b) => {
       const isMentorA = a.role === "Mentor";
       const isMentorB = b.role === "Mentor";
-      const isKristeenaA = a.email?.toLowerCase() === "kristeena@kta.org.nz";
-      const isKristeenaB = b.email?.toLowerCase() === "kristeena@kta.org.nz";
+      const isKristeenaA = isConfOwner(a);
+      const isKristeenaB = isConfOwner(b);
       // Mentors first
       if(isMentorA && !isMentorB) return -1;
       if(!isMentorA && isMentorB) return 1;
@@ -7798,7 +9910,7 @@ function ContactUs({currentUser, allUsers, onSend}) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Meeting Report — Email sender ─────────────────────────────────────────────
-const sendMeetingReportEmail = async (report, apprentice, mentor, approver, ccEmails=[]) => {
+const sendMeetingReportEmail = async (report, apprentice, mentor, approver, ccEmails=[], senderEmail=null, snapshots=[]) => {
   const fD = (iso) => { if(!iso) return "TBC"; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
 
   // HTML body (existing plain-text format)
@@ -7845,15 +9957,21 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver, ccEm
     `kta.org.nz`,
   ].join("\n");
 
-  // Use reportsEmail (comma-separated) if set, otherwise fall back to approver
+  // If "Reports Go To" emails are set, send ONLY to those addresses.
+  // Otherwise fall back to the approver. Apprentice always gets a CC copy.
   const reportsEmailList = apprentice.reportsEmail
     ? apprentice.reportsEmail.split(",").map(e=>e.trim()).filter(Boolean)
         .map(email=>({ email, name: "KTA Reports" }))
     : (approver ? [{ email: approver.email, name: approver.name }] : []);
 
+  // Always include apprentice as a recipient
+  const apprenticeRecipient = apprentice.email
+    ? [{ email: apprentice.email, name: apprentice.name }]
+    : [];
+
   const recipients = [
-    { email: apprentice.email, name: apprentice.name },
     ...reportsEmailList,
+    ...apprenticeRecipient,
     ...(ccEmails||[]),
   ].filter(r => r && r.email && r.email.trim())
    .filter((r,i,arr)=>arr.findIndex(x=>x.email===r.email)===i); // dedupe
@@ -7865,7 +9983,7 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver, ccEm
   // Generate PDF attachment (pure JS — synchronous, no library)
   let pdfBase64 = null;
   try {
-    pdfBase64 = generateReportPDF(report, apprentice, mentor);
+    pdfBase64 = generateReportPDF(report, apprentice, mentor, snapshots);
     if(!pdfBase64 || pdfBase64.length < 100) throw new Error("PDF output was empty");
   } catch(e) {
     console.error("PDF generation failed:", e);
@@ -7879,16 +9997,63 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver, ccEm
     contentBytes: pdfBase64,
   }] : [];
 
+  const fmtD2 = iso => { if(!iso) return "—"; const [y,m,d]=(iso||"").split("-"); return `${d}/${m}/${y}`; };
   for(const r of recipients) {
     await sendKTAEmail({
       to: r.email.trim(),
       subject: `Apprentice Check In Report — ${apprentice.name}`,
-      html: `<p>Hi ${r.name},</p>
-<p>Please find attached the apprentice check in report for <strong>${apprentice.name}</strong>.</p>
-<hr>
-<pre style="font-family:monospace;font-size:14.3px;line-height:1.6">${lines}</pre>
-<p style="color:#888;font-size:13.2px">KTA Workforce Management · payroll@kta.org.nz</p>`,
+      html: `
+<div style="font-family:DM Sans,Arial,sans-serif;max-width:600px;margin:0 auto;background:#f0f4f9;padding:20px">
+  <!-- Header: navy + teal accent strip -->
+  <div style="background:#1b4f8c;border-radius:10px 10px 0 0;padding:0">
+    <div style="padding:16px 24px 14px">
+      <div style="display:inline-block;color:#fff;font-size:22px;font-weight:800;letter-spacing:-0.5px;margin-right:10px">KTA</div>
+      <div style="display:inline-block;color:#fff;font-size:17px;font-weight:700;vertical-align:bottom">Apprentice Check In Report</div>
+      <div style="color:#a0c4e8;font-size:12px;margin-top:3px">Kiwi Trade Apprentices  ·  kta.org.nz</div>
+    </div>
+    <div style="height:4px;background:#1a8a7a;border-radius:0"></div>
+  </div>
+  <!-- Body -->
+  <div style="background:#fff;padding:22px 24px;border-radius:0 0 10px 10px;border:1px solid #d0daea;border-top:none">
+    <p style="font-size:14px;color:#0d1b2e;margin:0 0 16px">
+      Hi <strong>${r.name}</strong>,<br><br>
+      Please find the check in report for <strong>${apprentice.name}</strong> attached as a PDF.
+    </p>
+    <!-- Detail table -->
+    <table style="width:100%;border-collapse:collapse;font-size:13.5px;margin:0 0 18px;border-radius:8px;overflow:hidden">
+      <tr>
+        <td style="padding:9px 12px;background:#f0f4f9;font-weight:700;color:#4a5a72;width:38%;border-bottom:1px solid #d0daea;border-left:3px solid #1a8a7a">Apprentice</td>
+        <td style="padding:9px 12px;color:#0d1b2e;border-bottom:1px solid #d0daea">${apprentice.name}</td>
+      </tr>
+      <tr>
+        <td style="padding:9px 12px;background:#f8fafc;font-weight:700;color:#4a5a72;border-bottom:1px solid #d0daea;border-left:3px solid #1a8a7a">Trade</td>
+        <td style="padding:9px 12px;color:#0d1b2e;border-bottom:1px solid #d0daea">${apprentice.trade||"—"}</td>
+      </tr>
+      <tr>
+        <td style="padding:9px 12px;background:#f0f4f9;font-weight:700;color:#4a5a72;border-bottom:1px solid #d0daea;border-left:3px solid #1a8a7a">Host Business</td>
+        <td style="padding:9px 12px;color:#0d1b2e;border-bottom:1px solid #d0daea">${apprentice.hostBusiness||"—"}</td>
+      </tr>
+      <tr>
+        <td style="padding:9px 12px;background:#f8fafc;font-weight:700;color:#4a5a72;border-bottom:1px solid #d0daea;border-left:3px solid #1a8a7a">Date of Visit</td>
+        <td style="padding:9px 12px;color:#0d1b2e;border-bottom:1px solid #d0daea">${fmtD2(report.date)}</td>
+      </tr>
+      <tr>
+        <td style="padding:9px 12px;background:#f0f4f9;font-weight:700;color:#4a5a72;border-bottom:1px solid #d0daea;border-left:3px solid #1a8a7a">KTA Representative</td>
+        <td style="padding:9px 12px;color:#0d1b2e;border-bottom:1px solid #d0daea">${mentor?.name||"—"}</td>
+      </tr>
+      ${report.next_visit_date?`
+      <tr>
+        <td style="padding:9px 12px;background:#f8fafc;font-weight:700;color:#4a5a72;border-left:3px solid #1a8a7a">Next Visit</td>
+        <td style="padding:9px 12px;color:#0d1b2e">${fmtD2(report.next_visit_date)}</td>
+      </tr>`:""}
+    </table>
+    <hr style="border:none;border-top:1px solid #d0daea;margin:0 0 14px">
+    <p style="font-size:11.5px;color:#8fa0b8;margin:0">KTA Workforce Management &nbsp;·&nbsp; kta.org.nz</p>
+  </div>
+</div>`,
       attachments,
+      // Send from the report creator's kta.org.nz address
+      ...(senderEmail ? { from: senderEmail } : {}),
     });
   }
 };
@@ -8021,6 +10186,1082 @@ const ReportSH = ({children, req}) => (
 );
 
 // ── Meeting Report Form — KTA "Apprentice Check In Report" template ───────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HSE CHECK IN FORM
+// ─────────────────────────────────────────────────────────────────────────────
+const HSE_FORM_FIELDS = {
+  ppe_correct_ppe:            "Is the Apprentice wearing the correct PPE?",
+  ppe_suitable_condition:     "Is all PPE suitable for tasks/site and in good condition?",
+  site_induction_toolbox:     "Have you completed a Site Induction and are involved in Toolbox Meetings?",
+  hazard_register_location:   "Do you know the location of the Hazard Register / Board?",
+  allocated_breaks_facilities:"Are you taking allocated breaks and have access to facilities?",
+  near_miss_process_aware:    "Are you aware of the process for reporting a Near Miss or Incident?",
+  near_miss_involved:         "Since our last Check In, have you been involved in or witnessed any Near Misses or Incidents?",
+  jsa_training:               "Have you undergone any training that required Task or Job Safety Analysis?",
+  work_within_capabilities:   "Is the work you are doing within your capabilities?",
+  host_business_issues:       "Any issues with the Host Business, Supervisor or Team we need to be aware of?",
+};
+
+// ── HSE Form sub-components (defined outside to prevent remount on keystroke) ──
+function HSE_YN({field, label, detailField, detailLabel, showDetailOn="No", form, sf}) {
+  return (
+    <div style={{marginBottom:16}}>
+      <div style={{fontSize:14, fontWeight:700, color:T.ink, marginBottom:6}}>{label} <span style={{color:T.red}}>*</span></div>
+      <div style={{display:"flex", gap:10, marginBottom:6}}>
+        {["Yes","No"].map(opt=>(
+          <button key={opt} onClick={()=>sf(field, opt)}
+            style={{padding:"6px 22px", borderRadius:8, border:`1.5px solid ${form[field]===opt?(opt==="Yes"?T.teal:T.red):T.border}`,
+              background:form[field]===opt?(opt==="Yes"?T.tealL:"#fff0f0"):T.surface,
+              color:form[field]===opt?(opt==="Yes"?T.teal:"#c0392b"):T.ink,
+              fontWeight:700, fontSize:14, cursor:"pointer", fontFamily:"DM Sans,sans-serif", transition:"all .14s"}}>
+            {opt}
+          </button>
+        ))}
+      </div>
+      {detailField && form[field]===showDetailOn && (
+        <textarea value={form[detailField]} onChange={e=>sf(detailField,e.target.value)}
+          placeholder={detailLabel||"Please provide details…"}
+          rows={2}
+          style={{width:"100%", border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px",
+            fontSize:14, fontFamily:"DM Sans,sans-serif", resize:"vertical", outline:"none",
+            background:T.surface, color:T.ink, boxSizing:"border-box"}}/>
+      )}
+    </div>
+  );
+}
+function HSE_TextInput({field, label, required, placeholder, rows=1, form, sf}) {
+  return (
+    <div style={{marginBottom:16}}>
+      <div style={{fontSize:14, fontWeight:700, color:T.ink, marginBottom:6}}>{label}{required&&<span style={{color:T.red}}> *</span>}</div>
+      {rows>1
+        ? <textarea value={form[field]} onChange={e=>sf(field,e.target.value)} placeholder={placeholder||""} rows={rows}
+            style={{width:"100%", border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px",
+              fontSize:14, fontFamily:"DM Sans,sans-serif", resize:"vertical", outline:"none",
+              background:T.surface, color:T.ink, boxSizing:"border-box"}}/>
+        : <input value={form[field]} onChange={e=>sf(field,e.target.value)} placeholder={placeholder||""}
+            style={{width:"100%", border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px",
+              fontSize:14, fontFamily:"DM Sans,sans-serif", outline:"none",
+              background:T.surface, color:T.ink, boxSizing:"border-box"}}/>
+      }
+    </div>
+  );
+}
+function HSE_SectionHead({label}) {
+  return (
+    <div style={{fontSize:12, fontWeight:700, color:T.dark, textTransform:"uppercase",
+      letterSpacing:".7px", marginBottom:14, paddingBottom:6,
+      borderBottom:`2px solid ${T.border}`, marginTop:8}}>{label}</div>
+  );
+}
+
+function HSECheckinForm({apprentice, viewer, onSave, onCancel}) {
+  const today = (()=>{ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+  const [form, setForm] = useState({
+    apprentice_name: apprentice?.name||"",
+    date: today,
+    host_business_name: apprentice?.hostBusiness||"",
+    supervisor_name: "",
+    site_address: "",
+    ppe_correct_ppe: "",
+    ppe_suitable_condition: "",
+    ppe_items_attention: "",
+    ppe_replacing: [],
+    hard_hat_expiry: "",
+    site_induction_toolbox: "",
+    site_induction_details: "",
+    hazard_register_location: "",
+    allocated_breaks_facilities: "",
+    breaks_facilities_details: "",
+    near_miss_process_aware: "",
+    near_miss_involved: "",
+    near_miss_details: "",
+    jsa_training: "",
+    jsa_training_details: "",
+    work_within_capabilities: "",
+    capabilities_details: "",
+    host_business_issues: "",
+    host_business_issues_details: "",
+    anything_else: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const sf = (k, v) => setForm(f=>({...f, [k]:v}));
+
+  const handleSave = async () => {
+    const required = ["apprentice_name","date","host_business_name","supervisor_name","site_address",
+      "ppe_correct_ppe","ppe_suitable_condition","site_induction_toolbox","hazard_register_location",
+      "allocated_breaks_facilities","near_miss_process_aware","near_miss_involved","jsa_training",
+      "work_within_capabilities","host_business_issues"];
+    const missing = required.find(k=>!form[k]);
+    if(missing){ setErr("Please complete all required fields."); return; }
+    setSaving(true); setErr("");
+    try {
+      const { ppe_replacing, hard_hat_expiry, ...formRest } = form;
+      const row = {
+        id: uid(),
+        apprentice_id: apprentice.id,
+        created_by: viewer?.id||null,
+        created_at: new Date().toISOString(),
+        ...formRest,
+        ppe_items_replacing: JSON.stringify(ppe_replacing||[]),
+        hard_hat_expiry: hard_hat_expiry||null,
+      };
+      await upsertRow("hse_checkins", row);
+
+      // Auto-create PPE order if items need replacing
+      const replacingItems = form.ppe_replacing||[];
+      if(replacingItems.length > 0) {
+        // Build items array matching PPE request format
+        const ppeOrderItems = replacingItems.map(r=>({
+          item: r.item,
+          size: r.size||"",
+          qtyReq: "1",
+          qtyIssued: "",
+          notes: "From HSE Check In " + form.date,
+          approved: "Pending",
+        }));
+        const ppeRecord = {
+          id: uid(),
+          apprentice_id: apprentice.id,
+          apprentice_name: apprentice.name,
+          staff_id: viewer?.id||"",
+          staff_name: viewer?.name||"",
+          date_requested: form.date,
+          date_issued: null,
+          items: JSON.stringify(ppeOrderItems),
+          created_at: new Date().toISOString(),
+          notes: "Auto-created from HSE Check In",
+        };
+        await upsertRow("ppe_requests", ppeRecord).catch(e=>console.error("PPE order failed:", e));
+      }
+
+      onSave && onSave();
+    } catch(e) {
+      setErr("Save failed: "+e.message);
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div style={{padding:"20px 24px"}}>
+      {/* Header */}
+      <div style={{background:T.dark, borderRadius:"10px 10px 0 0", padding:"14px 20px", margin:"-20px -24px 20px",
+        display:"flex", alignItems:"center", justifyContent:"space-between"}}>
+        <div>
+          <div style={{fontWeight:700, fontSize:17, color:"#fff"}}>Apprentice HSE Check In</div>
+          <div style={{fontSize:12, color:"#ffffff88", marginTop:2}}>Kiwi Trade Apprentices · {apprentice?.name}</div>
+        </div>
+        <div style={{fontSize:22}}>🦺</div>
+      </div>
+
+      <HSE_SectionHead label="Apprentice / Host Details"/>
+      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:12}}>
+        <HSE_TextInput form={form} sf={sf} field="apprentice_name" label="Apprentice Name" required placeholder="Full name"/>
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:14, fontWeight:700, color:T.ink, marginBottom:6}}>Date <span style={{color:T.red}}>*</span></div>
+          <input type="date" value={form.date} onChange={e=>sf("date",e.target.value)}
+            style={{width:"100%", border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px",
+              fontSize:14, fontFamily:"DM Sans,sans-serif", outline:"none", background:T.surface, color:T.ink, boxSizing:"border-box"}}/>
+        </div>
+      </div>
+      <HSE_TextInput form={form} sf={sf} field="host_business_name" label="Host Business Name" required placeholder="e.g. Wairarapa Electrical"/>
+      <HSE_TextInput form={form} sf={sf} field="supervisor_name" label="Supervisor Name" required placeholder="On-site supervisor"/>
+      <HSE_TextInput form={form} sf={sf} field="site_address" label="Site Address" required placeholder="Street address or location"/>
+
+      <HSE_SectionHead label="PPE"/>
+      <HSE_YN form={form} sf={sf} field="ppe_correct_ppe" label="Is the Apprentice wearing the correct PPE?"/>
+      <HSE_YN form={form} sf={sf} field="ppe_suitable_condition" label="Is all PPE suitable for the tasks/site and in good condition?"/>
+      {/* PPE Items Needing Replacing — compact picker */}
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:14, fontWeight:700, color:T.ink, marginBottom:8}}>Which item(s) need replacing?</div>
+        <div style={{display:"flex", flexWrap:"wrap", gap:6, marginBottom:8}}>
+          {PPE_CATALOGUE.filter((p,i,a)=>(p.item!=="Other"||i===a.findIndex(x=>x.item==="Other"))&&p.item!=="GMAX Respirator").map((cat,ci)=>{
+            const selected = (form.ppe_replacing||[]).find(x=>x.item===cat.item);
+            const isActive = !!selected;
+            return (
+              <div key={ci} style={{position:"relative", display:"inline-flex", alignItems:"center", gap:0}}>
+                <button
+                  onClick={()=>{
+                    const cur = form.ppe_replacing||[];
+                    if(isActive) sf("ppe_replacing", cur.filter(x=>x.item!==cat.item));
+                    else sf("ppe_replacing", [...cur, {item:cat.item, size:""}]);
+                  }}
+                  style={{padding:"5px 12px", borderRadius:cat.sizes.length>0&&isActive?"6px 0 0 6px":"6px",
+                    border:`1.5px solid ${isActive?"#e05c5c":T.border}`,
+                    background:isActive?"#fff0f0":T.surface,
+                    color:isActive?"#c0392b":T.ink,
+                    fontSize:13, fontWeight:isActive?700:400, cursor:"pointer",
+                    fontFamily:"DM Sans,sans-serif", transition:"all .14s",
+                    borderRight:cat.sizes.length>0&&isActive?"none":undefined}}>
+                  {cat.item}
+                </button>
+                {cat.sizes.length>0 && isActive && (
+                  <select value={selected.size} onChange={e=>{
+                    sf("ppe_replacing", (form.ppe_replacing||[]).map(x=>x.item===cat.item?{...x,size:e.target.value}:x));
+                  }}
+                  style={{padding:"5px 8px", borderRadius:"0 6px 6px 0",
+                    border:`1.5px solid #e05c5c`, borderLeft:"none",
+                    background:"#fff0f0", color:"#c0392b",
+                    fontSize:13, fontWeight:700, cursor:"pointer",
+                    fontFamily:"DM Sans,sans-serif", outline:"none", height:"100%"}}>
+                    <option value="">Size</option>
+                    {cat.sizes.map(s=><option key={s} value={s}>{s}</option>)}
+                  </select>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {(form.ppe_replacing||[]).length>0 && (
+          <div style={{fontSize:12, color:T.sub, marginTop:4}}>
+            Selected: {(form.ppe_replacing||[]).map(x=>x.item+(x.size?` (${x.size})`:"")).join(", ")}
+          </div>
+        )}
+      </div>
+      {/* Hard Hat Expiry */}
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:14, fontWeight:700, color:T.ink, marginBottom:6}}>Hard Hat Expiry Date</div>
+        <input type="date" value={form.hard_hat_expiry} onChange={e=>sf("hard_hat_expiry",e.target.value)}
+          style={{border:`1px solid ${T.border}`, borderRadius:8, padding:"8px 10px",
+            fontSize:14, fontFamily:"DM Sans,sans-serif", outline:"none",
+            background:T.surface, color:T.ink}}/>
+      </div>
+      <HSE_YN form={form} sf={sf} field="site_induction_toolbox" label="Have you completed a Site Induction and are involved in Toolbox Meetings?" detailField="site_induction_details" detailLabel="Please provide details…"/>
+      <HSE_YN form={form} sf={sf} field="hazard_register_location" label="Do you know the location of the Hazard Register / Board?"/>
+      <HSE_YN form={form} sf={sf} field="allocated_breaks_facilities" label="Are you taking allocated breaks and have access to facilities? (e.g. Toilet, Kitchen, Water, Shelter)" detailField="breaks_facilities_details" detailLabel="Please provide details…"/>
+
+      <HSE_SectionHead label="Near Miss / Incidents"/>
+      <HSE_YN form={form} sf={sf} field="near_miss_process_aware" label="Are you aware of the process for reporting a Near Miss or Incident?"/>
+      <HSE_YN form={form} sf={sf} field="near_miss_involved" label="Since our last Check In, have you been involved in or witnessed any Near Misses or Incidents?" detailField="near_miss_details" detailLabel="Details of Near Miss or Incident (not to be used in place of Incident / Near Miss Forms)" showDetailOn="Yes"/>
+      <HSE_YN form={form} sf={sf} field="jsa_training" label="Have you undergone any training that required Task or Job Safety Analysis?" detailField="jsa_training_details" detailLabel="Please explain…" showDetailOn="Yes"/>
+      <HSE_YN form={form} sf={sf} field="work_within_capabilities" label="Is the work you are doing within your capabilities?" detailField="capabilities_details" detailLabel="Please explain…" showDetailOn="No"/>
+
+      <HSE_SectionHead label="Workplace"/>
+      <HSE_YN form={form} sf={sf} field="host_business_issues" label="Any issues with the Host Business, Supervisor or Team that we need to be aware of?" detailField="host_business_issues_details" detailLabel="Please explain…" showDetailOn="Yes"/>
+      <HSE_TextInput form={form} sf={sf} field="anything_else" label="Is there anything else you would like to add?" placeholder="Any additional comments…" rows={3}/>
+
+      {err && <div style={{color:T.red, fontSize:13, marginBottom:12, fontWeight:600}}>{err}</div>}
+
+      <div style={{display:"flex", gap:10, marginTop:8}}>
+        <Btn onClick={handleSave} disabled={saving}>{saving?"Saving…":"Save HSE Check In"}</Btn>
+        <Btn onClick={onCancel} style={{background:T.surface, color:T.ink, border:`1px solid ${T.border}`}}>Cancel</Btn>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAST HSE CHECK INS
+// ─────────────────────────────────────────────────────────────────────────────
+function PastHSECheckins({apprentice, allUsers, canEdit=false}) {
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expandId, setExpandId] = useState(null);
+
+  useEffect(()=>{
+    loadTable("hse_checkins")
+      .then(rows=>setRecords(rows.filter(r=>r.apprentice_id===apprentice.id).sort((a,b)=>(b.date||b.created_at||"").localeCompare(a.date||a.created_at||""))))
+      .catch(()=>setRecords([]))
+      .finally(()=>setLoading(false));
+  },[apprentice.id]);
+
+  const handleDelete = async (id) => {
+    if(!await ktaConfirm("Delete this HSE check in?")) return;
+    await deleteRow("hse_checkins", id).catch(console.error);
+    setRecords(prev=>prev.filter(r=>r.id!==id));
+  };
+
+  const fD = iso => { if(!iso) return "—"; try{ const[y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; }catch{ return iso; } };
+
+  const Row = ({label, value, yn}) => {
+    if(!value && value!==0) return null;
+    const isYes = value==="Yes";
+    const isNo  = value==="No";
+    return (
+      <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:4, padding:"7px 0",
+        borderBottom:`1px solid ${T.border}`}}>
+        <div style={{fontSize:13, color:T.sub}}>{label}</div>
+        <div style={{fontSize:13, fontWeight:600,
+          color: yn ? (isYes?T.teal:isNo?"#c0392b":T.ink) : T.ink}}>
+          {yn && <span style={{marginRight:4}}>{isYes?"✓":isNo?"✕":"—"}</span>}{value}
+        </div>
+      </div>
+    );
+  };
+
+  if(loading) return <div style={{padding:24, textAlign:"center", color:T.muted, fontSize:14}}>Loading…</div>;
+
+  return (
+    <div>
+      <div style={{fontWeight:700, fontSize:15, color:T.ink, padding:"12px 16px 8px",
+        borderBottom:`1px solid ${T.border}`, display:"flex", alignItems:"center", gap:8}}>
+        <span>🦺</span> HSE Check In History
+        <span style={{marginLeft:"auto", fontSize:12, color:T.muted, fontWeight:400}}>{records.length} record{records.length!==1?"s":""}</span>
+      </div>
+      {records.length===0 && (
+        <div style={{padding:"24px 0", textAlign:"center", color:T.muted, fontSize:14, fontStyle:"italic"}}>No HSE check ins yet</div>
+      )}
+      {records.map(r=>{
+        const isOpen = expandId===r.id;
+        const createdBy = allUsers.find(u=>u.id===r.created_by);
+        return (
+          <div key={r.id} style={{border:`1.5px solid ${T.border}`, borderRadius:10, marginBottom:10, overflow:"hidden"}}>
+            <div onClick={()=>setExpandId(isOpen?null:r.id)} style={{
+              display:"flex", alignItems:"center", gap:12, padding:"12px 16px",
+              background:isOpen?"#c0392b":T.surface, cursor:"pointer",
+              borderBottom:isOpen?`1px solid ${T.border}`:"none", transition:"background .15s"}}>
+              <div style={{width:34,height:34,borderRadius:8,
+                background:isOpen?"#ffffff20":"#fff0f0",
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>🦺</div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:700, fontSize:15, color:isOpen?"#fff":T.ink}}>
+                  {fD(r.date)}{r.site_address?` — ${r.site_address}`:""}
+                </div>
+                <div style={{fontSize:12, color:isOpen?"#ffffff88":T.sub, marginTop:1}}>
+                  {r.host_business_name||"—"}{createdBy?` · By ${createdBy.name}`:""}
+                </div>
+              </div>
+              {canEdit && <button onClick={e=>{e.stopPropagation();handleDelete(r.id);}}
+                style={{background:"none",border:"none",cursor:"pointer",fontSize:16,color:isOpen?"#ffffff88":T.muted,padding:"2px 6px"}}>🗑</button>}
+              <div style={{fontSize:12, color:isOpen?"#ffffff66":T.muted}}>{isOpen?"▲ collapse":"▼ view"}</div>
+            </div>
+            {isOpen && (
+              <div style={{padding:"16px", background:"#fff"}}>
+                <div style={{fontSize:12,fontWeight:700,color:T.dark,textTransform:"uppercase",letterSpacing:".6px",marginBottom:8}}>Apprentice / Host Details</div>
+                <Row label="Apprentice" value={r.apprentice_name}/>
+                <Row label="Host Business" value={r.host_business_name}/>
+                <Row label="Supervisor" value={r.supervisor_name}/>
+                <Row label="Site Address" value={r.site_address}/>
+
+                <div style={{fontSize:12,fontWeight:700,color:T.dark,textTransform:"uppercase",letterSpacing:".6px",margin:"14px 0 8px"}}>PPE</div>
+                <Row label="Correct PPE worn?" value={r.ppe_correct_ppe} yn/>
+                <Row label="PPE suitable & in good condition?" value={r.ppe_suitable_condition} yn/>
+                <Row label="Items needing attention" value={r.ppe_items_attention}/>
+                {r.ppe_items_replacing && (() => { try { const items=JSON.parse(r.ppe_items_replacing); return items.length>0?<Row label="Items to replace" value={items.map(x=>x.item+(x.size?` (${x.size})`:"")).join(", ")}/>:null; } catch{ return null; } })()}
+                {r.hard_hat_expiry && <Row label="Hard Hat Expiry" value={fD(r.hard_hat_expiry)}/>}
+                <Row label="Site induction & toolbox meetings?" value={r.site_induction_toolbox} yn/>
+                <Row label="Site induction details" value={r.site_induction_details}/>
+                <Row label="Knows hazard register location?" value={r.hazard_register_location} yn/>
+                <Row label="Taking allocated breaks & has facilities access?" value={r.allocated_breaks_facilities} yn/>
+                <Row label="Breaks/facilities details" value={r.breaks_facilities_details}/>
+
+                <div style={{fontSize:12,fontWeight:700,color:T.dark,textTransform:"uppercase",letterSpacing:".6px",margin:"14px 0 8px"}}>Near Miss / Incidents</div>
+                <Row label="Aware of Near Miss reporting process?" value={r.near_miss_process_aware} yn/>
+                <Row label="Involved in/witnessed Near Misses?" value={r.near_miss_involved} yn/>
+                <Row label="Near Miss details" value={r.near_miss_details}/>
+                <Row label="JSA training completed?" value={r.jsa_training} yn/>
+                <Row label="JSA training details" value={r.jsa_training_details}/>
+                <Row label="Work within capabilities?" value={r.work_within_capabilities} yn/>
+                <Row label="Capabilities details" value={r.capabilities_details}/>
+
+                <div style={{fontSize:12,fontWeight:700,color:T.dark,textTransform:"uppercase",letterSpacing:".6px",margin:"14px 0 8px"}}>Workplace</div>
+                <Row label="Host Business/Supervisor issues?" value={r.host_business_issues} yn/>
+                <Row label="Issues details" value={r.host_business_issues_details}/>
+                <Row label="Anything else" value={r.anything_else}/>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+
+// ── EarnLearn Progress Snapshot ───────────────────────────────────────────────
+// Parses an EarnLearn PDF report using Claude API, stores a monthly snapshot
+// in Supabase (progress_snapshots table), and renders a line graph of
+// overall completion % vs months in training over time.
+
+function ProgressLineGraph({ snapshots }) {
+  const [hover, setHover] = useState(null);
+
+  if (!snapshots || snapshots.length === 0) return null;
+
+  const sorted = [...snapshots].sort((a, b) => a.months_in_training - b.months_in_training);
+  const latest  = sorted[sorted.length - 1];
+  const duration = latest.programme_duration || 42;
+  const isPastEnd    = latest.months_in_training > duration;
+  const expectedPct  = Math.min(100, (latest.months_in_training / duration) * 100);
+  const actualPct    = latest.overall_percent || 0;
+  const gap          = actualPct - expectedPct;
+  const statusColor  = gap >= 0 ? "#1a8a7a" : gap >= -10 ? "#b86e1a" : "#bf2b2b";
+  const statusBg     = gap >= 0 ? "#d4f0ec" : gap >= -10 ? "#faebd7" : "#fde8e8";
+  const statusLabel  = isPastEnd
+    ? `Past programme end — ${Math.round(actualPct)}% complete (${Math.round(100 - actualPct)}% remaining)`
+    : gap >= 0 ? `On track / ahead (+${Math.round(gap)}%)`
+    : gap >= -10 ? `Slightly behind (${Math.round(gap)}%)` : `Well behind (${Math.round(gap)}%)`;
+  const statusIcon   = gap >= 0 ? "✅" : gap >= -10 ? "⚠️" : "🔴";
+  const LINES = [
+    { key: "overall_percent",     label: "Overall",    color: "#1b4f8c", width: 3.5 },
+    { key: "off_job_l3_percent",  label: "Off-Job L3", color: "#1a8a7a", width: 2.5 },
+    { key: "off_job_l4_percent",  label: "Off-Job L4", color: "#a07820", width: 2.5 },
+    { key: "on_job_core_percent", label: "On-Job Core",color: "#6b4fa0", width: 2.5 },
+    { key: "on_job_spec_percent", label: "On-Job Spec", color: "#bf2b2b", width: 2.5 },
+  ];
+  const W = 560, H = 240, PAD = { top: 20, right: 70, bottom: 36, left: 44 };
+  const IW = W - PAD.left - PAD.right;
+  const IH = H - PAD.top  - PAD.bottom;
+  const maxMonths = Math.max(duration, latest.months_in_training);
+  const candidates = [6, 12, 18, 24, 30, 36];
+  const tickInterval = candidates.find(c => Math.floor(maxMonths / c) <= 5) || 36;
+  const xS = (m) => PAD.left + (Math.min(m, maxMonths) / maxMonths) * IW;
+  const yS = (p) => PAD.top + IH - (Math.min(p, 100) / 100) * IH;
+  const yTicks = [0, 25, 50, 75, 100];
+  // X ticks: at interval steps, always include 0 and duration
+  const xTickSet = new Set([0, duration]);
+  for (let m = tickInterval; m <= maxMonths; m += tickInterval) xTickSet.add(m);
+  const xTicks = [...xTickSet].sort((a, b) => a - b);
+
+  // Expected diagonal: (0,0%) → (duration,100%) — stops at programme end
+  const expX1 = xS(0),        expY1 = yS(0);
+  const expX2 = xS(duration), expY2 = yS(100);
+
+  // Black dot: where apprentice SHOULD be at current month (capped at programme end)
+  const expDotM   = Math.min(latest.months_in_training, duration);
+  const expDotPct = Math.min(100, (expDotM / duration) * 100);
+  const expDotX   = xS(expDotM);
+  const expDotY   = yS(expDotPct);
+
+  // Current position
+  const curX = xS(latest.months_in_training);
+  const curY = yS(actualPct);
+
+  return (
+    <div style={{ fontFamily: "DM Sans, Arial, sans-serif" }}>
+
+      {/* ── Status banner ── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px",
+        background: statusBg, borderRadius: 10, border: `1.5px solid ${statusColor}44`,
+        marginBottom: 12 }}>
+        <span style={{ fontSize: 22 }}>{statusIcon}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: statusColor }}>{statusLabel}</div>
+          <div style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>
+            At month <strong>{latest.months_in_training}</strong> of <strong>{duration}</strong> —
+            expected <strong>{Math.round(expectedPct)}%</strong>, actual <strong>{Math.round(actualPct)}%</strong>
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 26, fontWeight: 800, color: statusColor, lineHeight: 1 }}>
+            {Math.round(actualPct)}%
+          </div>
+          <div style={{ fontSize: 10, color: T.muted }}>overall</div>
+        </div>
+      </div>
+
+      {/* ── Timeline bar ── */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11,
+          color: T.muted, marginBottom: 4 }}>
+          <span>Start</span>
+          <span style={{ color: statusColor, fontWeight: 700 }}>
+            ▼ Month {latest.months_in_training} — {Math.round(actualPct)}% complete
+          </span>
+          <span>End (month {duration})</span>
+        </div>
+        {/* Duration bar */}
+        <div style={{ position: "relative", height: 28, borderRadius: 6,
+          background: "#e8edf4", overflow: "visible" }}>
+          {/* Expected progress (grey fill) */}
+          <div style={{ position: "absolute", left: 0, top: 0, bottom: 0,
+            width: `${(latest.months_in_training / duration) * 100}%`,
+            background: "#c4cdd8", borderRadius: "6px 0 0 6px", transition: "width .4s" }}/>
+          {/* Actual progress (coloured fill) */}
+          <div style={{ position: "absolute", left: 0, top: 4, bottom: 4,
+            width: `${Math.min((actualPct / 100) * (latest.months_in_training / duration) * 100, 100)}%`,
+            background: statusColor, borderRadius: 4, transition: "width .4s",
+            opacity: 0.9 }}/>
+          {/* "You are here" marker */}
+          <div style={{ position: "absolute", top: -4, bottom: -4,
+            left: `${(latest.months_in_training / duration) * 100}%`,
+            width: 3, background: T.ink, borderRadius: 2, transform: "translateX(-50%)" }}/>
+          {/* Expected marker */}
+          <div style={{ position: "absolute", top: 2, bottom: 2,
+            left: `${Math.min((expectedPct / 100) * (latest.months_in_training / duration) * 100, 100)}%`,
+            width: 2, background: "#fff", borderRadius: 1,
+            opacity: 0.8, transform: "translateX(-50%)" }}/>
+        </div>
+        <div style={{ display: "flex", gap: 14, marginTop: 6, fontSize: 11 }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ display: "inline-block", width: 12, height: 3, background: statusColor, borderRadius: 2 }}/>
+            <span style={{ color: T.sub }}>Actual progress</span>
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ display: "inline-block", width: 12, height: 3, background: "#c4cdd8", borderRadius: 2 }}/>
+            <span style={{ color: T.sub }}>Time elapsed</span>
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <span style={{ display: "inline-block", width: 3, height: 12, background: T.ink, borderRadius: 1 }}/>
+            <span style={{ color: T.sub }}>Current month</span>
+          </span>
+        </div>
+      </div>
+
+      {/* ── Line graph ── */}
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", display: "block" }}>
+
+        {/* Y gridlines + labels */}
+        {yTicks.map(t => (
+          <g key={t}>
+            <line x1={PAD.left} x2={PAD.left + IW} y1={yS(t)} y2={yS(t)}
+              stroke={t===0?"#c4cdd8":"#eef1f6"} strokeWidth={t===0?1.5:1}/>
+            <text x={PAD.left - 6} y={yS(t) + 4} textAnchor="end" fontSize="10" fill="#94a3b8">{t}%</text>
+          </g>
+        ))}
+
+        {/* X tick marks + labels — no vertical grid lines */}
+        {xTicks.map(m => {
+          const isEnd = m === duration;
+          return (
+            <g key={m}>
+              <line x1={xS(m)} x2={xS(m)} y1={PAD.top + IH} y2={PAD.top + IH + (isEnd ? 6 : 4)}
+                stroke={isEnd ? "#1b4f8c" : "#c4cdd8"} strokeWidth={isEnd ? 2 : 1}/>
+              <text x={xS(m)} y={PAD.top + IH + 16} textAnchor="middle"
+                fontSize={isEnd ? 9.5 : 9.5}
+                fill={isEnd ? "#1b4f8c" : "#94a3b8"}
+                fontWeight={isEnd ? 700 : 400}>
+                {m}m{isEnd ? " ★" : ""}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Expected diagonal */}
+        <line x1={expX1} y1={expY1} x2={expX2} y2={expY2}
+          stroke="#b0bec8" strokeWidth="1.5" strokeDasharray="5,4"/>
+        <text x={expX2 + 5} y={expY2 + 4} textAnchor="start" fontSize="9" fill="#94a3b8">Expected</text>
+
+        {/* Data lines */}
+        {LINES.map(({ key, color, width }) => {
+          const pts = sorted.filter(s => s[key] != null);
+          if (pts.length < 1) return null;
+          const points = pts.map(s => `${xS(s.months_in_training)},${yS(s[key])}`).join(" ");
+          return (
+            <polyline key={key} points={points} fill="none"
+              stroke={color} strokeWidth={width}
+              strokeLinejoin="round" strokeLinecap="round"/>
+          );
+        })}
+
+        {/* Data dots + labels */}
+        {sorted.map((s, si) =>
+          LINES.map(({ key, color }) => {
+            if (s[key] == null) return null;
+            const dx = xS(s.months_in_training), dy = yS(s[key]);
+            const isOverall = key === "overall_percent";
+            const lx = dx > PAD.left + IW * 0.78 ? dx - 7 : dx + 7;
+            const la = dx > PAD.left + IW * 0.78 ? "end" : "start";
+            return (
+              <g key={`${si}-${key}`}>
+                <circle cx={dx} cy={dy} r={isOverall ? 5 : 3}
+                  fill={color} stroke="#fff" strokeWidth={isOverall?2:1.5}
+                  style={{ cursor: "pointer" }}
+                  onMouseEnter={() => setHover({ s, key, color })}
+                  onMouseLeave={() => setHover(null)}/>
+                {isOverall && (
+                  <text x={lx} y={dy - 7} textAnchor={la} fontSize="9" fill={color} fontWeight="700">
+                    {Math.round(s[key])}%
+                  </text>
+                )}
+              </g>
+            );
+          })
+        )}
+
+        {/* Expected pace dot — black dot where apprentice should be */}
+        <circle cx={expDotX} cy={expDotY} r="5" fill="#0d1b2e" stroke="#fff" strokeWidth="2"/>
+        {/* Offset expected label down if it's close to the current position label */}
+        {(()=>{
+          const tooClose = Math.abs(expDotX - curX) < 40 && Math.abs(expDotY - curY) < 24;
+          const ely = tooClose ? expDotY + 18 : expDotY - 8;
+          const ela = expDotX > PAD.left + IW * 0.78 ? "end" : "start";
+          const elx = ela === "end" ? expDotX - 8 : expDotX + 8;
+          return (
+            <text x={elx} y={ely} textAnchor={ela} fontSize="9" fill="#0d1b2e" fontWeight="700">
+              {Math.round(expDotPct)}%
+            </text>
+          );
+        })()}
+
+        {/* Current position dot — label offset away from expected label */}
+        <circle cx={curX} cy={curY} r="7" fill={statusColor} stroke="#fff" strokeWidth="2.5"/>
+        {(()=>{
+          const tooClose = Math.abs(expDotX - curX) < 40 && Math.abs(expDotY - curY) < 24;
+          const cly = tooClose ? curY - 20 : curY - 11;
+          return (
+            <text x={curX - 11} y={cly} textAnchor="end"
+              fontSize="9" fill={statusColor} fontWeight="700">
+              {Math.round(actualPct)}%{isPastEnd ? " ↑ past end" : ` · m${latest.months_in_training}`}
+            </text>
+          );
+        })()}
+
+        {/* Hover tooltip */}
+        {hover && (() => {
+          const dx = xS(hover.s.months_in_training);
+          const dy = yS(hover.s[hover.key]);
+          const label = LINES.find(l => l.key === hover.key)?.label || "";
+          const right = dx > PAD.left + IW * 0.65;
+          const ox = right ? -42 : 42;
+          return (
+            <g>
+              <rect x={dx - (right?84:0) + (right?-10:10)} y={dy - 28} width={84} height={38}
+                rx="5" fill="#0d1b2e" opacity="0.9"/>
+              <text x={dx + ox} y={dy - 15} textAnchor="middle" fontSize="10" fill="#fff" fontWeight="700">{label}</text>
+              <text x={dx + ox} y={dy} textAnchor="middle" fontSize="11" fill="#fff">
+                {Math.round(hover.s[hover.key])}% · m{hover.s.months_in_training}
+              </text>
+            </g>
+          );
+        })()}
+
+        {/* Axes */}
+        <line x1={PAD.left} x2={PAD.left + IW} y1={PAD.top + IH} y2={PAD.top + IH} stroke="#c4cdd8" strokeWidth="1.5"/>
+        <line x1={PAD.left} x2={PAD.left} y1={PAD.top} y2={PAD.top + IH} stroke="#c4cdd8" strokeWidth="1.5"/>
+        <text x={PAD.left + IW / 2} y={H - 2} textAnchor="middle" fontSize="10" fill="#94a3b8">Months in Training</text>
+        <text x={9} y={PAD.top + IH / 2} textAnchor="middle" fontSize="10" fill="#94a3b8"
+          transform={`rotate(-90, 9, ${PAD.top + IH / 2})`}>% Complete</text>
+      </svg>
+
+      {/* Legend */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", marginTop: 6 }}>
+        {LINES.map(({ key, label, color }) => {
+          if (!snapshots.some(s => s[key] != null)) return null;
+          return (
+            <div key={key} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11 }}>
+              <div style={{ width: key==="overall_percent"?22:16, height: key==="overall_percent"?3:2,
+                background: color, borderRadius: 2 }}/>
+              <span style={{ color: T.sub, fontWeight: key==="overall_percent"?700:400 }}>{label}</span>
+            </div>
+          );
+        })}
+        <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:3 }}>
+            <div style={{ width: 14, height: 2, background: "#b0bec8", borderRadius:1 }}/>
+            <div style={{ width:6, height:6, borderRadius:"50%", background:"#0d1b2e", border:"1.5px solid #fff", outline:"1px solid #0d1b2e" }}/>
+          </div>
+          <span style={{ color: T.muted }}>Expected pace</span>
+        </div>
+      </div>
+
+      {/* Section summary cards */}
+      {(() => {
+        const sections = [
+          { label: "Skills Week",  val: latest.skills_week_percent },
+          { label: "Off-Job L3",   val: latest.off_job_l3_percent },
+          { label: "Off-Job L4",   val: latest.off_job_l4_percent },
+          { label: "On-Job Core",  val: latest.on_job_core_percent },
+          { label: "On-Job Spec",  val: latest.on_job_spec_percent },
+          { label: "On Job Books", val: latest.booklets_percent },
+        ].filter(s => s.val != null);
+        if (sections.length === 0) return null;
+        return (
+          <div style={{ marginTop: 10, display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(110px,1fr))", gap: 6 }}>
+            {sections.map(({ label, val }) => {
+              const c = val >= 100 ? T.teal : val >= 75 ? T.accent : val >= 50 ? T.warn : T.red;
+              return (
+                <div key={label} style={{ background: T.bg, borderRadius: 8, padding: "6px 10px",
+                  border: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: T.muted,
+                    textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: c }}>{Math.round(val)}%</div>
+                  <div style={{ height: 4, background: T.border, borderRadius: 2, marginTop: 4 }}>
+                    <div style={{ height: 4, borderRadius: 2, width: `${Math.min(val,100)}%`,
+                      background: c, transition: "width .4s" }}/>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+function ProgressSnapshotPanel({ apprenticeId, apprentice=null, canDelete=false }) {
+  const [snapshots, setSnapshots] = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [parsing, setParsing]     = useState(false);
+  const [parseMsg, setParseMsg]   = useState("");
+  const [editingMonths, setEditingMonths] = useState(null); // snapshot id being edited
+  const [editMonthsVal, setEditMonthsVal] = useState("");
+  const fileRef = useRef(null);
+
+  useEffect(() => {
+    loadTable("progress_snapshots")
+      .then(rows => setSnapshots((rows||[]).filter(r=>r.apprentice_id===apprenticeId)))
+      .catch(() => setSnapshots([]))
+      .finally(() => setLoading(false));
+  }, [apprenticeId]);
+
+  // Parse EarnLearn PDF text locally using pdf.js — no API calls or credits needed.
+  // Extracts credit totals and booklet counts using regex patterns matched to
+  // the consistent EarnLearn report format.
+  const parseEarnLearnText = (text) => {
+    const n = (s) => { const v = parseFloat(s); return isNaN(v) ? null : v; };
+
+    // ── Detect format ────────────────────────────────────────────────────────
+    const isTraineeProgressReport = /TRAINEE PROGRESS REPORT/i.test(text) ||
+      (/Produced by EarnLearn on/i.test(text) && !/Booklet Data as at/i.test(text));
+    const isETCO = /Academic Transcript/i.test(text) &&
+      (/etco|the electrical training experts/i.test(text) || /Learner Details/i.test(text));
+    const isSkills = /Learner Progression Report/i.test(text) &&
+      /Version:\s*\d+/i.test(text) && /skillsbank\.skills\.org\.nz/i.test(text);
+    let report_date = null;
+    const monthMap = {jan:"01",feb:"02",mar:"03",apr:"04",may:"05",jun:"06",
+                      jul:"07",aug:"08",sep:"09",oct:"10",nov:"11",dec:"12",
+                      january:"01",february:"02",march:"03",april:"04",june:"06",
+                      july:"07",august:"08",september:"09",october:"10",november:"11",december:"12"};
+
+    const dateM1 = text.match(/Booklet Data as at\s+(\d{1,2})\s+(\w+)\s+(\d{4})/i);
+    const dateM2 = text.match(/Produced by EarnLearn on[\s\S]{0,20}?(\d{1,2})[-\s](\w{3})[-\s](\d{2,4})/i);
+    const dateM3 = isETCO && text.match(/(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\s+(\w+)\s+(\d{1,2}),\s+(\d{4})/i);
+    const dateM4 = isSkills && text.match(/Date:\s+(\d{1,2})-(\w{3})-(\d{4})/i);
+    if (dateM1) {
+      const mo = monthMap[dateM1[2].toLowerCase().slice(0,3)] || "01";
+      report_date = `${dateM1[3]}-${mo}-${String(dateM1[1]).padStart(2,"0")}`;
+    } else if (dateM2) {
+      const mo = monthMap[dateM2[2].toLowerCase()] || "01";
+      const yr = dateM2[3].length === 2 ? `20${dateM2[3]}` : dateM2[3];
+      report_date = `${yr}-${mo}-${String(dateM2[1]).padStart(2,"0")}`;
+    } else if (dateM3) {
+      const mo = monthMap[dateM3[1].toLowerCase()] || "01";
+      report_date = `${dateM3[3]}-${mo}-${String(dateM3[2]).padStart(2,"0")}`;
+    } else if (dateM4) {
+      const mo = monthMap[dateM4[2].toLowerCase()] || "01";
+      report_date = `${dateM4[3]}-${mo}-${String(dateM4[1]).padStart(2,"0")}`;
+    }
+
+    // ── Months in training ───────────────────────────────────────────────────
+    let months_in_training = null, programme_duration = null;
+
+    if (isSkills) {
+      // Enrolment row: "17-Oct-2025  30-Mar-2029  Confirmed  16  42"
+      const enrollM = text.match(/(\d{1,2}-\w{3}-\d{4})\s+(\d{1,2}-\w{3}-\d{4})\s+Confirmed/i);
+      if (enrollM) {
+        const parseSkillsDate = (s) => {
+          const p = s.split("-");
+          return new Date(`${p[2]}-${monthMap[p[1].toLowerCase()]||"01"}-${p[0].padStart(2,"0")}`);
+        };
+        const startDate = parseSkillsDate(enrollM[1]);
+        const endDate   = parseSkillsDate(enrollM[2]);
+        const now = report_date ? new Date(report_date) : new Date();
+        months_in_training = Math.max(1, Math.round((now - startDate) / (1000*60*60*24*30.44)));
+        programme_duration = Math.round((endDate - startDate) / (1000*60*60*24*30.44));
+      }
+    } else if (isETCO) {
+      // ETCO: no start date in doc — derive from earliest achievement date
+      // Dates appear as DD/MM/YY e.g. "6/10/21" or "18/03/22"
+      const allDates = [...text.matchAll(/\b(\d{1,2})\/(\d{2})\/(\d{2,4})\b/g)]
+        .map(m => {
+          const yr = m[3].length === 2 ? 2000 + parseInt(m[3]) : parseInt(m[3]);
+          return new Date(yr, parseInt(m[2])-1, parseInt(m[1]));
+        })
+        .filter(d => d.getFullYear() >= 2015 && d <= new Date());
+      if (allDates.length > 0) {
+        const startDate = new Date(Math.min(...allDates.map(d => d.getTime())));
+        const now = report_date ? new Date(report_date) : new Date();
+        months_in_training = Math.max(1, Math.round((now - startDate) / (1000 * 60 * 60 * 24 * 30.44)));
+      }
+      // Programme duration from "Credits NNN" in Programme Details (total credits = 262)
+      // We use the total as a proxy: 262 credits ≈ 42 month programme
+      const credM = text.match(/^Credits\s+(\d+)/m);
+      if (credM) {
+        // Standard NZ electrical apprenticeship = 42 months
+        programme_duration = 42;
+      }
+    } else if (isTraineeProgressReport) {
+      // pdf.js extracts two-column layouts with arbitrary whitespace between label and value
+      // Use [\s\S]{0,30} to handle gaps, newlines, or interleaved column text
+      const startM = text.match(/Training Agreement Start Date[\s\S]{0,40}?(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/i);
+      if (startM) {
+        const startDate = new Date(`${startM[3]}-${startM[2].padStart(2,"0")}-${startM[1].padStart(2,"0")}`);
+        const now = report_date ? new Date(report_date) : new Date();
+        months_in_training = Math.max(1, Math.round((now - startDate) / (1000 * 60 * 60 * 24 * 30.44)));
+        programme_duration = null;
+      }
+    } else {
+      const progM = text.match(/Active\s+[\d/]+\s+[\d/]+\s+(\d+)\s+(\d+)/);
+      if (progM) { programme_duration = n(progM[1]); months_in_training = n(progM[2]); }
+    }
+
+    // ── Overall percent ──────────────────────────────────────────────────────
+    let overall_percent = null;
+
+    if (isSkills) {
+      // "Confirmed  16  42" — the first number is % complete, given directly
+      const pctM = text.match(/Confirmed\s+(\d+)\s+\d+/i);
+      if (pctM) overall_percent = n(pctM[1]);
+    } else if (isETCO) {
+      let totalRequired = 0, totalAchieved = 0;
+      const sectionMatches = [...text.matchAll(/Credits Achieved\s+[\d.]+%\s+(\d+)\s+of\s+(\d+)/gi)];
+      sectionMatches.forEach(m => {
+        totalAchieved += parseInt(m[1]);
+        totalRequired += parseInt(m[2]);
+      });
+      if (totalRequired > 0) {
+        overall_percent = Math.round((totalAchieved / totalRequired) * 1000) / 10;
+      }
+    } else if (isTraineeProgressReport) {
+      const totM = text.match(/Total Credits for Compulsory[\s\S]{0,20}?([\d,]+)[\s\S]{0,10}?([\d,]+)/i);
+      if (totM) {
+        const req = n(totM[1].replace(/,/g,"")), got = n(totM[2].replace(/,/g,""));
+        if (req > 0 && got != null && got <= req) overall_percent = Math.round((got / req) * 1000) / 10;
+      }
+    } else {
+      const totalsM = text.match(/Totals\s+([\d,]+)\s+([\d,]+)\s+([\d.]+)%/i);
+      if (totalsM) overall_percent = n(totalsM[3]);
+    }
+
+    // ── Section percentages ──────────────────────────────────────────────────
+    let skills_week_percent = null, off_job_l3_percent = null, off_job_l4_percent = null;
+    let on_job_core_percent = null, on_job_spec_percent = null;
+
+    if (isSkills) {
+      // Count awarded/RPL/exempt credits per section
+      // Awarded = row has a date (DD-Mon-YYYY) or "Exempted"
+      const skillsSection = (header, nextHeader) => {
+        const startIdx = text.search(new RegExp(header, "i"));
+        if (startIdx < 0) return null;
+        const endIdx = nextHeader ? text.search(new RegExp(nextHeader, "i")) : text.length;
+        const block = text.slice(startIdx, endIdx > startIdx ? endIdx : text.length);
+        let achieved = 0, total = 0;
+        // Unit rows: unit_std_id (NNNNN-NN) ... credits ... (date or Exempted or blank)
+        const unitRe = /\d{4,5}-\d{2}\s+.+?\s+(\d+)\s*([\d]{1,2}-\w{3}-\d{4}|Exempted|)/gi;
+        let um;
+        while ((um = unitRe.exec(block)) !== null) {
+          const credits = parseInt(um[1]) || 0;
+          const status  = um[2]?.trim() || "";
+          total += credits;
+          if (status) achieved += credits;
+        }
+        return total > 0 ? Math.round((achieved / total) * 1000) / 10 : null;
+      };
+      skills_week_percent  = skillsSection("First Aid and CPR", "Year 1 off-job");
+      off_job_l3_percent   = skillsSection("Year 1 off-job", "Year 2 off-job");
+      off_job_l4_percent   = skillsSection("Year 2 off-job", "Year 3 off-job");
+      on_job_core_percent  = skillsSection("Year 3 off-job", "On-job");
+      on_job_spec_percent  = skillsSection("On-job", null);
+    } else if (isETCO) {
+      const etcoSection = (label) => {
+        const re = new RegExp(label + "[\\s\\S]{0,300}?Credits Achieved\\s+([\\d.]+)%\\s+(\\d+)\\s+of\\s+(\\d+)", "i");
+        const m = text.match(re);
+        if (!m) return null;
+        return n(m[1]);
+      };
+      skills_week_percent  = etcoSection("Trade Start");
+      const y1 = etcoSection("NZCEE Year 1");
+      const y2 = etcoSection("NZCEE Year 2");
+      if (y1 !== null && y2 !== null) {
+        off_job_l3_percent = Math.round(((y1 + y2) / 2) * 10) / 10;
+      } else {
+        off_job_l3_percent = y1 ?? y2;
+      }
+      off_job_l4_percent   = etcoSection("NZCEE Year 3");
+      on_job_core_percent  = etcoSection("On-Job Mandatory");
+      on_job_spec_percent  = etcoSection("On-Job Domestic") ?? etcoSection("On-Job Industrial");
+    } else if (!isTraineeProgressReport) {
+      const summarySection = (label) => {
+        const re = new RegExp(label + "\\s+(\\d+)\\s+(\\d+)\\s+([\\d.]+)%", "i");
+        const m = text.match(re);
+        return m ? n(m[3]) : null;
+      };
+      skills_week_percent  = summarySection("Skills Week/Trade Start");
+      off_job_l3_percent   = summarySection("Off Job Unit Standards.*?Level 3");
+      off_job_l4_percent   = summarySection("Off Job Unit Standards.*?Level 4");
+      on_job_core_percent  = summarySection("On Job Unit Standards.*?Core");
+      on_job_spec_percent  = summarySection("On Job Unit Standards.*?(?:Domestic|Speciality|Specialty|Industrial)");
+    }
+
+    const bookM = text.match(/Booklets Completed\s+(\d+)\s+([\d.]+)%/i);
+    const booklets_percent = bookM ? n(bookM[2]) : null;
+
+    return {
+      report_date, months_in_training, programme_duration,
+      overall_percent, skills_week_percent, off_job_l3_percent,
+      off_job_l4_percent, on_job_core_percent, on_job_spec_percent,
+      booklets_percent,
+    };
+  };
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf") { setParseMsg("❌ Please upload a PDF file."); return; }
+
+    setParsing(true);
+    setParseMsg("📄 Reading PDF…");
+
+    try {
+      // Load pdf.js from CDN
+      if (!window.pdfjsLib) {
+        await new Promise((res, rej) => {
+          const s = document.createElement("script");
+          s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+          s.onload = res; s.onerror = rej;
+          document.head.appendChild(s);
+        });
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      }
+
+      // Read file as ArrayBuffer
+      const arrayBuf = await file.arrayBuffer();
+      setParseMsg("📄 Extracting text…");
+
+      const pdf = await window.pdfjsLib.getDocument({ data: arrayBuf }).promise;
+      let fullText = "";
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const tc   = await page.getTextContent();
+        fullText += tc.items.map(i => i.str).join(" ") + "\n";
+      }
+
+      setParseMsg("🔍 Parsing progress data…");
+      const parsed = parseEarnLearnText(fullText);
+
+      if (!parsed.months_in_training) {
+        throw new Error("Could not determine months in training. Supports both Account format and Trainee Progress Report format.");
+      }
+
+      // Check if snapshot for this month already exists
+      const thisMonth = parsed.report_date?.slice(0, 7);
+      const alreadyExists = snapshots.some(s => s.report_date?.slice(0, 7) === thisMonth);
+      if (alreadyExists) {
+        setParseMsg("⚠️ A snapshot for this month already exists. Delete it first to replace it.");
+        setParsing(false);
+        return;
+      }
+
+      // If apprentice has a startDate in their profile, use that instead of the PDF date
+      // This corrects cases where EarnLearn has wrong start date (e.g. RPL situations)
+      let months_in_training = parsed.months_in_training;
+      if (apprentice?.startDate && parsed.report_date) {
+        const start = new Date(apprentice.startDate + "T00:00:00");
+        const report = new Date(parsed.report_date + "T00:00:00");
+        const fromProfile = Math.max(1, Math.round((report - start) / (1000*60*60*24*30.44)));
+        months_in_training = fromProfile;
+      }
+
+      const snapshot = {
+        id:                  uid(),
+        apprentice_id:       apprenticeId,
+        uploaded_at:         new Date().toISOString(),
+        report_date:         parsed.report_date || new Date().toISOString().slice(0, 10),
+        months_in_training,
+        programme_duration:  parsed.programme_duration,
+        overall_percent:     parsed.overall_percent,
+        skills_week_percent: parsed.skills_week_percent,
+        off_job_l3_percent:  parsed.off_job_l3_percent,
+        off_job_l4_percent:  parsed.off_job_l4_percent,
+        on_job_core_percent: parsed.on_job_core_percent,
+        on_job_spec_percent: parsed.on_job_spec_percent,
+        booklets_percent:    parsed.booklets_percent,
+        pdf_data:            arrayBufferToBase64(arrayBuf),
+      };
+
+      await upsertRow("progress_snapshots", snapshot);
+      setSnapshots(prev => [...prev, snapshot].sort((a,b)=>a.months_in_training-b.months_in_training));
+      const src = apprentice?.startDate ? " (start date from profile)" : " (from PDF)";
+      setParseMsg(`✅ Snapshot saved — ${months_in_training} months in training${src}, ${Math.round(parsed.overall_percent)}% complete.`);
+    } catch (e) {
+      console.error("Snapshot parse error:", e);
+      setParseMsg("❌ Failed to parse PDF: " + e.message);
+    }
+
+    setParsing(false);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const saveMonths = async (id, val) => {
+    const months = parseInt(val);
+    if (isNaN(months) || months < 1) return;
+    await updateRow("progress_snapshots", id, { months_in_training: months }).catch(console.error);
+    setSnapshots(prev => prev.map(s => s.id === id ? {...s, months_in_training: months} : s));
+    setEditingMonths(null);
+  };
+
+  const deleteSnapshot = async (id) => {
+    if (!await ktaConfirm("Delete this progress snapshot?")) return;
+    await deleteRow("progress_snapshots", id).catch(console.error);
+    setSnapshots(prev => prev.filter(s => s.id !== id));
+  };
+
+  const fmtD = iso => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
+
+  return (
+    <div>
+      {/* Upload strip */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+        <input ref={fileRef} type="file" accept="application/pdf" onChange={handleFile}
+          style={{ display: "none" }} id="earnlearn-upload"/>
+        <label htmlFor="earnlearn-upload"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "7px 14px", background: T.accentL, color: T.accent,
+            border: `1.5px solid ${T.accent}44`, borderRadius: 8, cursor: parsing ? "not-allowed" : "pointer",
+            fontWeight: 700, fontSize: 13, fontFamily: "DM Sans, sans-serif",
+            opacity: parsing ? 0.6 : 1 }}>
+          {parsing ? "⏳ Parsing…" : "📄 Upload EarnLearn / ETCO / Skills PDF"}
+        </label>
+        {parseMsg && (
+          <span style={{ fontSize: 13, color: parseMsg.startsWith("✅") ? T.teal :
+            parseMsg.startsWith("❌") ? T.red : parseMsg.startsWith("⚠") ? T.warn : T.sub }}>
+            {parseMsg}
+          </span>
+        )}
+        <span style={{ fontSize: 12, color: T.muted, marginLeft: "auto" }}>
+          Upload once a month to track progress
+        </span>
+      </div>
+
+      {/* Graph */}
+      {!loading && snapshots.length > 0 && (
+        <ProgressLineGraph snapshots={snapshots}/>
+      )}
+      {!loading && snapshots.length === 0 && (
+        <div style={{ textAlign: "center", padding: "24px 0", color: T.muted, fontSize: 13,
+          border: `1.5px dashed ${T.border}`, borderRadius: 10 }}>
+          📈 No progress data yet — upload an EarnLearn, ETCO, or Skills PDF to get started
+        </div>
+      )}
+
+      {/* Snapshot history */}
+      {snapshots.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: T.muted, textTransform: "uppercase",
+            letterSpacing: ".6px", marginBottom: 6 }}>Snapshots</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {snapshots.map(s => (
+              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px",
+                background: T.bg, border: `1px solid ${T.border}`, borderRadius: 20, fontSize: 12 }}>
+                <span style={{ fontWeight: 700, color: T.ink }}>{fmtD(s.report_date)}</span>
+                <span style={{ color: T.teal, fontWeight: 700 }}>{Math.round(s.overall_percent)}%</span>
+                <span style={{ color: T.muted }}>· {s.months_in_training}m</span>
+                {s.pdf_data && (
+                  <button onClick={() => openSnapshotPDF(s)}
+                    title="Open source PDF"
+                    style={{ background: "none", border: "none", cursor: "pointer", color: T.accent,
+                      fontSize: 13, lineHeight: 1, padding: 0, marginLeft: 2 }}>📄</button>
+                )}
+                {canDelete && (
+                  <button onClick={() => deleteSnapshot(s.id)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: T.muted,
+                      fontSize: 13, lineHeight: 1, padding: 0, marginLeft: 2 }}>✕</button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
   const today = new Date().toISOString().slice(0,10);
   const approver = allUsers.find(u=>
@@ -8148,7 +11389,15 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
     try {
       await upsertRow('meeting_reports', report);
       setEmailStatus("sending");
-      await sendMeetingReportEmail(report, apprentice, mentor, approver, ccEmails);
+      // Load latest progress snapshots to include graph in PDF
+      let reportSnapshots = [];
+      try {
+        const snaps = await loadTable("progress_snapshots");
+        reportSnapshots = (snaps||[]).filter(s=>s.apprentice_id===apprentice.id);
+      } catch(e) { console.warn("Could not load snapshots for PDF:", e); }
+      await sendMeetingReportEmail(report, apprentice, mentor, approver, ccEmails, 
+        (mentor?.email?.endsWith("@kta.org.nz") ? mentor.email : "payroll@kta.org.nz"),
+        reportSnapshots);
       setEmailStatus("sent");
       setTimeout(()=>onSave(report), 1200);
     } catch(e) {
@@ -8222,6 +11471,18 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
           placeholder="Overall summary, observations, any concerns or positive feedback…"/>
       </div>
 
+      {/* Progress Graph */}
+      <div style={{border:`1px solid ${T.border}`,borderTop:"none",padding:"14px 16px",background:"#fafbfd"}}>
+        <div style={{fontWeight:700,fontSize:13,color:T.dark,textTransform:"uppercase",
+          letterSpacing:".6px",marginBottom:10,display:"flex",alignItems:"center",gap:8}}>
+          📈 Programme Progress
+          <span style={{fontSize:11,fontWeight:400,color:T.muted,textTransform:"none",letterSpacing:0}}>
+            Upload the monthly EarnLearn / ETCO / Skills PDF to update the graph
+          </span>
+        </div>
+        <ProgressSnapshotPanel apprenticeId={apprentice.id} apprentice={apprentice} canDelete={mentor?.role==="Admin"}/>
+      </div>
+
       {/* Bottom table — Licence Expiry / Next Visit / KTA Rep */}
       <div style={{border:`1px solid ${T.border}`,borderTop:"none"}}>
         {[
@@ -8244,21 +11505,19 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
         <div style={{fontSize:13,color:T.accent,marginBottom:12,padding:"8px 12px",
           background:T.accentL,borderRadius:7,border:`1px solid ${T.accent}33`}}>
           📧 On save this report will be emailed to:
-          <strong> {apprentice.name}</strong>{apprentice.email?` (${apprentice.email})`:` — ⚠ no email set`}
           {apprentice.reportsEmail
-            ? <>, {apprentice.reportsEmail.split(",").map(e=>e.trim()).filter(Boolean).map((e,i)=>(
+            ? <>{apprentice.reportsEmail.split(",").map(e=>e.trim()).filter(Boolean).map((e,i)=>(
                 <span key={e}>{i>0?", ":""}<strong>{e}</strong></span>
-              ))} (Reports Go To)</>
+              ))} <span style={{color:T.muted}}>(Reports Go To)</span></>
             : approver
-              ? <>, <strong>{approver.name}</strong>{approver.email?` (${approver.email})`:` — ⚠ no email set`}</>
-              : <span style={{color:T.warn}}> — ⚠ no approver linked to this apprentice</span>
+              ? <><strong>{approver.name}</strong>{approver.email?` (${approver.email})`:` — ⚠ no email set`}</>
+              : <span style={{color:T.warn}}> ⚠ no approver linked to this apprentice and no Reports Go To address set</span>
           }
         </div>
         {/* ── Additional CC recipients ── */}
         <div style={{marginBottom:12}}>
-          <div style={{fontSize:13,fontWeight:700,color:T.sub,marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <span>➕ Also send to</span>
-            <button onClick={()=>setShowAddEmail(s=>!s)} style={{fontSize:12,padding:"3px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:T.surface,color:T.sub,cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
+          <div style={{marginBottom:6,display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
+            <button onClick={()=>setShowAddEmail(s=>!s)} style={{fontSize:12,padding:"4px 12px",borderRadius:6,border:`1px solid ${T.border}`,background:T.surface,color:T.sub,cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
               {showAddEmail?"✕ Close":"+ Add recipient"}
             </button>
           </div>
@@ -8352,10 +11611,12 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
 }
 
 // ── Past Meeting Reports ──────────────────────────────────────────────────────
-function PastMeetingReports({apprentice, allUsers, canEdit=false}) {
+function PastMeetingReports({apprentice, allUsers, canEdit=false, isAdmin1=false}) {
   const [reports, setReports]   = useState([]);
   const [loading, setLoading]   = useState(true);
   const [expandId, setExpandId] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const importRef = useRef(null);
 
   useEffect(()=>{
     loadTable('meeting_reports')
@@ -8365,9 +11626,51 @@ function PastMeetingReports({apprentice, allUsers, canEdit=false}) {
   },[apprentice.id]);
 
   const handleDelete = async (id) => {
-    if(!window.confirm("Delete this meeting report?")) return;
+    if(!await ktaConfirm("Delete this meeting report?")) return;
     await deleteRow('meeting_reports', id).catch(console.error);
     setReports(prev=>prev.filter(r=>r.id!==id));
+  };
+
+  const handleRevertDraft = async (id) => {
+    if(!await ktaConfirm("Revert this report to draft? It will be removed from the completed list and can be re-edited.")) return;
+    await updateRow('meeting_reports', id, { status: 'draft' }).catch(console.error);
+    setReports(prev=>prev.filter(r=>r.id!==id));
+  };
+
+  const handleImportPDF = async (e) => {
+    const files = Array.from(e.target.files || []).filter(f=>f.name.endsWith('.pdf')||f.type==='application/pdf');
+    if(!files.length) return;
+    setImporting(true);
+    for(const file of files) {
+      try {
+        const b64 = await new Promise((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = () => res(reader.result.split(',')[1]);
+          reader.onerror = rej;
+          reader.readAsDataURL(file);
+        });
+        // Try to extract date from filename e.g. "Visit_2024-03-15.pdf" or "15-03-2024"
+        const nameDate = file.name.match(/(\d{4}-\d{2}-\d{2})/)?.[1] ||
+          (file.name.match(/(\d{2})[-_](\d{2})[-_](\d{4})/) ?
+            `${file.name.match(/(\d{2})[-_](\d{2})[-_](\d{4})/)[3]}-${file.name.match(/(\d{2})[-_](\d{2})[-_](\d{4})/)[2]}-${file.name.match(/(\d{2})[-_](\d{2})[-_](\d{4})/)[1]}` : null);
+        const row = {
+          id: uid(),
+          apprentice_id: apprentice.id,
+          mentor_id: null,
+          date: nameDate || new Date().toISOString().slice(0,10),
+          status: 'imported',
+          comments_feedback: `Imported: ${file.name}`,
+          pdf_attachment: b64,
+          created_at: new Date().toISOString(),
+        };
+        await upsertRow('meeting_reports', row);
+        setReports(prev=>[row,...prev].sort((a,b)=>(b.date||"").localeCompare(a.date||"")));
+      } catch(err) {
+        alert(`Failed to import ${file.name}: ${err.message}`);
+      }
+    }
+    setImporting(false);
+    if(importRef.current) importRef.current.value = "";
   };
 
   const fD = (iso) => { if(!iso) return "—"; try{ const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; }catch{ return iso; } };
@@ -8384,39 +11687,103 @@ function PastMeetingReports({apprentice, allUsers, canEdit=false}) {
 
   return (
     <div>
+      {/* Import button — Admin only */}
+      {isAdmin1 && (
+        <div style={{marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+          <input ref={importRef} type="file" accept="application/pdf" multiple
+            style={{display:"none"}} onChange={handleImportPDF}/>
+          <button
+            onClick={()=>importRef.current?.click()}
+            disabled={importing}
+            style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",
+              background:T.warnL,border:`1.5px solid ${T.warn}44`,borderRadius:8,
+              fontSize:13,fontWeight:700,color:T.warn,cursor:importing?"not-allowed":"pointer",
+              fontFamily:"DM Sans,sans-serif",opacity:importing?0.7:1}}>
+            {importing?"⏳ Importing…":"📎 Import Past Report PDFs"}
+          </button>
+          <span style={{fontSize:12,color:T.muted}}>Upload PDFs from previous system</span>
+        </div>
+      )}
       {reports.length===0&&(
         <div style={{padding:"24px 0",textAlign:"center",color:T.muted,fontSize:14,fontStyle:"italic"}}>No check in reports yet</div>
       )}
       {reports.map(r=>{
         const mentorUser = allUsers.find(u=>u.id===r.mentor_id);
         const isOpen = expandId===r.id;
+        const isImported = r.status === 'imported';
         return (
-          <div key={r.id} style={{border:`1.5px solid ${T.border}`,borderRadius:10,marginBottom:10,overflow:"hidden"}}>
+          <div key={r.id} style={{border:`1.5px solid ${isImported?T.warn:T.border}`,borderRadius:10,marginBottom:10,overflow:"hidden"}}>
             <div onClick={()=>setExpandId(isOpen?null:r.id)} style={{
               display:"flex",alignItems:"center",gap:12,padding:"12px 16px",
               background:isOpen?T.dark:T.surface,cursor:"pointer",
               borderBottom:isOpen?`1px solid ${T.border}`:"none",transition:"background .15s"}}>
               <div style={{width:34,height:34,borderRadius:8,
-                background:isOpen?"#ffffff20":T.accentL,
-                display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>📋</div>
+                background:isOpen?"#ffffff20":isImported?T.warnL:T.accentL,
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>
+                {isImported?"📎":"📋"}
+              </div>
               <div style={{flex:1}}>
                 <div style={{fontWeight:700,fontSize:16,color:isOpen?"#fff":T.ink}}>
-                  {fD(r.date)}{r.location?` — ${r.location}`:""}
+                  {fD(r.date)}{!isImported&&r.location?` — ${r.location}`:""}
+                  {isImported&&<span style={{marginLeft:8,fontSize:12,fontWeight:400,color:isOpen?"#ffffff88":T.warn}}>Imported PDF</span>}
                 </div>
                 <div style={{fontSize:13,color:isOpen?"#ffffff88":T.sub,marginTop:1}}>
-                  {mentorUser?.name||"Unknown"} · KTA Representative
-                  {r.next_visit_date&&<span style={{marginLeft:8}}>Next visit: {fD(r.next_visit_date)}</span>}
+                  {isImported
+                    ? (r.comments_feedback||"").replace(/^Imported:\s*/,"")
+                    : `${mentorUser?.name||"Unknown"} · KTA Representative${r.next_visit_date?` · Next visit: ${fD(r.next_visit_date)}`:""}`}
                 </div>
               </div>
               <div style={{fontSize:12,color:isOpen?"#ffffff66":T.muted}}>{isOpen?"▲ collapse":"▼ view"}</div>
             </div>
             {isOpen&&(
               <div style={{padding:"16px",background:"#fff"}}>
-                <Section label="Off Job Progress Since Last Visit" value={r.off_job_progress}/>
-                <Section label="On Job Progress Since Last Visit"  value={r.on_job_progress}/>
-                <Section label="Previous Goals"                    value={r.previous_goals}/>
-                <Section label="Goals Before Next Visit"           value={r.goals_this_meeting}/>
-                <Section label="Comments and Feedback"             value={r.comments_feedback}/>
+                {isImported ? (
+                  /* Imported PDF — just show open/download buttons */
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                    <span style={{fontSize:13,color:T.sub,marginRight:4}}>
+                      {(r.comments_feedback||"").replace(/^Imported:\s*/,"")}
+                    </span>
+                    {r.pdf_attachment && (<>
+                      <button onClick={()=>{
+                        const url = `data:application/pdf;base64,${r.pdf_attachment}`;
+                        window.open(url, '_blank', 'noopener');
+                      }} style={{fontSize:13,color:T.teal,background:T.tealL,
+                        border:`1px solid ${T.teal}44`,borderRadius:6,padding:"4px 12px",
+                        cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
+                        👁 View PDF
+                      </button>
+                      <button onClick={()=>{
+                        const binary = atob(r.pdf_attachment);
+                        const bytes = new Uint8Array(binary.length);
+                        for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+                        const blob = new Blob([bytes],{type:"application/pdf"});
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href=url; a.download=`${apprentice.name.replace(/\s+/g,"_")}_${r.date}.pdf`; a.click();
+                        URL.revokeObjectURL(url);
+                      }} style={{fontSize:13,color:T.accent,background:T.accentL,
+                        border:`1px solid ${T.accent}44`,borderRadius:6,padding:"4px 12px",
+                        cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
+                        ⬇ Download
+                      </button>
+                    </>)}
+                    {isAdmin1&&(
+                      <button onClick={()=>handleDelete(r.id)} style={{
+                        fontSize:13,color:T.red,background:T.redL,
+                        border:`1px solid ${T.red}44`,borderRadius:6,padding:"4px 12px",
+                        cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:700,marginLeft:"auto"}}>
+                        🗑 Delete
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  /* Normal report — existing layout */
+                  <>
+                    <Section label="Off Job Progress Since Last Visit" value={r.off_job_progress}/>
+                    <Section label="On Job Progress Since Last Visit"  value={r.on_job_progress}/>
+                    <Section label="Previous Goals"                    value={r.previous_goals}/>
+                    <Section label="Goals Before Next Visit"           value={r.goals_this_meeting}/>
+                    <Section label="Comments and Feedback"             value={r.comments_feedback}/>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginTop:12,
                   padding:"10px 12px",background:T.bg,borderRadius:8,border:`1px solid ${T.border}`}}>
                   {[
@@ -8430,11 +11797,46 @@ function PastMeetingReports({apprentice, allUsers, canEdit=false}) {
                     </div>
                   ))}
                 </div>
-                {canEdit&&(
-                  <button onClick={()=>handleDelete(r.id)} style={{
-                    marginTop:12,fontSize:13,color:T.red,background:"none",
-                    border:`1px solid ${T.red}44`,borderRadius:6,padding:"4px 12px",
-                    cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>🗑 Delete Report</button>
+                <div style={{display:"flex",gap:8,marginTop:12,flexWrap:"wrap"}}>
+                  <button onClick={async ()=>{
+                    try {
+                      // Load snapshots for this apprentice for the PDF graph
+                      let dlSnaps = [];
+                      try { const s = await loadTable("progress_snapshots"); dlSnaps=(s||[]).filter(x=>x.apprentice_id===apprentice.id); } catch(e){}
+                      const b64 = generateReportPDF(r, apprentice, mentorUser||{name:"—"}, dlSnaps);
+                      const binary = atob(b64);
+                      const bytes = new Uint8Array(binary.length);
+                      for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+                      const blob = new Blob([bytes],{type:"application/pdf"});
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href=url;
+                      a.download=`KTA_Report_${apprentice.name.replace(/\s+/g,"_")}_${r.date}.pdf`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch(e){ alert("PDF generation failed: "+e.message); }
+                  }} style={{
+                    fontSize:13,color:T.accent,background:T.accentL,
+                    border:`1px solid ${T.accent}44`,borderRadius:6,padding:"4px 12px",
+                    cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
+                    ⬇ Download PDF
+                  </button>
+                  {(isAdmin1 || (canEdit && new Date() < new Date("2026-04-10T00:00:00"))) && (
+                    <button onClick={()=>handleRevertDraft(r.id)} style={{
+                      fontSize:13,color:T.warn,background:T.warnL,
+                      border:`1px solid ${T.warn}44`,borderRadius:6,padding:"4px 12px",
+                      cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
+                      ↩ Revert to Draft
+                    </button>
+                  )}
+                  {canEdit&&(
+                    <button onClick={()=>handleDelete(r.id)} style={{
+                      fontSize:13,color:T.red,background:"none",
+                      border:`1px solid ${T.red}44`,borderRadius:6,padding:"4px 12px",
+                      cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>🗑 Delete Report</button>
+                  )}
+                </div>
+                  </>
                 )}
               </div>
             )}
@@ -8451,10 +11853,8 @@ const PPE_CATALOGUE = [
   {item:"Hi Vis Polo",      sizes:["S","M","L","XL","2XL","3XL"]},
   {item:"Jacket",           sizes:["S","M","L","XL","2XL","3XL"]},
   {item:"Polo Shirt",       sizes:["S","M","L","XL","2XL","3XL","4XL"]},
-  {item:"Cap",              sizes:["One Size","S","M","L"]},
   {item:"Beanie",           sizes:["One Size","S","M","L"]},
   {item:"Hard Hat",         sizes:["One Size","Adjustable"]},
-  {item:"Riggers Hat",      sizes:["S","M","L","XL"]},
   {item:"Ear Muffs",        sizes:["Clip-on","Over-ear"]},
   {item:"Gloves",           sizes:["Sz 7","Sz 8","Sz 9","Sz 10"]},
   {item:"Safety Glasses",   sizes:["Clear","Dark","Tinted"]},
@@ -8492,14 +11892,90 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
     setExpandId(r.id);
   };
 
+  const fmtD = iso => { if(!iso) return "—"; const [y,m,d]=(iso||"").split("-"); return `${d}/${m}/${y}`; };
+
+  // Build and send the "PPE Fully Issued" email to admin@kta.org.nz
+  const sendPPEIssuedEmail = async (issuedItems, dateIssuedVal, dateReqVal) => {
+    const issuedRows = issuedItems.filter(it => parseFloat(it.qtyIssued||0) > 0);
+    const tableRows = issuedRows.map(it => `<tr>
+      <td style="padding:9px 12px;font-weight:700;color:#0d1b2e;border-bottom:1px solid #edf2f7">${it.item}</td>
+      <td style="padding:9px 12px;color:#4a5a72;border-bottom:1px solid #edf2f7">${it.size||"—"}</td>
+      <td style="padding:9px 12px;text-align:center;font-weight:700;font-size:16.5px;color:#1a8a7a;border-bottom:1px solid #edf2f7">${it.qtyIssued}</td>
+      <td style="padding:9px 12px;color:#888;font-style:italic;border-bottom:1px solid #edf2f7">${it.notes||""}</td>
+    </tr>`).join("");
+
+    const emailHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:20px;background:#f0f4f9;font-family:Arial,Helvetica,sans-serif">
+<div style="max-width:640px;margin:0 auto;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+  <div style="background:#1b4f8c;padding:20px 28px">
+    <div style="font-size:12.1px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">KTA Workforce Management</div>
+    <div style="font-size:22px;font-weight:700;color:#fff">PPE Fully Issued — ${apprentice.name}</div>
+    <div style="font-size:13.2px;color:rgba(255,255,255,.7);margin-top:4px">All requested PPE has been issued</div>
+  </div>
+  <table style="width:100%;border-collapse:collapse;background:#f8fafc;border-bottom:2px solid #dce8f7">
+    <tr>
+      <td style="padding:12px 16px;border-right:1px solid #dce8f7;width:33%">
+        <div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">Apprentice</div>
+        <div style="font-size:14.3px;font-weight:700;color:#0d1b2e">${apprentice.name}</div>
+      </td>
+      <td style="padding:12px 16px;border-right:1px solid #dce8f7;width:33%">
+        <div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">Host Business</div>
+        <div style="font-size:14.3px;font-weight:700;color:#0d1b2e">${apprentice.hostBusiness||"—"}</div>
+      </td>
+      <td style="padding:12px 16px;width:33%">
+        <div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">KTA Staff</div>
+        <div style="font-size:14.3px;font-weight:700;color:#0d1b2e">${mentor?.name||"—"}</div>
+      </td>
+    </tr>
+    <tr style="border-top:1px solid #dce8f7">
+      <td style="padding:10px 16px;border-right:1px solid #dce8f7">
+        <div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">Date Requested</div>
+        <div style="font-size:14.3px;color:#0d1b2e">${fmtD(dateReqVal)}</div>
+      </td>
+      <td colspan="2" style="padding:10px 16px">
+        <div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">Date Issued</div>
+        <div style="font-size:14.3px;color:#0d1b2e">${dateIssuedVal ? fmtD(dateIssuedVal) : fmtD(new Date().toISOString().slice(0,10))}</div>
+      </td>
+    </tr>
+  </table>
+  <div style="padding:20px 28px 10px">
+    <div style="font-size:17.6px;font-weight:700;color:#1a8a7a;margin-bottom:2px">✅ PPE Issued</div>
+    <div style="font-size:12.1px;color:#888">All items have been issued to ${apprentice.name}</div>
+  </div>
+  <table style="width:100%;border-collapse:collapse;font-size:14.3px">
+    <thead><tr style="background:#d4f0ec">
+      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">PPE Item</th>
+      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Size / Spec</th>
+      <th style="padding:9px 12px;text-align:center;font-size:11px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Qty Issued</th>
+      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Notes</th>
+    </tr></thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+  <div style="padding:14px 28px;background:#f8fafc;border-top:1px solid #dce8f7;margin-top:20px">
+    <div style="font-size:12.1px;color:#8fa0b8">KTA Workforce Management &nbsp;·&nbsp; payroll@kta.org.nz</div>
+  </div>
+</div></body></html>`;
+
+    await sendKTAEmail({
+      to: "admin@kta.org.nz",
+      subject: `PPE Fully Issued — ${apprentice.name} (${fmtD(dateReqVal)})`,
+      html: emailHtml,
+    }).catch(err => console.warn("PPE issued email failed:", err));
+  };
+
   const saveEditReq = async (r) => {
     setSavingEdit(true);
     try {
+      const wasComplete = r.completed;
       const updated = {...r, items: JSON.stringify(editRows), date_issued: editDateIssued||null,
         completed: editRows.filter(it=>parseFloat(it.qtyReq||0)>0).every(it=>it.approved==="Yes") ? true : r.completed};
       await upsertRow("ppe_requests", {id:r.id, items:JSON.stringify(editRows), date_issued:editDateIssued||null, completed:updated.completed});
       setRequests(prev=>prev.map(x=>x.id===r.id?{...x,...updated}:x));
       setEditReqId(null);
+      // Send completion email only when transitioning to completed for the first time
+      if(!wasComplete && updated.completed) {
+        await sendPPEIssuedEmail(editRows, editDateIssued, r.date_requested);
+      }
     } catch(e) { alert("Save failed: "+e.message); }
     setSavingEdit(false);
   };
@@ -8510,6 +11986,10 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
     try {
       await upsertRow("ppe_requests", {id:r.id, items:JSON.stringify(fullyIssued), completed:true});
       setRequests(prev=>prev.map(x=>x.id===r.id?{...x,items:JSON.stringify(fullyIssued),completed:true}:x));
+      // Only send if not already completed
+      if(!r.completed) {
+        await sendPPEIssuedEmail(fullyIssued, r.date_issued, r.date_requested);
+      }
     } catch(e) { alert("Failed: "+e.message); }
   };
 
@@ -8546,27 +12026,38 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
       // Build email HTML
       const fmtD = iso => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
 
-      // Split rows into two sections
-      const toOrderRows  = activeRows.filter(it => it.approved==="Pending" && parseFloat(it.qtyReq||0) > 0);
-      const assignedRows = activeRows.filter(it => parseFloat(it.qtyIssued||0) > 0);
+      // Traffic-light rows: not-issued (red ✗) first, then issued (green ✓)
+      const notIssuedRows = activeRows.filter(it => !(parseFloat(it.qtyIssued||0) > 0) && parseFloat(it.qtyReq||0) > 0);
+      const issuedRows    = activeRows.filter(it => parseFloat(it.qtyIssued||0) > 0);
 
-      const orderTableRows = toOrderRows.map(it => {
-        const need = parseFloat(it.qtyReq||0) - parseFloat(it.qtyIssued||0);
-        return `<tr>
-          <td style="padding:9px 12px;font-weight:700;color:#0d1b2e;border-bottom:1px solid #edf2f7">${it.item}</td>
-          <td style="padding:9px 12px;color:#4a5a72;border-bottom:1px solid #edf2f7">${it.size||"—"}</td>
-          <td style="padding:9px 12px;text-align:center;font-weight:700;font-size:16.5px;color:#b86e1a;border-bottom:1px solid #edf2f7">${need}</td>
-          <td style="padding:9px 12px;color:#888;font-style:italic;border-bottom:1px solid #edf2f7">${it.notes||""}</td>
+      const buildRow = (it) => {
+        const qtyReq    = parseFloat(it.qtyReq||0);
+        const qtyIssued = parseFloat(it.qtyIssued||0);
+        const issued    = qtyIssued > 0;
+        const rowBg     = issued ? "#f0faf8" : "#fff8f8";
+        const badge     = issued
+          ? `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:700;background:#d4f0ec;color:#1a8a7a">Yes</span>`
+          : `<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:99px;font-size:12px;font-weight:700;background:#faebd7;color:#b86e1a">Pending</span>`;
+        return `<tr style="background:${rowBg}">
+          <td style="padding:10px 12px;font-weight:700;color:#0d1b2e;border-bottom:1px solid #edf2f7">${it.item}</td>
+          <td style="padding:10px 12px;color:#4a5a72;border-bottom:1px solid #edf2f7">${it.size||"—"}</td>
+          <td style="padding:10px 12px;text-align:center;font-weight:700;font-size:15px;color:#1b4f8c;border-bottom:1px solid #edf2f7">${qtyReq}</td>
+          <td style="padding:10px 12px;text-align:center;font-weight:700;font-size:15px;color:${issued?"#1a8a7a":"#c0392b"};border-bottom:1px solid #edf2f7">${qtyIssued}</td>
+          <td style="padding:10px 12px;color:#888;font-style:italic;border-bottom:1px solid #edf2f7">${it.notes||""}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #edf2f7">${badge}</td>
         </tr>`;
-      }).join("");
+      };
 
-      const assignedTableRows = assignedRows.map(it => `<tr>
-          <td style="padding:9px 12px;font-weight:700;color:#0d1b2e;border-bottom:1px solid #edf2f7">${it.item}</td>
-          <td style="padding:9px 12px;color:#4a5a72;border-bottom:1px solid #edf2f7">${it.size||"—"}</td>
-          <td style="padding:9px 12px;text-align:center;font-weight:700;font-size:16.5px;color:#1a8a7a;border-bottom:1px solid #edf2f7">${it.qtyIssued}</td>
-          <td style="padding:9px 12px;border-bottom:1px solid #edf2f7"><span style="display:inline-block;padding:2px 10px;border-radius:99px;font-size:12.1px;font-weight:700;background:#d4f0ec;color:#1a8a7a">Yes</span></td>
-          <td style="padding:9px 12px;color:#888;font-style:italic;border-bottom:1px solid #edf2f7">${it.notes||""}</td>
-        </tr>`).join("");
+      const allTableRows = activeRows
+        .filter(it => parseFloat(it.qtyReq||0) > 0)
+        .sort((a,b) => {
+          // Not issued first, then issued
+          const aIssued = parseFloat(a.qtyIssued||0) > 0;
+          const bIssued = parseFloat(b.qtyIssued||0) > 0;
+          return aIssued === bIssued ? 0 : aIssued ? 1 : -1;
+        })
+        .map(it => buildRow(it))
+        .join("");
 
       const emailHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:20px;background:#f0f4f9;font-family:Arial,Helvetica,sans-serif">
@@ -8606,35 +12097,25 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
       </td>
     </tr>
   </table>
-  ${toOrderRows.length > 0 ? `
   <div style="padding:20px 28px 10px">
-    <div style="font-size:17.6px;font-weight:700;color:#b86e1a;margin-bottom:2px">📦 Need to Order</div>
-    <div style="font-size:12.1px;color:#888">Qty to order = Qty requested − Qty issued</div>
+    <div style="font-size:17.6px;font-weight:700;color:#0d1b2e;margin-bottom:2px">PPE Items</div>
+    <div style="font-size:12.1px;color:#888">
+      ${notIssuedRows.length > 0 ? `<span style="color:#c0392b;font-weight:700">${notIssuedRows.length} to order</span>` : ""}
+      ${notIssuedRows.length > 0 && issuedRows.length > 0 ? " &nbsp;·&nbsp; " : ""}
+      ${issuedRows.length > 0 ? `<span style="color:#1a8a7a;font-weight:700">${issuedRows.length} already issued</span>` : ""}
+    </div>
   </div>
   <table style="width:100%;border-collapse:collapse;font-size:14.3px">
-    <thead><tr style="background:#faebd7">
-      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#b86e1a;text-transform:uppercase;letter-spacing:.7px">PPE Item</th>
-      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#b86e1a;text-transform:uppercase;letter-spacing:.7px">Size / Spec</th>
-      <th style="padding:9px 12px;text-align:center;font-size:11px;color:#b86e1a;text-transform:uppercase;letter-spacing:.7px">Qty to Order</th>
-      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#b86e1a;text-transform:uppercase;letter-spacing:.7px">Notes</th>
+    <thead><tr style="background:#eef2f8">
+      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#4a5a72;text-transform:uppercase;letter-spacing:.7px">Item</th>
+      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#4a5a72;text-transform:uppercase;letter-spacing:.7px">Size</th>
+      <th style="padding:9px 12px;text-align:center;font-size:11px;color:#4a5a72;text-transform:uppercase;letter-spacing:.7px">Qty Req</th>
+      <th style="padding:9px 12px;text-align:center;font-size:11px;color:#4a5a72;text-transform:uppercase;letter-spacing:.7px">Qty Issued</th>
+      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#4a5a72;text-transform:uppercase;letter-spacing:.7px">Notes</th>
+      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#4a5a72;text-transform:uppercase;letter-spacing:.7px">Approved</th>
     </tr></thead>
-    <tbody>${orderTableRows}</tbody>
-  </table>` : ""}
-  ${assignedRows.length > 0 ? `
-  <div style="padding:20px 28px 10px;margin-top:${toOrderRows.length > 0 ? "16px" : "0"}">
-    <div style="font-size:17.6px;font-weight:700;color:#1a8a7a;margin-bottom:2px">✅ PPE Assigned</div>
-    <div style="font-size:12.1px;color:#888">Items physically issued to ${apprentice.name} at time of request</div>
-  </div>
-  <table style="width:100%;border-collapse:collapse;font-size:14.3px">
-    <thead><tr style="background:#d4f0ec">
-      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">PPE Item</th>
-      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Size / Spec</th>
-      <th style="padding:9px 12px;text-align:center;font-size:11px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Qty Issued</th>
-      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Approved</th>
-      <th style="padding:9px 12px;text-align:left;font-size:11px;color:#1a8a7a;text-transform:uppercase;letter-spacing:.7px">Notes</th>
-    </tr></thead>
-    <tbody>${assignedTableRows}</tbody>
-  </table>` : ""}
+    <tbody>${allTableRows}</tbody>
+  </table>
   <div style="margin:20px 28px;padding:14px 16px;background:#fdf3d4;border-radius:8px;border-left:3px solid #a07820">
     <div style="font-size:13.2px;color:#4a5a72;font-style:italic;line-height:1.6">I request the PPE items listed above. I understand that all items are provided new and are mine to keep. I agree to use them appropriately and in accordance with health and safety requirements.</div>
   </div>
@@ -8658,7 +12139,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
   };
 
   const handleDelete = async (id) => {
-    if(!window.confirm("Delete this PPE request?")) return;
+    if(!await ktaConfirm("Delete this PPE request?")) return;
     await deleteRow("ppe_requests", id).catch(console.error);
     setRequests(prev=>prev.filter(r=>r.id!==id));
   };
@@ -8933,12 +12414,15 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
 }
 
 // ── Apprentice Detail Page (used by both Mentor and Admin) ────────────────────
-function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entries, onBack, isAdmin=false, canEditExpiry=false, onUserUpdated=null}) {
-  const [apprentice, setApprentice]           = useState(apprenticeProp);
+function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entries, setEntries, onBack, isAdmin=false, canEditExpiry=false, onUserUpdated=null}) {
+  const [apprentice, setApprentice] = useState(apprenticeProp);
   const [showMeetingForm, setShowMeetingForm] = useState(false);
   const [showPastReports, setShowPastReports] = useState(false);
   const [showPPE, setShowPPE]                 = useState(false);
   const [showActivity, setShowActivity]       = useState(false);
+  const [showHSEForm, setShowHSEForm]         = useState(false);
+  const [showPastHSE, setShowPastHSE]         = useState(false);
+  const [showTimesheetAdd, setShowTimesheetAdd] = useState(false);
   const [meetingKey, setMeetingKey]           = useState(0);
   const [lastVisit, setLastVisit]             = useState(null);
   const [loadingVisit, setLoadingVisit]       = useState(true);
@@ -8954,7 +12438,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
     gender:"", hostBusiness:"", address:"", addressLine2:"", suburb:"", city:"", postcode:"",
     emergencyContactName:"", emergencyContactPhone:"", emergencyContactRelationship:"",
   });
-  const [editingExpiry, setEditingExpiry]     = useState(null); // "licence"|"siteSafe"|"firstAid"|"licenceNum"|"siteSafeNum"
+  const [editingExpiry, setEditingExpiry]     = useState(null);
   const [expiryVal, setExpiryVal]             = useState("");
   const [savingExpiry, setSavingExpiry]       = useState(false);
   const [licNumVal, setLicNumVal]             = useState("");
@@ -8963,7 +12447,35 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   const [hostBizVal, setHostBizVal]           = useState("");
   const [savingHostBiz, setSavingHostBiz]     = useState(false);
   const [hostCosAdv, setHostCosAdv]           = useState([]);
+
+  // ALL hooks must come before any conditional return
   useEffect(()=>{ loadTable('crm_companies').then(rows=>setHostCosAdv(rows.filter(r=>r.name).map(r=>({id:r.id,name:r.name,isHostBusiness:r.is_host_business})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")))).catch(()=>{}); },[]);
+
+  const ADV_SECTION_DEFAULT = ["actions","timesheet","personal","goals","leave"];
+  const { order: sectionOrder, dragProps: sectionDrag } = useDraggableOrder(
+    (viewer?.id||"admin") + "_appdetail_" + (apprenticeProp?.id||"none"),
+    ADV_SECTION_DEFAULT
+  );
+
+  // Now safe to guard
+  if(!apprenticeProp) return null;
+
+  // Keep local apprentice in sync with parent
+  useEffect(() => {
+    setApprentice(prev => ({ ...prev, ...apprenticeProp }));
+  }, [apprenticeProp?.id, apprenticeProp?.reportsEmail, apprenticeProp?.email,
+      apprenticeProp?.approverUserId, apprenticeProp?.hostBusiness]);
+
+  // Auto-load leave requests
+  useEffect(() => {
+    if(!apprenticeProp?.id) return;
+    setAdvLeaveLoading(true);
+    loadTable("leave_requests")
+      .then(rows => setAdvLeave((rows||[]).filter(r=>r.apprentice_id===apprenticeProp.id)
+        .sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||""))))
+      .catch(()=>setAdvLeave([]))
+      .finally(()=>setAdvLeaveLoading(false));
+  }, [apprenticeProp?.id]);
 
   const saveHostBiz = async () => {
     setSavingHostBiz(true);
@@ -8981,13 +12493,6 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
     setEditingHostBiz(false);
     setSavingHostBiz(false);
   };
-
-  // Draggable section order — default: actions bar first
-  const ADV_SECTION_DEFAULT = ["actions","personal","goals","leave","timesheet"];
-  const { order: sectionOrder, dragProps: sectionDrag } = useDraggableOrder(
-    (viewer?.id||"admin") + "_appdetail_" + apprenticeProp.id,
-    ADV_SECTION_DEFAULT
-  );
 
   const saveExpiry = async (field, val) => {
     setSavingExpiry(true);
@@ -9041,7 +12546,12 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
     u.id===apprentice.mentorUserId ||
     (u.role==="Mentor"&&(u.allocatedTo||[]).includes(apprentice.id))
   );
+  // Supervisors for this apprentice (multiple, stored as supervisorIds array)
+  const supervisors = allUsers.filter(u=>
+    u.role==="Supervisor" && (apprentice.supervisorIds||[]).includes(u.id)
+  );
 
+  const isSupervisor = (apprentice.supervisorIds||[]).includes(viewer?.id||"");
   const ratingColor = (r) => r==="Excellent"?T.teal:r==="Good"?T.accent:r==="Satisfactory"?T.gold:r==="Needs Improvement"?T.warn:r==="Concerning"?T.red:T.muted;
 
   return (
@@ -9078,6 +12588,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               <RolePill role="Apprentice" size="sm"/>
               {approver&&<Pill label={`Approver: ${approver.name}`} size="sm" color={T.warn} bg={T.warnL}/>}
               {mentor&&<Pill label={`Mentor: ${mentor.name}`} size="sm" color={T.teal} bg={T.tealL}/>}
+              {supervisors.map(s=><Pill key={s.id} label={`Supervisor: ${s.name}`} size="sm" color={T.teal} bg={T.tealL}/>)}
             </div>
           </div>
         </div>
@@ -9228,7 +12739,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             ):( 
               <div>
                 <div style={{fontSize:14,fontWeight:700,color:T.slate}}>{apprentice.hostBusiness||"Not set"}</div>
-                {(approver||allocatedViewer)&&apprentice.hostBusiness&&(
+                {(approver||allocatedViewer||supervisors.length>0)&&apprentice.hostBusiness&&(
                   <div style={{display:"flex",flexDirection:"column",gap:4,marginTop:8}}>
                     {approver&&(
                       <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -9248,6 +12759,15 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                         </span>
                       </div>
                     )}
+                    {supervisors.map(s=>(
+                      <div key={s.id} style={{display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{fontSize:11,fontWeight:700,color:T.teal,textTransform:"uppercase",letterSpacing:".5px",minWidth:52}}>Supervisor</span>
+                        <span style={{fontSize:13,fontWeight:700,color:T.ink,background:T.tealL,
+                          padding:"2px 8px",borderRadius:10,border:`1px solid ${T.teal}33`}}>
+                          {s.name}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -9274,10 +12794,10 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
       {sectionOrder.map(sectionId => {
         if(sectionId==="actions") return (
           <DraggableSection key="actions" id="actions" dragProps={sectionDrag}>
-            {isAdmin ? (
-              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:10, marginBottom:12}}>
-                <button onClick={()=>{setShowMeetingForm(s=>!s); setShowPastReports(false); setShowPPE(false); setShowActivity(false);}}
-                  style={{width:"100%", background:showMeetingForm?T.accentL:T.surface, border:`1.5px solid ${showMeetingForm?T.accent:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+            {(isAdmin||isSupervisor) ? (
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr 1fr", gap:10, marginBottom:12}}>
+                <button onClick={()=>{setShowMeetingForm(s=>!s); setShowPastReports(false); setShowPPE(false); setShowActivity(false); setShowHSEForm(false); setShowPastHSE(false);}}
+                  style={{width:"100%", background:showMeetingForm?T.accentL:T.surface, border:`1.5px solid ${showMeetingForm?T.accent:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s", display:isAdmin?"":"none"}}>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
                     <div style={{width:28,height:28,borderRadius:7,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>📋</div>
                     <div style={{minWidth:0}}>
@@ -9287,7 +12807,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     <div style={{marginLeft:"auto", fontSize:12, color:T.muted}}>↗</div>
                   </div>
                 </button>
-                <button onClick={()=>{setShowPastReports(s=>!s); setShowMeetingForm(false); setShowPPE(false); setShowActivity(false);}}
+                <button onClick={()=>{setShowPastReports(s=>!s); setShowMeetingForm(false); setShowPPE(false); setShowActivity(false); setShowHSEForm(false); setShowPastHSE(false);}}
                   style={{width:"100%", background:showPastReports?T.goldL:T.surface, border:`1.5px solid ${showPastReports?T.gold:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
                     <div style={{width:28,height:28,borderRadius:7,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>📁</div>
@@ -9298,8 +12818,8 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     <div style={{marginLeft:"auto", fontSize:12, color:T.muted}}>{showPastReports?"▲":"▼"}</div>
                   </div>
                 </button>
-                <button onClick={()=>{setShowPPE(s=>!s); setShowMeetingForm(false); setShowPastReports(false); setShowActivity(false);}}
-                  style={{width:"100%", background:showPPE?T.tealL:T.surface, border:`1.5px solid ${showPPE?T.teal:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+                <button onClick={()=>{setShowPPE(s=>!s); setShowMeetingForm(false); setShowPastReports(false); setShowActivity(false); setShowHSEForm(false); setShowPastHSE(false);}}
+                  style={{width:"100%", background:showPPE?T.tealL:T.surface, border:`1.5px solid ${showPPE?T.teal:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s", display:isAdmin?"":"none"}}>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
                     <div style={{width:28,height:28,borderRadius:7,background:T.tealL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>🦺</div>
                     <div style={{minWidth:0}}>
@@ -9309,8 +12829,8 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     <div style={{marginLeft:"auto", fontSize:12, color:T.muted}}>{showPPE?"▲":"▼"}</div>
                   </div>
                 </button>
-                <button onClick={()=>{setShowActivity(s=>!s); setShowMeetingForm(false); setShowPastReports(false); setShowPPE(false);}}
-                  style={{width:"100%", background:showActivity?T.slateL:T.surface, border:`1.5px solid ${showActivity?T.slate:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+                <button onClick={()=>{setShowActivity(s=>!s); setShowMeetingForm(false); setShowPastReports(false); setShowPPE(false); setShowHSEForm(false); setShowPastHSE(false);}}
+                  style={{width:"100%", background:showActivity?T.slateL:T.surface, border:`1.5px solid ${showActivity?T.slate:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s", display:isAdmin?"":"none"}}>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
                     <div style={{width:28,height:28,borderRadius:7,background:T.slateL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>📬</div>
                     <div style={{minWidth:0}}>
@@ -9320,18 +12840,50 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     <div style={{marginLeft:"auto", fontSize:12, color:T.muted}}>{showActivity?"▲":"▼"}</div>
                   </div>
                 </button>
+                <button onClick={()=>{setShowHSEForm(s=>!s); setShowPastHSE(false); setShowMeetingForm(false); setShowPastReports(false); setShowPPE(false); setShowActivity(false);}}
+                  style={{width:"100%", background:showHSEForm?"#fff0f0":T.surface, border:`1.5px solid ${showHSEForm?"#e05c5c":T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+                  <div style={{display:"flex", alignItems:"center", gap:8}}>
+                    <div style={{width:28,height:28,borderRadius:7,background:"#fff0f0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>🦺</div>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontWeight:700, fontSize:13, color:showHSEForm?"#c0392b":T.ink}}>HSE Check In</div>
+                      <div style={{fontSize:11, color:T.sub, marginTop:1}}>New check in</div>
+                    </div>
+                    <div style={{marginLeft:"auto", fontSize:12, color:T.muted}}>↗</div>
+                  </div>
+                </button>
+                <button onClick={()=>{setShowPastHSE(s=>!s); setShowHSEForm(false); setShowMeetingForm(false); setShowPastReports(false); setShowPPE(false); setShowActivity(false);}}
+                  style={{width:"100%", background:showPastHSE?"#fff0f0":T.surface, border:`1.5px solid ${showPastHSE?"#e05c5c":T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+                  <div style={{display:"flex", alignItems:"center", gap:8}}>
+                    <div style={{width:28,height:28,borderRadius:7,background:"#fff0f0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>📋</div>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontWeight:700, fontSize:13, color:showPastHSE?"#c0392b":T.ink}}>Past HSE</div>
+                      <div style={{fontSize:11, color:T.sub, marginTop:1}}>HSE history</div>
+                    </div>
+                    <div style={{marginLeft:"auto", fontSize:12, color:T.muted}}>{showPastHSE?"▲":"▼"}</div>
+                  </div>
+                </button>
               </div>
             ) : null}
             {/* Expanded panels */}
-            {showPastReports && isAdmin && (
-              <Card style={{marginBottom:16}}><PastMeetingReports key={meetingKey} apprentice={apprentice} allUsers={allUsers} canEdit={true}/></Card>
+            {showHSEForm && (
+              <Card style={{marginBottom:16}}>
+                <HSECheckinForm apprentice={apprentice} viewer={viewer} onSave={()=>{setShowHSEForm(false);}} onCancel={()=>setShowHSEForm(false)}/>
+              </Card>
+            )}
+            {showPastHSE && (
+              <Card style={{marginBottom:16}}>
+                <PastHSECheckins apprentice={apprentice} allUsers={allUsers} canEdit={isAdmin&&!isSupervisor}/>
+              </Card>
+            )}
+            {showPastReports && (isAdmin || isSupervisor || viewer?.role === "Mentor") && (
+              <Card style={{marginBottom:16}}><PastMeetingReports key={meetingKey} apprentice={apprentice} allUsers={allUsers} canEdit={true} isAdmin1={Number(viewer?.adminLevel ?? 1)===1&&viewer?.role==="Admin"}/></Card>
             )}
             {showPPE && isAdmin && (
               <Card style={{marginBottom:16}}><PPEAllocation apprentice={apprentice} mentor={viewer} canEdit={true}/></Card>
             )}
             {showActivity && isAdmin && apprentice.email && (
               <Card style={{marginBottom:16}}>
-                <EmailActivityFeed personEmail={apprentice.email} personName={apprentice.name} personId={apprentice.id} canEdit={true} isKristeena={viewer?.email?.toLowerCase()===CONF_OWNER_EMAIL} isAdmin1={(viewer?.adminLevel||1)===1&&viewer?.role==="Admin"}
+                <EmailActivityFeed personEmail={apprentice.email} personName={apprentice.name} personId={apprentice.id} canEdit={true} isKristeena={isConfOwner(viewer)} isAdmin1={Number(viewer?.adminLevel ?? 1)===1&&viewer?.role==="Admin"}
                   extraItems={reports.map(r=>({id:r.id,created_at:r.created_at||r.date+"T12:00:00",date:r.date,
                     label:`Meeting Report — ${r.date?(()=>{const[y,m,d]=r.date.split('-');return`${d}/${m}/${y}`;})():""}`,
                     detail:r.goals_this_meeting?`Goals: ${r.goals_this_meeting}`:r.comments_feedback||""}))}/>
@@ -9427,7 +12979,11 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12,marginBottom:12}}>
                             {inp("email","Email","email")}
                             {inp("phone","Phone","tel")}
-                            {inp("startDate","Start Date","date")}
+                            {inp("mobile","Mobile","tel")}
+                            {inp("startDate","Apprenticeship Start Date ★","date")}
+                            <div style={{fontSize:11,color:T.accent,marginTop:-6,marginBottom:8,paddingLeft:2}}>
+                              ★ Used to calculate months in training on progress snapshots
+                            </div>
                             {inp("dateOfBirth","Date of Birth","date")}
                             {inp("gender","Gender","text",["Male","Female","Non-binary","Prefer not to say"])}
                             {inp("hostBusiness","Host Business")}
@@ -9465,9 +13021,10 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                         </>
                       ) : (
                         <>
-                          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:0}}>
+                          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 24px"}}>
                             {readRow("Email", apprentice.email, "✉")}
                             {readRow("Phone", apprentice.phone, "📞")}
+                            {readRow("Mobile", apprentice.mobile, "📱")}
                             {readRow("Start Date", apprentice.startDate?fmtDate(apprentice.startDate):null, "📅")}
                             {readRow("Date of Birth", apprentice.dateOfBirth?fmtDate(apprentice.dateOfBirth):null, "🎂")}
                             {readRow("Gender", apprentice.gender, "⚧")}
@@ -9577,11 +13134,34 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               <Card style={{marginBottom:16}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
             <div style={{width:36,height:36,borderRadius:10,background:T.blueL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19}}>⏱</div>
-            <div>
+            <div style={{flex:1}}>
               <div style={{fontWeight:700,fontSize:17}}>Timesheet Summary</div>
               <div style={{fontSize:13,color:T.sub}}>All entries for {apprentice.name}</div>
             </div>
+            {Number(viewer?.adminLevel ?? 1)===1 && viewer?.role==="Admin" && setEntries && (
+              <button
+                onClick={()=>setShowTimesheetAdd(s=>!s)}
+                style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",
+                  background:showTimesheetAdd?"#e8f0fe":T.accentL,
+                  border:`1.5px solid ${showTimesheetAdd?"#3b5bdb":T.accent}`,
+                  borderRadius:8,cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                  fontWeight:700,fontSize:13,color:showTimesheetAdd?"#3b5bdb":T.accent,
+                  transition:"all .15s"}}>
+                {showTimesheetAdd ? "▲ Close" : "+ Add Entry"}
+              </button>
+            )}
           </div>
+          {showTimesheetAdd && Number(viewer?.adminLevel ?? 1)===1 && viewer?.role==="Admin" && setEntries && (
+            <div style={{marginBottom:16,borderBottom:`1px solid ${T.border}`,paddingBottom:16}}>
+              <TimesheetModule
+                currentUser={viewer}
+                allUsers={allUsers}
+                entries={entries}
+                setEntries={setEntries}
+                forcedApprenticeId={apprentice.id}
+              />
+            </div>
+          )}
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:16}}>
             {[
               {label:"Total Entries",   value: appEntries.length,                                           color:T.accent},
@@ -9633,7 +13213,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
         );
         if(sectionId==="leave") return (
           <DraggableSection key="leave" id="leave" dragProps={sectionDrag}>
-            {isAdmin && (
+            {isAdmin || isSupervisor ? (
               <Card style={{marginBottom:16}}>
                 <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
                   <div style={{width:36,height:36,borderRadius:10,background:T.holL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19}}>🏖</div>
@@ -9695,7 +13275,51 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   </div>
                 )}
               </Card>
-            )}
+            ) : viewer?.role === "Mentor" ? (
+              // Mentor view — simple on-leave indicator only
+              <Card style={{marginBottom:16}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                  <div style={{width:36,height:36,borderRadius:10,background:T.holL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19}}>🏖</div>
+                  <div style={{fontWeight:700,fontSize:17}}>Leave Status</div>
+                </div>
+                {(()=>{
+                  const today = new Date().toISOString().slice(0,10);
+                  const approved = advLeave.filter(r=>
+                    (r.status==="kta_approved"||r.status==="approver_approved") &&
+                    r.date_from <= today && r.date_to >= today
+                  );
+                  const upcoming = advLeave.filter(r=>
+                    (r.status==="kta_approved"||r.status==="approver_approved") &&
+                    r.date_from > today
+                  ).sort((a,b)=>a.date_from.localeCompare(b.date_from));
+                  const fmtD = iso => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
+                  if(advLeaveLoading) return <div style={{color:T.muted,fontSize:14}}>Loading…</div>;
+                  if(approved.length > 0) return (
+                    <div style={{background:T.redL,border:`1.5px solid ${T.red}44`,borderRadius:8,padding:"12px 14px"}}>
+                      <div style={{fontWeight:700,fontSize:15,color:T.red}}>🔴 Currently on leave</div>
+                      {approved.map(r=>(
+                        <div key={r.id} style={{fontSize:13,color:T.red,marginTop:4}}>
+                          {r.leave_type} · {fmtD(r.date_from)} – {fmtD(r.date_to)}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                  if(upcoming.length > 0) return (
+                    <div style={{background:T.goldL,border:`1.5px solid ${T.gold}44`,borderRadius:8,padding:"12px 14px"}}>
+                      <div style={{fontWeight:700,fontSize:15,color:T.gold}}>📅 Upcoming approved leave</div>
+                      {upcoming.slice(0,2).map(r=>(
+                        <div key={r.id} style={{fontSize:13,color:T.gold,marginTop:4}}>
+                          {r.leave_type} · {fmtD(r.date_from)} – {fmtD(r.date_to)}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                  return (
+                    <div style={{color:T.teal,fontSize:14,fontWeight:700}}>✓ Not currently on leave</div>
+                  );
+                })()}
+              </Card>
+            ) : null}
           </DraggableSection>
         );
         return null;
@@ -9756,6 +13380,46 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             </div>
           </Card>
           <Card style={{marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+              <div style={{width:36,height:36,borderRadius:10,background:T.holL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19}}>🏖</div>
+              <div style={{fontWeight:700,fontSize:17}}>Leave Status</div>
+            </div>
+            {(()=>{
+              const today = new Date().toISOString().slice(0,10);
+              const fmtD = iso => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
+              const onLeave = advLeave.filter(r=>
+                (r.status==="kta_approved"||r.status==="approver_approved") &&
+                r.date_from <= today && r.date_to >= today
+              );
+              const upcoming = advLeave.filter(r=>
+                (r.status==="kta_approved"||r.status==="approver_approved") &&
+                r.date_from > today
+              ).sort((a,b)=>a.date_from.localeCompare(b.date_from));
+              if(advLeaveLoading) return <div style={{color:T.muted,fontSize:14}}>Loading…</div>;
+              if(onLeave.length > 0) return (
+                <div style={{background:T.redL,border:`1.5px solid ${T.red}44`,borderRadius:8,padding:"12px 14px"}}>
+                  <div style={{fontWeight:700,fontSize:15,color:T.red}}>🔴 Currently on leave</div>
+                  {onLeave.map(r=>(
+                    <div key={r.id} style={{fontSize:13,color:T.red,marginTop:4}}>
+                      {r.leave_type} · {fmtD(r.date_from)} – {fmtD(r.date_to)}
+                    </div>
+                  ))}
+                </div>
+              );
+              if(upcoming.length > 0) return (
+                <div style={{background:T.goldL,border:`1.5px solid ${T.gold}44`,borderRadius:8,padding:"12px 14px"}}>
+                  <div style={{fontWeight:700,fontSize:15,color:T.gold}}>📅 Upcoming approved leave</div>
+                  {upcoming.slice(0,2).map(r=>(
+                    <div key={r.id} style={{fontSize:13,color:T.gold,marginTop:4}}>
+                      {r.leave_type} · {fmtD(r.date_from)} – {fmtD(r.date_to)}
+                    </div>
+                  ))}
+                </div>
+              );
+              return <div style={{color:T.teal,fontSize:14,fontWeight:700}}>✓ Not currently on leave</div>;
+            })()}
+          </Card>
+          <Card style={{marginBottom:16}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
               <div style={{width:36,height:36,borderRadius:10,background:T.goldL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19}}>📁</div>
               <div>
@@ -9763,7 +13427,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                 <div style={{fontSize:13,color:T.sub}}>History of all visits with {apprentice.name}</div>
               </div>
             </div>
-            <PastMeetingReports key={meetingKey} apprentice={apprentice} allUsers={allUsers} canEdit={true}/>
+            <PastMeetingReports key={meetingKey} apprentice={apprentice} allUsers={allUsers} canEdit={true} isAdmin1={Number(viewer?.adminLevel ?? 1)===1&&viewer?.role==="Admin"}/>
           </Card>
           <Card style={{marginBottom:16}}>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
@@ -9784,6 +13448,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
 
 // Legacy wrapper for Mentor
 function MentorApprenticeDetail({apprentice, mentor, allUsers, onBack}) {
+  if(!apprentice) return null;
   return <ApprenticeDetailView apprentice={apprentice} viewer={mentor} allUsers={allUsers} onBack={onBack} isAdmin={false} canEditExpiry={true} entries={[]}/>;
 }
 
@@ -9808,7 +13473,15 @@ function MentorDashboard({currentUser, allUsers}) {
     }
   },[allUsers]);
 
-  const selectMentorApp=(u)=>{ setSelectedApprentice(u); try{if(u) localStorage.setItem("wos_mentor_app",u.id); else localStorage.removeItem("wos_mentor_app");}catch{}; };
+  const selectMentorApp=(u)=>{
+    if(u) {
+      if(!window.__ktaBackHandlers) window.__ktaBackHandlers=[];
+      window.__ktaBackHandlers.push(()=>selectMentorApp(null));
+      window.history.pushState({ktaNav:true},"");
+    }
+    setSelectedApprentice(u);
+    try{if(u) localStorage.setItem("wos_mentor_app",u.id); else localStorage.removeItem("wos_mentor_app");}catch{};
+  };
 
   // Mentor's allocated apprentices — check both allocatedTo (legacy) and mentorUserId (new)
   const myApprentices = allUsers.filter(u=>
@@ -9836,7 +13509,7 @@ function MentorDashboard({currentUser, allUsers}) {
   const fmtDate = (iso) => { if(!iso) return null; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
   const daysUntil = (iso) => { if(!iso) return null; const today=new Date(); today.setHours(0,0,0,0); const exp=new Date(iso+"T00:00:00"); return Math.round((exp-today)/86400000); };
 
-  const MENTOR_DEFAULT_ORDER = ["apprentices", "resources"];
+  const MENTOR_DEFAULT_ORDER = ["apprentices", "snapshots", "resources"];
   const { order: mentorOrder, dragProps: mentorDragProps } = useDraggableOrder(currentUser.id + "_mentor", MENTOR_DEFAULT_ORDER);
 
   if(selectedApprentice) {
@@ -9910,6 +13583,12 @@ function MentorDashboard({currentUser, allUsers}) {
             );
           })}
         </Card>
+      </DraggableSection>
+    ),
+
+    snapshots: (
+      <DraggableSection id="snapshots" dragProps={mentorDragProps}>
+        <SnapshotsByApprenticeCard apprentices={myApprentices}/>
       </DraggableSection>
     ),
 
@@ -10032,7 +13711,7 @@ function ConfidentialNotesCard({ currentUser, allUsers }) {
         personId={currentUser.id}
         canEdit={true}
         isKristeena={true}
-        isAdmin1={(currentUser?.adminLevel||1)===1&&currentUser?.role==="Admin"}
+        isAdmin1={Number(currentUser?.adminLevel ?? 1)===1&&currentUser?.role==="Admin"}
       />
     </div>
   );
@@ -10167,7 +13846,7 @@ function ApprenticeConversation({apprentice, allUsers, currentUser, canManageMes
   };
 
   const handleDelete = async (msgId) => {
-    if(!window.confirm("Permanently delete this message?")) return;
+    if(!await ktaConfirm("Permanently delete this message?")) return;
     await deleteMessage(msgId).catch(console.error);
     setMessages(prev=>prev.filter(m=>m.id!==msgId));
   };
@@ -10965,7 +14644,7 @@ serve(async (req) => {
                         ))}
                       </div>
                       <button onClick={async()=>{
-                        if(!window.confirm(`Fill ${missing.length} missing field${missing.length>1?"s":""} for ${a.name} from Xero?`)) return;
+                        if(!await ktaConfirm(`Fill ${missing.length} missing field${missing.length>1?"s":""} for ${a.name} from Xero?`)) return;
                         const updates = {};
                         missing.forEach(m=>{ updates[m.dbField]=m.value; });
                         try {
@@ -10986,7 +14665,7 @@ serve(async (req) => {
                   {syncItems.length>1&&(
                     <div style={{padding:"10px 14px",background:T.bg,borderTop:`1px solid ${T.border}`,display:"flex",justifyContent:"flex-end"}}>
                       <button onClick={async()=>{
-                        if(!window.confirm(`Fill missing fields for ALL ${syncItems.length} apprentices from Xero?`)) return;
+                        if(!await ktaConfirm(`Fill missing fields for ALL ${syncItems.length} apprentices from Xero?`)) return;
                         for(const {a,missing} of syncItems){
                           const updates = {};
                           missing.forEach(m=>{ updates[m.dbField]=m.value; });
@@ -11109,10 +14788,19 @@ serve(async (req) => {
                         const a=allUsers.find(u=>u.id===e.userId);
                         return !!a?.xeroEmployeeId && !!(settings.earningsRates?.[e.type]) && settings.edgeFunctionUrl && settings.tenantId && e.xeroStatus!=="submitting";
                       });
+                      const sleep = ms => new Promise(r=>setTimeout(r,ms));
+                      const submitWithRetry = async (e, app, retries=3, delayMs=3000) => {
+                        for(let attempt=1; attempt<=retries; attempt++) {
+                          const res = await submitEntryToXero(e, app, entries);
+                          if(res.ok) return res;
+                          if(attempt < retries) await sleep(delayMs * attempt); // back-off: 3s, 6s
+                        }
+                        return { ok:false, error:"Failed after 3 attempts" };
+                      };
                       for(const e of submittable) {
                         const app = allUsers.find(u=>u.id===e.userId);
                         onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"submitting"}:x));
-                        const res = await submitEntryToXero(e, app, entries);
+                        const res = await submitWithRetry(e, app);
                         if(res.ok){
                           await updateRow("entries", e.id, { xero_status:"submitted", xero_timesheet_id:res.timesheetId||null }).catch(console.error);
                           onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"submitted",xeroTimesheetId:res.timesheetId}:x));
@@ -11120,6 +14808,8 @@ serve(async (req) => {
                           await updateRow("entries", e.id, { xero_status:"error" }).catch(console.error);
                           onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"error",xeroError:res.error}:x));
                         }
+                        // 2 second pause between submissions to avoid Xero API rate limiting
+                        await sleep(2000);
                       }
                       setSubmittingAll(false);
                     }}
@@ -11419,7 +15109,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
   };
 
   const deleteNote = async (id) => {
-    if(!window.confirm("Remove this activity?")) return;
+    if(!await ktaConfirm("Remove this activity?")) return;
     await deleteRow('activity_notes', id).catch(console.error);
     setNotes(prev=>prev.filter(n=>n.id!==id));
   };
@@ -12385,11 +16075,1496 @@ serve(async (req) => {
   );
 }
 
+
+// ── Apprentice Dashboard ──────────────────────────────────────────────────────
+// Card-grid home screen for apprentices. Each card either navigates to another
+// module or expands inline to show a form / history section.
+// ── ApprenticeSnapshotPanel — apprentice sees their own snapshots + PDF buttons ──
+function ApprenticeSnapshotPanel({ apprenticeId, apprentice=null }) {
+  const [snapshots, setSnapshots] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadTable("progress_snapshots")
+      .then(rows => setSnapshots((rows||[]).filter(r=>r.apprentice_id===apprenticeId)
+        .sort((a,b)=>a.months_in_training-b.months_in_training)))
+      .catch(()=>{})
+      .finally(()=>setLoading(false));
+  }, [apprenticeId]);
+
+  const fmtD = iso => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
+
+  if (loading) return <div style={{textAlign:"center",padding:24,color:T.muted,fontSize:14}}>Loading…</div>;
+  if (snapshots.length === 0) return (
+    <div style={{textAlign:"center",padding:"24px 0",color:T.muted,fontSize:14,fontStyle:"italic"}}>
+      No progress snapshots yet — your KTA mentor will upload your report
+    </div>
+  );
+
+  const latest = snapshots[snapshots.length-1];
+  const dur = latest.programme_duration || 42;
+  const pct = Math.round(latest.overall_percent || 0);
+  const expectedPct = Math.round(Math.min((latest.months_in_training / dur) * 100, 100));
+  const onTrack = pct >= expectedPct;
+  const pctColor = pct >= 75 ? T.teal : pct >= 50 ? T.accent : T.warn;
+
+  return (
+    <div>
+      {/* Latest snapshot summary */}
+      <div style={{background:onTrack?T.tealL:T.warnL,borderRadius:10,padding:"14px 16px",
+        border:`1.5px solid ${pctColor}44`,marginBottom:14,display:"flex",alignItems:"center",gap:14}}>
+        <div style={{fontSize:36,fontWeight:800,color:pctColor,lineHeight:1,minWidth:60,textAlign:"center"}}>
+          {pct}%
+        </div>
+        <div style={{flex:1}}>
+          <div style={{fontWeight:700,fontSize:15,color:pctColor}}>
+            {onTrack ? "✓ On track" : "⚠ Behind expected progress"}
+          </div>
+          <div style={{fontSize:13,color:T.sub,marginTop:3}}>
+            Month {latest.months_in_training} of {dur} · Expected {expectedPct}% · Latest report {fmtD(latest.report_date)}
+          </div>
+          {/* Progress bar */}
+          <div style={{position:"relative",height:8,background:T.border,borderRadius:4,marginTop:8}}>
+            <div style={{position:"absolute",top:-1,bottom:-1,width:2,background:T.muted,borderRadius:1,
+              left:`${expectedPct}%`,transform:"translateX(-50%)"}}/>
+            <div style={{height:8,borderRadius:4,width:`${Math.min(pct,100)}%`,
+              background:pctColor,transition:"width .4s"}}/>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:T.muted,marginTop:4}}>
+            <span>Start</span>
+            <span style={{color:T.muted}}>▲ Expected ({expectedPct}%)</span>
+            <span>End (month {dur})</span>
+          </div>
+        </div>
+      </div>
+
+      {/* All snapshots list — each clickable to open PDF */}
+      <div style={{fontSize:13,fontWeight:700,color:T.sub,marginBottom:8,textTransform:"uppercase",letterSpacing:".6px"}}>
+        All Reports
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {[...snapshots].reverse().map(snap => {
+          const p = Math.round(snap.overall_percent || 0);
+          const c = p >= 75 ? T.teal : p >= 50 ? T.accent : T.warn;
+          return (
+            <div key={snap.id}
+              onClick={() => snap.pdf_data && openSnapshotPDF(snap)}
+              style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",
+                background:T.bg,borderRadius:8,border:`1px solid ${T.border}`,
+                cursor:snap.pdf_data?"pointer":"default",
+                opacity:snap.pdf_data?1:0.75,
+                transition:"background .12s"}}
+              onMouseEnter={e=>{ if(snap.pdf_data) e.currentTarget.style.background=T.accentL+"55"; }}
+              onMouseLeave={e=>{ e.currentTarget.style.background=T.bg; }}>
+              <div style={{fontWeight:700,fontSize:16,color:c,minWidth:44,textAlign:"center"}}>{p}%</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,color:T.ink,fontWeight:500}}>
+                  {fmtD(snap.report_date)}
+                </div>
+                <div style={{fontSize:11,color:T.muted}}>
+                  Month {snap.months_in_training}{snap.programme_duration?` of ${snap.programme_duration}`:""}
+                </div>
+              </div>
+              {snap.pdf_data
+                ? <div style={{fontSize:12,color:T.accent,fontWeight:700}}>📄 View PDF →</div>
+                : <div style={{fontSize:11,color:T.muted,fontStyle:"italic"}}>No PDF</div>
+              }
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Paid Timesheets Panel — apprentice read-only view of Xero-submitted entries ──
+function PaidTimesheetsPanel({ entries, currentUser }) {
+  const myPaid = (entries||[])
+    .filter(e => e.userId === currentUser.id && e.xeroStatus === "submitted")
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  const fmtDate = iso => {
+    if (!iso) return "—";
+    const [y, m, d] = iso.split("-");
+    return `${d}/${m}/${y}`;
+  };
+
+  // Group by week-ending Sunday
+  const getWeekEnding = (dateStr) => {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    const day = dt.getUTCDay();
+    dt.setUTCDate(dt.getUTCDate() + (day === 0 ? 0 : 7 - day));
+    return dt.toISOString().slice(0, 10);
+  };
+
+  const weeks = {};
+  myPaid.forEach(e => {
+    const we = getWeekEnding(e.date);
+    if (!weeks[we]) weeks[we] = [];
+    weeks[we].push(e);
+  });
+  const weekKeys = Object.keys(weeks).sort((a, b) => b.localeCompare(a));
+
+  if (myPaid.length === 0) return (
+    <div style={{textAlign:"center",padding:"32px 0",color:T.muted,fontSize:14,fontStyle:"italic"}}>
+      <div style={{fontSize:36,marginBottom:10}}>💳</div>
+      <div style={{fontWeight:700,color:T.sub,marginBottom:4}}>No paid timesheets yet</div>
+      <div>Entries submitted to payroll will appear here once processed.</div>
+    </div>
+  );
+
+  const totalHrs = myPaid.reduce((a, e) => a + e.netHours, 0);
+
+  return (
+    <div>
+      {/* Summary */}
+      <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
+        <div style={{flex:1,minWidth:120,background:T.bg,borderRadius:10,padding:"12px 16px",
+          border:`1.5px solid ${T.accent}33`,textAlign:"center"}}>
+          <div style={{fontSize:24,fontWeight:800,color:T.accent}}>{myPaid.length}</div>
+          <div style={{fontSize:12,color:T.muted,marginTop:2}}>Entries paid</div>
+        </div>
+        <div style={{flex:1,minWidth:120,background:T.bg,borderRadius:10,padding:"12px 16px",
+          border:`1.5px solid ${T.teal}33`,textAlign:"center"}}>
+          <div style={{fontSize:24,fontWeight:800,color:T.teal}}>{totalHrs.toFixed(1)}h</div>
+          <div style={{fontSize:12,color:T.muted,marginTop:2}}>Total hours paid</div>
+        </div>
+        <div style={{flex:1,minWidth:120,background:T.bg,borderRadius:10,padding:"12px 16px",
+          border:`1.5px solid ${T.blue}33`,textAlign:"center"}}>
+          <div style={{fontSize:24,fontWeight:800,color:T.blue}}>{weekKeys.length}</div>
+          <div style={{fontSize:12,color:T.muted,marginTop:2}}>Pay weeks</div>
+        </div>
+      </div>
+
+      {/* Weeks */}
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {weekKeys.map(we => {
+          const wEntries = weeks[we];
+          const wHrs = wEntries.reduce((a, e) => a + e.netHours, 0);
+          return (
+            <div key={we} style={{background:T.bg,borderRadius:10,border:`1px solid ${T.border}`}}>
+              {/* Week header */}
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                padding:"10px 14px",borderBottom:`1px solid ${T.border}44`}}>
+                <div style={{fontWeight:700,fontSize:13,color:T.ink}}>
+                  Week ending {fmtDate(we)}
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:13,fontWeight:700,color:T.teal}}>{wHrs.toFixed(1)}h</span>
+                  <span style={{fontSize:11,background:T.tealL,color:T.teal,
+                    padding:"2px 8px",borderRadius:99,fontWeight:700}}>✓ Paid</span>
+                </div>
+              </div>
+              {/* Entries */}
+              {wEntries.map((e, i) => {
+                const meta = TYPE_META[e.type] || TYPE_META["Normal Hours"];
+                return (
+                  <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,
+                    padding:"9px 14px",
+                    borderBottom: i < wEntries.length-1 ? `1px solid ${T.border}22` : "none",
+                    fontSize:13}}>
+                    <div style={{width:80,color:T.muted,flexShrink:0}}>{fmtDate(e.date)}</div>
+                    <div style={{flex:1}}>
+                      <span style={{fontSize:12,fontWeight:700,padding:"2px 8px",
+                        borderRadius:99,background:meta.bg,color:meta.color}}>
+                        {e.type}
+                      </span>
+                      {e.note && <span style={{fontSize:12,color:T.muted,marginLeft:8}}>{e.note}</span>}
+                    </div>
+                    <div style={{fontWeight:700,color:T.ink,minWidth:36,textAlign:"right"}}>
+                      {e.netHours.toFixed(1)}h
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ApprenticeDashboard({ currentUser, allUsers, entries, setEntries, navigateTo, onSendMessage }) {
+  const [panel, setPanel] = useState(null); // which panel is open
+
+  const togglePanel = (id) => setPanel(p => p === id ? null : id);
+
+  // Action cards config
+  const CARDS = [
+    {
+      id: "timesheet",
+      icon: "⏱",
+      color: "#1b4f8c",
+      bg: "#dce8f7",
+      title: "Fill in Timesheet",
+      sub: "Log your hours for the week",
+      action: "navigate",
+    },
+    {
+      id: "sick",
+      icon: "🤒",
+      color: "#bf2b2b",
+      bg: "#fde8e8",
+      title: "Tell Us You're Sick",
+      sub: "Submit a sick leave request",
+      action: "panel",
+    },
+    {
+      id: "leave",
+      icon: "🏖️",
+      color: "#6b4fa0",
+      bg: "#ece5f7",
+      title: "Request Leave",
+      sub: "Annual, bereavement & other leave",
+      action: "panel",
+    },
+    {
+      id: "contact",
+      icon: "📞",
+      color: "#1a8a7a",
+      bg: "#d4f0ec",
+      title: "Contact Us",
+      sub: "Get in touch with your KTA team",
+      action: "panel",
+    },
+    {
+      id: "reports",
+      icon: "📋",
+      color: "#a07820",
+      bg: "#fdf3d4",
+      title: "Past Reports",
+      sub: "View your visit check-in history",
+      action: "panel",
+    },
+    {
+      id: "ppe",
+      icon: "🦺",
+      color: "#4a5568",
+      bg: "#edf2f7",
+      title: "Past PPE Issued",
+      sub: "Review equipment issued to you",
+      action: "panel",
+    },
+    {
+      id: "hse",
+      icon: "✅",
+      color: "#1a8a7a",
+      bg: "#d4f0ec",
+      title: "Past HSE Check-Ins",
+      sub: "View your health & safety history",
+      action: "panel",
+    },
+    ...(getSharePointUrl(currentUser) ? [{
+      id: "documents",
+      icon: "📁",
+      color: "#0078d4",
+      bg: "#dceeff",
+      title: "My Documents",
+      sub: "Open your SharePoint folder",
+      action: "link",
+    }] : []),
+    {
+      id: "progress",
+      icon: "📈",
+      color: "#1a8a7a",
+      bg: "#d4f0ec",
+      title: "My Progress",
+      sub: "View your programme snapshots",
+      action: "panel",
+    },
+    {
+      id: "paid_timesheets",
+      icon: "💳",
+      color: "#1b4f8c",
+      bg: "#dce8f7",
+      title: "Paid Timesheets",
+      sub: "Timesheets sent to payroll",
+      action: "panel",
+    },
+  ];
+
+  const handleCard = (card) => {
+    if(card.action === "navigate") {
+      navigateTo("timesheet");
+    } else if(card.action === "link") {
+      const url = getSharePointUrl(currentUser);
+      if(url) window.open(url, "_blank", "noopener");
+    } else {
+      togglePanel(card.id);
+    }
+  };
+
+  return (
+    <div style={{maxWidth: 720, margin: "0 auto"}}>
+      {/* Greeting */}
+      <div style={{marginBottom: 24}}>
+        <div style={{fontWeight: 700, fontSize: 22, color: T.ink}}>
+          Hi {currentUser.firstName || currentUser.name.split(" ")[0]} 👋
+        </div>
+        <div style={{fontSize: 14, color: T.sub, marginTop: 3}}>
+          What would you like to do today?
+        </div>
+      </div>
+
+      {/* Card grid */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+        gap: 12,
+        marginBottom: 8,
+      }}>
+        {CARDS.map(card => (
+          <div key={card.id}>
+            <button
+              onClick={() => handleCard(card)}
+              style={{
+                width: "100%",
+                background: (panel === card.id && card.action === "panel") ? card.bg : T.surface,
+                border: `2px solid ${(panel === card.id && card.action === "panel") ? card.color : T.border}`,
+                borderRadius: 14,
+                padding: "16px 14px",
+                cursor: "pointer",
+                textAlign: "left",
+                fontFamily: "DM Sans,sans-serif",
+                transition: "all .15s",
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+              }}
+              onMouseEnter={e => { if(panel !== card.id) e.currentTarget.style.borderColor = card.color + "88"; }}
+              onMouseLeave={e => { if(panel !== card.id) e.currentTarget.style.borderColor = T.border; }}
+            >
+              <div style={{
+                width: 44, height: 44, borderRadius: 12,
+                background: card.bg,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 22, flexShrink: 0,
+                border: `1.5px solid ${card.color}22`,
+              }}>
+                {card.icon}
+              </div>
+              <div>
+                <div style={{fontWeight: 700, fontSize: 14, color: panel === card.id ? card.color : T.ink, lineHeight: 1.3}}>
+                  {card.title}
+                </div>
+                <div style={{fontSize: 12, color: T.muted, marginTop: 3, lineHeight: 1.4}}>
+                  {card.sub}
+                </div>
+              </div>
+              <div style={{fontSize: 11, fontWeight: 700, color: card.color, marginTop: "auto"}}>
+                {card.action === "navigate" || card.action === "link" ? "Open →" : (panel === card.id ? "▲ Close" : "▼ Open")}
+              </div>
+            </button>
+
+            {/* Inline panel — renders below the card, full-width via grid trick */}
+            {panel === card.id && (
+              <div style={{
+                gridColumn: "1 / -1",
+                marginTop: 4,
+              }}/>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Full-screen panel overlay */}
+      {panel && (CARDS.find(c=>c.id===panel)||{}).action === "panel" && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 999,
+          background: T.surface,
+          display: "flex", flexDirection: "column",
+          overflowY: "auto",
+        }}>
+          {/* Sticky header */}
+          <div style={{
+            position: "sticky", top: 0, zIndex: 1,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "14px 20px",
+            background: T.surface,
+            borderBottom: `2px solid ${(CARDS.find(c=>c.id===panel)||{}).color || T.accent}`,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+          }}>
+            <div style={{display: "flex", alignItems: "center", gap: 10}}>
+              <div style={{
+                width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+                background: (CARDS.find(c=>c.id===panel)||{}).bg || T.accentL,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 20,
+              }}>
+                {(CARDS.find(c=>c.id===panel)||{}).icon}
+              </div>
+              <span style={{fontWeight: 700, fontSize: 18, color: T.ink}}>
+                {(CARDS.find(c=>c.id===panel)||{}).title}
+              </span>
+            </div>
+            <button onClick={() => setPanel(null)}
+              style={{
+                background: T.bg, border: `1.5px solid ${T.border}`,
+                borderRadius: 99, cursor: "pointer",
+                width: 36, height: 36, display: "flex", alignItems: "center",
+                justifyContent: "center", fontSize: 18, color: T.sub,
+                fontFamily: "DM Sans,sans-serif", lineHeight: 1, flexShrink: 0,
+              }}>
+              ✕
+            </button>
+          </div>
+
+          {/* Scrollable content */}
+          <div style={{flex: 1, padding: "20px 20px 40px", maxWidth: 720, width: "100%", margin: "0 auto", boxSizing: "border-box"}}>
+
+            {panel === "sick" && (
+              <LeaveRequestForm
+                currentUser={currentUser}
+                allUsers={allUsers}
+                defaultLeaveType="Sick Leave"
+                isSickForm={true}
+                onSubmitted={() => setPanel(null)}
+              />
+            )}
+
+            {panel === "leave" && (
+              <LeaveRequestForm
+                currentUser={currentUser}
+                allUsers={allUsers}
+                defaultLeaveType="Annual Leave"
+                onSubmitted={() => setPanel(null)}
+              />
+            )}
+
+            {panel === "contact" && (
+              <ContactUs
+                currentUser={currentUser}
+                allUsers={allUsers}
+                onSend={onSendMessage}
+              />
+            )}
+
+            {panel === "reports" && (
+              <PastMeetingReports
+                apprentice={currentUser}
+                allUsers={allUsers}
+                canEdit={false}
+              />
+            )}
+
+            {panel === "ppe" && (
+              <PPEAllocation
+                apprentice={currentUser}
+                mentor={null}
+                canEdit={false}
+              />
+            )}
+
+            {panel === "hse" && (
+              <PastHSECheckins
+                apprentice={currentUser}
+                allUsers={allUsers}
+                canEdit={false}
+              />
+            )}
+
+            {panel === "progress" && (
+              <ApprenticeSnapshotPanel apprenticeId={currentUser.id} apprentice={currentUser}/>
+            )}
+
+            {panel === "paid_timesheets" && (
+              <PaidTimesheetsPanel entries={entries} currentUser={currentUser}/>
+            )}
+
+          </div>
+        </div>
+      )}
+
+      {/* My current leave requests — always visible at bottom */}
+      <div style={{marginTop: 24}}>
+        <MyLeaveRequests currentUser={currentUser}/>
+      </div>
+    </div>
+  );
+}
+
+
+
+// ── Leave Action Result Screen ────────────────────────────────────────────────
+// Shown when the user lands on crmkta.com?leave_result=1 after clicking
+// an approve/decline link in an email. Reads params from the URL, shows a
+// styled result card, then clears the URL after 8 seconds.
+function LeaveResultScreen({ onDismiss }) {
+  const params = new URLSearchParams(window.location.search);
+  const status   = params.get("status")   || "";
+  const type     = params.get("type")     || "Leave";
+  const name     = params.get("name")     || "";
+  const approver = params.get("approver") || "";
+  const dateFrom = params.get("date_from") || "";
+  const dateTo   = params.get("date_to")   || "";
+  const msg      = params.get("msg")       || "";
+
+  const fmtD = (iso) => { if(!iso) return "—"; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
+
+  const CONFIG = {
+    approver_approved: {
+      icon: "✅", color: T.teal,   bg: T.tealL,
+      title: `${type} Approved`,
+      sub:   `Forwarded to KTA for final approval`,
+    },
+    kta_approved: {
+      icon: "🎉", color: T.accent, bg: T.accentL,
+      title: `${type} Fully Approved`,
+      sub:   "Both approver and KTA have approved this leave",
+    },
+    declined: {
+      icon: "❌", color: T.red,    bg: T.redL,
+      title: `${type} Declined`,
+      sub:   "Please log into KTA to add a reason for the apprentice",
+    },
+    fully_approved: {
+      icon: "⭐", color: T.accent, bg: T.accentL,
+      title: `Already Fully Approved`,
+      sub:   "This leave request has already been fully approved",
+    },
+    already_declined: {
+      icon: "ℹ️", color: T.muted,  bg: T.bg,
+      title: `Already Declined`,
+      sub:   "This leave request has already been declined",
+    },
+    unavailable: {
+      icon: "⚠️", color: T.warn,   bg: T.warnL,
+      title: "Action No Longer Available",
+      sub:   msg || "This request has already been actioned",
+    },
+    expired: {
+      icon: "⏰", color: T.warn,   bg: T.warnL,
+      title: "Link Expired",
+      sub:   "Leave approval links are valid for 7 days",
+    },
+    notfound: {
+      icon: "🔍", color: T.muted,  bg: T.bg,
+      title: "Request Not Found",
+      sub:   "This leave request may have been deleted",
+    },
+    error: {
+      icon: "⚠️", color: T.red,    bg: T.redL,
+      title: "Something Went Wrong",
+      sub:   msg || "An unexpected error occurred",
+    },
+  };
+
+  const cfg = CONFIG[status] || CONFIG.error;
+
+  useEffect(() => {
+    // Clean the URL without reloading
+    const clean = window.location.pathname;
+    window.history.replaceState({}, "", clean);
+    // Auto-dismiss after 10s
+    const t = setTimeout(onDismiss, 10000);
+    return () => clearTimeout(t);
+  }, []);
+
+  return createPortal(
+    <div style={{
+      position:"fixed", inset:0, zIndex:99998,
+      background:"rgba(13,27,46,0.6)",
+      display:"flex", alignItems:"center", justifyContent:"center",
+      padding:16,
+    }}>
+      <div style={{
+        background:T.surface, borderRadius:16,
+        boxShadow:"0 8px 48px rgba(0,0,0,.18)",
+        maxWidth:480, width:"100%", overflow:"hidden",
+        fontFamily:"DM Sans,Arial,sans-serif",
+      }}>
+        {/* Header */}
+        <div style={{background:cfg.color, padding:"28px 28px 22px", textAlign:"center"}}>
+          <div style={{fontSize:48, marginBottom:12}}>{cfg.icon}</div>
+          <div style={{fontWeight:700, fontSize:20, color:"#fff", lineHeight:1.3}}>{cfg.title}</div>
+          <div style={{fontSize:13, color:"rgba(255,255,255,.8)", marginTop:6}}>{cfg.sub}</div>
+        </div>
+
+        {/* Details */}
+        <div style={{padding:"20px 28px"}}>
+          {name && (
+            <div style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${T.border}`,fontSize:14}}>
+              <span style={{color:T.muted, fontWeight:600}}>Apprentice</span>
+              <span style={{color:T.ink,  fontWeight:600}}>{name}</span>
+            </div>
+          )}
+          {type && (
+            <div style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${T.border}`,fontSize:14}}>
+              <span style={{color:T.muted, fontWeight:600}}>Leave Type</span>
+              <span style={{color:T.ink,  fontWeight:600}}>{type}</span>
+            </div>
+          )}
+          {dateFrom && (
+            <div style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${T.border}`,fontSize:14}}>
+              <span style={{color:T.muted, fontWeight:600}}>From</span>
+              <span style={{color:T.ink,  fontWeight:600}}>{fmtD(dateFrom)}</span>
+            </div>
+          )}
+          {dateTo && (
+            <div style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:`1px solid ${T.border}`,fontSize:14}}>
+              <span style={{color:T.muted, fontWeight:600}}>To</span>
+              <span style={{color:T.ink,  fontWeight:600}}>{fmtD(dateTo)}</span>
+            </div>
+          )}
+          {approver && (
+            <div style={{display:"flex",justifyContent:"space-between",padding:"9px 0",fontSize:14}}>
+              <span style={{color:T.muted, fontWeight:600}}>Approver</span>
+              <span style={{color:T.ink,  fontWeight:600}}>{approver}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{padding:"0 28px 24px"}}>
+          <button onClick={onDismiss}
+            style={{width:"100%", padding:"12px", background:cfg.color, color:"#fff",
+              border:"none", borderRadius:10, fontWeight:700, fontSize:15,
+              cursor:"pointer", fontFamily:"DM Sans,Arial,sans-serif"}}>
+            Continue to KTA →
+          </button>
+          <div style={{textAlign:"center", fontSize:12, color:T.muted, marginTop:10}}>
+            This screen will close automatically in a few seconds
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ── Global confirm dialog (replaces window.confirm which Chrome PWA blocks) ───
+// Usage anywhere: await ktaConfirm("Are you sure?")  → true / false
+// The dialog mounts inside App via <KTAConfirmRoot/>.
+
+let _ktaConfirmResolve = null;
+let _ktaConfirmSetState = null;
+
+const ktaConfirm = (message) => new Promise((resolve) => {
+  if (!_ktaConfirmSetState) {
+    // Fallback if component not mounted yet
+    resolve(window.confirm(message));
+    return;
+  }
+  _ktaConfirmResolve = resolve;
+  _ktaConfirmSetState({ open: true, message });
+});
+
+function KTAConfirmRoot() {
+  const [state, setState] = useState({ open: false, message: "" });
+
+  useEffect(() => {
+    _ktaConfirmSetState = setState;
+    return () => { _ktaConfirmSetState = null; };
+  }, []);
+
+  const answer = (yes) => {
+    setState({ open: false, message: "" });
+    if (_ktaConfirmResolve) { _ktaConfirmResolve(yes); _ktaConfirmResolve = null; }
+  };
+
+  if (!state.open) return null;
+
+  return createPortal(
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 99999,
+      background: "rgba(13,27,46,0.55)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: "16px",
+    }} onClick={() => answer(false)}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: "#fff", borderRadius: 14, boxShadow: "0 8px 40px rgba(0,0,0,.22)",
+        maxWidth: 420, width: "100%", padding: "28px 28px 22px",
+        fontFamily: "DM Sans, Arial, sans-serif",
+      }}>
+        <div style={{ fontSize: 22, marginBottom: 14 }}>⚠️</div>
+        <div style={{ fontSize: 15.5, color: "#0d1b2e", lineHeight: 1.55, marginBottom: 24, fontWeight: 500 }}>
+          {state.message}
+        </div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={() => answer(false)}
+            style={{ padding: "9px 20px", borderRadius: 8, border: "1.5px solid #d0daea",
+              background: "#f0f4f9", color: "#4a5a72", fontWeight: 700, fontSize: 14,
+              cursor: "pointer", fontFamily: "DM Sans, Arial, sans-serif" }}>
+            Cancel
+          </button>
+          <button onClick={() => answer(true)}
+            style={{ padding: "9px 20px", borderRadius: 8, border: "none",
+              background: "#bf2b2b", color: "#fff", fontWeight: 700, fontSize: 14,
+              cursor: "pointer", fontFamily: "DM Sans, Arial, sans-serif" }}>
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROGRESS REPORTS MODULE
+// Central admin page: drop EarnLearn PDFs for any apprentice.
+// Matches by trainee name, queues to progress_report_queue table.
+// Supabase pg_cron runs process-progress-queue edge fn on 1st of each month.
+// ─────────────────────────────────────────────────────────────────────────────
+function ProgressReportsModule({ allUsers, currentUser }) {
+  const apprentices = allUsers.filter(u => u.role === "Apprentice")
+    .sort((a, b) => (a.name||"").localeCompare(b.name||""));
+
+  const [queue, setQueue]         = useState([]);   // queued but unprocessed PDFs
+  const [snapshots, setSnapshots] = useState([]);   // all processed snapshots
+  const [loadingQ, setLoadingQ]   = useState(true);
+  const [dragging, setDragging]   = useState(false);
+  const [processing, setProcessing] = useState({}); // id → status
+  const [processAll, setProcessAll] = useState(false);
+  const fileRef = useRef(null);
+
+  // Load queue and existing snapshots
+  const reload = () => {
+    setLoadingQ(true);
+    Promise.all([
+      loadTable("progress_report_queue").catch(()=>[]),
+      loadTable("progress_snapshots").catch(()=>[]),
+    ]).then(([q, s]) => {
+      setQueue((q||[]).sort((a,b)=>(b.queued_at||"").localeCompare(a.queued_at||"")));
+      setSnapshots(s||[]);
+    }).finally(()=>setLoadingQ(false));
+  };
+  useEffect(reload, []);
+
+  const fmtD = iso => { if(!iso) return "—"; const[y,m,d]=(iso||"").split("-"); return `${d}/${m}/${y}`; };
+
+  // Match apprentice by name — searches first page of section preferentially,
+  // then falls back to full section text and filename.
+  const matchApprentice = (sectionText, filename = "") => {
+    const normalize = s => s.toLowerCase().replace(/[^a-z\s]/g, "").trim();
+    const firstPage = sectionText.slice(0, 2000);
+    const firstPageNorm = normalize(firstPage);
+
+    // Common name shortenings — maps legal name → possible short names used in KTA
+    // and short names → possible legal names on official reports
+    const NAME_ALIASES = {
+      william: ["bill","billy","will","willy","liam"],
+      bill:    ["william"], billy: ["william"], will: ["william"], liam: ["william"],
+      robert:  ["rob","bob","bobby","robbie"],
+      rob: ["robert"], bob: ["robert"], bobby: ["robert"],
+      richard: ["rick","rich","dick","richie"],
+      rick: ["richard"], rich: ["richard"],
+      james:   ["jim","jimmy","jamie"],
+      jim: ["james"], jimmy: ["james"], jamie: ["james"],
+      michael: ["mike","mick","mickey","mikey"],
+      mike: ["michael"], mick: ["michael"],
+      thomas:  ["tom","tommy"],
+      tom: ["thomas"], tommy: ["thomas"],
+      christopher: ["chris"],
+      chris: ["christopher"],
+      nicholas: ["nick","nicky"],
+      nick: ["nicholas"],
+      benjamin: ["ben","benny"],
+      ben: ["benjamin"],
+      jonathan: ["jon","jonny","jonathon"],
+      jon: ["jonathan"],
+      timothy: ["tim","timmy"],
+      tim: ["timothy"],
+      anthony: ["tony","ant"],
+      tony: ["anthony"],
+      andrew: ["andy","drew"],
+      andy: ["andrew"], drew: ["andrew"],
+      edward: ["ed","eddie","ned","ted"],
+      ed: ["edward"], eddie: ["edward"],
+      joseph: ["joe","joey"],
+      joe: ["joseph"],
+      alexander: ["alex","xander"],
+      alex: ["alexander"],
+      matthew: ["matt","matty"],
+      matt: ["matthew"],
+      samuel: ["sam","sammy"],
+      sam: ["samuel"],
+      daniel: ["dan","danny"],
+      dan: ["daniel"],
+      stephen: ["steve","steven","stevie"],
+      steve: ["stephen","steven"], steven: ["stephen","steve"],
+      patrick: ["pat","paddy"],
+      pat: ["patrick"],
+      zachary: ["zach","zak"],
+      zach: ["zachary"],
+      katherine: ["kate","kathy","katie","kath"],
+      kate: ["katherine"], kathy: ["katherine"], katie: ["katherine"],
+      elizabeth: ["liz","beth","lizzie","eliza","bette"],
+      liz: ["elizabeth"], beth: ["elizabeth"],
+      margaret: ["maggie","meg","peggy"],
+      maggie: ["margaret"],
+      jennifer: ["jen","jenny"],
+      jen: ["jennifer"],
+      jessica: ["jess","jessie"],
+      jess: ["jessica"],
+      stephanie: ["steph"],
+      steph: ["stephanie"],
+      victoria: ["vicky","vicki","tori"],
+      vicky: ["victoria"],
+      samantha: ["sam","sammy"],
+    };
+
+    // Whole-word boundary check — prevents "jordan lee" matching inside "jordan leete"
+    const wholeWordMatch = (haystack, needle) => {
+      if (!needle || needle.length < 2) return false;
+      const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`(?<![a-z])${escaped}(?![a-z])`).test(haystack);
+    };
+
+    // Build all name variants for a user (their stored name + aliases for first name)
+    const getNameVariants = (u) => {
+      const uNorm = normalize(u.name);
+      const parts = uNorm.split(/\s+/).filter(p => p.length > 0);
+      const firstName = parts[0] || "";
+      const lastName  = parts[parts.length - 1] || "";
+      const variants = [uNorm]; // always include full stored name
+      // Add alias variants: e.g. "billy pilbrow" → also try "william pilbrow"
+      const aliases = NAME_ALIASES[firstName] || [];
+      aliases.forEach(alias => variants.push(`${alias} ${lastName}`));
+      // Reverse: if stored name is short, also check legal name
+      return { variants, firstName, lastName };
+    };
+
+    const fileNorm = normalize(filename.replace(/\.pdf$/i, "").replace(/[_\-()\d]/g, " ").replace(/\s+/g, " "));
+
+    // Score each apprentice
+    const scores = apprentices.map(u => {
+      const { variants, firstName, lastName } = getNameVariants(u);
+      let score = 0;
+
+      for (const variant of variants) {
+        // Full name exact whole-word match on first page
+        if (variant.length > 4 && wholeWordMatch(firstPageNorm, variant)) {
+          score = Math.max(score, variant === normalize(u.name) ? 100 : 90);
+        }
+        // Full name in filename
+        if (variant.length > 4 && wholeWordMatch(fileNorm, variant)) {
+          score = Math.max(score, variant === normalize(u.name) ? 80 : 70);
+        }
+      }
+
+      // First + last both present as whole words on first page
+      if (score < 60) {
+        const aliasFirstNames = [firstName, ...(NAME_ALIASES[firstName] || [])];
+        // Also check reverse: legal name in doc vs nickname in KTA
+        for (const fn of aliasFirstNames) {
+          if (fn.length > 2 && lastName.length > 2 &&
+              wholeWordMatch(firstPageNorm, fn) &&
+              wholeWordMatch(firstPageNorm, lastName)) {
+            score = Math.max(score, 60);
+          }
+        }
+      }
+
+      // Last name whole-word in filename
+      if (lastName.length > 3 && wholeWordMatch(fileNorm, lastName)) score = Math.max(score, 40);
+      // First name (or alias) whole-word in filename
+      const aliasFirstNames = [firstName, ...(NAME_ALIASES[firstName] || [])];
+      for (const fn of aliasFirstNames) {
+        if (fn.length > 3 && wholeWordMatch(fileNorm, fn)) score = Math.max(score, 20);
+      }
+
+      // Full name in full text (last resort)
+      if (score === 0) {
+        for (const variant of variants) {
+          if (variant.length > 4 && wholeWordMatch(normalize(sectionText), variant)) {
+            score = Math.max(score, 10);
+          }
+        }
+      }
+
+      // EarnLearn Trainee Progress Report: name appears as firstname.lastname@ in email
+      // e.g. "carlos.onekawa@kta.org.nz" — check all name variants against email pattern
+      if (score < 80) {
+        const fullText = sectionText.toLowerCase();
+        const emailParts = firstName + "." + lastName;
+        if (emailParts.length > 5 && fullText.includes(emailParts + "@")) {
+          score = Math.max(score, 85);
+        }
+        // Also check alias combos
+        const allFirstNames = [firstName, ...(NAME_ALIASES[firstName] || [])];
+        for (const fn of allFirstNames) {
+          if ((fn + "." + lastName).length > 5 &&
+              fullText.includes(fn + "." + lastName + "@")) {
+            score = Math.max(score, 75);
+          }
+        }
+      }
+
+      return { u, score };
+    });
+
+    // Only accept if score >= 40
+    const best = scores.filter(x => x.score >= 40).sort((a, b) => b.score - a.score);
+    return best.length > 0 ? best[0].u : null;
+  };
+
+  // Parse a PDF file — returns array of page texts. Accepts File or ArrayBuffer.
+  const parsePDF = async (fileOrBuf) => {
+    if (!window.pdfjsLib) {
+      await new Promise((res, rej) => {
+        const s = document.createElement("script");
+        s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+        s.onload = () => {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+            "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+          res();
+        };
+        s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    } else if (!window.pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+    // Accept either a File or an already-read ArrayBuffer to avoid double-reading
+    const buf = (fileOrBuf instanceof ArrayBuffer) ? fileOrBuf : await fileOrBuf.arrayBuffer();
+    // pdf.js transfers/consumes the ArrayBuffer — pass a copy so caller can still use original
+    const pdf = await window.pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
+    const pages = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const tc = await page.getTextContent();
+      pages.push(tc.items.map(i => i.str).join(" "));
+    }
+    return pages;
+  };
+
+  // Parse text — handles EarnLearn Account, Trainee Progress Report, and ETCO Academic Transcript
+  // Parse text — handles EarnLearn Account, Trainee Progress Report, ETCO Academic Transcript,
+  // and Skills Learner Progression Report formats
+  const parseEarnLearnText = (text) => {
+    const n = s => { const v = parseFloat(s); return isNaN(v) ? null : v; };
+    const monthMap = {jan:"01",feb:"02",mar:"03",apr:"04",may:"05",jun:"06",
+                      jul:"07",aug:"08",sep:"09",oct:"10",nov:"11",dec:"12",
+                      january:"01",february:"02",march:"03",april:"04",june:"06",
+                      july:"07",august:"08",september:"09",october:"10",november:"11",december:"12"};
+    const isTraineeProgressReport = /TRAINEE PROGRESS REPORT/i.test(text) ||
+      (/Produced by EarnLearn on/i.test(text) && !/Booklet Data as at/i.test(text));
+    const isETCO = /Academic Transcript/i.test(text) &&
+      (/etco|the electrical training experts/i.test(text) || /Learner Details/i.test(text));
+    const isSkills = /Learner Progression Report/i.test(text) &&
+      /Version:\s*\d+/i.test(text) && /skillsbank\.skills\.org\.nz/i.test(text);
+
+    // Report date
+    let report_date = null;
+    const dateM1 = text.match(/Booklet Data as at\s+(\d{1,2})\s+(\w+)\s+(\d{4})/i);
+    const dateM2 = text.match(/Produced by EarnLearn on[\s\S]{0,20}?(\d{1,2})[-\s](\w{3})[-\s](\d{2,4})/i);
+    const dateM3 = isETCO && text.match(/(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\s+(\w+)\s+(\d{1,2}),\s+(\d{4})/i);
+    const dateM4 = isSkills && text.match(/Date:\s+(\d{1,2})-(\w{3})-(\d{4})/i);
+    if (dateM1) {
+      const mo = monthMap[dateM1[2].toLowerCase().slice(0,3)] || "01";
+      report_date = `${dateM1[3]}-${mo}-${String(dateM1[1]).padStart(2,"0")}`;
+    } else if (dateM2) {
+      const mo = monthMap[dateM2[2].toLowerCase()] || "01";
+      const yr = dateM2[3].length === 2 ? `20${dateM2[3]}` : dateM2[3];
+      report_date = `${yr}-${mo}-${String(dateM2[1]).padStart(2,"0")}`;
+    } else if (dateM3) {
+      const mo = monthMap[dateM3[1].toLowerCase()] || "01";
+      report_date = `${dateM3[3]}-${mo}-${String(dateM3[2]).padStart(2,"0")}`;
+    } else if (dateM4) {
+      const mo = monthMap[dateM4[2].toLowerCase()] || "01";
+      report_date = `${dateM4[3]}-${mo}-${String(dateM4[1]).padStart(2,"0")}`;
+    }
+
+    // Months in training
+    let months_in_training = null, programme_duration = null;
+    if (isSkills) {
+      const enrollM = text.match(/(\d{1,2}-\w{3}-\d{4})\s+(\d{1,2}-\w{3}-\d{4})\s+Confirmed/i);
+      if (enrollM) {
+        const psd = (s) => { const p=s.split("-"); return new Date(`${p[2]}-${monthMap[p[1].toLowerCase()]||"01"}-${p[0].padStart(2,"0")}`); };
+        const startDate = psd(enrollM[1]), endDate = psd(enrollM[2]);
+        const now = report_date ? new Date(report_date) : new Date();
+        months_in_training = Math.max(1, Math.round((now - startDate) / (1000*60*60*24*30.44)));
+        programme_duration = Math.round((endDate - startDate) / (1000*60*60*24*30.44));
+      }
+    } else if (isETCO) {
+      const allDates = [...text.matchAll(/\b(\d{1,2})\/(\d{2})\/(\d{2,4})\b/g)]
+        .map(m => { const yr=m[3].length===2?2000+parseInt(m[3]):parseInt(m[3]); return new Date(yr,parseInt(m[2])-1,parseInt(m[1])); })
+        .filter(d => d.getFullYear() >= 2015 && d <= new Date());
+      if (allDates.length > 0) {
+        const startDate = new Date(Math.min(...allDates.map(d => d.getTime())));
+        const now = report_date ? new Date(report_date) : new Date();
+        months_in_training = Math.max(1, Math.round((now - startDate) / (1000*60*60*24*30.44)));
+      }
+      programme_duration = 42;
+    } else if (isTraineeProgressReport) {
+      const startM = text.match(/Training Agreement Start Date[\s\S]{0,40}?(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/i);
+      if (startM) {
+        const startDate = new Date(`${startM[3]}-${startM[2].padStart(2,"0")}-${startM[1].padStart(2,"0")}`);
+        const now = report_date ? new Date(report_date) : new Date();
+        months_in_training = Math.max(1, Math.round((now - startDate) / (1000*60*60*24*30.44)));
+      }
+    } else {
+      const progM = text.match(/Active\s+[\d/]+\s+[\d/]+\s+(\d+)\s+(\d+)/);
+      if (progM) { programme_duration = n(progM[1]); months_in_training = n(progM[2]); }
+    }
+
+    // Overall percent
+    let overall_percent = null;
+    if (isSkills) {
+      const pctM = text.match(/Confirmed\s+(\d+)\s+\d+/i);
+      if (pctM) overall_percent = n(pctM[1]);
+    } else if (isETCO) {
+      let totalRequired = 0, totalAchieved = 0;
+      const sectionMatches = [...text.matchAll(/Credits Achieved\s+[\d.]+%\s+(\d+)\s+of\s+(\d+)/gi)];
+      sectionMatches.forEach(m => { totalAchieved += parseInt(m[1]); totalRequired += parseInt(m[2]); });
+      if (totalRequired > 0) overall_percent = Math.round((totalAchieved / totalRequired) * 1000) / 10;
+    } else if (isTraineeProgressReport) {
+      const totM = text.match(/Total Credits for Compulsory[\s\S]{0,20}?([\d,]+)[\s\S]{0,10}?([\d,]+)/i);
+      if (totM) {
+        const req = n(totM[1].replace(/,/g,"")), got = n(totM[2].replace(/,/g,""));
+        if (req > 0 && got != null && got <= req) overall_percent = Math.round((got / req) * 1000) / 10;
+      }
+    } else {
+      const totalsM = text.match(/Totals\s+[\d,]+\s+[\d,]+\s+([\d.]+)%/i);
+      if (totalsM) overall_percent = n(totalsM[1]);
+    }
+
+    // Section percentages
+    let skills_week_percent = null, off_job_l3_percent = null, off_job_l4_percent = null;
+    let on_job_core_percent = null, on_job_spec_percent = null;
+    if (isSkills) {
+      const skillsSection = (header, nextHeader) => {
+        const startIdx = text.search(new RegExp(header, "i"));
+        if (startIdx < 0) return null;
+        const endIdx = nextHeader ? text.search(new RegExp(nextHeader, "i")) : text.length;
+        const block = text.slice(startIdx, endIdx > startIdx ? endIdx : text.length);
+        let achieved = 0, total = 0;
+        const unitRe = /\d{4,5}-\d{2}\s+.+?\s+(\d+)\s*([\d]{1,2}-\w{3}-\d{4}|Exempted|)/gi;
+        let um;
+        while ((um = unitRe.exec(block)) !== null) {
+          const credits = parseInt(um[1]) || 0;
+          const status  = um[2]?.trim() || "";
+          total += credits;
+          if (status) achieved += credits;
+        }
+        return total > 0 ? Math.round((achieved / total) * 1000) / 10 : null;
+      };
+      skills_week_percent  = skillsSection("First Aid and CPR", "Year 1 off-job");
+      off_job_l3_percent   = skillsSection("Year 1 off-job", "Year 2 off-job");
+      off_job_l4_percent   = skillsSection("Year 2 off-job", "Year 3 off-job");
+      on_job_core_percent  = skillsSection("Year 3 off-job", "On-job");
+      on_job_spec_percent  = skillsSection("On-job", null);
+    } else if (isETCO) {
+      const etcoSection = (label) => {
+        const re = new RegExp(label + "[\\s\\S]{0,300}?Credits Achieved\\s+([\\d.]+)%\\s+(\\d+)\\s+of\\s+(\\d+)", "i");
+        const m = text.match(re);
+        return m ? n(m[1]) : null;
+      };
+      skills_week_percent = etcoSection("Trade Start");
+      const y1 = etcoSection("NZCEE Year 1"), y2 = etcoSection("NZCEE Year 2");
+      off_job_l3_percent = (y1 !== null && y2 !== null) ? Math.round(((y1+y2)/2)*10)/10 : (y1 ?? y2);
+      off_job_l4_percent  = etcoSection("NZCEE Year 3");
+      on_job_core_percent = etcoSection("On-Job Mandatory");
+      on_job_spec_percent = etcoSection("On-Job Domestic") ?? etcoSection("On-Job Industrial");
+    } else if (!isTraineeProgressReport) {
+      const summarySection = (label) => {
+        const re = new RegExp(label + "\\s+([\\d]+)\\s+([\\d]+)\\s+([\\d.]+)%", "i");
+        const m = text.match(re);
+        return m ? n(m[3]) : null;
+      };
+      skills_week_percent  = summarySection("Skills Week/Trade Start");
+      off_job_l3_percent   = summarySection("Off Job Unit Standards.*?Level 3");
+      off_job_l4_percent   = summarySection("Off Job Unit Standards.*?Level 4");
+      on_job_core_percent  = summarySection("On Job Unit Standards.*?Core");
+      on_job_spec_percent  = summarySection("On Job Unit Standards.*?(?:Domestic|Speciality|Specialty|Industrial)");
+    }
+
+    const bookM = text.match(/Booklets Completed\s+(\d+)\s+([\d.]+)%/i);
+    return {
+      report_date, months_in_training, programme_duration,
+      overall_percent, skills_week_percent, off_job_l3_percent,
+      off_job_l4_percent, on_job_core_percent, on_job_spec_percent,
+      booklets_percent: bookM ? n(bookM[2]) : null,
+    };
+  };
+
+  // Handle file drop or selection — one PDF = one apprentice
+  const handleFiles = async (files) => {
+    const pdfs = Array.from(files).filter(f => f.type === "application/pdf" || f.name.endsWith(".pdf"));
+    if (pdfs.length === 0) return;
+
+    for (const file of pdfs) {
+      const tempId = uid();
+      setQueue(prev => [{
+        id: tempId, filename: file.name, status: "parsing",
+        apprentice_name: "Matching…", queued_at: new Date().toISOString(),
+      }, ...prev]);
+
+      try {
+        const arrayBuf = await file.arrayBuffer();
+        // Encode to base64 FIRST before pdf.js can transfer/detach the buffer
+        const pdfData = arrayBufferToBase64(arrayBuf);
+        const pages = await parsePDF(arrayBuf);
+        const text = pages.join("\n");
+        const parsed = parseEarnLearnText(text);
+        const apprentice = matchApprentice(text, file.name);
+
+        // Debug: log what was parsed so issues are visible in console
+        console.log(`[Progress] ${file.name}:`, {
+          isMatch: !!apprentice, matchedTo: apprentice?.name,
+          months: parsed.months_in_training, overall: parsed.overall_percent,
+          report_date: parsed.report_date,
+          textSnippet: text.slice(0, 200),
+        });
+
+        if (!apprentice) {
+          setQueue(prev => prev.map(q => q.id === tempId ? {
+            ...q, status: "no_match",
+            apprentice_name: "⚠ No match — rename file to apprentice's name (e.g. Anthony Ellis.pdf)",
+          } : q));
+          continue;
+        }
+        if (!parsed.months_in_training) {
+          setQueue(prev => prev.map(q => q.id === tempId ? {
+            ...q, status: "parse_error", apprentice_name: apprentice.name,
+            error: "Could not extract training months — is this an EarnLearn, ETCO, or Skills PDF?",
+          } : q));
+          continue;
+        }
+
+        const existingSnap = snapshots.find(s =>
+          s.apprentice_id === apprentice.id &&
+          s.report_date?.slice(0,7) === parsed.report_date?.slice(0,7)
+        );
+
+        // Use apprentice's profile startDate if available — overrides PDF date
+        let months_in_training = parsed.months_in_training;
+        if (apprentice.startDate && parsed.report_date) {
+          const start = new Date(apprentice.startDate + "T00:00:00");
+          const report = new Date(parsed.report_date + "T00:00:00");
+          months_in_training = Math.max(1, Math.round((report - start) / (1000*60*60*24*30.44)));
+        }
+
+        const queueRow = {
+          id: tempId,
+          apprentice_id:       apprentice.id,
+          apprentice_name:     apprentice.name,
+          filename:            file.name,
+          report_date:         parsed.report_date,
+          months_in_training,
+          programme_duration:  parsed.programme_duration,
+          overall_percent:     parsed.overall_percent,
+          skills_week_percent: parsed.skills_week_percent,
+          off_job_l3_percent:  parsed.off_job_l3_percent,
+          off_job_l4_percent:  parsed.off_job_l4_percent,
+          on_job_core_percent: parsed.on_job_core_percent,
+          on_job_spec_percent: parsed.on_job_spec_percent,
+          booklets_percent:    parsed.booklets_percent,
+          pdf_data:            pdfData,
+          status:              existingSnap ? "duplicate" : "ready",
+          queued_at:           new Date().toISOString(),
+          queued_by:           currentUser.id,
+        };
+
+        await upsertRow("progress_report_queue", queueRow).catch(console.error);
+        setQueue(prev => prev.map(q => q.id === tempId ? queueRow : q));
+
+      } catch(e) {
+        console.error(`[Progress] Error processing ${file.name}:`, e);
+        setQueue(prev => prev.map(q => q.id === tempId ? {
+          ...q, status: "parse_error", error: e.message || String(e),
+        } : q));
+      }
+    }
+  };
+
+  // Process a single queued item → create snapshot
+  const processItem = async (item) => {
+    if (item.status === "done") return;
+    setProcessing(p => ({...p, [item.id]: "processing"}));
+    try {
+      const snap = {
+        id:                  uid(),
+        apprentice_id:       item.apprentice_id,
+        uploaded_at:         new Date().toISOString(),
+        report_date:         item.report_date,
+        months_in_training:  item.months_in_training,
+        programme_duration:  item.programme_duration,
+        overall_percent:     item.overall_percent,
+        skills_week_percent: item.skills_week_percent,
+        off_job_l3_percent:  item.off_job_l3_percent,
+        off_job_l4_percent:  item.off_job_l4_percent,
+        on_job_core_percent: item.on_job_core_percent,
+        on_job_spec_percent: item.on_job_spec_percent,
+        booklets_percent:    item.booklets_percent,
+        pdf_data:            item.pdf_data || null,
+      };
+      await upsertRow("progress_snapshots", snap);
+      await updateRow("progress_report_queue", item.id, { status: "done" });
+      setQueue(prev => prev.map(q => q.id === item.id ? {...q, status: "done"} : q));
+      setSnapshots(prev => [...prev.filter(s =>
+        !(s.apprentice_id === item.apprentice_id && s.report_date?.slice(0,7) === item.report_date?.slice(0,7))
+      ), snap]);
+      setProcessing(p => ({...p, [item.id]: "done"}));
+    } catch(e) {
+      setProcessing(p => ({...p, [item.id]: "error: " + e.message}));
+    }
+  };
+
+  // Process all ready items
+  const processAllReady = async () => {
+    setProcessAll(true);
+    const ready = queue.filter(q => q.status === "ready");
+    for (const item of ready) await processItem(item);
+    setProcessAll(false);
+  };
+
+  const removeItem = async (id) => {
+    await deleteRow("progress_report_queue", id).catch(console.error);
+    setQueue(prev => prev.filter(q => q.id !== id));
+  };
+
+  const STATUS_META = {
+    parsing:    { label: "Parsing…",       color: T.muted,  bg: T.bg },
+    ready:      { label: "✓ Ready",        color: T.teal,   bg: T.tealL },
+    done:       { label: "✅ Processed",   color: T.teal,   bg: T.tealL },
+    duplicate:  { label: "⚠ Duplicate",   color: T.warn,   bg: T.warnL },
+    no_match:   { label: "❌ No match",    color: T.red,    bg: T.redL },
+    parse_error:{ label: "❌ Parse error", color: T.red,    bg: T.redL },
+  };
+
+  const readyCount = queue.filter(q => q.status === "ready").length;
+  const doneCount  = queue.filter(q => q.status === "done").length;
+
+  // Group snapshots by apprentice for summary
+  const snapByApp = {};
+  snapshots.forEach(s => {
+    if (!snapByApp[s.apprentice_id]) snapByApp[s.apprentice_id] = [];
+    snapByApp[s.apprentice_id].push(s);
+  });
+
+  return (
+    <div style={{ maxWidth: 900, margin: "0 auto" }}>
+
+      {/* Page header */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontWeight: 700, fontSize: 22, color: T.ink }}>📈 Progress Reports</div>
+        <div style={{ fontSize: 13, color: T.sub, marginTop: 3 }}>
+          Drop EarnLearn, ETCO, or Skills PDFs here. Ready items can be processed immediately or will auto-process on the 1st of each month.
+        </div>
+      </div>
+
+      {/* Drop zone */}
+      <div
+        onDragOver={e => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={e => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files); }}
+        onClick={() => fileRef.current?.click()}
+        style={{
+          border: `2px dashed ${dragging ? T.teal : T.border}`,
+          borderRadius: 14,
+          background: dragging ? T.tealL : T.bg,
+          padding: "36px 24px",
+          textAlign: "center",
+          cursor: "pointer",
+          transition: "all .15s",
+          marginBottom: 20,
+        }}>
+        <input ref={fileRef} type="file" accept="application/pdf" multiple
+          style={{ display: "none" }}
+          onChange={e => handleFiles(e.target.files)}/>
+        <div style={{ fontSize: 36, marginBottom: 10 }}>📂</div>
+        <div style={{ fontWeight: 700, fontSize: 16, color: dragging ? T.teal : T.ink }}>
+          {dragging ? "Drop to add" : "Drop EarnLearn / ETCO / Skills PDFs here"}
+        </div>
+        <div style={{ fontSize: 13, color: T.muted, marginTop: 4 }}>
+          or click to browse — multiple files supported
+        </div>
+      </div>
+
+      {/* Queue */}
+      {queue.length > 0 && (
+        <Card style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: T.ink }}>Queue</div>
+              <div style={{ fontSize: 12, color: T.sub, marginTop: 2 }}>
+                {readyCount} ready · {doneCount} processed · {queue.length} total
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {readyCount > 0 && (
+                <button onClick={processAllReady} disabled={processAll}
+                  style={{ padding: "8px 16px", background: T.teal, color: "#fff", border: "none",
+                    borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer",
+                    fontFamily: "DM Sans, sans-serif", opacity: processAll ? 0.6 : 1 }}>
+                  {processAll ? "Processing…" : `▶ Process All (${readyCount})`}
+                </button>
+              )}
+              <button onClick={reload}
+                style={{ padding: "8px 14px", background: T.bg, color: T.sub, border: `1px solid ${T.border}`,
+                  borderRadius: 8, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
+                ↺ Refresh
+              </button>
+            </div>
+          </div>
+
+          {queue.map(item => {
+            const sm = STATUS_META[item.status] || STATUS_META.parsing;
+            const procStatus = processing[item.id];
+            const apprentice = allUsers.find(u => u.id === item.apprentice_id);
+            return (
+              <div key={item.id} style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "10px 12px", borderRadius: 10, marginBottom: 6,
+                background: sm.bg, border: `1px solid ${sm.color}22`,
+              }}>
+                <div style={{ fontSize: 20 }}>📄</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: T.ink, whiteSpace: "nowrap",
+                    overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {item.apprentice_name || item.filename}
+                  </div>
+                  <div style={{ fontSize: 12, color: T.sub, marginTop: 1 }}>
+                    {item.filename}
+                    {item.report_date && ` · ${fmtD(item.report_date)}`}
+                    {item.months_in_training && ` · m${item.months_in_training}`}
+                    {item.overall_percent != null && ` · ${Math.round(item.overall_percent)}%`}
+                    {item.error && ` — ${item.error}`}
+                  </div>
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: sm.color,
+                  background: "#fff", padding: "2px 8px", borderRadius: 99, whiteSpace: "nowrap" }}>
+                  {procStatus === "processing" ? "⏳ Processing…" : sm.label}
+                </span>
+                {item.status === "ready" && !procStatus && (
+                  <button onClick={() => processItem(item)}
+                    style={{ padding: "4px 10px", background: T.teal, color: "#fff", border: "none",
+                      borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: "pointer",
+                      fontFamily: "DM Sans, sans-serif" }}>
+                    ▶ Now
+                  </button>
+                )}
+                {["no_match","parse_error","done","duplicate"].includes(item.status) && (
+                  <button onClick={() => removeItem(item.id)}
+                    style={{ background: "none", border: "none", cursor: "pointer",
+                      color: T.muted, fontSize: 16, padding: "0 4px" }}>✕</button>
+                )}
+              </div>
+            );
+          })}
+        </Card>
+      )}
+
+      {/* Apprentice snapshot summary */}
+      <Card>
+        <div style={{ fontWeight: 700, fontSize: 16, color: T.ink, marginBottom: 14 }}>
+          Snapshots by Apprentice
+        </div>
+        {loadingQ ? (
+          <div style={{ textAlign: "center", padding: 24, color: T.muted, fontSize: 14 }}>Loading…</div>
+        ) : Object.keys(snapByApp).length === 0 ? (
+          <div style={{ textAlign: "center", padding: "24px 0", color: T.muted, fontSize: 14, fontStyle: "italic" }}>
+            No progress snapshots yet — upload EarnLearn, ETCO, or Skills PDFs above
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px,1fr))", gap: 10 }}>
+            {apprentices.filter(a => snapByApp[a.id]).map(a => {
+              const snaps = (snapByApp[a.id]||[]).sort((x,y)=>x.months_in_training-y.months_in_training);
+              const latest = snaps[snaps.length - 1];
+              const pct = Math.round(latest.overall_percent || 0);
+              const pctColor = pct >= 75 ? T.teal : pct >= 50 ? T.accent : T.warn;
+              return (
+                <div key={a.id} style={{ background: T.bg, borderRadius: 10, padding: "12px 14px",
+                  border: `1px solid ${T.border}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <Avatar name={a.name} role="Apprentice" size={32}/>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: T.ink,
+                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.name}</div>
+                      <div style={{ fontSize: 11, color: T.muted }}>{snaps.length} snapshot{snaps.length!==1?"s":""}</div>
+                    </div>
+                    <div style={{ fontWeight: 800, fontSize: 20, color: pctColor }}>{pct}%</div>
+                  </div>
+                  <div style={{ height: 4, background: T.border, borderRadius: 2 }}>
+                    <div style={{ height: 4, borderRadius: 2, width: `${Math.min(pct,100)}%`,
+                      background: pctColor, transition: "width .4s" }}/>
+                  </div>
+                  <div style={{ fontSize: 11, color: T.muted, marginTop: 6 }}>
+                    Latest: {fmtD(latest.report_date)} · m{latest.months_in_training}
+                    {latest.programme_duration && ` of ${latest.programme_duration}`}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      {/* Auto-process info box */}
+      <div style={{ marginTop: 16, padding: "12px 16px", background: T.accentL,
+        borderRadius: 10, border: `1px solid ${T.accent}33`, fontSize: 13, color: T.ink,
+        lineHeight: 1.6 }}>
+        <strong>Auto-processing:</strong> To automatically process queued reports on the 1st of each month,
+        run the SQL below in your Supabase SQL editor once to set up a scheduled job. Queued reports
+        with status "ready" will be processed overnight on the 1st.
+        <details style={{ marginTop: 8 }}>
+          <summary style={{ cursor: "pointer", fontWeight: 700, color: T.accent }}>
+            Show SQL setup
+          </summary>
+          <pre style={{ marginTop: 8, padding: "10px 12px", background: "#fff", borderRadius: 8,
+            fontSize: 11, overflow: "auto", border: `1px solid ${T.border}`, whiteSpace: "pre-wrap" }}>
+{`-- Enable pg_cron extension (one-time)
+create extension if not exists pg_cron;
+
+-- Run on the 1st of every month at 2am NZ time (UTC+13 → 1:00 UTC previous day)
+-- Selects all "ready" rows from progress_report_queue and inserts into progress_snapshots
+select cron.schedule(
+  'process-progress-queue',
+  '0 1 1 * *',
+  $$
+    insert into progress_snapshots (
+      id, apprentice_id, uploaded_at, report_date,
+      months_in_training, programme_duration, overall_percent,
+      skills_week_percent, off_job_l3_percent, off_job_l4_percent,
+      on_job_core_percent, on_job_spec_percent, booklets_percent
+    )
+    select
+      gen_random_uuid(), apprentice_id, now(), report_date,
+      months_in_training, programme_duration, overall_percent,
+      skills_week_percent, off_job_l3_percent, off_job_l4_percent,
+      on_job_core_percent, on_job_spec_percent, booklets_percent
+    from progress_report_queue
+    where status = 'ready'
+    on conflict do nothing;
+
+    update progress_report_queue
+    set status = 'done'
+    where status = 'ready';
+  $$
+);`}
+          </pre>
+        </details>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
+  // Always show version in browser tab — makes cache issues immediately obvious
+  document.title = `KTA ${APP_VERSION}`;
   const [users,setUsers]         = useState([]);
   const [entries,setEntries]     = useState([]);
-  const [sessionId,setSessionId] = useState(()=>{ try{return localStorage.getItem("wos_session_sb")||null;}catch{return null;} });
+  const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
+  const [sessionId,setSessionId] = useState(()=>{
+    try {
+      const id = localStorage.getItem("wos_session_sb");
+      const ts = parseInt(localStorage.getItem("wos_session_ts")||"0", 10);
+      if(id && ts && (Date.now() - ts) < SESSION_TTL_MS) return id;
+      // Expired — clear it
+      localStorage.removeItem("wos_session_sb");
+      localStorage.removeItem("wos_session_ts");
+      return null;
+    } catch { return null; }
+  });
   const [module,setModule]       = useState(()=>{try{return localStorage.getItem("wos_module")||"dashboard";}catch{return "dashboard";}});
+  // In-app navigation history stack — used to intercept browser back button
+  const navHistory = useRef([]); // array of {module, viewingAppId, showAppList} snapshots
   const [viewingAppId,setViewingAppId] = useState(()=>{ try{return localStorage.getItem("wos_viewing_app")||null;}catch{return null;} });
   const [showAppList,setShowAppList] = useState(()=>{ try{return localStorage.getItem("wos_show_list")||false;}catch{return false;} });
   const [loggingOut,setLoggingOut] = useState(false);
@@ -12520,7 +17695,36 @@ export default function App() {
   },[sessionId, users.length]);
 
   // ── Persist session to localStorage (just the id, not data) ────────────
-  useEffect(()=>{ try{localStorage.setItem("wos_session_sb",sessionId||"");}catch{} },[sessionId]);
+  useEffect(()=>{
+    try {
+      if(sessionId) {
+        localStorage.setItem("wos_session_sb", sessionId);
+        localStorage.setItem("wos_session_ts", Date.now().toString());
+      } else {
+        localStorage.removeItem("wos_session_sb");
+        localStorage.removeItem("wos_session_ts");
+      }
+    } catch {}
+  },[sessionId]);
+
+  // Refresh session timestamp on user activity so active sessions don't expire
+  useEffect(()=>{
+    if(!sessionId) return;
+    const refresh = () => { try{ localStorage.setItem("wos_session_ts", Date.now().toString()); }catch{} };
+    window.addEventListener("click", refresh, { passive:true });
+    window.addEventListener("keydown", refresh, { passive:true });
+    // Check for expiry every minute
+    const check = setInterval(()=>{
+      try {
+        const ts = parseInt(localStorage.getItem("wos_session_ts")||"0", 10);
+        if(ts && (Date.now() - ts) >= SESSION_TTL_MS) {
+          clearInterval(check);
+          handleLogout();
+        }
+      } catch {}
+    }, 60_000);
+    return ()=>{ window.removeEventListener("click", refresh); window.removeEventListener("keydown", refresh); clearInterval(check); };
+  },[sessionId]);
   useEffect(()=>{ if(module) { try{localStorage.setItem("wos_module",module);}catch{} } },[module]);
   useEffect(()=>{ try{if(viewingAppId) localStorage.setItem("wos_viewing_app",viewingAppId); else localStorage.removeItem("wos_viewing_app");}catch{} },[viewingAppId]);
   useEffect(()=>{ try{if(showAppList) localStorage.setItem("wos_show_list",showAppList); else localStorage.removeItem("wos_show_list");}catch{} },[showAppList]);
@@ -12614,11 +17818,65 @@ export default function App() {
   const currentUser = users.find(u=>u.id===sessionId);
   const role = currentUser?.role;
   // Admin level helpers — Admin 1 = full superadmin, Admin 2 = limited (no message delete/edit)
-  const isAdmin1 = role==="Admin" && (currentUser?.adminLevel||1) === 1;
-  const isAdmin2 = role==="Admin" && (currentUser?.adminLevel||1) === 2;
+  const isAdmin1 = role==="Admin" && Number(currentUser?.adminLevel ?? 1) === 1;
+  const isAdmin2 = role==="Admin" && Number(currentUser?.adminLevel ?? 1) === 2;
 
   // Persist module navigation
-  const navigateTo = (mod) => { setModule(mod); try{localStorage.setItem("wos_module",mod);}catch{} };
+  // Push a snapshot of current view onto the in-app history stack, then navigate
+  const navigateTo = (mod, opts={}) => {
+    // Save current state before navigating so back can restore it
+    navHistory.current.push({ module, viewingAppId, showAppList });
+    // Push a dummy browser history entry so popstate fires on back press
+    window.history.pushState({ ktaNav: true }, "");
+    setModule(mod);
+    try{localStorage.setItem("wos_module",mod);}catch{}
+    if(opts.openCompany) {
+      try{sessionStorage.setItem("crm_open_company", opts.openCompany);}catch{}
+    }
+  };
+
+  // Also track when viewingAppId or showAppList changes (drills / list views)
+  // We need to wrap the setters so we can capture history snapshots
+  const drillTo = (appId) => {
+    navHistory.current.push({ module, viewingAppId, showAppList });
+    window.history.pushState({ ktaNav: true }, "");
+    setViewingAppId(appId);
+  };
+  const showListView = (key) => {
+    navHistory.current.push({ module, viewingAppId, showAppList });
+    window.history.pushState({ ktaNav: true }, "");
+    setShowAppList(key);
+    setViewingAppId(null);
+  };
+
+  // Intercept browser back button — step through in-app history instead of leaving the page
+  // Components that manage their own drill-in state (CRM, UserManagement, Mentor) push a
+  // teardown callback onto window.__ktaBackHandlers. We call those first, then fall through
+  // to the App-level module/viewingAppId/showAppList history.
+  useEffect(()=>{
+    if(!window.__ktaBackHandlers) window.__ktaBackHandlers = [];
+    const onPopState = () => {
+      // Always re-push so the next back press also fires here
+      window.history.pushState({ ktaNav: true }, "");
+      // Sub-component handlers take priority (innermost drill-in goes first)
+      if(window.__ktaBackHandlers.length > 0) {
+        const handler = window.__ktaBackHandlers.pop();
+        handler();
+        return;
+      }
+      // Fall through to App-level history
+      if(navHistory.current.length > 0) {
+        const prev = navHistory.current.pop();
+        setModule(prev.module);
+        setViewingAppId(prev.viewingAppId);
+        setShowAppList(prev.showAppList);
+        try{localStorage.setItem("wos_module", prev.module);}catch{}
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    window.history.pushState({ ktaNav: true }, "");
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // Global navigation event — allows any module to navigate to another (e.g. Email Capture → CRM)
   useEffect(()=>{
@@ -12668,7 +17926,7 @@ export default function App() {
     const u = users.find(x=>x.id===userId);
     if(!isRestore){
       // Fresh login — set default module and clear any saved page
-      const defaultMod = u?.role==="Admin"?"dashboard":u?.role==="Mentor"?"mentor":"timesheet";
+      const defaultMod = u?.role==="Admin"?"dashboard":u?.role==="Mentor"?"mentor":u?.role==="Apprentice"?"home":"timesheet";
       navigateTo(defaultMod);
     }
     // On restore, module is already set from localStorage — don't overwrite
@@ -12677,7 +17935,7 @@ export default function App() {
   };
   const handleLogout = () => {
     setLoggingOut(true);
-    setTimeout(()=>{ setSessionId(null); setLoggingOut(false); setViewingAppId(null); setShowAppList(false); try{localStorage.removeItem('wos_session_sb');localStorage.removeItem('wos_viewing_app');localStorage.removeItem('wos_show_list');localStorage.removeItem('wos_crm_tab');localStorage.removeItem('wos_mentor_app');}catch{} },400);
+    setTimeout(()=>{ setSessionId(null); setLoggingOut(false); setViewingAppId(null); setShowAppList(false); try{localStorage.removeItem('wos_session_sb');localStorage.removeItem('wos_session_ts');localStorage.removeItem('wos_viewing_app');localStorage.removeItem('wos_show_list');localStorage.removeItem('wos_crm_tab');localStorage.removeItem('wos_mentor_app');}catch{} },400);
   };
 
   if(loading) return (
@@ -12777,18 +18035,22 @@ export default function App() {
   const navItems=[
     {id:"dashboard", label:"⊞ Dashboard",  roles:["Admin"]},
     {id:"mentor",    label:"👷 Apprentices", roles:["Mentor"]},
-    {id:"timesheet", label:"⏱ Timesheet",  roles:["Apprentice","Approver","Viewer"]},
+    {id:"home",      label:"⊞ Home",        roles:["Apprentice"]},
+    {id:"timesheet", label:"⏱ Timesheet",  roles:["Apprentice","Approver","Viewer","Supervisor"]},
     {id:"crm",       label:"◈ CRM",         roles:["Mentor","Admin"]},
     {id:"users",     label:"★ Users",       roles:["Admin"]},
     {id:"emails",    label:"✉ Emails",      roles:["Admin","Mentor"]},
+    {id:"progress",  label:"📈 Progress",   roles:["Admin"]},
   ].filter(n=>n.roles.includes(role));
 
   const validMods=navItems.map(n=>n.id);
   // "xero" is a special admin-only module not in navItems but valid for Admin L1
-  const allValidMods = isAdmin1 ? [...validMods, "xero", "timesheet"] : [...validMods, "timesheet"];
+  const allValidMods = isAdmin1 ? [...validMods, "xero", "timesheet", "progress"] : [...validMods, "timesheet", "home"];
   // Use saved module if valid, otherwise fall back — but only for rendering (don't reset state)
   // Always persist the current module so page refresh returns to same place
-  const activeMod = allValidMods.includes(module) ? module : (role ? validMods[0] : module);
+  // Apprentices default to 'home'; other roles default to their first nav item
+  const defaultMod = role === "Apprentice" ? "home" : (validMods[0] || module);
+  const activeMod = allValidMods.includes(module) ? module : (role ? defaultMod : module);
 
   // When admin drills into an apprentice — use the full ApprenticeDetailView
   const viewingApp = viewingAppId ? users.find(u=>u.id===viewingAppId) : null;
@@ -12805,14 +18067,12 @@ export default function App() {
         <header style={{background:T.dark,height:66,padding:"0 20px",
           display:"flex",alignItems:"center",justifyContent:"space-between",
           position:"sticky",top:0,zIndex:100,boxShadow:"0 2px 16px #00000033"}}>
-          {/* Centred logo */}
-          <div style={{position:"absolute",left:"50%",transform:"translateX(-50%)",zIndex:1,pointerEvents:"none"}}>
+          <div style={{display:"flex",alignItems:"center",gap:16}}>
+            {/* Logo — left aligned */}
             <img src={KTA_LOGO} alt="KTA"
-              style={{height:44,objectFit:"contain",filter:"brightness(0) invert(1)",flexShrink:0}}
+              style={{height:40,objectFit:"contain",filter:"brightness(0) invert(1)",flexShrink:0}}
               onError={e=>{e.target.style.display="none";}}
             />
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:16}}>
             <div style={{width:1,height:28,background:"#ffffff25",flexShrink:0}} className="desktop-nav"/>
             <nav className="desktop-nav" style={{gap:6}}>
               {navItems.map(n=>{
@@ -13014,9 +18274,10 @@ export default function App() {
             ) : (
               <div>
                 <h1 style={{fontFamily:"DM Sans",fontSize:28,fontWeight:700,letterSpacing:"-.4px"}}>
-                  {activeMod==="dashboard"?"Dashboard":activeMod==="timesheet"?"Timesheet":activeMod==="crm"?"CRM":activeMod==="mentor"?"My Apprentices":"User Management"}
+                  {activeMod==="home"?`Welcome, ${currentUser.firstName||currentUser.name.split(" ")[0]}`:activeMod==="dashboard"?"Dashboard":activeMod==="timesheet"?"Timesheet":activeMod==="crm"?"CRM":activeMod==="mentor"?"My Apprentices":"User Management"}
                 </h1>
                 <p style={{fontSize:14,color:T.sub,marginTop:4}}>
+                  {activeMod==="home"&&"What would you like to do today?"}
                   {activeMod==="dashboard"&&"Overview of all apprentice timesheets"}
                   {activeMod==="timesheet"&&"Time entries — access enforced by role"}
                   {activeMod==="mentor"&&"Your apprentices, meeting reports and PPE records"}
@@ -13033,6 +18294,7 @@ export default function App() {
               viewer={currentUser}
               allUsers={users}
               entries={entries}
+              setEntries={updateEntries}
               isAdmin={true}
               canEditExpiry={true}
               onBack={()=>setViewingAppId(null)}
@@ -13044,7 +18306,7 @@ export default function App() {
               allUsers={users}
               setUsers={updateUsers}
               currentUser={currentUser}
-              onViewTimesheet={(id)=>{setViewingAppId(id);setShowAppList(false);}}
+              onViewTimesheet={(id)=>{drillTo(id);setShowAppList(false);}}
             />
           )}
           {adminAppList && showAppList==="hours" && (
@@ -13079,38 +18341,57 @@ export default function App() {
                 allUsers={users}
                 entries={entries}
                 currentUser={currentUser}
-                onViewApprentice={(id)=>setViewingAppId(id)}
-                onViewApprenticeList={()=>{setShowAppList('apprentices');setViewingAppId(null);}}
-                onViewList={(key)=>{setShowAppList(key);setViewingAppId(null);}}
+                onViewApprentice={(id)=>drillTo(id)}
+                onViewApprenticeList={()=>showListView('apprentices')}
+                onViewList={(key)=>showListView(key)}
                 onViewTimesheets={()=>navigateTo("timesheet")}
-                onViewLeave={()=>{ setShowAppList("leave"); setViewingAppId(null); }}
+                onViewLeave={()=>showListView("leave")}
                 navigateTo={navigateTo}
               />
 
-              {currentUser.email?.toLowerCase() === CONF_OWNER_EMAIL && (
+              {isConfOwner(currentUser) && (
                 <ConfidentialNotesCard currentUser={currentUser} allUsers={users}/>
               )}
             </>
           )}
+          {activeMod==="home" && role==="Apprentice" && (
+            <ApprenticeDashboard
+              currentUser={currentUser}
+              allUsers={users}
+              entries={entries}
+              setEntries={updateEntries}
+              navigateTo={navigateTo}
+              onSendMessage={async(selectedUser, message)=>{
+                await insertMessage({
+                  id: uid(),
+                  apprentice_id: currentUser.id,
+                  sender_id: currentUser.id,
+                  body: message,
+                  created_at: new Date().toISOString(),
+                }).catch(console.error);
+                await pushNotif(
+                  [selectedUser.id],
+                  "broadcast",
+                  `💬 Message from ${currentUser.name}`,
+                  message,
+                  currentUser.id,
+                  {}
+                );
+              }}
+            />
+          )}
           {activeMod==="timesheet" && (
             <>
-              {(role==="Approver"||role==="Viewer") && (
+              {(role==="Approver"||role==="Viewer"||role==="Supervisor") && (
                 <LeaveRequestsPanel currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
               )}
               <TimesheetModule currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
-              {role==="Apprentice" && (
-                <MyLeaveRequests currentUser={currentUser}/>
-              )}
-              {role==="Apprentice" && (
-                <LeaveToggleCard currentUser={currentUser} allUsers={users}/>
-              )}
-              {["Apprentice","Approver","Viewer"].includes(role) && (
+              {["Approver","Viewer"].includes(role) && (
                 <ContactUs
                   currentUser={currentUser}
                   allUsers={users}
                   onSend={async(selectedUser, message)=>{
-                    const apprenticeId = role==="Apprentice" ? currentUser.id
-                      : allUsers.find(u=>u.id===selectedUser.id&&u.role==="Apprentice")?.id || currentUser.id;
+                    const apprenticeId = allUsers.find(u=>u.id===selectedUser.id&&u.role==="Apprentice")?.id || currentUser.id;
                     await insertMessage({
                       id: uid(),
                       apprentice_id: apprenticeId,
@@ -13146,10 +18427,13 @@ export default function App() {
               })}/>
           )}
           {activeMod==="users" && role==="Admin" && (
-            <UserManagement users={users} setUsers={updateUsers} currentUser={currentUser}/>
+            <UserManagement users={users} setUsers={updateUsers} currentUser={currentUser} entries={entries}/>
           )}
           {activeMod==="emails" && (
             <EmailsModule allUsers={users} currentUser={currentUser}/>
+          )}
+          {activeMod==="progress" && role==="Admin" && (
+            <ProgressReportsModule allUsers={users} currentUser={currentUser}/>
           )}
           </>}
           {module==="xero" && isAdmin1 && (
@@ -13164,6 +18448,10 @@ export default function App() {
           )}
         </main>
       </div>
+      <KTAConfirmRoot/>
+      {typeof window!=="undefined" && new URLSearchParams(window.location.search).get("leave_result") && (
+        <LeaveResultScreen onDismiss={()=>window.history.replaceState({},"",window.location.pathname)}/>
+      )}
       {appToast&&(
         <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",
           background:appToast.ok?"#1a8a7a":"#bf2b2b",color:"#fff",
