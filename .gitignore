@@ -2,3 +2,10 @@
 .env*.local
 node_modules/
 dist/
+.gradle/
+build/
+.DS_Store
+*.backup
+supabase/.temp/
+get_token.py
+get_token.sh

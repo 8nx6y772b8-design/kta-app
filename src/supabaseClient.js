@@ -15,7 +15,8 @@ export const rowToUser = (r) => ({
   email:             r.email,
   phone:             r.phone             || '',
   role:              r.role,
-  password:          r.password,
+  // password intentionally excluded — never loaded into allUsers state
+  // fetched separately at login time via loadUserPassword()
   allocatedTo:       r.allocated_to      || [],
   trade:             r.trade             || '',
   licenceExpiry:     r.licence_expiry    || '',
@@ -46,48 +47,58 @@ export const rowToUser = (r) => ({
   siteSafeNumber:    r.site_safe_number  || '',
   reportsEmail:      r.reports_email     || '',
   company:           r.company           || '',
+  supervisorIds:     r.supervisorIds     || [],
+  isConfOwner:       r.is_conf_owner     || false,
 });
 
-export const userToRow = (u) => ({
-  id:                 u.id,
-  name:               u.name,
-  first_name:         u.firstName         || '',
-  last_name:          u.lastName          || '',
-  email:              u.email,
-  phone:              u.phone             || null,
-  role:               u.role,
-  password:           u.password,
-  allocated_to:       u.allocatedTo       || [],
-  trade:              u.trade             || null,
-  licence_expiry:     u.licenceExpiry     || null,
-  site_safe_expiry:   u.siteSafeExpiry    || null,
-  first_aid_expiry:   u.firstAidExpiry    || null,
-  address:            u.address           || null,
-  address_line2:      u.addressLine2      || null,
-  suburb:             u.suburb            || null,
-  city:               u.city              || null,
-  postcode:           u.postcode          || null,
-  approver_user_id:   u.approverUserId    || null,
-  viewer_user_id:     u.viewerUserId      || null,
-  secondary_role:     u.secondaryRole     || null,
-  admin_level:        u.adminLevel        || 1,
-  xero_employee_id:   u.xeroEmployeeId    || null,
-  overtime_type:      u.overtimeType      || null,
-  overtime_threshold: u.overtimeThreshold || null,
-  overtime_rate_id:   u.overtimeRateId    || null,
-  mentor_user_id:     u.mentorUserId      || null,
-  host_business:      u.hostBusiness      || null,
-  date_of_birth:      u.dateOfBirth       || null,
-  gender:             u.gender            || null,
-  start_date:         u.startDate         || null,
-  emergency_contact_name:         u.emergencyContactName         || null,
-  emergency_contact_phone:        u.emergencyContactPhone        || null,
-  emergency_contact_relationship: u.emergencyContactRelationship || null,
-  licence_number:     u.licenceNumber     || null,
-  site_safe_number:   u.siteSafeNumber    || null,
-  reports_email:      u.reportsEmail      || null,
-  company:            u.company           || null,
-});
+export const userToRow = (u) => {
+  const row = {
+    id:                 u.id,
+    name:               u.name,
+    first_name:         u.firstName         || '',
+    last_name:          u.lastName          || '',
+    email:              u.email,
+    phone:              u.phone             || null,
+    role:               u.role,
+    allocated_to:       u.allocatedTo       || [],
+    trade:              u.trade             || null,
+    licence_expiry:     u.licenceExpiry     || null,
+    site_safe_expiry:   u.siteSafeExpiry    || null,
+    first_aid_expiry:   u.firstAidExpiry    || null,
+    address:            u.address           || null,
+    address_line2:      u.addressLine2      || null,
+    suburb:             u.suburb            || null,
+    city:               u.city              || null,
+    postcode:           u.postcode          || null,
+    approver_user_id:   u.approverUserId    || null,
+    viewer_user_id:     u.viewerUserId      || null,
+    secondary_role:     u.secondaryRole     || null,
+    admin_level:        u.adminLevel        || 1,
+    xero_employee_id:   u.xeroEmployeeId    || null,
+    overtime_type:      u.overtimeType      || null,
+    overtime_threshold: u.overtimeThreshold || null,
+    overtime_rate_id:   u.overtimeRateId    || null,
+    mentor_user_id:     u.mentorUserId      || null,
+    host_business:      u.hostBusiness      || null,
+    date_of_birth:      u.dateOfBirth       || null,
+    gender:             u.gender            || null,
+    start_date:         u.startDate         || null,
+    emergency_contact_name:         u.emergencyContactName         || null,
+    emergency_contact_phone:        u.emergencyContactPhone        || null,
+    emergency_contact_relationship: u.emergencyContactRelationship || null,
+    licence_number:     u.licenceNumber     || null,
+    site_safe_number:   u.siteSafeNumber    || null,
+    reports_email:      u.reportsEmail      || null,
+    company:            u.company           || null,
+    "supervisorIds":    u.supervisorIds     || [],
+  };
+  // Only include password if explicitly provided — prevents accidentally
+  // clearing passwords when saving a user object loaded without the password field
+  if (u.password !== undefined && u.password !== null && u.password !== '') {
+    row.password = u.password;
+  }
+  return row;
+};
 
 export const rowToEntry = (r) => ({
   id:              r.id,
@@ -100,6 +111,7 @@ export const rowToEntry = (r) => ({
   netHours:        parseFloat(r.net_hours),
   note:            r.note             || '',
   approval:        r.approval,
+  createdAt:       r.created_at       || null,
   xeroStatus:      r.xero_status      || null,
   xeroTimesheetId: r.xero_timesheet_id|| null,
   xeroError:       r.xero_error       || null,
@@ -123,10 +135,30 @@ export const entryToRow = (e) => ({
 
 // ─── Data loaders ─────────────────────────────────────────────────────────────
 
+// Explicit column list — deliberately excludes 'password' so hashes
+// are never sent to the browser as part of the allUsers state.
+// Password is only fetched at login time via loadUserPassword().
 export const loadUsers = async () => {
   const { data, error } = await sb.from('users').select('*');
   if (error) throw error;
-  return data.map(rowToUser);
+  return data.map(r => {
+    const u = rowToUser(r);
+    // Never expose password hashes in the browser — strip after fetch
+    delete u.password;
+    return u;
+  });
+};
+
+// Fetches only the password hash for a single user at login time.
+// Never loads all password hashes into the browser.
+export const loadUserPassword = async (userId) => {
+  const { data, error } = await sb
+    .from('users')
+    .select('id,password')
+    .eq('id', userId)
+    .single();
+  if (error) return null;
+  return data?.password || null;
 };
 
 export const loadEntries = async () => {

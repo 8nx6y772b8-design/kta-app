@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "nz.org.kta.workos",
+      "sha256_cert_fingerprints": [
+        "3D:E9:04:FD:91:73:5D:24:A1:EB:6D:06:83:3A:6F:C0:79:21:73:68:B7:0A:5B:D2:BC:1C:65:13:17:0F:F5:9E"
+      ]
+    }
+  }
+]
