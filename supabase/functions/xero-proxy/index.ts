@@ -85,7 +85,16 @@ serve(async (req) => {
       const empData = await xeroGet(`${XERO_API_BASE}/Employees`, headers);
       const allEmps: any[] = empData.employees ?? empData.Employees ?? [];
       const active = allEmps
-        .filter((e: any) => !e.terminationDate && !e.endDate && (e.employeeID ?? e.EmployeeID))
+        .filter((e: any) => {
+          const status = (e.employmentStatus ?? e.EmploymentStatus ?? e.status ?? "").toString().toUpperCase();
+          const terminated = e.terminationDate ?? e.TerminationDate ?? e.endDate ?? e.EndDate ?? null;
+          // Exclude terminated employees
+          if (terminated) return false;
+          // Exclude if status explicitly says terminated/inactive
+          if (status === "TERMINATED" || status === "INACTIVE") return false;
+          // Must have an ID
+          return !!(e.employeeID ?? e.EmployeeID);
+        })
         .map((e: any) => {
           const addr = e.address ?? {};
           return {

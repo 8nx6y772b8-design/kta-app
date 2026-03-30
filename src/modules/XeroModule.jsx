@@ -322,7 +322,14 @@ serve(async (req) => {
     if (action === "getEmployees") {
       const res = await fetch(\`\${XERO_API_BASE}/Employees\`, { headers });
       const data = await res.json();
-      return new Response(JSON.stringify({ ok: true, employees: data.Employees }), { headers: cors });
+      const allEmps = data.Employees || [];
+      const active = allEmps.filter(e => {
+        const status = (e.EmploymentStatus || e.employmentStatus || "").toString().toUpperCase();
+        if (e.TerminationDate || e.terminationDate || e.EndDate || e.endDate) return false;
+        if (status === "TERMINATED" || status === "INACTIVE") return false;
+        return !!(e.EmployeeID || e.employeeID);
+      });
+      return new Response(JSON.stringify({ ok: true, employees: active }), { headers: cors });
     }
 
     return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: cors });
