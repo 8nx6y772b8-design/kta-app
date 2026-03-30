@@ -1,4 +1,4 @@
-// KTA Workforce Management — v3.7.1
+// KTA Workforce Management — v3.7.2
 // Changelog:
 //   v3.5.0 — matchApprentice: added name alias table (50+ common nickname↔legal
 //             pairs). "Billy Pilbrow" in KTA now matches "William Pilbrow" on ETCO
@@ -317,7 +317,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.1";
+const APP_VERSION = "v3.7.2";
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
 // Maps leave request types to timesheet entry types
