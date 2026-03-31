@@ -30,11 +30,14 @@ async function getAccessToken(): Promise<string> {
 }
 
 function getWeekBounds(dateStr: string) {
-  const d = new Date(dateStr + "T00:00:00");
-  const day = d.getDay();
-  const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
-  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-  return { mon, sun };
+  // Use UTC explicitly to avoid timezone shifts
+  const d = new Date(dateStr + "T12:00:00Z");
+  const day = d.getUTCDay();
+  const mon = new Date(d); mon.setUTCDate(d.getUTCDate() - ((day + 6) % 7));
+  const sun = new Date(mon); sun.setUTCDate(mon.getUTCDate() + 6);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const fmt = (dt: Date) => `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+  return { monStr: fmt(mon), sunStr: fmt(sun) };
 }
 
 async function xeroGet(url: string, headers: Record<string, string>) {
@@ -167,9 +170,7 @@ serve(async (req) => {
 
       console.log("upsertTimesheet request:", JSON.stringify({ employeeId, date, lines, toolAllowanceId, toolAllowanceHours }));
 
-      const { mon, sun } = getWeekBounds(date);
-      const monStr = mon.toISOString().slice(0, 10);
-      const sunStr = sun.toISOString().slice(0, 10);
+      const { monStr, sunStr } = getWeekBounds(date);
 
       const earningsLines = (lines as any[]).filter((l: any) => l.earningsRateId);
       const leaveLines    = (lines as any[]).filter((l: any) => l.leaveTypeId);
@@ -207,8 +208,9 @@ serve(async (req) => {
         if (createRes.ok) {
           timesheetId = createData.timesheet?.timesheetID ?? createData.Timesheet?.TimesheetID;
         } else {
-          // Already exists — Xero returns the existing timesheetID in the error body
-          const existingIdFromError = createData?.detail?.invalidObjects?.[0]?.timesheetID
+          // Already exists — try to extract the timesheetID from the error body
+          const existingIdFromError = createData?.problem?.invalidObjects?.[0]?.timesheetID
+            ?? createData?.detail?.invalidObjects?.[0]?.timesheetID
             ?? createData?.invalidObjects?.[0]?.timesheetID
             ?? null;
 
@@ -219,15 +221,30 @@ serve(async (req) => {
               method: "POST", headers, body: JSON.stringify({}),
             });
           } else {
-          // Fallback — find using filter by employeeId and startDate
-          const filter = `employeeId==${employeeId},startDate==${monStr}`;
-          const listData = await xeroGet(`${XERO_API_BASE}/Timesheets?filter=${encodeURIComponent(filter)}`, headers);
-          let allSheets: any[] = listData.timesheets ?? listData.Timesheets ?? [];
+          // Fallback — search by employeeId using NZ Payroll API query param, then filter by date
+          let allSheets: any[] = [];
+          try {
+            const listData = await xeroGet(`${XERO_API_BASE}/Timesheets?employeeId=${employeeId}`, headers);
+            allSheets = listData.timesheets ?? listData.Timesheets ?? [];
+          } catch {}
 
-          // Fallback: get all and filter manually if the filtered call returned nothing
+          // If employee-specific query returned nothing, try getting all (paginated)
           if (allSheets.length === 0) {
-            const allData = await xeroGet(`${XERO_API_BASE}/Timesheets`, headers);
-            allSheets = allData.timesheets ?? allData.Timesheets ?? [];
+            let page = 1;
+            while (page <= 10) { // safety limit
+              const pageData = await xeroGet(`${XERO_API_BASE}/Timesheets?page=${page}`, headers);
+              const pageSheets: any[] = pageData.timesheets ?? pageData.Timesheets ?? [];
+              if (pageSheets.length === 0) break;
+              allSheets.push(...pageSheets);
+              // Check if we already found the one we need
+              const found = allSheets.find((ts: any) =>
+                (ts.employeeID === employeeId || ts.EmployeeID === employeeId) &&
+                ((ts.startDate ?? ts.StartDate ?? "").startsWith(monStr))
+              );
+              if (found) break;
+              if (pageSheets.length < 100) break; // last page
+              page++;
+            }
           }
 
           const existing = allSheets.find((ts: any) =>
@@ -238,7 +255,7 @@ serve(async (req) => {
           if (!existing) {
             return new Response(JSON.stringify({
               ok: false,
-              error: `Could not create or find timesheet: ${createText}`,
+              error: `Could not create or find timesheet for employee ${employeeId} week ${monStr}`,
             }), { status: 400, headers: cors });
           }
           timesheetId = existing.timesheetID ?? existing.TimesheetID;
