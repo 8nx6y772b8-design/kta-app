@@ -341,7 +341,7 @@ const getNZHolidays = (year) => {
     const dow = dt.getDay();
     if(dow === 0) dt.setDate(d + 1);      // Sun → Mon
     else if(dow === 6) dt.setDate(d + 2); // Sat → Mon
-    h.add(dt.toISOString().slice(0, 10));
+    h.add(localISO(dt));
   };
   // Waitangi Day & Anzac Day: if on Sat/Sun move to following Monday (since 2015)
   const addWaitanziAnzac = (y, m, d) => {
@@ -349,7 +349,7 @@ const getNZHolidays = (year) => {
     const dow = dt.getDay();
     if(dow === 0) dt.setDate(d + 1);
     else if(dow === 6) dt.setDate(d + 2);
-    h.add(dt.toISOString().slice(0, 10));
+    h.add(localISO(dt));
   };
   // Fixed-date holidays
   add(year, 1, 1);   // New Year's Day
@@ -369,12 +369,12 @@ const getNZHolidays = (year) => {
   const easter = new Date(year, month-1, day); // Easter Sunday
   const gf = new Date(easter); gf.setDate(gf.getDate()-2);
   const em = new Date(easter); em.setDate(em.getDate()+1);
-  h.add(gf.toISOString().slice(0,10)); // Good Friday
-  h.add(em.toISOString().slice(0,10)); // Easter Monday
+  h.add(localISO(gf)); // Good Friday
+  h.add(localISO(em)); // Easter Monday
   // Queen's/King's Birthday — 1st Monday of June
   const kb = new Date(year, 5, 1);
   kb.setDate(1 + (8 - kb.getDay()) % 7);
-  h.add(kb.toISOString().slice(0,10));
+  h.add(localISO(kb));
   // Matariki — legislated dates (2022–2034)
   const matariki = {
     2022:"2022-06-24",2023:"2023-07-14",2024:"2024-06-28",
@@ -387,7 +387,7 @@ const getNZHolidays = (year) => {
   const ld = new Date(year, 9, 1);
   const firstMon = (8 - ld.getDay()) % 7;
   ld.setDate(1 + firstMon + 21);
-  h.add(ld.toISOString().slice(0,10));
+  h.add(localISO(ld));
   return h;
 };
 
@@ -470,7 +470,7 @@ const makeIcalAttachment = (apprenticeName, leaveType, dateFrom, dateTo, attende
   // End date for all-day events in iCal is exclusive (day after last day)
   const endDt = new Date(dateTo + "T00:00:00");
   endDt.setDate(endDt.getDate() + 1);
-  const endStr = endDt.toISOString().slice(0,10).replace(/-/g,"");
+  const endStr = localISO(endDt).replace(/-/g,"");
   const startStr = dateFrom.replace(/-/g,"");
   const now = new Date().toISOString().replace(/[-:]/g,"").slice(0,15) + "Z";
 
@@ -591,7 +591,7 @@ const generateReportPDF = (report, apprentice, mentor, snapshots=[]) => {
 
   // NZ local date
   const _nzNow = new Date(Date.now() + (13 * 60 * 60 * 1000));
-  const dateStr = _nzNow.toISOString().slice(0,10).split('-').reverse().join('/');
+  const dateStr = localISO(_nzNow).split('-').reverse().join('/');
 
   // Shared page header helper — navy banner + KTA wordmark top-left
   const pageHeader = (S, title, sub) => {
@@ -1055,7 +1055,7 @@ const localISO = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0
 const tod      = () => localISO(new Date());
 const toMin    = t => { const[h,m]=t.split(":").map(Number); return h*60+m; };
 const calcNet  = (s,e,b) => { const d=toMin(e)-toMin(s)-b; return d>0?+(d/60).toFixed(2):0; };
-const fmtD     = d => new Date(d+"T00:00:00").toLocaleDateString("en-AU",{weekday:"short",day:"numeric",month:"short"});
+const fmtD     = d => new Date(d+"T00:00:00").toLocaleDateString("en-NZ",{weekday:"short",day:"numeric",month:"short"});
 const within14  = d => { const diff=(new Date(tod())-new Date(d+"T00:00:00"))/(86400000); return diff>=0&&diff<14; };
 const weekStart = () => { const d=new Date(); d.setDate(d.getDate()-((d.getDay()+6)%7)); d.setHours(0,0,0,0); return localISO(d); };
 const withinWeek = d => d >= weekStart();
@@ -5889,7 +5889,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               <div style={{textAlign:"right",fontFamily:"DM Sans",fontWeight:700,fontSize:16,color:STAGE_C[d.stage]||T.muted}}>
                 {d.value?`$${parseFloat(d.value).toLocaleString()}`:"—"}</div>
               <Pill label={d.stage} size="sm" color={STAGE_C[d.stage]||T.muted} bg={(STAGE_C[d.stage]||T.muted)+"1a"}/>
-              <div style={{fontSize:12,color:T.muted}}>{d.closeDate?new Date(d.closeDate+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"}):"—"}</div>
+              <div style={{fontSize:12,color:T.muted}}>{d.closeDate?new Date(d.closeDate+"T00:00:00").toLocaleDateString("en-NZ",{day:"numeric",month:"short",year:"numeric"}):"—"}</div>
               {canEdit&&<button onClick={()=>{ setDeals(prev=>prev.filter(x=>x.id!==d.id)); deleteRow("crm_deals",d.id).catch(console.error); }} style={{
                 width:26,height:26,borderRadius:6,fontSize:13,background:"transparent",color:T.muted,
                 border:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}
@@ -6819,7 +6819,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
                       <div key={label} style={{display:"flex",alignItems:"center",gap:4}}>
                         <span style={{fontSize:11,fontWeight:700,color:T.muted,width:22,flexShrink:0}}>{label}</span>
                         <span style={{fontSize:12,fontWeight:700,color:c}}>
-                          {new Date(val+"T00:00:00").toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"})}
+                          {new Date(val+"T00:00:00").toLocaleDateString("en-NZ",{day:"numeric",month:"short",year:"numeric"})}
                           {c===T.red&&<span style={{marginLeft:3}}>⚠</span>}
                         </span>
                       </div>
@@ -8038,7 +8038,7 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
                       wordBreak:"break-word",whiteSpace:"pre-wrap"}}>{n.message}</div>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:6,flexWrap:"wrap",gap:4}}>
                       <div style={{fontSize:11,color:T.muted}}>
-                        {n.created_at ? new Date(n.created_at).toLocaleString("en-AU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : "Just now"}
+                        {n.created_at ? new Date(n.created_at).toLocaleString("en-NZ",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}) : "Just now"}
                       </div>
                       {n.created_by&&n.type!=="reply"&&(
                         <button onClick={e=>{e.stopPropagation();setReplyId(replyId===n.id?null:n.id);setReplyText("");}}
@@ -10689,7 +10689,7 @@ function ProgressSnapshotPanel({ apprenticeId, canDelete=false }) {
 }
 
 function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
-  const today = new Date().toISOString().slice(0,10);
+  const today = tod();
   const approver = allUsers.find(u=>
     u.id === apprentice.approverUserId ||
     (u.role==="Approver" && (u.allocatedTo||[]).includes(apprentice.id))
@@ -10746,7 +10746,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
       if(draft) {
         setDraftId(draft.id);
         setForm({
-          date:             draft.date || new Date().toISOString().slice(0,10),
+          date:             draft.date || tod(),
           location:         draft.location || "",
           offJobProgress:   draft.off_job_progress || "",
           onJobProgress:    draft.on_job_progress || "",
@@ -11081,7 +11081,7 @@ function PastMeetingReports({apprentice, allUsers, canEdit=false, isAdmin1=false
           id: uid(),
           apprentice_id: apprentice.id,
           mentor_id: null,
-          date: nameDate || new Date().toISOString().slice(0,10),
+          date: nameDate || tod(),
           status: 'imported',
           comments_feedback: `Imported: ${file.name}`,
           pdf_attachment: b64,
@@ -11292,7 +11292,7 @@ const PPE_CATALOGUE = [
 ];
 
 function PPEAllocation({apprentice, mentor, canEdit=false}) {
-  const today = new Date().toISOString().slice(0,10);
+  const today = tod();
   const blankRows = () => PPE_CATALOGUE.map(p=>({item:p.item, size:"", qtyReq:"", qtyIssued:"", notes:"", approved:""}));
 
   const [requests, setRequests]         = useState([]);
@@ -11358,7 +11358,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
       </td>
       <td colspan="2" style="padding:10px 16px">
         <div style="font-size:11px;color:#8fa0b8;text-transform:uppercase;letter-spacing:.7px;font-weight:700;margin-bottom:3px">Date Issued</div>
-        <div style="font-size:14.3px;color:#0d1b2e">${dateIssuedVal ? fmtD(dateIssuedVal) : fmtD(new Date().toISOString().slice(0,10))}</div>
+        <div style="font-size:14.3px;color:#0d1b2e">${dateIssuedVal ? fmtD(dateIssuedVal) : fmtD(tod())}</div>
       </td>
     </tr>
   </table>
