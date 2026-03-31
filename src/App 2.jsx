@@ -1,4 +1,4 @@
-// KTA Workforce Management — v3.7.2
+// KTA Workforce Management — v3.7.1
 // Changelog:
 //   v3.5.0 — matchApprentice: added name alias table (50+ common nickname↔legal
 //             pairs). "Billy Pilbrow" in KTA now matches "William Pilbrow" on ETCO
@@ -317,7 +317,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.2";
+const APP_VERSION = "v3.7.1";
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
 // Maps leave request types to timesheet entry types
@@ -13395,10 +13395,10 @@ const submitEntryToXero = async (entry, apprentice, allEntries=[]) => {
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    if(!res.ok) return { ok: false, error: data.error || `HTTP ${res.status}`, status: res.status };
+    if(!res.ok) return { ok: false, error: data.error || `HTTP ${res.status}` };
     return { ok: true, timesheetId: data.timesheetId };
   } catch(e) {
-    return { ok: false, error: e.message, status: 0 };
+    return { ok: false, error: e.message };
   }
 };
 
@@ -14112,8 +14112,6 @@ serve(async (req) => {
                         for(let attempt=1; attempt<=retries; attempt++) {
                           const res = await submitEntryToXero(e, app, entries);
                           if(res.ok) return res;
-                          // Don't retry 4xx errors — they are permanent failures
-                          if(res.status && res.status >= 400 && res.status < 500) return res;
                           if(attempt < retries) await sleep(delayMs * attempt); // back-off: 3s, 6s
                         }
                         return { ok:false, error:"Failed after 3 attempts" };

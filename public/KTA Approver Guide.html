@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KTA App — Approver Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Libre+Baskerville:wght@400;700&display=swap');
+
+  :root {
+    --teal: #1a8a7a;
+    --teal-light: #e8f5f3;
+    --navy: #1a2233;
+    --orange: #b86e1a;
+    --orange-light: #fff7ed;
+    --red: #bf2b2b;
+    --red-light: #fff0f0;
+    --gray: #666;
+    --gray-light: #f5f5f5;
+    --border: #e0e0e0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    color: #222;
+    line-height: 1.7;
+    background: #fafafa;
+    padding: 0;
+  }
+
+  .cover {
+    background: var(--navy);
+    color: #fff;
+    padding: 60px 40px;
+    text-align: center;
+  }
+  .cover h1 {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 36px;
+    margin-bottom: 12px;
+  }
+  .cover p {
+    font-size: 16px;
+    opacity: 0.8;
+  }
+
+  .container {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  h2 {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 24px;
+    color: var(--navy);
+    margin: 48px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--teal);
+  }
+
+  h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--navy);
+    margin: 28px 0 10px;
+  }
+
+  p, li { font-size: 15px; }
+  p { margin-bottom: 12px; }
+
+  ol, ul {
+    margin: 0 0 16px 24px;
+  }
+  li {
+    margin-bottom: 8px;
+  }
+
+  .step-box {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--teal);
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin: 16px 0;
+  }
+  .step-box.warn {
+    border-left-color: var(--orange);
+    background: var(--orange-light);
+  }
+  .step-box.danger {
+    border-left-color: var(--red);
+    background: var(--red-light);
+  }
+  .step-box strong {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 15px;
+  }
+  .step-box p { margin-bottom: 6px; }
+
+  .icon-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 3px 10px;
+    border-radius: 6px;
+  }
+  .icon-label.approve { background: var(--teal-light); color: var(--teal); }
+  .icon-label.decline { background: var(--red-light); color: var(--red); }
+  .icon-label.pending { background: var(--orange-light); color: var(--orange); }
+
+  .screenshot-placeholder {
+    background: var(--gray-light);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    text-align: center;
+    color: var(--gray);
+    font-size: 13px;
+    margin: 12px 0;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  th {
+    background: var(--navy);
+    color: #fff;
+    text-align: left;
+    padding: 10px 14px;
+    font-weight: 600;
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  tr:nth-child(even) td { background: #f9f9f9; }
+
+  .toc {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px 28px;
+    margin: 24px 0 40px;
+  }
+  .toc h3 { margin-top: 0; }
+  .toc ol { margin-bottom: 0; }
+  .toc a {
+    color: var(--teal);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .toc a:hover { text-decoration: underline; }
+
+  .kbd {
+    background: #eee;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 13px;
+    font-family: monospace;
+  }
+
+  .flow-diagram {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 16px 0;
+    flex-wrap: wrap;
+  }
+  .flow-step {
+    background: #fff;
+    border: 2px solid var(--teal);
+    border-radius: 24px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+  }
+  .flow-step.active { background: var(--teal); color: #fff; }
+  .flow-arrow { font-size: 18px; color: var(--teal); }
+
+  .faq dt {
+    font-weight: 700;
+    margin-top: 16px;
+    font-size: 15px;
+  }
+  .faq dd {
+    margin: 4px 0 12px 0;
+    font-size: 14px;
+    color: #444;
+  }
+
+  @media print {
+    .cover { padding: 40px 20px; }
+    .container { padding: 20px; }
+    h2 { break-before: page; }
+  }
+
+  @media (max-width: 600px) {
+    .cover h1 { font-size: 26px; }
+    .container { padding: 24px 16px 60px; }
+    h2 { font-size: 20px; }
+    .flow-diagram { flex-direction: column; }
+    .flow-arrow { transform: rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ───────── COVER ───────── -->
+<div class="cover">
+  <h1>KTA Approver Guide</h1>
+  <p>Everything you need to manage timesheets and leave requests for your apprentices.</p>
+</div>
+
+<div class="container">
+
+<!-- ───────── TABLE OF CONTENTS ───────── -->
+<div class="toc">
+  <h3>Contents</h3>
+  <ol>
+    <li><a href="#logging-in">Logging In</a></li>
+    <li><a href="#your-home-screen">Your Home Screen</a></li>
+    <li><a href="#approving-timesheets">Approving Timesheets</a></li>
+    <li><a href="#declining-timesheets">Declining Timesheets</a></li>
+    <li><a href="#approving-via-email">Approving via Email</a></li>
+    <li><a href="#leave-requests">Leave Requests</a></li>
+    <li><a href="#contacting-kta">Contacting KTA</a></li>
+    <li><a href="#quick-reference">Quick Reference</a></li>
+    <li><a href="#faq">FAQ &amp; Troubleshooting</a></li>
+  </ol>
+</div>
+
+<!-- ───────── 1. LOGGING IN ───────── -->
+<h2 id="logging-in">1. Logging In</h2>
+
+<ol>
+  <li>Open <strong>crmkta.com</strong> in your browser (Chrome, Safari, Edge, or Firefox).</li>
+  <li>Enter your <strong>email address</strong> and <strong>password</strong>.</li>
+  <li>Click <strong>Sign In →</strong>.</li>
+</ol>
+
+<div class="step-box">
+  <strong>💡 Tip — Save to Home Screen</strong>
+  <p>On your phone, tap <em>Share → Add to Home Screen</em> (iPhone) or the install banner (Android) to open the app like a native application.</p>
+</div>
+
+<h3>Forgot Your Password?</h3>
+<ol>
+  <li>On the login screen, tap <strong>Forgot your password?</strong></li>
+  <li>Enter your email address and tap <strong>Send Reset Link</strong>.</li>
+  <li>Check your inbox for the reset email and follow the link to create a new password.</li>
+</ol>
+
+<!-- ───────── 2. YOUR HOME SCREEN ───────── -->
+<h2 id="your-home-screen">2. Your Home Screen</h2>
+
+<p>When you log in, you'll land on the <strong>Timesheet</strong> screen. This is your main workspace. At the top you'll see four summary cards:</p>
+
+<table>
+  <tr><th>Card</th><th>What It Shows</th></tr>
+  <tr><td>Today (mine)</td><td>Hours logged today across your apprentices</td></tr>
+  <tr><td>This Week (mine)</td><td>Total hours this week</td></tr>
+  <tr><td>Visible Entries</td><td>Total number of entries you can see</td></tr>
+  <tr><td>Pending Approval</td><td>Entries waiting for your action</td></tr>
+</table>
+
+<p>Below the summary cards, each of your apprentices appears in their own <strong>card</strong>, showing their name, hours breakdown, and any entries needing approval.</p>
+
+<!-- ───────── 3. APPROVING TIMESHEETS ───────── -->
+<h2 id="approving-timesheets">3. Approving Timesheets</h2>
+
+<p>When an apprentice submits their timesheet entries, a yellow <strong>"Pending Approval"</strong> banner appears on their card.</p>
+
+<h3>Approve a Full Week</h3>
+<ol>
+  <li>Find the apprentice's card on your home screen.</li>
+  <li>In the yellow banner, you'll see a button like:<br>
+    <span class="icon-label approve">✓ Approve week ending 29/03/2026 (5 entries · 40h)</span>
+  </li>
+  <li>Click the button.</li>
+  <li>A confirmation dialog will ask: <em>"Approve week ending 29/03/2026 for [Name]?"</em></li>
+  <li>Click <strong>Confirm</strong>.</li>
+  <li>Done! The apprentice receives an email confirming their entries are approved.</li>
+</ol>
+
+<div class="step-box">
+  <strong>💡 Approve Multiple Weeks at Once</strong>
+  <p>If an apprentice has entries from more than one week, an <strong>"Approve all pending"</strong> button appears. Click it to approve everything in one go.</p>
+</div>
+
+<h3>Approve a Single Entry</h3>
+<p>You can also approve entries one at a time:</p>
+<ol>
+  <li>Find the entry row in the apprentice's table.</li>
+  <li>On the right-hand side, click the green <span class="icon-label approve">✓</span> button.</li>
+  <li>The entry status changes to <span class="icon-label approve">✓ Approved</span>.</li>
+</ol>
+
+<!-- ───────── 4. DECLINING TIMESHEETS ───────── -->
+<h2 id="declining-timesheets">4. Declining Timesheets</h2>
+
+<p>If an entry has incorrect hours or details, you can decline it so the apprentice can fix and resubmit.</p>
+
+<ol>
+  <li>Find the entry row in the apprentice's table.</li>
+  <li>Click the red <span class="icon-label decline">✕</span> button on the right.</li>
+  <li>The entry is marked <span class="icon-label decline">✕ Declined</span>.</li>
+  <li>The apprentice receives an email notification asking them to correct and resubmit.</li>
+</ol>
+
+<div class="step-box warn">
+  <strong>⚠️ Changed Your Mind?</strong>
+  <p>If you declined an entry by mistake, you can click the <strong>↺</strong> (re-approve) button that appears next to declined entries.</p>
+</div>
+
+<!-- ───────── 5. APPROVING VIA EMAIL ───────── -->
+<h2 id="approving-via-email">5. Approving via Email</h2>
+
+<p>You don't always need to open the app. When an apprentice submits entries, you receive an email with <strong>one-click approve/decline buttons</strong>.</p>
+
+<ol>
+  <li>Open the notification email from KTA.</li>
+  <li>Review the entry details (date, hours, type, note).</li>
+  <li>Click <strong>✓ Approve</strong> or <strong>✕ Decline</strong> directly in the email.</li>
+  <li>You'll see a confirmation page. That's it — no login required.</li>
+</ol>
+
+<div class="step-box warn">
+  <strong>⚠️ Email Links Expire</strong>
+  <p>The approve/decline links in emails are valid for <strong>7 days</strong>. After that, you'll need to approve through the app.</p>
+</div>
+
+<!-- ───────── 6. LEAVE REQUESTS ───────── -->
+<h2 id="leave-requests">6. Leave Requests</h2>
+
+<p>When an apprentice requests leave, it follows a <strong>two-stage approval process</strong>:</p>
+
+<div class="flow-diagram">
+  <div class="flow-step">📤 Apprentice Submits</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step active">✓ You Approve</div>
+  <span class="flow-arrow">→</span>
+  <div class="flow-step">★ KTA Final Approval</div>
+</div>
+
+<p>You are <strong>Stage 1</strong>. Once you approve, it goes to KTA for final sign-off.</p>
+
+<h3>Viewing Leave Requests</h3>
+<p>Leave requests appear in the <strong>Leave Requests panel</strong> on your Timesheet screen. Requests are organised into tabs:</p>
+
+<table>
+  <tr><th>Tab</th><th>Meaning</th></tr>
+  <tr><td>⏳ Pending Approver</td><td>Waiting for <strong>your</strong> decision</td></tr>
+  <tr><td>✓ Awaiting KTA</td><td>You approved — waiting for KTA final approval</td></tr>
+  <tr><td>★ Fully Approved</td><td>Both you and KTA have approved</td></tr>
+  <tr><td>✕ Declined</td><td>Request was declined</td></tr>
+</table>
+
+<h3>Approving a Leave Request</h3>
+<ol>
+  <li>Go to the <strong>⏳ Pending Approver</strong> tab.</li>
+  <li>Review the request card — it shows the apprentice's name, leave type (Annual, Sick, Bereavement, or Other), and the date range.</li>
+  <li>Click the <span class="icon-label approve">✓ Approve</span> button.</li>
+  <li>The request moves to the <strong>✓ Awaiting KTA</strong> tab.</li>
+  <li>The apprentice receives an email confirming your approval.</li>
+</ol>
+
+<div class="step-box">
+  <strong>💡 What Happens After You Approve?</strong>
+  <p>Once KTA gives final approval, the system automatically creates 8-hour timesheet entries for each working day (Monday–Friday) within the leave dates. Public holidays are excluded.</p>
+</div>
+
+<h3>Declining a Leave Request</h3>
+<ol>
+  <li>Click the <span class="icon-label decline">✕ Decline</span> button on the leave request card.</li>
+  <li>A form appears asking for a <strong>reason</strong> — this is required.</li>
+  <li>Type your reason and click <strong>Confirm Decline</strong>.</li>
+  <li>The apprentice receives an email with your reason.</li>
+</ol>
+
+<!-- ───────── 7. CONTACTING KTA ───────── -->
+<h2 id="contacting-kta">7. Contacting KTA</h2>
+
+<p>Need to get in touch with the KTA team? Use the <strong>Contact Us</strong> section at the bottom of your Timesheet screen.</p>
+
+<ol>
+  <li>Scroll down to the <strong>Contact Us</strong> card.</li>
+  <li>Tap on a team member to select them (they'll have a teal checkmark ✓).</li>
+  <li>Choose how to contact them:
+    <ul>
+      <li><strong>📱 Call</strong> — opens their phone number</li>
+      <li><strong>✉️ Email</strong> — opens their email address</li>
+      <li><strong>💬 Message in App</strong> — send an in-app message</li>
+    </ul>
+  </li>
+</ol>
+
+<h3>Sending an In-App Message</h3>
+<ol>
+  <li>Select a team member and click <strong>💬 Message in App</strong>.</li>
+  <li>Type your message in the text box.</li>
+  <li>Click <strong>Send Message</strong>.</li>
+  <li>You'll see a green confirmation: <em>"Message sent!"</em></li>
+</ol>
+
+<!-- ───────── 8. QUICK REFERENCE ───────── -->
+<h2 id="quick-reference">8. Quick Reference</h2>
+
+<h3>Status Guide</h3>
+<table>
+  <tr><th>Status</th><th>Colour</th><th>Meaning</th></tr>
+  <tr><td>Draft</td><td style="color:var(--gray)">Grey</td><td>Apprentice is still editing — not submitted yet</td></tr>
+  <tr><td>Submitted</td><td style="color:var(--orange)">Orange</td><td>Waiting for your approval</td></tr>
+  <tr><td>Approved</td><td style="color:var(--teal)">Teal</td><td>You've approved the entry</td></tr>
+  <tr><td>Declined</td><td style="color:var(--red)">Red</td><td>You've sent it back for correction</td></tr>
+</table>
+
+<h3>Button Guide</h3>
+<table>
+  <tr><th>Button</th><th>Action</th></tr>
+  <tr><td><span class="icon-label approve">✓</span></td><td>Approve an entry or leave request</td></tr>
+  <tr><td><span class="icon-label decline">✕</span></td><td>Decline an entry or leave request</td></tr>
+  <tr><td>↺</td><td>Re-approve a previously declined entry</td></tr>
+  <tr><td>Approve week ending…</td><td>Approve all entries for that week at once</td></tr>
+  <tr><td>Approve all pending</td><td>Approve all outstanding entries across all weeks</td></tr>
+</table>
+
+<h3>Entry Types</h3>
+<table>
+  <tr><th>Type</th><th>Description</th></tr>
+  <tr><td>Normal Hours</td><td>Standard working hours</td></tr>
+  <tr><td>Overtime</td><td>Hours worked beyond normal schedule</td></tr>
+  <tr><td>Annual Leave</td><td>Paid leave / holiday</td></tr>
+  <tr><td>Sick Leave</td><td>Absence due to illness</td></tr>
+  <tr><td>Bereavement Leave</td><td>Leave for bereavement</td></tr>
+</table>
+
+<!-- ───────── 9. FAQ ───────── -->
+<h2 id="faq">9. FAQ &amp; Troubleshooting</h2>
+
+<dl class="faq">
+
+<dt>I can't see any apprentices on my screen?</dt>
+<dd>You can only see apprentices who have been allocated to you. Contact KTA if you believe an apprentice is missing from your list.</dd>
+
+<dt>An apprentice says they submitted but I don't see anything?</dt>
+<dd>Ask the apprentice to check that they actually tapped <strong>Submit</strong> (not just saved as draft). You can also try refreshing the page.</dd>
+
+<dt>I approved by mistake — can I undo it?</dt>
+<dd>Once approved, the entry cannot be un-approved from the app. Contact KTA and they can update the entry status for you.</dd>
+
+<dt>I declined by mistake — can I fix it?</dt>
+<dd>Yes. A <strong>↺</strong> (re-approve) button appears next to declined entries. Click it to approve the entry.</dd>
+
+<dt>The email approve/decline links aren't working?</dt>
+<dd>Email links expire after <strong>7 days</strong>. If expired, log into the app at <strong>crmkta.com</strong> and approve from there.</dd>
+
+<dt>The page looks outdated or isn't loading properly?</dt>
+<dd>Try a hard refresh: press <span class="kbd">Cmd + Shift + R</span> (Mac) or <span class="kbd">Ctrl + Shift + R</span> (Windows). This clears the cached version and loads the latest update.</dd>
+
+<dt>I forgot my password?</dt>
+<dd>On the login screen, tap <strong>Forgot your password?</strong>, enter your email, and follow the reset link sent to your inbox.</dd>
+
+<dt>Can I approve timesheets from my phone?</dt>
+<dd>Yes! The app works on all devices. You can also approve directly from notification emails without logging in.</dd>
+
+<dt>What happens after I approve a leave request?</dt>
+<dd>Your approval is Stage 1. The request is forwarded to KTA for final approval. Once KTA approves, timesheet entries are automatically created for the leave days.</dd>
+
+</dl>
+
+<!-- ───────── FOOTER ───────── -->
+<div style="margin-top:60px; padding-top:20px; border-top:1px solid var(--border); text-align:center; color:var(--gray); font-size:13px;">
+  KTA Approver Guide · v3.7.2 · Updated March 2026
+</div>
+
+</div>
+</body>
+</html>

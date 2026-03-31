@@ -158,6 +158,15 @@ serve(async (req) => {
     // ── Upsert timesheet entry ─────────────────────────────────────────────
     if (action === "upsertTimesheet") {
       const { employeeId, date, lines, toolAllowanceId, toolAllowanceHours } = body;
+
+      // Validate required fields
+      if (!employeeId) return new Response(JSON.stringify({ ok: false, error: "Missing employeeId" }), { status: 400, headers: cors });
+      if (!date)       return new Response(JSON.stringify({ ok: false, error: "Missing date" }), { status: 400, headers: cors });
+      if (!lines || !Array.isArray(lines) || lines.length === 0)
+        return new Response(JSON.stringify({ ok: false, error: "Missing or empty lines array" }), { status: 400, headers: cors });
+
+      console.log("upsertTimesheet request:", JSON.stringify({ employeeId, date, lines, toolAllowanceId, toolAllowanceHours }));
+
       const { mon, sun } = getWeekBounds(date);
       const monStr = mon.toISOString().slice(0, 10);
       const sunStr = sun.toISOString().slice(0, 10);
@@ -256,9 +265,15 @@ serve(async (req) => {
           });
           const lineText = await lineRes.text();
           if (!lineRes.ok) {
+            let reason = `Timesheet line failed (${lineRes.status})`;
+            try {
+              const errData = JSON.parse(lineText);
+              const fields = errData?.problem?.invalidFields ?? [];
+              if (fields.length > 0) reason = fields.map((f: any) => `${f.name}: ${f.reason}`).join("; ");
+            } catch {}
             return new Response(JSON.stringify({
               ok: false,
-              error: `Timesheet line failed (${lineRes.status}): ${lineText}`,
+              error: reason,
             }), { status: 400, headers: cors });
           }
         }
@@ -277,9 +292,16 @@ serve(async (req) => {
         });
         const leaveText = await leaveRes.text();
         if (!leaveRes.ok) {
+          // Extract human-readable reason from Xero error
+          let reason = `Leave application failed (${leaveRes.status})`;
+          try {
+            const errData = JSON.parse(leaveText);
+            const fields = errData?.problem?.invalidFields ?? [];
+            if (fields.length > 0) reason = fields.map((f: any) => f.reason).join("; ");
+          } catch {}
           return new Response(JSON.stringify({
             ok: false,
-            error: `Leave application failed (${leaveRes.status}): ${leaveText}`,
+            error: reason,
           }), { status: 400, headers: cors });
         }
       }
