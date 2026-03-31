@@ -49,6 +49,7 @@ export const rowToUser = (r) => ({
   company:           r.company           || '',
   supervisorIds:     r.supervisorIds     || [],
   isConfOwner:       r.is_conf_owner     || false,
+  mustChangePassword: r.must_change_password || false,
 });
 
 export const userToRow = (u) => {
@@ -92,6 +93,10 @@ export const userToRow = (u) => {
     company:            u.company           || null,
     "supervisorIds":    u.supervisorIds     || [],
   };
+  // Only include must_change_password if explicitly provided
+  if (u.mustChangePassword !== undefined) {
+    row.must_change_password = u.mustChangePassword;
+  }
   // Only include password if explicitly provided — prevents accidentally
   // clearing passwords when saving a user object loaded without the password field
   if (u.password !== undefined && u.password !== null && u.password !== '') {

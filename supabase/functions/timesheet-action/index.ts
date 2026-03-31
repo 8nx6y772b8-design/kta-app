@@ -151,7 +151,7 @@ async function sendMail(to: string, subject: string, htmlBody: string) {
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-client-info",
 };
 
 const html = (body: string, status = 200) =>
@@ -167,7 +167,7 @@ serve(async (req) => {
   if(req.method === "OPTIONS") return new Response(null, {headers: {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-client-info",
   }});
 
   const sec = Deno.env.get(SECRET_KEY);

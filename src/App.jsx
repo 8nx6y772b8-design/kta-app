@@ -1,5 +1,35 @@
-// KTA Workforce Management — v3.7.2
+// KTA Workforce Management — v3.7.4
 // Changelog:
+//   v3.7.4 — Progress report parser fixes (3 bugs)
+//             BUG 1: Skills Learner Progression Report overall_percent was returning
+//             the raw credit count instead of a percentage. "Confirmed 16 42" was
+//             stored as 16% instead of (16/42)*100 = 38.1%. Fixed in both parser
+//             instances (ProgressSnapshotPanel + ProgressReportsModule).
+//             BUG 2: Trainee Progress Report section percentages (Skills Week,
+//             Off-Job L3/L4, On-Job Core/Spec) were always null because the
+//             summarySection() block was gated with else if (!isTraineeProgressReport).
+//             EarnLearn TPR reports have the same "Label  N  N  XX.X%" format as
+//             Account reports. Guard removed in both parser instances.
+//             BUG 3: Duplicate detection was matching on YYYY-MM only, flagging any
+//             new upload in the same calendar month as a duplicate even if the
+//             report_date was different. Changed to exact date match so updated
+//             reports for the same month come through as ready.
+//   v3.7.3 — Password reset: forgot-password emails a temp password, force change
+//             on next login. Login fix: passwords now fetched securely via
+//             loadUserPassword() instead of from browser-cached users array.
+//             Requires SQL: ALTER TABLE users ADD COLUMN must_change_password boolean DEFAULT false;
+//             Xero edge function history (xero-proxy — deploy separately):
+//             v5: UTC date parsing to prevent timezone day-shift on week calculation.
+//             v6: ValidationErrors check — Xero returns HTTP 200 even on failure;
+//             errors now surface correctly in the KTA Xero error tooltip.
+//             v7: Fixed root causes of "Could not create or find timesheet":
+//             (1) Wrong GET filter syntax — Xero Payroll NZ requires
+//             filter=employeeId==UUID, not ?employeeId=UUID as query params.
+//             (2) Missing payrollCalendarID on POST — now fetched from employee
+//             record and included on timesheet creation.
+//             (3) Wrong request body format — Xero Payroll NZ uses camelCase
+//             { timesheet: {...} } with per-day lines { date, numberOfUnits,
+//             earningsRateID }, not the AU-style NumberOfUnits[7] array format.
 //   v3.5.0 — matchApprentice: added name alias table (50+ common nickname↔legal
 //             pairs). "Billy Pilbrow" in KTA now matches "William Pilbrow" on ETCO
 //             report. Works both directions — stored nickname matched against legal
@@ -310,14 +340,14 @@
 //             reimbursements optgroup added to earnings rate mapping selects
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, deleteAllRows, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, sb } from "./supabaseClient";
+import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, deleteAllRows, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, loadUserPassword, sb } from "./supabaseClient";
 // Email via Microsoft Graph (payroll@kta.org.nz)
 
 const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/email-proxy";
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.2";
+const APP_VERSION = "v3.7.4";
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
 // Maps leave request types to timesheet entry types
@@ -1506,54 +1536,168 @@ function LoginScreen({users, onLogin}) {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotMsg, setForgotMsg]     = useState(null); // {ok, text}
   const [forgotSending, setForgotSending] = useState(false);
+  // Force-change-password state
+  const [changePwUser, setChangePwUser] = useState(null); // user who must change password
+  const [newPw, setNewPw]               = useState("");
+  const [confirmPw, setConfirmPw]       = useState("");
+  const [changePwErr, setChangePwErr]   = useState("");
+  const [changePwLoading, setChangePwLoading] = useState(false);
+  const [showNewPw, setShowNewPw]       = useState(false);
+
+  const generateTempPassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+    return Array.from(crypto.getRandomValues(new Uint8Array(8)))
+      .map(b => chars[b % chars.length]).join("");
+  };
 
   const sendReset = async () => {
     if(!forgotEmail.trim()) { setForgotMsg({ok:false,text:"Please enter your email address."}); return; }
     const user = users.find(u=>u.email.toLowerCase()===forgotEmail.trim().toLowerCase());
     setForgotSending(true);
-    // Small delay so it feels like something is happening regardless
-    await new Promise(r=>setTimeout(r,800));
-    setForgotSending(false);
     if(!user) {
-      // Don't reveal whether email exists — always show success for security
-      setForgotMsg({ok:true,text:"If that email is registered, a reset link has been sent."});
+      // Don't reveal whether email exists — small delay then show generic success
+      await new Promise(r=>setTimeout(r,800));
+      setForgotSending(false);
+      setForgotMsg({ok:true,text:"If that email is registered, a temporary password has been sent."});
       return;
     }
-    // Send reset email via Graph API
+    // Generate temp password, hash it, save to DB with mustChangePassword flag
     try {
+      const tempPw = generateTempPassword();
+      const hashed = await hashPw(tempPw);
+      await upsertUser({...user, password: hashed, mustChangePassword: true});
       await sendKTAEmail({
         to: user.email,
-        subject: "KTA Password Reset Request",
+        subject: "KTA Temporary Password",
         html: `<p>Hi ${user.name},</p>
 <p>A password reset was requested for your KTA account.</p>
-<p>Please contact your administrator to have your password reset.</p>
-<p>If you did not request this, please ignore this email.</p>
+<p>Your temporary password is: <strong style="font-size:16px;letter-spacing:1px">${tempPw}</strong></p>
+<p>Please log in and you will be prompted to set a new password.</p>
+<p>If you did not request this, please contact your administrator immediately.</p>
 <p style="color:#888;font-size:13.2px">KTA Workforce Management · payroll@kta.org.nz</p>`,
       });
-      setForgotMsg({ok:true,text:"Reset instructions have been sent to your email."});
+      setForgotMsg({ok:true,text:"A temporary password has been sent to your email."});
     } catch(e) {
-      setForgotMsg({ok:true,text:"If that email is registered, a reset link has been sent."});
+      setForgotMsg({ok:true,text:"If that email is registered, a temporary password has been sent."});
     }
+    setForgotSending(false);
   };
 
-  const attempt = () => {
+  const attempt = async () => {
     setErr("");
     if(!email.trim()||!pw) { setErr("Please enter your email and password."); return; }
     setLoading(true);
     const user = users.find(u=>u.email.toLowerCase()===email.trim().toLowerCase());
     if(!user) { setErr("No account found with that email address."); setLoading(false); trigShake(); return; }
-    checkPw(pw, user.password).then(async (ok) => {
+    try {
+      const storedPw = await loadUserPassword(user.id);
+      const ok = await checkPw(pw, storedPw);
       if(!ok) { setErr("Incorrect password. Please try again."); setLoading(false); trigShake(); return; }
       // Transparently upgrade legacy XOR hash to SHA-256 on successful login
-      if(user.password && !user.password.includes(":")) {
+      if(storedPw && !storedPw.includes(":")) {
         const newHash = await hashPw(pw);
         upsertUser({...user, password: newHash}).catch(()=>{});
       }
+      // Check if user must change their password (temp password login)
+      if(user.mustChangePassword) {
+        setChangePwUser(user);
+        setLoading(false);
+        return;
+      }
       onLogin(user.id);
-    }).catch(()=>{ setErr("Login error. Please try again."); setLoading(false); });
+    } catch(e) {
+      setErr("Login error. Please try again.");
+    }
+    setLoading(false);
+  };
+
+  const handleChangePassword = async () => {
+    setChangePwErr("");
+    if(!newPw || !confirmPw) { setChangePwErr("Please fill in both fields."); return; }
+    if(newPw.length < 6) { setChangePwErr("Password must be at least 6 characters."); return; }
+    if(newPw !== confirmPw) { setChangePwErr("Passwords do not match."); return; }
+    setChangePwLoading(true);
+    try {
+      const hashed = await hashPw(newPw);
+      await upsertUser({...changePwUser, password: hashed, mustChangePassword: false});
+      onLogin(changePwUser.id);
+    } catch(e) {
+      setChangePwErr("Failed to update password. Please try again.");
+    }
+    setChangePwLoading(false);
   };
 
   const trigShake = () => { setShaking(true); setTimeout(()=>setShaking(false),400); };
+
+  // ── Force Change Password Screen ──────────────────────────────────────────
+  if(changePwUser) return (
+    <div className="login-wrap">
+      <div className="login-left fi">
+        <div style={{position:"relative",zIndex:1,maxWidth:420}}>
+          <div style={{marginBottom:52}}>
+            <img src={KTA_LOGO} alt="Kiwi Trade Apprentices"
+              style={{height:60,objectFit:"contain",filter:"brightness(0) invert(1)"}}
+              onError={e=>{e.target.style.display="none";}} />
+          </div>
+          <h1 style={{fontSize:38,fontWeight:900,lineHeight:1.1,marginBottom:12,fontFamily:"DM Sans,sans-serif",color:"#fff"}}>
+            Set New Password
+          </h1>
+          <p className="login-left-sub" style={{fontSize:16,color:"rgba(255,255,255,.65)",lineHeight:1.6}}>
+            Your temporary password has been accepted.<br/>Please choose a new password to continue.
+          </p>
+        </div>
+      </div>
+      <div className="login-right fi">
+        <div className="login-card" style={{maxWidth:420,width:"100%"}}>
+          <h2 style={{fontSize:24,fontWeight:900,color:T.ink,marginBottom:6,fontFamily:"DM Sans,sans-serif"}}>
+            Change Password
+          </h2>
+          <p style={{fontSize:14,color:T.sub,marginBottom:24,fontFamily:"DM Sans,sans-serif"}}>
+            Hi {changePwUser.name}, please set a new password (minimum 6 characters).
+          </p>
+
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:6}}>New Password</div>
+            <div className="login-input-wrap">
+              <span className="login-icon">🔒</span>
+              <input type={showNewPw?"text":"password"} placeholder="Enter new password"
+                value={newPw} onChange={e=>{setNewPw(e.target.value);setChangePwErr("");}}
+                onKeyDown={e=>e.key==="Enter"&&handleChangePassword()}
+              />
+              <button onClick={()=>setShowNewPw(!showNewPw)} style={{
+                background:"none",border:"none",cursor:"pointer",fontSize:16,padding:"0 8px",color:T.sub
+              }}>{showNewPw?"🙈":"👁"}</button>
+            </div>
+          </div>
+
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:13,fontWeight:700,color:T.ink,marginBottom:6}}>Confirm Password</div>
+            <div className="login-input-wrap">
+              <span className="login-icon">🔒</span>
+              <input type={showNewPw?"text":"password"} placeholder="Confirm new password"
+                value={confirmPw} onChange={e=>{setConfirmPw(e.target.value);setChangePwErr("");}}
+                onKeyDown={e=>e.key==="Enter"&&handleChangePassword()}
+              />
+            </div>
+          </div>
+
+          {changePwErr&&(
+            <div style={{background:T.redL,border:`1px solid ${T.red}44`,borderRadius:8,
+              padding:"9px 13px",marginBottom:12,fontSize:13,color:T.red}}>
+              {changePwErr}
+            </div>
+          )}
+
+          <button onClick={handleChangePassword} disabled={changePwLoading} style={{
+            width:"100%",padding:"12px",background:T.accent,color:"#fff",
+            border:`1.5px solid ${T.accentD}`,borderRadius:9,fontSize:15,fontWeight:700,
+            cursor:changePwLoading?"default":"pointer",fontFamily:"DM Sans,sans-serif",
+            opacity:changePwLoading?0.6:1,transition:"all .15s"
+          }}>{changePwLoading?"Updating…":"Set New Password →"}</button>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="login-wrap">
@@ -1656,7 +1800,7 @@ function LoginScreen({users, onLogin}) {
             <div className="fi">
               <div style={{fontSize:14,fontWeight:700,color:T.ink,marginBottom:8}}>Reset Password</div>
               <div style={{fontSize:13,color:T.sub,marginBottom:12,lineHeight:1.5}}>
-                Enter your email and we'll send a reset link to your inbox.
+                Enter your email and we'll send a temporary password to your inbox.
               </div>
               <div className="login-input-wrap" style={{marginBottom:10}}>
                 <span className="login-icon">✉</span>
@@ -1678,7 +1822,7 @@ function LoginScreen({users, onLogin}) {
                   border:`1.5px solid ${T.accentD}`,borderRadius:9,fontSize:14,fontWeight:700,
                   cursor:forgotSending?"default":"pointer",fontFamily:"DM Sans,sans-serif",
                   opacity:forgotSending?0.6:1,transition:"all .15s"
-                }}>{forgotSending?"Sending…":"Send Reset Link"}</button>
+                }}>{forgotSending?"Sending…":"Send Temporary Password"}</button>
                 <button onClick={()=>{setForgotMode(false);setForgotEmail("");setForgotMsg("");}} style={{
                   padding:"10px 16px",background:"none",color:T.sub,
                   border:`1.5px solid ${T.border}`,borderRadius:9,fontSize:14,fontWeight:700,
@@ -10428,7 +10572,7 @@ function ProgressSnapshotPanel({ apprenticeId, canDelete=false }) {
         const startDate = new Date(`${startM[3]}-${startM[2].padStart(2,"0")}-${startM[1].padStart(2,"0")}`);
         const now = report_date ? new Date(report_date) : new Date();
         months_in_training = Math.max(1, Math.round((now - startDate) / (1000 * 60 * 60 * 24 * 30.44)));
-        programme_duration = null;
+        programme_duration = 42; // Standard NZ trade qualification duration
       }
     } else {
       const progM = text.match(/Active\s+[\d/]+\s+[\d/]+\s+(\d+)\s+(\d+)/);
@@ -10439,9 +10583,12 @@ function ProgressSnapshotPanel({ apprenticeId, canDelete=false }) {
     let overall_percent = null;
 
     if (isSkills) {
-      // "Confirmed  16  42" — the first number is % complete, given directly
-      const pctM = text.match(/Confirmed\s+(\d+)\s+\d+/i);
-      if (pctM) overall_percent = n(pctM[1]);
+      // "Confirmed  16  42" — credits achieved / total credits required → percentage
+      const pctM = text.match(/Confirmed\s+(\d+)\s+(\d+)/i);
+      if (pctM) {
+        const achieved = n(pctM[1]), total = n(pctM[2]);
+        if (total > 0) overall_percent = Math.round((achieved / total) * 1000) / 10;
+      }
     } else if (isETCO) {
       let totalRequired = 0, totalAchieved = 0;
       const sectionMatches = [...text.matchAll(/Credits Achieved\s+[\d.]+%\s+(\d+)\s+of\s+(\d+)/gi)];
@@ -10510,7 +10657,8 @@ function ProgressSnapshotPanel({ apprenticeId, canDelete=false }) {
       off_job_l4_percent   = etcoSection("NZCEE Year 3");
       on_job_core_percent  = etcoSection("On-Job Mandatory");
       on_job_spec_percent  = etcoSection("On-Job Domestic") ?? etcoSection("On-Job Industrial");
-    } else if (!isTraineeProgressReport) {
+    } else {
+      // Works for both EarnLearn Account format AND Trainee Progress Report
       const summarySection = (label) => {
         const re = new RegExp(label + "\\s+(\\d+)\\s+(\\d+)\\s+([\\d.]+)%", "i");
         const m = text.match(re);
@@ -14112,30 +14260,100 @@ serve(async (req) => {
                         return !!a?.xeroEmployeeId && !!(settings.earningsRates?.[e.type]) && settings.edgeFunctionUrl && settings.tenantId && e.xeroStatus!=="submitting";
                       });
                       const sleep = ms => new Promise(r=>setTimeout(r,ms));
-                      const submitWithRetry = async (e, app, retries=3, delayMs=3000) => {
-                        for(let attempt=1; attempt<=retries; attempt++) {
-                          const res = await submitEntryToXero(e, app, entries);
-                          if(res.ok) return res;
-                          // Don't retry 4xx errors — they are permanent failures
-                          if(res.status && res.status >= 400 && res.status < 500) return res;
-                          if(attempt < retries) await sleep(delayMs * attempt); // back-off: 3s, 6s
-                        }
-                        return { ok:false, error:"Failed after 3 attempts" };
-                      };
+
+                      // Group entries by employee (xeroEmployeeId)
+                      const byEmployee = {};
                       for(const e of submittable) {
                         const app = allUsers.find(u=>u.id===e.userId);
-                        onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"submitting"}:x));
-                        const res = await submitWithRetry(e, app);
-                        if(res.ok){
-                          const status = res.skipped ? "skipped" : "submitted";
-                          await updateRow("entries", e.id, { xero_status:status, xero_timesheet_id:res.timesheetId||null }).catch(console.error);
-                          onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:status,xeroTimesheetId:res.timesheetId}:x));
-                        } else {
-                          await updateRow("entries", e.id, { xero_status:"error" }).catch(console.error);
-                          onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"error",xeroError:res.error}:x));
+                        if(!app?.xeroEmployeeId) continue;
+                        const key = app.xeroEmployeeId;
+                        if(!byEmployee[key]) byEmployee[key] = { app, entries: [] };
+                        byEmployee[key].entries.push(e);
+                      }
+
+                      // Load Xero settings once
+                      let xeroSettings = {};
+                      try {
+                        const {data} = await sb.from("app_settings").select("value").eq("key","xero_settings").single();
+                        if(data?.value) xeroSettings = JSON.parse(data.value);
+                      } catch {}
+                      const { edgeFunctionUrl, tenantId, earningsRates={} } = xeroSettings;
+
+                      // Submit one employee at a time (batch all their entries)
+                      for(const [empId, group] of Object.entries(byEmployee)) {
+                        const { app, entries: empEntries } = group;
+                        // Mark all this employee's entries as submitting
+                        const empEntryIds = empEntries.map(e=>e.id);
+                        onUpdateEntries(prev=>prev.map(x=>empEntryIds.includes(x.id)?{...x,xeroStatus:"submitting"}:x));
+
+                        // Build batch entries payload
+                        const batchEntries = [];
+                        for(const e of empEntries) {
+                          if(e.type === "Public Holiday") {
+                            // Skip — mark as skipped immediately
+                            await updateRow("entries", e.id, { xero_status:"skipped" }).catch(console.error);
+                            onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"skipped"}:x));
+                            continue;
+                          }
+                          const mappedValue = earningsRates[e.type];
+                          if(!mappedValue) continue;
+                          const isLeaveMapping = mappedValue.startsWith("leave:");
+                          const mappedId = mappedValue.startsWith("rate:") || mappedValue.startsWith("leave:")
+                            ? mappedValue.split(":")[1] : mappedValue;
+                          const splits = calcOvertimeSplit(e, app, entries);
+                          const lines = splits.map(s => ({
+                            earningsRateId: s.isOvertime ? app.overtimeRateId : (isLeaveMapping ? null : mappedId),
+                            leaveTypeId: (!s.isOvertime && isLeaveMapping) ? mappedId : null,
+                            hours: s.hours,
+                            isOvertime: s.isOvertime,
+                          }));
+                          const totalHours = lines.reduce((s,l)=>s+l.hours,0);
+                          batchEntries.push({
+                            date: e.date,
+                            entryId: e.id,
+                            lines,
+                            toolAllowanceId: xeroSettings.toolAllowanceReimbursementId || null,
+                            toolAllowanceHours: xeroSettings.toolAllowanceReimbursementId ? totalHours : 0,
+                          });
                         }
-                        // 2 second pause between submissions to avoid Xero API rate limiting
-                        await sleep(2000);
+
+                        if(batchEntries.length === 0) continue;
+
+                        // Send batch request — retry on 5xx
+                        let res = { ok:false, error:"" };
+                        for(let attempt=1; attempt<=3; attempt++) {
+                          try {
+                            const r = await fetch(edgeFunctionUrl, {
+                              method:"POST",
+                              headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+                              body: JSON.stringify({
+                                action: "upsertTimesheetBatch",
+                                tenantId,
+                                employeeId: empId,
+                                entries: batchEntries,
+                              }),
+                            });
+                            const data = await r.json();
+                            if(r.ok) { res = { ok:true, timesheetId:data.timesheetId }; break; }
+                            res = { ok:false, error: data.error || `HTTP ${r.status}`, status: r.status };
+                            if(r.status >= 400 && r.status < 500 && r.status !== 429) break; // don't retry 4xx
+                          } catch(err) { res = { ok:false, error:err.message, status:0 }; }
+                          if(attempt<3) await sleep(5000*attempt);
+                        }
+
+                        // Update all entries for this employee
+                        for(const be of batchEntries) {
+                          if(res.ok) {
+                            await updateRow("entries", be.entryId, { xero_status:"submitted", xero_timesheet_id:res.timesheetId||null }).catch(console.error);
+                            onUpdateEntries(prev=>prev.map(x=>x.id===be.entryId?{...x,xeroStatus:"submitted",xeroTimesheetId:res.timesheetId}:x));
+                          } else {
+                            await updateRow("entries", be.entryId, { xero_status:"error" }).catch(console.error);
+                            onUpdateEntries(prev=>prev.map(x=>x.id===be.entryId?{...x,xeroStatus:"error",xeroError:res.error}:x));
+                          }
+                        }
+
+                        // Pause between employees to respect Xero rate limits
+                        await sleep(4000);
                       }
                       setSubmittingAll(false);
                     }}
@@ -16424,6 +16642,7 @@ function ProgressReportsModule({ allUsers, currentUser }) {
         const startDate = new Date(`${startM[3]}-${startM[2].padStart(2,"0")}-${startM[1].padStart(2,"0")}`);
         const now = report_date ? new Date(report_date) : new Date();
         months_in_training = Math.max(1, Math.round((now - startDate) / (1000*60*60*24*30.44)));
+        programme_duration = 42; // Standard NZ trade qualification duration
       }
     } else {
       const progM = text.match(/Active\s+[\d/]+\s+[\d/]+\s+(\d+)\s+(\d+)/);
@@ -16433,8 +16652,12 @@ function ProgressReportsModule({ allUsers, currentUser }) {
     // Overall percent
     let overall_percent = null;
     if (isSkills) {
-      const pctM = text.match(/Confirmed\s+(\d+)\s+\d+/i);
-      if (pctM) overall_percent = n(pctM[1]);
+      // "Confirmed  16  42" — credits achieved / total required → percentage
+      const pctM = text.match(/Confirmed\s+(\d+)\s+(\d+)/i);
+      if (pctM) {
+        const achieved = n(pctM[1]), total = n(pctM[2]);
+        if (total > 0) overall_percent = Math.round((achieved / total) * 1000) / 10;
+      }
     } else if (isETCO) {
       let totalRequired = 0, totalAchieved = 0;
       const sectionMatches = [...text.matchAll(/Credits Achieved\s+[\d.]+%\s+(\d+)\s+of\s+(\d+)/gi)];
@@ -16488,7 +16711,8 @@ function ProgressReportsModule({ allUsers, currentUser }) {
       off_job_l4_percent  = etcoSection("NZCEE Year 3");
       on_job_core_percent = etcoSection("On-Job Mandatory");
       on_job_spec_percent = etcoSection("On-Job Domestic") ?? etcoSection("On-Job Industrial");
-    } else if (!isTraineeProgressReport) {
+    } else {
+      // Works for both EarnLearn Account format AND Trainee Progress Report
       const summarySection = (label) => {
         const re = new RegExp(label + "\\s+([\\d]+)\\s+([\\d]+)\\s+([\\d.]+)%", "i");
         const m = text.match(re);
@@ -16559,6 +16783,11 @@ function ProgressReportsModule({ allUsers, currentUser }) {
           s.report_date?.slice(0,7) === parsed.report_date?.slice(0,7)
         );
 
+        // Only flag as duplicate if the report_date is identical to the day
+        // (same month but different day = updated report, mark ready to allow update)
+        const isDuplicate = existingSnap &&
+          existingSnap.report_date === parsed.report_date;
+
         const queueRow = {
           id: tempId,
           apprentice_id:       apprentice.id,
@@ -16575,7 +16804,7 @@ function ProgressReportsModule({ allUsers, currentUser }) {
           on_job_spec_percent: parsed.on_job_spec_percent,
           booklets_percent:    parsed.booklets_percent,
           pdf_data:            pdfData,
-          status:              existingSnap ? "duplicate" : "ready",
+          status:              isDuplicate ? "duplicate" : "ready",
           queued_at:           new Date().toISOString(),
           queued_by:           currentUser.id,
         };
