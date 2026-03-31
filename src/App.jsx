@@ -1991,7 +1991,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   const hasRole = (r) => role===r || (role==="Admin" && currentUser.secondaryRole===r);
 
   const isAdmin1ts = role==="Admin" && Number(currentUser?.adminLevel ?? 1)===1;
-  const isXeroLocked = (entry) => entry.xeroStatus==="submitted" && !isAdmin1ts;
+  const isXeroLocked = (entry) => (entry.xeroStatus==="submitted"||entry.xeroStatus==="skipped") && !isAdmin1ts;
 
   const canEdit=(entry)=>{
     if(isXeroLocked(entry)) return false;
@@ -2042,8 +2042,8 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   const pending=entries.filter(e=>vids.includes(e.userId)&&e.approval==="submitted").length;
 
   // Xero-submitted entries: processed and locked from edit/delete (except Admin L1)
-  const processedCount = shown.filter(e=>e.xeroStatus==="submitted").length;
-  const activeShown = shown.filter(e=>e.xeroStatus!=="submitted");
+  const processedCount = shown.filter(e=>e.xeroStatus==="submitted"||e.xeroStatus==="skipped").length;
+  const activeShown = shown.filter(e=>e.xeroStatus!=="submitted"&&e.xeroStatus!=="skipped");
 
   const handleSave=(data, approvalOverride=null)=>{
     // When admin adds on behalf of an apprentice, use the apprentice's ID not the admin's
@@ -13353,6 +13353,9 @@ const submitEntryToXero = async (entry, apprentice, allEntries=[]) => {
   if(!tenantId)         return { ok: false, error: "Xero Tenant ID not configured." };
   if(!apprentice.xeroEmployeeId) return { ok: false, error: `No Xero Employee ID for ${apprentice.name}` };
 
+  // Public Holidays are calculated automatically by Xero — skip submission
+  if(entry.type === "Public Holiday") return { ok: true, skipped: true };
+
   const mappedValue = earningsRates[entry.type]; // e.g. "rate:abc123" or "leave:def456" or bare ID
   if(!mappedValue) return { ok: false, error: `No Xero rate/leave type mapped for "${entry.type}"` };
 
@@ -13430,7 +13433,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
   const approvedEntries = entries.filter(e=>e.approval==="approved")
     .sort((a,b)=>b.date.localeCompare(a.date));
   const pendingXero = approvedEntries.filter(e=>!e.xeroStatus||e.xeroStatus==="error");
-  const submittedXero = approvedEntries.filter(e=>e.xeroStatus==="submitted");
+  const submittedXero = approvedEntries.filter(e=>e.xeroStatus==="submitted"||e.xeroStatus==="skipped");
 
   const ss = (k,v) => setSettings(s=>({...s,[k]:v}));
   const saveSettings = async () => {
@@ -14124,8 +14127,9 @@ serve(async (req) => {
                         onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"submitting"}:x));
                         const res = await submitWithRetry(e, app);
                         if(res.ok){
-                          await updateRow("entries", e.id, { xero_status:"submitted", xero_timesheet_id:res.timesheetId||null }).catch(console.error);
-                          onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"submitted",xeroTimesheetId:res.timesheetId}:x));
+                          const status = res.skipped ? "skipped" : "submitted";
+                          await updateRow("entries", e.id, { xero_status:status, xero_timesheet_id:res.timesheetId||null }).catch(console.error);
+                          onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:status,xeroTimesheetId:res.timesheetId}:x));
                         } else {
                           await updateRow("entries", e.id, { xero_status:"error" }).catch(console.error);
                           onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"error",xeroError:res.error}:x));
@@ -14189,8 +14193,9 @@ serve(async (req) => {
                               onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"submitting"}:x));
                               const res = await submitEntryToXero(e, app, entries);
                               if(res.ok){
-                                await updateRow("entries", e.id, { xero_status: "submitted", xero_timesheet_id: res.timesheetId||null }).catch(console.error);
-                                onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"submitted",xeroTimesheetId:res.timesheetId}:x));
+                                const status = res.skipped ? "skipped" : "submitted";
+                                await updateRow("entries", e.id, { xero_status: status, xero_timesheet_id: res.timesheetId||null }).catch(console.error);
+                                onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:status,xeroTimesheetId:res.timesheetId}:x));
                               } else {
                                 await updateRow("entries", e.id, { xero_status: "error" }).catch(console.error);
                                 onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"error",xeroError:res.error}:x));
