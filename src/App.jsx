@@ -1051,14 +1051,15 @@ const arrayBufferToBase64 = (buf) => {
   }
   return btoa(binary);
 };
-const tod      = () => new Date().toISOString().slice(0,10);
+const localISO = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const tod      = () => localISO(new Date());
 const toMin    = t => { const[h,m]=t.split(":").map(Number); return h*60+m; };
 const calcNet  = (s,e,b) => { const d=toMin(e)-toMin(s)-b; return d>0?+(d/60).toFixed(2):0; };
 const fmtD     = d => new Date(d+"T00:00:00").toLocaleDateString("en-AU",{weekday:"short",day:"numeric",month:"short"});
 const within14  = d => { const diff=(new Date(tod())-new Date(d+"T00:00:00"))/(86400000); return diff>=0&&diff<14; };
-const weekStart = () => { const d=new Date(); d.setDate(d.getDate()-((d.getDay()+6)%7)); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); };
+const weekStart = () => { const d=new Date(); d.setDate(d.getDate()-((d.getDay()+6)%7)); d.setHours(0,0,0,0); return localISO(d); };
 const withinWeek = d => d >= weekStart();
-const daysAgoStr = n => { const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); };
+const daysAgoStr = n => { const d=new Date(); d.setDate(d.getDate()-n); return localISO(d); };
 
 // Send email notification to approvers when apprentice submits timesheets
 // Sign a timesheet action token
@@ -1108,8 +1109,8 @@ const notifyApprovers = async (apprentice, approvers, entries) => {
         const day = d.getDay();
         const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
         const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-        const monStr = mon.toISOString().slice(0,10);
-        const sunStr = sun.toISOString().slice(0,10);
+        const monStr = localISO(mon);
+        const sunStr = localISO(sun);
         const hoursBefore = entries
           .filter(x => x.date >= monStr && x.date <= sunStr && x.date < e.date)
           .reduce((s,x) => s + x.netHours, 0);
@@ -2036,7 +2037,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   const myE=entries.filter(e=>e.userId===currentUser.id);
   const todayEntries=myE.filter(e=>e.date===tod());
   const todayH=todayEntries.length>0?todayEntries.reduce((a,e)=>a+e.netHours,0).toFixed(2):null;
-  const ws=()=>{const d=new Date();d.setDate(d.getDate()-((d.getDay()+6)%7));return d.toISOString().slice(0,10);};
+  const ws=()=>{const d=new Date();d.setDate(d.getDate()-((d.getDay()+6)%7));return localISO(d);};
   const weekH=myE.filter(e=>e.date>=ws()).reduce((a,e)=>a+e.netHours,0).toFixed(2);
   const pending=entries.filter(e=>vids.includes(e.userId)&&e.approval==="submitted").length;
 
@@ -2069,7 +2070,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
     if(entry){
       const apprentice=allUsers.find(u=>u.id===entry.userId);
       // Check if all submitted entries for that week are now approved (including this one)
-      const getWk=d=>{const dt=new Date(d+"T00:00:00");dt.setDate(dt.getDate()-((dt.getDay()+6)%7));return dt.toISOString().slice(0,10);};
+      const getWk=d=>{const dt=new Date(d+"T00:00:00");dt.setDate(dt.getDate()-((dt.getDay()+6)%7));return localISO(dt);};
       const weekKey=getWk(entry.date);
       const weekEntries=entries.filter(e=>e.userId===entry.userId&&getWk(e.date)===weekKey);
       const nowAllApproved=weekEntries.every(e=>e.id===id?true:e.approval==="approved");
@@ -2487,10 +2488,10 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
 
         if(role==="Apprentice") {
           const today = tod();
-          const getMonday = (ds) => { const d=new Date(ds+"T00:00:00"); d.setDate(d.getDate()-((d.getDay()+6)%7)); return d.toISOString().slice(0,10); };
+          const getMonday = (ds) => { const d=new Date(ds+"T00:00:00"); d.setDate(d.getDate()-((d.getDay()+6)%7)); return localISO(d); };
           const thisMon = getMonday(today);
-          const d1=new Date(thisMon+"T00:00:00"); d1.setDate(d1.getDate()-7); const lastMon=d1.toISOString().slice(0,10);
-          const d2=new Date(thisMon+"T00:00:00"); d2.setDate(d2.getDate()-1); const lastSun=d2.toISOString().slice(0,10);
+          const d1=new Date(thisMon+"T00:00:00"); d1.setDate(d1.getDate()-7); const lastMon=localISO(d1);
+          const d2=new Date(thisMon+"T00:00:00"); d2.setDate(d2.getDate()-1); const lastSun=localISO(d2);
           const myEntries = shown.filter(e=>e.userId===currentUser.id);
           const thisWeekE = myEntries.filter(e=>e.date>=thisMon);
           const lastWeekE = myEntries.filter(e=>e.date>=lastMon&&e.date<=lastSun);
@@ -5910,7 +5911,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
 // ─────────────────────────────────────────────────────────────────────────────
 function WeeklyHoursList({allUsers, entries}) {
   const {sortFn:whlSort, ColHeader:WHLCol} = useSort("name","asc");
-  const ws = ()=>{ const d=new Date(); d.setDate(d.getDate()-((d.getDay()+6)%7)); return d.toISOString().slice(0,10); };
+  const ws = ()=>{ const d=new Date(); d.setDate(d.getDate()-((d.getDay()+6)%7)); return localISO(d); };
   const wsDate = ws();
   const apprentices = [...allUsers.filter(u=>u.role==="Apprentice")].sort(whlSort);
   const weekEntries = entries.filter(e=>e.date>=wsDate);
@@ -6090,7 +6091,7 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
               const d = new Date(e.date + "T00:00:00");
               const day = d.getDay();
               const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
-              const weekKey = mon.toISOString().slice(0,10);
+              const weekKey = localISO(mon);
               if (!weeks[weekKey]) weeks[weekKey] = [];
               weeks[weekKey].push(e);
             });
@@ -7521,7 +7522,7 @@ function ChargeableHoursCard({ allUsers, entries }) {
     const d = new Date();
     d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
     d.setHours(0,0,0,0);
-    return d.toISOString().slice(0,10);
+    return localISO(d);
   })();
 
   // Week picker state
@@ -7531,7 +7532,7 @@ function ChargeableHoursCard({ allUsers, entries }) {
   const weekEnd = (() => {
     const d = new Date(weekStart + "T00:00:00");
     d.setDate(d.getDate() + 6);
-    return d.toISOString().slice(0,10);
+    return localISO(d);
   })();
 
   const fmtD = iso => { const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
@@ -7539,12 +7540,12 @@ function ChargeableHoursCard({ allUsers, entries }) {
   const prevWeek = () => {
     const d = new Date(weekStart + "T00:00:00");
     d.setDate(d.getDate() - 7);
-    setWeekStart(d.toISOString().slice(0,10));
+    setWeekStart(localISO(d));
   };
   const nextWeek = () => {
     const d = new Date(weekStart + "T00:00:00");
     d.setDate(d.getDate() + 7);
-    const next = d.toISOString().slice(0,10);
+    const next = localISO(d);
     if (next <= wsDate) setWeekStart(next);
   };
   const isCurrentWeek = weekStart === wsDate;
@@ -7722,7 +7723,7 @@ function ChargeableHoursCard({ allUsers, entries }) {
 function AdminDashboard({allUsers, entries, onViewApprentice, onViewApprenticeList, onViewList, onViewTimesheets, onViewLeave, currentUser, navigateTo}) {
   const apprentices = allUsers.filter(u=>u.role==="Apprentice");
   const myLevel = Number(currentUser?.adminLevel ?? 1);
-  const wsStart = ()=>{ const d=new Date(); d.setDate(d.getDate()-((d.getDay()+6)%7)); return d.toISOString().slice(0,10); };
+  const wsStart = ()=>{ const d=new Date(); d.setDate(d.getDate()-((d.getDay()+6)%7)); return localISO(d); };
   const ws = wsStart();
 
   // Global stats
@@ -13311,8 +13312,8 @@ const calcOvertimeSplit = (entry, apprentice, allEntries, displayOnly=false) => 
     const day = d.getDay();
     const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
     const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-    const monStr = mon.toISOString().slice(0,10);
-    const sunStr = sun.toISOString().slice(0,10);
+    const monStr = localISO(mon);
+    const sunStr = localISO(sun);
 
     // Sum all approved/submitted entries this week for this apprentice BEFORE this entry
     const weekEntries = allEntries.filter(e =>
