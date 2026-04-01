@@ -1,6 +1,7 @@
-// KTA Xero Proxy — Supabase Edge Function v7
+// KTA Xero Proxy — Supabase Edge Function v8
 // Deploy: supabase functions deploy xero-proxy
 // Secrets needed: XERO_CLIENT_ID, XERO_CLIENT_SECRET
+// Uses Xero NZ Payroll v2 API — POST/PUT/DELETE per-line endpoints
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
@@ -31,20 +32,19 @@ function parseUTCDate(dateStr: string): Date {
   return new Date(Date.UTC(y, m - 1, d));
 }
 
-// Xero /Date(ms)/ format using UTC midnight
-function toXeroDate(d: Date): string {
-  return `/Date(${Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())})/`;
-}
-
-// Extract human-readable ValidationErrors from Xero response
+// Extract human-readable error from Xero response
 function extractError(data: any): string | null {
-  const ts = data?.timesheets?.[0] ?? data?.Timesheets?.[0];
-  if (!ts) {
-    // Top-level error
-    if (data?.detail) return data.detail;
-    if (data?.title) return data.title;
-    return null;
+  // NZ Payroll v2 problem format
+  if (data?.problem) {
+    const p = data.problem;
+    const fields = (p.invalidFields ?? []).map((f: any) => `${f.name}: ${f.reason}`).join("; ");
+    return fields || p.detail || p.title || null;
   }
+  // Legacy format
+  if (data?.detail) return data.detail;
+  if (data?.title) return data.title;
+  const ts = data?.timesheets?.[0] ?? data?.Timesheets?.[0];
+  if (!ts) return null;
   const errs: string[] = [];
   const ve = ts.validationErrors ?? ts.ValidationErrors ?? [];
   if (Array.isArray(ve)) ve.forEach((e: any) => { if (e?.message || e?.Message) errs.push(e.message ?? e.Message); });
@@ -71,188 +71,230 @@ serve(async (req) => {
       "Accept":         "application/json",
     };
 
+    // ── Shared helpers ───────────────────────────────────────────────────────
+
+    // Calculate Mon-Sun week boundaries for a given date
+    function getWeekBounds(dateStr: string) {
+      const d   = parseUTCDate(dateStr);
+      const day = d.getUTCDay(); // 0=Sun…6=Sat
+      const mon = new Date(d); mon.setUTCDate(d.getUTCDate() - ((day + 6) % 7));
+      const sun = new Date(mon); sun.setUTCDate(mon.getUTCDate() + 6);
+      return { monStr: mon.toISOString().slice(0, 10), sunStr: sun.toISOString().slice(0, 10) };
+    }
+
+    // Search for timesheets around a date range, return the best match
+    async function findTimesheetForDates(empId: string, monStr: string, sunStr: string, targetDates: string[]) {
+      const searchStart = new Date(parseUTCDate(monStr)); searchStart.setUTCDate(searchStart.getUTCDate() - 7);
+      const searchEnd   = new Date(parseUTCDate(sunStr)); searchEnd.setUTCDate(searchEnd.getUTCDate() + 7);
+      const filter = `employeeId==${empId}`;
+      const url = `${XERO_API_BASE}/Timesheets?filter=${encodeURIComponent(filter)}&startDate=${searchStart.toISOString().slice(0,10)}&endDate=${searchEnd.toISOString().slice(0,10)}`;
+      console.log(`[search] GET ${url}`);
+      const res = await fetch(url, { headers: hdrs });
+      const data = await res.json();
+      if (!res.ok) { console.error("[search] failed:", res.status); return null; }
+      const tsList = data.timesheets ?? data.Timesheets ?? [];
+      console.log(`[search] found ${tsList.length} timesheets`);
+      for (const ts of tsList) {
+        const s  = (ts.startDate ?? ts.StartDate ?? "");
+        const e  = (ts.endDate   ?? ts.EndDate   ?? "");
+        const id = ts.timesheetID ?? ts.TimesheetID;
+        const st = ts.status ?? ts.Status;
+        console.log(`[search]   ts ${id} period=${s}..${e} status=${st}`);
+      }
+      // Exact match: find timesheet whose period covers any of our target dates
+      for (const ts of tsList) {
+        const tsStart = (ts.startDate ?? ts.StartDate ?? "").slice(0, 10);
+        const tsEnd   = (ts.endDate   ?? ts.EndDate   ?? "").slice(0, 10);
+        for (const td of targetDates) {
+          if (td >= tsStart && td <= tsEnd) {
+            console.log(`[search] exact match: ${ts.timesheetID ?? ts.TimesheetID} covers ${td}`);
+            return ts;
+          }
+        }
+      }
+      // Fallback: use any Draft timesheet
+      if (tsList.length > 0) {
+        const draft = tsList.find((ts: any) => (ts.status ?? ts.Status) === "Draft");
+        if (draft) {
+          console.log(`[search] no exact match — using Draft ${draft.timesheetID ?? draft.TimesheetID} as fallback`);
+          return draft;
+        }
+      }
+      return null;
+    }
+
+    // POST /Timesheets to create an empty timesheet (Xero NZ v2: body is raw object, no wrapper)
+    async function createEmptyTimesheet(empId: string, calId: string | null, startDate: string, endDate: string) {
+      const postBody: Record<string, unknown> = {
+        payrollCalendarID: calId,
+        employeeID: empId,
+        startDate,
+        endDate,
+      };
+      console.log(`[create] POST /Timesheets: ${JSON.stringify(postBody)}`);
+      const res = await fetch(`${XERO_API_BASE}/Timesheets`, {
+        method: "POST", headers: hdrs, body: JSON.stringify(postBody),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error(`[create] POST failed (${res.status}):`, JSON.stringify(data));
+        return { ok: false as const, status: res.status, error: extractError(data) ?? JSON.stringify(data) };
+      }
+      const tsId = data.timesheet?.timesheetID ?? data.Timesheet?.TimesheetID;
+      console.log(`[create] created timesheet ${tsId}`);
+      return { ok: true as const, timesheetId: tsId };
+    }
+
+    // POST /Timesheets/{id}/lines to add a single line
+    async function addTimesheetLine(tsId: string, line: Record<string, unknown>) {
+      const lineBody: Record<string, unknown> = {
+        date:           line.date,
+        earningsRateID: line.earningsRateID,
+        numberOfUnits:  line.numberOfUnits,
+      };
+      // If it's a leave type instead
+      if (line.leaveTypeID) {
+        delete lineBody.earningsRateID;
+        (lineBody as any).leaveTypeID = line.leaveTypeID;
+      }
+      const res = await fetch(`${XERO_API_BASE}/Timesheets/${tsId}/lines`, {
+        method: "POST", headers: hdrs, body: JSON.stringify(lineBody),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error(`[addLine] POST failed (${res.status}):`, JSON.stringify(data));
+        return { ok: false, error: extractError(data) ?? `Add line failed (${res.status})` };
+      }
+      const lineId = data.timesheetLine?.timesheetLineID ?? data.TimesheetLine?.TimesheetLineID;
+      return { ok: true, lineId };
+    }
+
+    // DELETE /Timesheets/{tsId}/lines/{lineId}
+    async function deleteTimesheetLine(tsId: string, lineId: string) {
+      const res = await fetch(`${XERO_API_BASE}/Timesheets/${tsId}/lines/${lineId}`, {
+        method: "DELETE", headers: hdrs,
+      });
+      if (!res.ok) console.error(`[deleteLine] DELETE failed (${res.status})`);
+      return res.ok;
+    }
+
+    // Add lines to a timesheet, deleting conflicting existing lines first
+    async function upsertLines(tsId: string, newLines: Record<string, unknown>[]) {
+      // GET full timesheet to see existing lines
+      const getRes = await fetch(`${XERO_API_BASE}/Timesheets/${tsId}`, { headers: hdrs });
+      const getData = await getRes.json();
+      if (!getRes.ok) {
+        console.error(`[upsertLines] GET failed (${getRes.status})`);
+        return { ok: false, error: `GET timesheet failed (${getRes.status})` };
+      }
+      const fullTs = getData.timesheet ?? getData.Timesheet ?? getData;
+      const existingLines: any[] = fullTs.timesheetLines ?? fullTs.TimesheetLines ?? [];
+      console.log(`[upsertLines] timesheet ${tsId} has ${existingLines.length} existing lines`);
+
+      // Build set of date+rate keys we're adding
+      const newKeys = new Set(newLines.map((l: any) => {
+        const d = String(l.date).slice(0, 10);
+        const r = l.earningsRateID || l.leaveTypeID || "";
+        return `${d}|${r}`;
+      }));
+
+      // Delete conflicting existing lines (same date + same rate)
+      for (const el of existingLines) {
+        const elDate = (el.date ?? el.Date ?? "").slice(0, 10);
+        const elRate = el.earningsRateID ?? el.EarningsRateID ?? el.leaveTypeID ?? el.LeaveTypeID ?? "";
+        const elId   = el.timesheetLineID ?? el.TimesheetLineID;
+        if (newKeys.has(`${elDate}|${elRate}`) && elId) {
+          console.log(`[upsertLines] deleting conflicting line ${elId} (${elDate} ${elRate})`);
+          await deleteTimesheetLine(tsId, elId);
+        }
+      }
+
+      // Add new lines
+      const errors: string[] = [];
+      for (const line of newLines) {
+        const result = await addTimesheetLine(tsId, line);
+        if (!result.ok) errors.push(result.error ?? "unknown");
+        else console.log(`[upsertLines] added line ${result.lineId}`);
+      }
+      if (errors.length > 0) return { ok: false, error: errors.join("; ") };
+      return { ok: true };
+    }
+
     // ── upsertTimesheet ──────────────────────────────────────────────────────
     if (action === "upsertTimesheet") {
       const { lines, toolAllowanceId, toolAllowanceHours } = body;
 
-      const d   = parseUTCDate(date);
-      const day = d.getUTCDay(); // 0=Sun…6=Sat
-
-      const mon = new Date(d); mon.setUTCDate(d.getUTCDate() - ((day + 6) % 7));
-      const sun = new Date(mon); sun.setUTCDate(mon.getUTCDate() + 6);
-      const monStr = mon.toISOString().slice(0, 10);
-      const sunStr = sun.toISOString().slice(0, 10);
-
+      const { monStr, sunStr } = getWeekBounds(date);
       console.log(`[upsert] employee=${employeeId} date=${date} week=${monStr}..${sunStr}`);
 
-      // Xero Payroll NZ: one NumberOfUnits value per day (not a 7-element array)
-      // Format: { date: "YYYY-MM-DD", numberOfUnits: N, earningsRateID: "..." }
-      // Build timesheet lines per day
+      // Build timesheet lines
       const tsLines: Record<string, unknown>[] = [];
       for (const l of (lines || [])) {
         if (!l.hours || l.hours <= 0) continue;
         if (l.earningsRateId) {
-          tsLines.push({
-            earningsRateID: l.earningsRateId,
-            date:           date,
-            numberOfUnits:  l.hours,
-          });
+          tsLines.push({ earningsRateID: l.earningsRateId, date, numberOfUnits: l.hours });
         } else if (l.leaveTypeId) {
-          tsLines.push({
-            leaveTypeID:   l.leaveTypeId,
-            date:          date,
-            numberOfUnits: l.hours,
-          });
+          tsLines.push({ leaveTypeID: l.leaveTypeId, date, numberOfUnits: l.hours });
         }
       }
+      // toolAllowanceId is a Reimbursement Type — not valid in timesheet lines
       if (toolAllowanceId && toolAllowanceHours > 0) {
-        tsLines.push({
-          earningsRateID: toolAllowanceId,
-          date:           date,
-          numberOfUnits:  toolAllowanceHours,
-        });
+        console.log(`[upsert] skipping toolAllowance reimbursement ${toolAllowanceId} (${toolAllowanceHours}h)`);
       }
-      console.log(`[upsert] tsLines=${JSON.stringify(tsLines)}`);
+      console.log(`[upsert] ${tsLines.length} lines to submit`);
 
-      // Step 1: Find the employee's payroll calendar
+      if (tsLines.length === 0) {
+        return new Response(JSON.stringify({ error: "No valid lines to submit" }), { status: 400, headers: cors });
+      }
+
+      // Step 1: Get employee's payroll calendar
       const empRes  = await fetch(`${XERO_API_BASE}/Employees/${employeeId}`, { headers: hdrs });
       const empData = await empRes.json();
       if (!empRes.ok) {
-        console.error("[step1] Employee fetch failed:", empRes.status, JSON.stringify(empData));
         const fwdStatus = empRes.status >= 500 ? 502 : 400;
-        return new Response(JSON.stringify({ error: `Employee lookup failed (${empRes.status}): ${JSON.stringify(empData)}`, step: "employee-lookup" }), { status: fwdStatus, headers: cors });
+        return new Response(JSON.stringify({ error: `Employee lookup failed (${empRes.status})`, step: "employee-lookup" }), { status: fwdStatus, headers: cors });
       }
       const payrollCalendarId = empData.employee?.payrollCalendarID
-                             ?? empData.Employee?.PayrollCalendarID
-                             ?? null;
+                             ?? empData.Employee?.PayrollCalendarID ?? null;
       console.log(`[step1] payrollCalendarId=${payrollCalendarId}`);
 
-      // Step 2: Find existing timesheet using correct Xero filter syntax
-      const filter  = `employeeId==${employeeId}${payrollCalendarId ? `,payrollCalendarId==${payrollCalendarId}` : ""}`;
-      const getUrl  = `${XERO_API_BASE}/Timesheets?filter=${encodeURIComponent(filter)}&startDate=${monStr}&endDate=${sunStr}`;
-      console.log(`[step2] GET ${getUrl}`);
-      const getRes  = await fetch(getUrl, { headers: hdrs });
-      const getData    = await getRes.json();
-      if (!getRes.ok) {
-        console.error("[step2] Timesheet search failed:", getRes.status, JSON.stringify(getData));
-        const fwdStatus = getRes.status >= 500 ? 502 : 400;
-        return new Response(JSON.stringify({ error: `Timesheet search failed (${getRes.status}): ${JSON.stringify(getData)}`, step: "timesheet-search" }), { status: fwdStatus, headers: cors });
-      }
-      const timesheets = getData.timesheets ?? getData.Timesheets ?? [];
-      console.log(`[step2] found ${timesheets.length} timesheets`);
-      // Find one whose period covers our date exactly
-      const existing   = timesheets.find((ts: any) => {
-        const tsStart = (ts.startDate ?? ts.StartDate ?? "").slice(0, 10);
-        const tsEnd   = (ts.endDate   ?? ts.EndDate   ?? "").slice(0, 10);
-        return tsStart <= date && tsEnd >= date;
-      });
-
-      let timesheetId: string | undefined;
+      // Step 2: Find existing timesheet
+      let existing = await findTimesheetForDates(employeeId, monStr, sunStr, [date]);
+      let timesheetId: string;
 
       if (existing) {
-        const existId = existing.timesheetID ?? existing.TimesheetID;
+        timesheetId = existing.timesheetID ?? existing.TimesheetID;
         const existStatus = existing.status ?? existing.Status;
-        console.log(`[step3] EXISTING timesheet ${existId} status=${existStatus} — merging lines via PUT`);
-
-        // GET the full timesheet to retrieve existing lines
-        const getFullRes = await fetch(`${XERO_API_BASE}/Timesheets/${existId}`, { headers: hdrs });
-        const getFullData = await getFullRes.json();
-        if (!getFullRes.ok) {
-          console.error("[step3] GET full timesheet failed:", getFullRes.status, JSON.stringify(getFullData));
-          const fwdStatus = getFullRes.status >= 500 ? 502 : 400;
-          return new Response(JSON.stringify({ error: `GET timesheet failed (${getFullRes.status})`, xeroStatus: getFullRes.status, step: "get-existing" }), { status: fwdStatus, headers: cors });
-        }
-        const fullTs = getFullData.timesheet ?? getFullData.Timesheet ?? getFullData;
-        const existingLines: Record<string, unknown>[] = fullTs.timesheetLines ?? fullTs.TimesheetLines ?? [];
-        console.log(`[step3] existing lines count: ${existingLines.length}`);
-
-        // Remove any existing lines for the same date + earningsRateID/leaveTypeID to avoid duplicates
-        const mergedLines = existingLines.filter((el: any) => {
-          const elDate = (el.date ?? el.Date ?? "").slice(0, 10);
-          if (elDate !== date) return true; // keep lines for other dates
-          // Remove lines that match any of our new earningsRate/leaveType IDs
-          const elEarn  = el.earningsRateID ?? el.EarningsRateID ?? "";
-          const elLeave = el.leaveTypeID    ?? el.LeaveTypeID    ?? "";
-          return !tsLines.some((nl: any) =>
-            (nl.earningsRateID && nl.earningsRateID === elEarn) ||
-            (nl.leaveTypeID    && nl.leaveTypeID    === elLeave)
-          );
-        });
-        // Add our new lines
-        mergedLines.push(...tsLines);
-        console.log(`[step3] merged lines count: ${mergedLines.length}`);
-
-        // PUT the full timesheet with merged lines
-        const putBody = {
-          employeeID: fullTs.employeeID ?? fullTs.EmployeeID,
-          startDate:  (fullTs.startDate ?? fullTs.StartDate ?? "").slice(0, 10),
-          endDate:    (fullTs.endDate   ?? fullTs.EndDate   ?? "").slice(0, 10),
-          timesheetLines: mergedLines,
-        };
-        const pcId = fullTs.payrollCalendarID ?? fullTs.PayrollCalendarID;
-        if (pcId) (putBody as any).payrollCalendarID = pcId;
-
-        console.log(`[step3] PUT body: ${JSON.stringify({ timesheet: putBody })}`);
-        const putRes = await fetch(`${XERO_API_BASE}/Timesheets/${existId}`, {
-          method:  "PUT",
-          headers: hdrs,
-          body:    JSON.stringify({ timesheet: putBody }),
-        });
-        const putData = await putRes.json();
-        if (!putRes.ok) {
-          console.error("[step3] PUT timesheet failed:", putRes.status, JSON.stringify(putData));
-          const err = extractError(putData);
-          const fwdStatus = putRes.status >= 500 ? 502 : 400;
-          return new Response(JSON.stringify({ error: err ?? JSON.stringify(putData), xeroStatus: putRes.status, step: "put-timesheet", timesheetStatus: existStatus }), { status: fwdStatus, headers: cors });
-        }
-        const valErr = extractError(putData);
-        if (valErr) return new Response(JSON.stringify({ error: valErr, step: "put-validation" }), { status: 400, headers: cors });
-        timesheetId = existId;
-
+        console.log(`[step3] EXISTING timesheet ${timesheetId} status=${existStatus}`);
       } else {
-        // No timesheet — POST to create with payrollCalendarID
-        const tsBody: Record<string, unknown> = {
-          employeeID: employeeId,
-          startDate:  monStr,
-          endDate:    sunStr,
-          status:     "Draft",
-          timesheetLines: tsLines,
-        };
-        if (payrollCalendarId) tsBody.payrollCalendarID = payrollCalendarId;
-
-        console.log(`[step3] CREATE new timesheet: ${JSON.stringify({ timesheet: tsBody })}`);
-        const postRes  = await fetch(`${XERO_API_BASE}/Timesheets`, {
-          method:  "POST",
-          headers: hdrs,
-          body:    JSON.stringify({ timesheet: tsBody }),
-        });
-        const postData = await postRes.json();
-        if (!postRes.ok) {
-          console.error("[step3] Timesheet POST failed:", postRes.status, JSON.stringify(postData));
-          const err = extractError(postData);
-          const fwdStatus = postRes.status >= 500 ? 502 : 400;
-          return new Response(JSON.stringify({ error: err ?? JSON.stringify(postData), xeroStatus: postRes.status, step: "create-timesheet" }), { status: fwdStatus, headers: cors });
+        // Step 3a: Create empty timesheet
+        console.log(`[step3] No existing timesheet — creating new for ${monStr}..${sunStr}`);
+        const createResult = await createEmptyTimesheet(employeeId, payrollCalendarId, monStr, sunStr);
+        if (!createResult.ok) {
+          const fwdStatus = createResult.status >= 500 ? 502 : 400;
+          return new Response(JSON.stringify({ error: createResult.error, xeroStatus: createResult.status, step: "create-timesheet" }), { status: fwdStatus, headers: cors });
         }
-        const valErr = extractError(postData);
-        if (valErr) return new Response(JSON.stringify({ error: valErr, step: "create-validation" }), { status: 400, headers: cors });
-        timesheetId = postData.timesheet?.timesheetID ?? postData.Timesheet?.TimesheetID;
+        timesheetId = createResult.timesheetId;
       }
 
-      if (!timesheetId) {
-        return new Response(JSON.stringify({ error: "No timesheetID returned — check Xero dashboard" }), { status: 400, headers: cors });
+      // Step 4: Add lines (delete conflicting ones first)
+      const lineResult = await upsertLines(timesheetId, tsLines);
+      if (!lineResult.ok) {
+        return new Response(JSON.stringify({ error: lineResult.error, step: "add-lines" }), { status: 400, headers: cors });
       }
+
       return new Response(JSON.stringify({ ok: true, timesheetId }), { headers: cors });
     }
 
     // ── upsertTimesheetBatch — multiple days for one employee in one call ────
     if (action === "upsertTimesheetBatch") {
-      const { entries: batchEntries } = body; // [{ date, lines, toolAllowanceId, toolAllowanceHours }]
+      const { entries: batchEntries } = body;
       if (!Array.isArray(batchEntries) || batchEntries.length === 0) {
         return new Response(JSON.stringify({ error: "No entries in batch" }), { status: 400, headers: cors });
       }
       console.log(`[batch] employee=${employeeId} entries=${batchEntries.length}`);
 
-      // Build ALL timesheet lines from all entries
+      // Build all timesheet lines from all entries
       const allTsLines: Record<string, unknown>[] = [];
       for (const be of batchEntries) {
         const entryDate = be.date;
@@ -265,31 +307,27 @@ serve(async (req) => {
           }
         }
         if (be.toolAllowanceId && be.toolAllowanceHours > 0) {
-          const totalHrs = (be.lines || []).reduce((s: number, l: any) => s + (l.hours || 0), 0);
-          allTsLines.push({ earningsRateID: be.toolAllowanceId, date: entryDate, numberOfUnits: totalHrs });
+          console.log(`[batch] skipping toolAllowance reimbursement ${be.toolAllowanceId}`);
         }
       }
       console.log(`[batch] total lines: ${allTsLines.length}`);
 
+      if (allTsLines.length === 0) {
+        return new Response(JSON.stringify({ error: "No valid lines in batch" }), { status: 400, headers: cors });
+      }
+
       // Group lines by week (Mon-Sun)
       const weekGroups: Record<string, { monStr: string; sunStr: string; lines: Record<string, unknown>[] }> = {};
       for (const line of allTsLines) {
-        const lineDate = String(line.date);
-        const d = parseUTCDate(lineDate);
-        const day = d.getUTCDay();
-        const mon = new Date(d); mon.setUTCDate(d.getUTCDate() - ((day + 6) % 7));
-        const sun = new Date(mon); sun.setUTCDate(mon.getUTCDate() + 6);
-        const monStr = mon.toISOString().slice(0, 10);
-        const sunStr = sun.toISOString().slice(0, 10);
+        const { monStr, sunStr } = getWeekBounds(String(line.date));
         if (!weekGroups[monStr]) weekGroups[monStr] = { monStr, sunStr, lines: [] };
         weekGroups[monStr].lines.push(line);
       }
 
-      // Step 1: Get employee payroll calendar
+      // Get employee payroll calendar
       const empRes = await fetch(`${XERO_API_BASE}/Employees/${employeeId}`, { headers: hdrs });
       const empData = await empRes.json();
       if (!empRes.ok) {
-        console.error("[batch] Employee fetch failed:", empRes.status, JSON.stringify(empData));
         const fwdStatus = empRes.status >= 500 ? 502 : 400;
         return new Response(JSON.stringify({ error: `Employee lookup failed (${empRes.status})` }), { status: fwdStatus, headers: cors });
       }
@@ -299,97 +337,30 @@ serve(async (req) => {
 
       for (const [weekKey, wg] of Object.entries(weekGroups)) {
         console.log(`[batch] week ${wg.monStr}..${wg.sunStr} — ${wg.lines.length} lines`);
-        // Find existing timesheet for this week
-        const filter = `employeeId==${employeeId}${payrollCalendarId ? `,payrollCalendarId==${payrollCalendarId}` : ""}`;
-        const getRes = await fetch(
-          `${XERO_API_BASE}/Timesheets?filter=${encodeURIComponent(filter)}&startDate=${wg.monStr}&endDate=${wg.sunStr}`,
-          { headers: hdrs }
-        );
-        const getData = await getRes.json();
-        if (!getRes.ok) {
-          console.error("[batch] Timesheet search failed:", getRes.status, JSON.stringify(getData));
-          results.push({ week: weekKey, ok: false, error: `Search failed (${getRes.status})` });
-          continue;
-        }
-        const timesheets = getData.timesheets ?? getData.Timesheets ?? [];
-        // Find covering timesheet
-        const existing = timesheets.find((ts: any) => {
-          const tsStart = (ts.startDate ?? ts.StartDate ?? "").slice(0, 10);
-          const tsEnd   = (ts.endDate   ?? ts.EndDate   ?? "").slice(0, 10);
-          return tsStart <= wg.monStr && tsEnd >= wg.sunStr;
-        }) ?? (timesheets.length > 0 ? timesheets[0] : null);
 
+        const targetDates = [...new Set(wg.lines.map((l: any) => String(l.date).slice(0, 10)))];
+        let existing = await findTimesheetForDates(employeeId, wg.monStr, wg.sunStr, targetDates);
         let timesheetId: string | undefined;
 
         if (existing) {
-          const existId = existing.timesheetID ?? existing.TimesheetID;
-          console.log(`[batch] EXISTING timesheet ${existId} — GET + merge + PUT`);
-
-          // GET full timesheet
-          const getFullRes = await fetch(`${XERO_API_BASE}/Timesheets/${existId}`, { headers: hdrs });
-          const getFullData = await getFullRes.json();
-          if (!getFullRes.ok) {
-            results.push({ week: weekKey, ok: false, error: `GET failed (${getFullRes.status})` });
-            continue;
-          }
-          const fullTs = getFullData.timesheet ?? getFullData.Timesheet ?? getFullData;
-          const existingLines: Record<string, unknown>[] = fullTs.timesheetLines ?? fullTs.TimesheetLines ?? [];
-
-          // Merge: remove existing lines for dates+rates we're updating, then add ours
-          const newDatesAndRates = new Set(wg.lines.map((l: any) =>
-            `${l.date}|${l.earningsRateID || ""}|${l.leaveTypeID || ""}`
-          ));
-          const kept = existingLines.filter((el: any) => {
-            const elDate  = (el.date ?? el.Date ?? "").slice(0, 10);
-            const elEarn  = el.earningsRateID ?? el.EarningsRateID ?? "";
-            const elLeave = el.leaveTypeID    ?? el.LeaveTypeID    ?? "";
-            return !newDatesAndRates.has(`${elDate}|${elEarn}|${elLeave}`);
-          });
-          const merged = [...kept, ...wg.lines];
-
-          const putBody = {
-            employeeID: fullTs.employeeID ?? fullTs.EmployeeID,
-            startDate:  (fullTs.startDate ?? fullTs.StartDate ?? "").slice(0, 10),
-            endDate:    (fullTs.endDate   ?? fullTs.EndDate   ?? "").slice(0, 10),
-            timesheetLines: merged,
-          };
-          const pcId = fullTs.payrollCalendarID ?? fullTs.PayrollCalendarID;
-          if (pcId) (putBody as any).payrollCalendarID = pcId;
-
-          const putRes = await fetch(`${XERO_API_BASE}/Timesheets/${existId}`, {
-            method: "PUT", headers: hdrs, body: JSON.stringify({ timesheet: putBody }),
-          });
-          const putData = await putRes.json();
-          if (!putRes.ok) {
-            const err = extractError(putData);
-            console.error("[batch] PUT failed:", putRes.status, JSON.stringify(putData));
-            results.push({ week: weekKey, ok: false, error: err ?? `PUT failed (${putRes.status})` });
-            continue;
-          }
-          timesheetId = existId;
+          timesheetId = existing.timesheetID ?? existing.TimesheetID;
+          console.log(`[batch] using existing timesheet ${timesheetId}`);
         } else {
-          // Create new timesheet with all lines for this week
-          const tsBody: Record<string, unknown> = {
-            employeeID: employeeId,
-            startDate: wg.monStr,
-            endDate: wg.sunStr,
-            status: "Draft",
-            timesheetLines: wg.lines,
-          };
-          if (payrollCalendarId) tsBody.payrollCalendarID = payrollCalendarId;
-
-          console.log(`[batch] CREATE timesheet for week ${wg.monStr}`);
-          const postRes = await fetch(`${XERO_API_BASE}/Timesheets`, {
-            method: "POST", headers: hdrs, body: JSON.stringify({ timesheet: tsBody }),
-          });
-          const postData = await postRes.json();
-          if (!postRes.ok) {
-            const err = extractError(postData);
-            console.error("[batch] POST failed:", postRes.status, JSON.stringify(postData));
-            results.push({ week: weekKey, ok: false, error: err ?? `POST failed (${postRes.status})` });
+          // Create empty timesheet
+          console.log(`[batch] creating new timesheet for ${wg.monStr}..${wg.sunStr}`);
+          const createResult = await createEmptyTimesheet(employeeId, payrollCalendarId, wg.monStr, wg.sunStr);
+          if (!createResult.ok) {
+            results.push({ week: weekKey, ok: false, error: createResult.error });
             continue;
           }
-          timesheetId = postData.timesheet?.timesheetID ?? postData.Timesheet?.TimesheetID;
+          timesheetId = createResult.timesheetId;
+        }
+
+        // Add lines
+        const lineResult = await upsertLines(timesheetId!, wg.lines);
+        if (!lineResult.ok) {
+          results.push({ week: weekKey, ok: false, error: lineResult.error });
+          continue;
         }
         results.push({ week: weekKey, ok: true, timesheetId });
       }

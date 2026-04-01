@@ -1,5 +1,16 @@
-// KTA Workforce Management — v3.7.4
+// KTA Workforce Management — v3.7.5
 // Changelog:
+//   v3.7.5 — PDF Timesheet Importer (Admin only)
+//             New PDFTimesheetImporter component on the Timesheet page.
+//             Admin clicks "📄 Import Employer Timesheet PDF" to drop an
+//             employer-format PDF (simPRO / Clarkson Electrical etc).
+//             pdf.js extracts text, parses employee name, period dates, and
+//             the daily hours summary row. Auto-matches to a KTA apprentice
+//             by name. Presents editable table of days with type, start, end
+//             and break dropdowns. Admin reviews/adjusts then saves as draft
+//             entries on behalf of the apprentice. Skips dates that already
+//             have entries (with confirmation). Entries get note
+//             "Imported from employer timesheet".
 //   v3.7.4 — Progress report parser fixes (3 bugs)
 //             BUG 1: Skills Learner Progression Report overall_percent was returning
 //             the raw credit count instead of a percentage. "Confirmed 16 42" was
@@ -347,7 +358,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.4";
+const APP_VERSION = "v3.7.5";
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
 // Maps leave request types to timesheet entry types
@@ -2086,6 +2097,384 @@ function WeekCard2({title, weekEntries, accent, canEdit, canDelete, handleEdit, 
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PDF TIMESHEET IMPORTER — Admin only
+// Parses external employer PDF timesheets (e.g. Clarkson Electrical / simPRO)
+// and converts them into KTA draft entries for a selected apprentice.
+// ─────────────────────────────────────────────────────────────────────────────
+function PDFTimesheetImporter({ currentUser, allUsers, entries, setEntries, onClose }) {
+  const [dragging, setDragging]   = useState(false);
+  const [parsing,  setParsing]    = useState(false);
+  const [parsed,   setParsed]     = useState(null);   // { name, periodStart, days:[{date,hours,type}] }
+  const [parseErr, setParseErr]   = useState("");
+  const [apprenticeId, setApprenticeId] = useState("");
+  const [rows, setRows]           = useState([]);      // editable rows
+  const [saving, setSaving]       = useState(false);
+  const [saved,  setSaved]        = useState(false);
+  const fileRef = useRef(null);
+
+  const apprentices = allUsers.filter(u => u.role === "Apprentice").sort((a,b)=>a.name.localeCompare(b.name));
+
+  // ── Day-of-week labels ────────────────────────────────────────────────────
+  const DAY_LABELS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  // ── Infer start/end from net hours (assume 30min break unless 0h day) ────
+  const hoursToTimes = (netH) => {
+    if (!netH || netH <= 0) return { start: "07:30", end: "16:00", breakMins: 30, netHours: 0 };
+    // Standard start 07:30, back-calculate end, snap to nearest 15 mins
+    const startMins = 7 * 60 + 30;
+    const grossMins = Math.round((netH * 60 + 30) / 15) * 15; // snap to 15min
+    const endRaw    = startMins + grossMins;
+    const snap15    = m => Math.round(m / 15) * 15;
+    const endSnap   = snap15(endRaw);
+    const pad = n => String(n).padStart(2,"0");
+    const fmtMins = m => `${pad(Math.floor(m/60))}:${pad(m%60)}`;
+    return {
+      start:     fmtMins(startMins),
+      end:       fmtMins(endSnap),
+      breakMins: 30,
+      netHours:  netH,
+    };
+  };
+
+  // ── Parse PDF text ────────────────────────────────────────────────────────
+  const parsePDFText = (text) => {
+    // Extract employee name — last capitalised name group before "Period:"
+    // e.g. "Timesheet Clarkson Electrical Limited  Shavanah Tanirau  Period:"
+    // We want "Shavanah Tanirau" not the company name
+    const allNamesBeforePeriod = [...text.matchAll(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s+Period:/g)];
+    const empName = allNamesBeforePeriod.length > 0
+      ? allNamesBeforePeriod[allNamesBeforePeriod.length - 1][1].trim()
+      : "";
+
+    // Extract period start date — "23rd Mar 2026 - 29th Mar 2026"
+    const periodM = text.match(/Period:\s*(\d{1,2})(?:st|nd|rd|th)\s+(\w+)\s+(\d{4})\s*[-–]\s*(\d{1,2})(?:st|nd|rd|th)\s+(\w+)\s+(\d{4})/i);
+    const MONTHS = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+
+    let periodStart = null, periodEnd = null;
+    if (periodM) {
+      const [,d1,m1,y1,d2,m2,y2] = periodM;
+      // Use Date.UTC to avoid timezone day-shift (NZ is UTC+12/13 so local→UTC goes back a day)
+      periodStart = new Date(Date.UTC(parseInt(y1), MONTHS[m1.toLowerCase().slice(0,3)]||0, parseInt(d1)));
+      periodEnd   = new Date(Date.UTC(parseInt(y2), MONTHS[m2.toLowerCase().slice(0,3)]||0, parseInt(d2)));
+    }
+
+    // Extract the "Time" summary row — "Time 8.00hrs (1.00x) 8.25hrs (1.00x) ..."
+    // Handles variants: with/without "hrs", with/without multiplier "(1.00x)"
+    // Also try "Total Time N hrs" as fallback for different formats
+    let dayHours = [];
+    const timeRowM = text.match(/\bTime\b((?:\s+[\d.]+(?:hrs?)?(?:\s+\([\d.x]+\))?){2,7})/i);
+    if (timeRowM) {
+      const matches = [...timeRowM[1].matchAll(/([\d.]+)(?:hrs?)?(?:\s+\([\d.x]+\))?/g)];
+      dayHours = matches.map(m => parseFloat(m[1])).filter(n => !isNaN(n));
+    }
+    // Fallback: look for "Mon Tue Wed Thu Fri" header and grab the numbers below it
+    if (dayHours.length === 0) {
+      const altM = text.match(/Mon\s+Tue\s+Wed\s+Thu\s+Fri(?:\s+Sat\s+Sun)?[\s\S]{0,200}?([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/i);
+      if (altM) dayHours = [altM[1],altM[2],altM[3],altM[4],altM[5]].map(parseFloat);
+    }
+
+    // Detect leave types per day
+    // Strategy: find leave keywords that appear near each day's column header
+    // PDF text flows left-to-right, so a day's label appears before its content
+    const LEAVE_PATTERNS = [
+      { re: /leave without pay/i,  type: "Leave Without Pay" },
+      { re: /annual leave/i,       type: "Annual Leave" },
+      { re: /sick leave/i,         type: "Sick Leave" },
+      { re: /bereavement/i,        type: "Bereavement Leave" },
+      { re: /public holiday/i,     type: "Public Holiday" },
+      { re: /block course/i,       type: "Block Course" },
+      { re: /overtime/i,           type: "Overtime" },
+    ];
+
+    const days = [];
+    if (periodStart && dayHours.length > 0) {
+      for (let i = 0; i < Math.min(dayHours.length, 7); i++) {
+        const date = new Date(periodStart);
+        date.setUTCDate(periodStart.getUTCDate() + i);  // UTC-safe day offset
+        const iso  = date.toISOString().slice(0, 10);
+        let h      = dayHours[i];
+        const dayLabel = DAY_LABELS[date.getUTCDay()]; // "Mon","Tue" etc — UTC day
+
+        // Find the text chunk that belongs to this day column
+        const nextDay = DAY_LABELS[(date.getUTCDay() + 1) % 7];
+        const dayIdx  = text.indexOf(dayLabel);
+        const nextIdx = dayIdx > -1 ? text.indexOf(nextDay, dayIdx + 1) : -1;
+        const chunk   = dayIdx > -1
+          ? (nextIdx > -1 ? text.slice(dayIdx, nextIdx) : text.slice(dayIdx, dayIdx + 2000))
+          : "";
+
+        // Determine entry type
+        let type = "Normal Hours";
+        if (h > 0) {
+          // Check if a leave type appears in this day's chunk (e.g. "Overtime")
+          for (const { re, type: lt } of LEAVE_PATTERNS) {
+            if (re.test(chunk)) { type = lt; break; }
+          }
+        } else {
+          // Zero hours — check for a leave type in the day's chunk first
+          let found = false;
+          for (const { re, type: lt } of LEAVE_PATTERNS) {
+            if (re.test(chunk)) { type = lt; found = true; break; }
+          }
+          // If not found in chunk and it's a weekday, search the full text
+          // (PDF column layout means leave text may be far from the day header)
+          if (!found && date.getUTCDay() >= 1 && date.getUTCDay() <= 5) {
+            for (const { re, type: lt } of LEAVE_PATTERNS) {
+              const leaveM = text.match(new RegExp(re.source + "[\\s\\S]{0,300}?\\((\\d+\\.?\\d*)\\s*hrs?\\)", "i"));
+              if (leaveM) {
+                type = lt;
+                h = parseFloat(leaveM[1]);
+                found = true;
+                break;
+              }
+            }
+          }
+          if (!found) type = null; // likely a weekend with no entry
+        }
+
+        // Include working days with hours, or leave days
+        if (h > 0 || type) {
+          days.push({ date: iso, netHours: h, type: type || "Normal Hours", ...hoursToTimes(h) });
+        }
+      }
+    }
+
+    return { empName, periodStart: periodStart ? periodStart.toISOString().slice(0,10) : null, days };
+  };
+
+  // ── Load PDF via pdf.js ───────────────────────────────────────────────────
+  const handleFile = async (file) => {
+    if (!file || !file.name.endsWith(".pdf")) { setParseErr("Please drop a PDF file."); return; }
+    setParsing(true); setParseErr(""); setParsed(null); setRows([]); setSaved(false);
+
+    try {
+      if (!window.pdfjsLib) {
+        await new Promise((res, rej) => {
+          const s = document.createElement("script");
+          s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+          s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; res(); };
+          s.onerror = rej;
+          document.head.appendChild(s);
+        });
+      } else if (!window.pdfjsLib.GlobalWorkerOptions.workerSrc) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      }
+      const buf = await file.arrayBuffer();
+      const pdf = await window.pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
+      let fullText = "";
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const tc = await page.getTextContent();
+        fullText += tc.items.map(i => i.str).join(" ") + "\n";
+      }
+
+      const result = parsePDFText(fullText);
+      if (!result.days.length) {
+        setParseErr("Could not extract daily hours from this PDF. Is this a supported timesheet format?");
+        setParsing(false); return;
+      }
+      setParsed(result);
+
+      // Try to auto-match apprentice by name
+      const norm = s => s.toLowerCase().replace(/[^a-z\s]/g,"").trim();
+      const nameNorm = norm(result.empName);
+      const matched = apprentices.find(u => norm(u.name) === nameNorm || nameNorm.includes(norm(u.name)) || norm(u.name).includes(nameNorm));
+      if (matched) setApprenticeId(matched.id);
+
+      // Build editable rows
+      setRows(result.days.map(d => ({ ...d, include: d.netHours > 0 })));
+
+    } catch(e) {
+      setParseErr("Error reading PDF: " + e.message);
+    }
+    setParsing(false);
+  };
+
+  // ── Save as draft entries ─────────────────────────────────────────────────
+  const handleSave = async () => {
+    if (!apprenticeId) { setParseErr("Please select an apprentice."); return; }
+    setSaving(true);
+    const toSave = rows.filter(r => r.include && r.netHours > 0);
+    const existingDates = entries.filter(e => e.userId === apprenticeId).map(e => e.date);
+    const conflicts = toSave.filter(r => existingDates.includes(r.date));
+    if (conflicts.length) {
+      const ok = await ktaConfirm(`${conflicts.length} date(s) already have entries for this apprentice:\n${conflicts.map(r=>r.date).join(", ")}\n\nSkip those dates and continue?`);
+      if (!ok) { setSaving(false); return; }
+    }
+    const fresh = toSave.filter(r => !existingDates.includes(r.date));
+    const newEntries = fresh.map(r => ({
+      id:        uid(),
+      userId:    apprenticeId,
+      date:      r.date,
+      type:      r.type,
+      start:     r.start,
+      end:       r.end,
+      breakMins: r.breakMins,
+      netHours:  r.netHours,
+      note:      "Imported from employer timesheet",
+      approval:  "draft",
+      createdAt: new Date().toISOString(),
+    }));
+    await Promise.all(newEntries.map(e => upsertEntry(e).catch(console.error)));
+    setEntries(prev => [...prev, ...newEntries]);
+    setSaved(true);
+    setSaving(false);
+  };
+
+  // ── Update a row ──────────────────────────────────────────────────────────
+  const updateRow2 = (i, key, val) => setRows(prev => prev.map((r,idx) => idx===i ? {...r,[key]:val} : r));
+
+  const fmtDate = iso => { if(!iso) return ""; const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
+
+  return (
+    <Card style={{border:`2px solid ${T.accent}44`,marginBottom:20}}>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:36,height:36,borderRadius:10,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📄</div>
+          <div>
+            <div style={{fontWeight:700,fontSize:16,color:T.ink}}>Import Employer Timesheet PDF</div>
+            <div style={{fontSize:12,color:T.muted}}>Converts daily hours from an employer PDF into KTA draft entries</div>
+          </div>
+        </div>
+        <button onClick={onClose} style={{background:"none",border:`1.5px solid ${T.border}`,borderRadius:99,width:30,height:30,cursor:"pointer",fontSize:16,color:T.sub}}>✕</button>
+      </div>
+
+      {/* Drop zone */}
+      {!parsed && (
+        <div
+          onDragOver={e=>{e.preventDefault();setDragging(true);}}
+          onDragLeave={()=>setDragging(false)}
+          onDrop={e=>{e.preventDefault();setDragging(false);const f=e.dataTransfer.files[0];if(f)handleFile(f);}}
+          onClick={()=>fileRef.current?.click()}
+          style={{border:`2px dashed ${dragging?T.accent:T.border}`,borderRadius:12,padding:"36px 20px",
+            textAlign:"center",cursor:"pointer",background:dragging?T.accentL+"44":T.bg,transition:"all .15s"}}>
+          <input ref={fileRef} type="file" accept=".pdf" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f)handleFile(f);e.target.value="";}}/>
+          {parsing
+            ? <div style={{color:T.muted,fontSize:14}}>⏳ Reading PDF…</div>
+            : <>
+                <div style={{fontSize:36,marginBottom:8}}>📄</div>
+                <div style={{fontWeight:700,fontSize:14,color:T.sub}}>Drop employer timesheet PDF here</div>
+                <div style={{fontSize:12,color:T.muted,marginTop:4}}>or click to browse · Clarkson Electrical, simPRO and similar formats supported</div>
+              </>
+          }
+        </div>
+      )}
+
+      {parseErr && <div style={{color:T.red,fontSize:13,marginTop:8,padding:"8px 12px",background:T.redL,borderRadius:8}}>{parseErr}</div>}
+
+      {/* Parsed result */}
+      {parsed && !saved && (
+        <div>
+          {/* Detected info */}
+          <div style={{background:T.accentL,borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,display:"flex",gap:16,flexWrap:"wrap"}}>
+            <div><span style={{color:T.muted,fontWeight:700}}>Employee on PDF: </span><span style={{color:T.ink,fontWeight:700}}>{parsed.empName || "Unknown"}</span></div>
+            <div><span style={{color:T.muted,fontWeight:700}}>Period starts: </span><span style={{color:T.ink}}>{fmtDate(parsed.periodStart)}</span></div>
+            <div><span style={{color:T.muted,fontWeight:700}}>Days found: </span><span style={{color:T.ink}}>{rows.length}</span></div>
+          </div>
+
+          {/* Apprentice selector */}
+          <div style={{marginBottom:14}}>
+            <FL>Map to Apprentice in KTA</FL>
+            <select value={apprenticeId} onChange={e=>setApprenticeId(e.target.value)}
+              style={{width:"100%",padding:"8px 10px",borderRadius:8,border:`1.5px solid ${apprenticeId?T.accent:T.red}`,fontSize:14,fontFamily:"DM Sans,sans-serif"}}>
+              <option value="">— Select apprentice —</option>
+              {apprentices.map(u=><option key={u.id} value={u.id}>{u.name} {u.trade?`(${u.trade})`:""}</option>)}
+            </select>
+          </div>
+
+          {/* Editable rows table */}
+          <div style={{marginBottom:14}}>
+            <FL>Review & Adjust Entries</FL>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                <thead>
+                  <tr style={{background:T.bg}}>
+                    <th style={{padding:"8px 10px",textAlign:"left",color:T.muted,fontWeight:700,fontSize:12,borderBottom:`1.5px solid ${T.border}`}}>✓</th>
+                    <th style={{padding:"8px 10px",textAlign:"left",color:T.muted,fontWeight:700,fontSize:12,borderBottom:`1.5px solid ${T.border}`}}>Date</th>
+                    <th style={{padding:"8px 10px",textAlign:"left",color:T.muted,fontWeight:700,fontSize:12,borderBottom:`1.5px solid ${T.border}`}}>Type</th>
+                    <th style={{padding:"8px 10px",textAlign:"right",color:T.muted,fontWeight:700,fontSize:12,borderBottom:`1.5px solid ${T.border}`}}>Hours</th>
+                    <th style={{padding:"8px 10px",textAlign:"left",color:T.muted,fontWeight:700,fontSize:12,borderBottom:`1.5px solid ${T.border}`}}>Start</th>
+                    <th style={{padding:"8px 10px",textAlign:"left",color:T.muted,fontWeight:700,fontSize:12,borderBottom:`1.5px solid ${T.border}`}}>End</th>
+                    <th style={{padding:"8px 10px",textAlign:"left",color:T.muted,fontWeight:700,fontSize:12,borderBottom:`1.5px solid ${T.border}`}}>Break</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r,i)=>{
+                    const dayName = r.date ? DAY_LABELS[new Date(r.date+"T00:00:00").getDay()] : "";
+                    return (
+                      <tr key={i} style={{background:r.include?T.surface:T.bg,opacity:r.include?1:0.5}}>
+                        <td style={{padding:"8px 10px",borderBottom:`1px solid ${T.border}22`}}>
+                          <input type="checkbox" checked={r.include} onChange={e=>updateRow2(i,"include",e.target.checked)} style={{cursor:"pointer"}}/>
+                        </td>
+                        <td style={{padding:"8px 10px",borderBottom:`1px solid ${T.border}22`,fontWeight:600,color:T.ink,whiteSpace:"nowrap"}}>
+                          {dayName} {fmtDate(r.date)}
+                        </td>
+                        <td style={{padding:"8px 10px",borderBottom:`1px solid ${T.border}22`}}>
+                          <select value={r.type} onChange={e=>updateRow2(i,"type",e.target.value)}
+                            style={{fontSize:12,padding:"4px 6px",borderRadius:6,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif",width:"100%"}}>
+                            {ENTRY_TYPES.map(t=><option key={t}>{t}</option>)}
+                          </select>
+                        </td>
+                        <td style={{padding:"8px 10px",borderBottom:`1px solid ${T.border}22`,textAlign:"right",fontWeight:700,color:T.accent}}>
+                          {r.netHours > 0 ? `${r.netHours}h` : "—"}
+                        </td>
+                        <td style={{padding:"8px 10px",borderBottom:`1px solid ${T.border}22`}}>
+                          <select value={r.start} onChange={e=>updateRow2(i,"start",e.target.value)}
+                            style={{fontSize:12,padding:"4px 6px",borderRadius:6,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif"}}>
+                            {TIME_OPTIONS.map(t=><option key={t}>{t}</option>)}
+                          </select>
+                        </td>
+                        <td style={{padding:"8px 10px",borderBottom:`1px solid ${T.border}22`}}>
+                          <select value={r.end} onChange={e=>updateRow2(i,"end",e.target.value)}
+                            style={{fontSize:12,padding:"4px 6px",borderRadius:6,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif"}}>
+                            {TIME_OPTIONS.map(t=><option key={t}>{t}</option>)}
+                          </select>
+                        </td>
+                        <td style={{padding:"8px 10px",borderBottom:`1px solid ${T.border}22`}}>
+                          <select value={r.breakMins} onChange={e=>updateRow2(i,"breakMins",parseInt(e.target.value))}
+                            style={{fontSize:12,padding:"4px 6px",borderRadius:6,border:`1px solid ${T.border}`,fontFamily:"DM Sans,sans-serif"}}>
+                            {BREAK_OPTIONS.map(m=><option key={m} value={m}>{m===0?"None":`${m}m`}</option>)}
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+            <Btn onClick={handleSave} disabled={saving||!apprenticeId} style={{background:T.teal,borderColor:T.teal}}>
+              {saving ? "Saving…" : `✓ Save ${rows.filter(r=>r.include&&r.netHours>0).length} Entries as Draft`}
+            </Btn>
+            <Btn v="ghost" onClick={()=>{setParsed(null);setRows([]);setParseErr("");setSaved(false);}}>
+              ↩ Load Different PDF
+            </Btn>
+          </div>
+          {parseErr && <div style={{color:T.red,fontSize:13,marginTop:8}}>{parseErr}</div>}
+        </div>
+      )}
+
+      {/* Success state */}
+      {saved && (
+        <div style={{textAlign:"center",padding:"24px 0"}}>
+          <div style={{fontSize:40,marginBottom:10}}>✅</div>
+          <div style={{fontWeight:700,fontSize:16,color:T.teal,marginBottom:4}}>Entries imported as drafts</div>
+          <div style={{fontSize:13,color:T.muted,marginBottom:16}}>They are now visible in the timesheet. The apprentice or admin can submit them for approval.</div>
+          <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+            <Btn v="ghost" onClick={()=>{setParsed(null);setRows([]);setSaved(false);setParseErr("");}}>Import Another PDF</Btn>
+            <Btn onClick={onClose}>Done</Btn>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenticeId=null}) {
   const [showForm,setShowForm] = useState(false);
   const [editEntry,setEditEntry] = useState(null);
@@ -2095,6 +2484,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   const [approvingAll, setApprovingAll] = useState(false);
   const [weekPickerDrafts, setWeekPickerDrafts] = useState(null);
   const [weekPickerSelected, setWeekPickerSelected] = useState(null);
+  const [showImporter, setShowImporter] = useState(false);
   const role=currentUser.role;
 
   const showToast = (msg, ok=true) => {
@@ -2288,6 +2678,11 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
           <Btn onClick={()=>{setShowForm(s=>!s);setEditEntry(null);}} v={showForm?"ghost":"primary"}>
             {showForm?"✕ Cancel":"+ Log Entry"}
           </Btn>
+          {role==="Admin"&&(
+            <Btn v="ghost" onClick={()=>setShowImporter(s=>!s)} style={{borderColor:T.accent+"66",color:T.accent}}>
+              {showImporter?"✕ Close Importer":"📄 Import Employer Timesheet PDF"}
+            </Btn>
+          )}
           {role==="Apprentice"&&(()=>{
             const myDrafts=shown.filter(e=>e.approval==="draft"&&e.userId===currentUser.id);
             if(!myDrafts.length) return null;
@@ -2405,6 +2800,14 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
             );
           })()}
         </div>
+      )}
+      {showImporter&&role==="Admin"&&(
+        <PDFTimesheetImporter
+          currentUser={currentUser}
+          allUsers={allUsers}
+          entries={entries}
+          setEntries={setEntries}
+          onClose={()=>setShowImporter(false)}/>
       )}
       {showForm&&<div style={{marginBottom:20}}>
         <EntryForm
@@ -9651,7 +10054,7 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver, ccEm
 
 // ─── Fullscreen New Report Modal ────────────────────────────────────────────
 // Renders MeetingReportForm full-screen with a collapsible Past Reports panel
-function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave, onClose}) {
+function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave, onClose, loadDraft=true}) {
   const [showPast, setShowPast] = useState(false);
 
   // Prevent body scroll while open
@@ -9684,7 +10087,7 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
           <div style={{display:"flex", alignItems:"center", gap:12}}>
             <div style={{fontSize:22}}>📋</div>
             <div>
-              <div style={{fontWeight:700, fontSize:17, color:"#fff"}}>New Meeting Report</div>
+              <div style={{fontWeight:700, fontSize:17, color:"#fff"}}>{loadDraft ? "Continue Draft Report" : "New Meeting Report"}</div>
               <div style={{fontSize:12, color:"rgba(255,255,255,.65)"}}>{apprentice.name}</div>
             </div>
           </div>
@@ -9726,6 +10129,7 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
             allUsers={allUsers}
             onSave={onSave}
             onCancel={onClose}
+            loadDraft={loadDraft}
           />
         </div>
       </div>
@@ -10181,7 +10585,7 @@ function ProgressLineGraph({ snapshots }) {
   const statusColor  = gap >= 0 ? "#1a8a7a" : gap >= -10 ? "#b86e1a" : "#bf2b2b";
   const statusBg     = gap >= 0 ? "#d4f0ec" : gap >= -10 ? "#faebd7" : "#fde8e8";
   const statusLabel  = isPastEnd
-    ? `Past programme end — ${Math.round(actualPct)}% complete (${Math.round(100 - actualPct)}% remaining)`
+    ? `Over Duration — ${Math.round(actualPct)}% complete (${Math.round(100 - actualPct)}% remaining)`
     : gap >= 0 ? `On track / ahead (+${Math.round(gap)}%)`
     : gap >= -10 ? `Slightly behind (${Math.round(gap)}%)` : `Well behind (${Math.round(gap)}%)`;
   const statusIcon   = gap >= 0 ? "✅" : gap >= -10 ? "⚠️" : "🔴";
@@ -10245,36 +10649,61 @@ function ProgressLineGraph({ snapshots }) {
 
       {/* ── Timeline bar ── */}
       <div style={{ marginBottom: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11,
-          color: T.muted, marginBottom: 4 }}>
-          <span>Start</span>
-          <span style={{ color: statusColor, fontWeight: 700 }}>
-            ▼ Month {latest.months_in_training} — {Math.round(actualPct)}% complete
-          </span>
-          <span>End (month {duration})</span>
-        </div>
-        {/* Duration bar */}
-        <div style={{ position: "relative", height: 28, borderRadius: 6,
-          background: "#e8edf4", overflow: "visible" }}>
-          {/* Expected progress (grey fill) */}
-          <div style={{ position: "absolute", left: 0, top: 0, bottom: 0,
-            width: `${(latest.months_in_training / duration) * 100}%`,
-            background: "#c4cdd8", borderRadius: "6px 0 0 6px", transition: "width .4s" }}/>
-          {/* Actual progress (coloured fill) */}
-          <div style={{ position: "absolute", left: 0, top: 4, bottom: 4,
-            width: `${Math.min((actualPct / 100) * (latest.months_in_training / duration) * 100, 100)}%`,
-            background: statusColor, borderRadius: 4, transition: "width .4s",
-            opacity: 0.9 }}/>
-          {/* "You are here" marker */}
-          <div style={{ position: "absolute", top: -4, bottom: -4,
-            left: `${(latest.months_in_training / duration) * 100}%`,
-            width: 3, background: T.ink, borderRadius: 2, transform: "translateX(-50%)" }}/>
-          {/* Expected marker */}
-          <div style={{ position: "absolute", top: 2, bottom: 2,
-            left: `${Math.min((expectedPct / 100) * (latest.months_in_training / duration) * 100, 100)}%`,
-            width: 2, background: "#fff", borderRadius: 1,
-            opacity: 0.8, transform: "translateX(-50%)" }}/>
-        </div>
+        {isPastEnd ? (
+          <>
+            {/* Over-duration: solid red bar filling the full width */}
+            <div style={{ position: "relative", height: 28, borderRadius: 6,
+              background: "#bf2b2b", overflow: "hidden" }}>
+              <div style={{ position: "absolute", inset: 0, display: "flex",
+                alignItems: "center", justifyContent: "center" }}>
+                <span style={{ color: "#fff", fontWeight: 800, fontSize: 13, letterSpacing: ".3px" }}>
+                  Month {latest.months_in_training} of {duration}
+                </span>
+              </div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11,
+              color: T.muted, marginTop: 4 }}>
+              <span>Start</span>
+              <span style={{ color: "#bf2b2b", fontWeight: 700 }}>
+                {Math.round(actualPct)}% complete — {Math.round(100 - actualPct)}% remaining
+              </span>
+              <span>End (month {duration})</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11,
+              color: T.muted, marginBottom: 4 }}>
+              <span>Start</span>
+              <span style={{ color: statusColor, fontWeight: 700 }}>
+                ▼ Month {latest.months_in_training} — {Math.round(actualPct)}% complete
+              </span>
+              <span>End (month {duration})</span>
+            </div>
+            {/* Duration bar */}
+            <div style={{ position: "relative", height: 28, borderRadius: 6,
+              background: "#e8edf4", overflow: "hidden" }}>
+              {/* Expected progress (grey fill) */}
+              <div style={{ position: "absolute", left: 0, top: 0, bottom: 0,
+                width: `${Math.min((latest.months_in_training / duration) * 100, 100)}%`,
+                background: "#c4cdd8", borderRadius: "6px 0 0 6px", transition: "width .4s" }}/>
+              {/* Actual progress (coloured fill) */}
+              <div style={{ position: "absolute", left: 0, top: 4, bottom: 4,
+                width: `${Math.min((actualPct / 100) * (latest.months_in_training / duration) * 100, 100)}%`,
+                background: statusColor, borderRadius: 4, transition: "width .4s",
+                opacity: 0.9 }}/>
+              {/* "You are here" marker */}
+              <div style={{ position: "absolute", top: -4, bottom: -4,
+                left: `${Math.min((latest.months_in_training / duration) * 100, 100)}%`,
+                width: 3, background: T.ink, borderRadius: 2, transform: "translateX(-50%)" }}/>
+              {/* Expected marker */}
+              <div style={{ position: "absolute", top: 2, bottom: 2,
+                left: `${Math.min((expectedPct / 100) * (latest.months_in_training / duration) * 100, 100)}%`,
+                width: 2, background: "#fff", borderRadius: 1,
+                opacity: 0.8, transform: "translateX(-50%)" }}/>
+            </div>
+          </>
+        )}
         <div style={{ display: "flex", gap: 14, marginTop: 6, fontSize: 11 }}>
           <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <span style={{ display: "inline-block", width: 12, height: 3, background: statusColor, borderRadius: 2 }}/>
@@ -10836,7 +11265,7 @@ function ProgressSnapshotPanel({ apprenticeId, canDelete=false }) {
   );
 }
 
-function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
+function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel, loadDraft=true}) {
   const today = tod();
   const approver = allUsers.find(u=>
     u.id === apprentice.approverUserId ||
@@ -10891,7 +11320,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
       const draft = all
         .filter(r => r.apprentice_id === apprentice.id && r.status === 'draft')
         .sort((a,b) => (b.created_at||"").localeCompare(a.created_at||""))[0];
-      if(draft) {
+      if(draft && loadDraft) {
         setDraftId(draft.id);
         setForm({
           date:             draft.date || tod(),
@@ -11980,6 +12409,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
 function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entries, setEntries, onBack, isAdmin=false, canEditExpiry=false, onUserUpdated=null}) {
   const [apprentice, setApprentice] = useState(apprenticeProp);
   const [showMeetingForm, setShowMeetingForm] = useState(false);
+  const [loadDraft, setLoadDraft]             = useState(false);
   const [showPastReports, setShowPastReports] = useState(false);
   const [showPPE, setShowPPE]                 = useState(false);
   const [showActivity, setShowActivity]       = useState(false);
@@ -12077,6 +12507,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
 
   const lastReport    = reports[0] || null;
   const prevReport    = reports[1] || null;
+  const draftReport   = reports.find(r => r.status === 'draft') || null;
 
   // Timesheet entries for this apprentice (admin view)
   const appEntries = (entries||[]).filter(e=>e.userId===apprentice.id).sort((a,b)=>b.date.localeCompare(a.date));
@@ -12347,18 +12778,31 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
         if(sectionId==="actions") return (
           <DraggableSection key="actions" id="actions" dragProps={sectionDrag}>
             {(isAdmin||isSupervisor) ? (
-              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr 1fr", gap:10, marginBottom:12}}>
-                <button onClick={()=>{setShowMeetingForm(s=>!s); setShowPastReports(false); setShowPPE(false); setShowActivity(false); setShowHSEForm(false); setShowPastHSE(false);}}
-                  style={{width:"100%", background:showMeetingForm?T.accentL:T.surface, border:`1.5px solid ${showMeetingForm?T.accent:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s", display:isAdmin?"":"none"}}>
+              <div style={{display:"grid", gridTemplateColumns:`repeat(${draftReport && isAdmin ? 7 : 6}, 1fr)`, gap:10, marginBottom:12}}>
+                <button onClick={()=>{setLoadDraft(false); setShowMeetingForm(s=>!s); setShowPastReports(false); setShowPPE(false); setShowActivity(false); setShowHSEForm(false); setShowPastHSE(false);}}
+                  style={{width:"100%", background:showMeetingForm && !loadDraft?T.accentL:T.surface, border:`1.5px solid ${showMeetingForm && !loadDraft?T.accent:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s", display:isAdmin?"":"none"}}>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
                     <div style={{width:28,height:28,borderRadius:7,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>📋</div>
                     <div style={{minWidth:0}}>
-                      <div style={{fontWeight:700, fontSize:13, color:showMeetingForm?T.accent:T.ink}}>New Report</div>
+                      <div style={{fontWeight:700, fontSize:13, color:showMeetingForm && !loadDraft?T.accent:T.ink}}>New Report</div>
                       <div style={{fontSize:11, color:T.sub, marginTop:1}}>Record a visit</div>
                     </div>
                     <div style={{marginLeft:"auto", fontSize:12, color:T.muted}}>↗</div>
                   </div>
                 </button>
+                {draftReport && isAdmin && (
+                  <button onClick={()=>{setLoadDraft(true); setShowMeetingForm(true); setShowPastReports(false); setShowPPE(false); setShowActivity(false); setShowHSEForm(false); setShowPastHSE(false);}}
+                    style={{width:"100%", background:showMeetingForm && loadDraft?"#fff4e6":T.surface, border:`1.5px solid ${showMeetingForm && loadDraft?"#e67e22":T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
+                    <div style={{display:"flex", alignItems:"center", gap:8}}>
+                      <div style={{width:28,height:28,borderRadius:7,background:"#fff4e6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>📝</div>
+                      <div style={{minWidth:0}}>
+                        <div style={{fontWeight:700, fontSize:13, color:showMeetingForm && loadDraft?"#e67e22":T.ink}}>Continue Draft</div>
+                        <div style={{fontSize:11, color:T.sub, marginTop:1}}>{draftReport.date ? fmtDate(draftReport.date) : "In progress"}</div>
+                      </div>
+                      <div style={{marginLeft:"auto", fontSize:12, color:T.muted}}>↗</div>
+                    </div>
+                  </button>
+                )}
                 <button onClick={()=>{setShowPastReports(s=>!s); setShowMeetingForm(false); setShowPPE(false); setShowActivity(false); setShowHSEForm(false); setShowPastHSE(false);}}
                   style={{width:"100%", background:showPastReports?T.goldL:T.surface, border:`1.5px solid ${showPastReports?T.gold:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
@@ -12855,7 +13299,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
 
       {/* Report modal — top-level fixed overlay for both admin and mentor */}
       {showMeetingForm && isAdmin && (
-        <ReportFullscreenModal apprentice={apprentice} mentor={viewer} allUsers={allUsers} meetingKey={meetingKey}
+        <ReportFullscreenModal apprentice={apprentice} mentor={viewer} allUsers={allUsers} meetingKey={meetingKey} loadDraft={loadDraft}
           onSave={()=>{ setShowMeetingForm(false); setMeetingKey(k=>k+1); }} onClose={()=>setShowMeetingForm(false)}/>
       )}
 
@@ -12868,6 +13312,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               mentor={viewer}
               allUsers={allUsers}
               meetingKey={meetingKey}
+              loadDraft={loadDraft}
               onSave={()=>{ setShowMeetingForm(false); setMeetingKey(k=>k+1); }}
               onClose={()=>setShowMeetingForm(false)}
             />
