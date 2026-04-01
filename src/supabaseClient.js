@@ -50,6 +50,7 @@ export const rowToUser = (r) => ({
   supervisorIds:     r.supervisorIds     || [],
   isConfOwner:       r.is_conf_owner     || false,
   mustChangePassword: r.must_change_password || false,
+  isSupervisor:      r.is_supervisor      || false,
 });
 
 export const userToRow = (u) => {
@@ -92,6 +93,7 @@ export const userToRow = (u) => {
     reports_email:      u.reportsEmail      || null,
     company:            u.company           || null,
     "supervisorIds":    u.supervisorIds     || [],
+    is_supervisor:      u.isSupervisor      || false,
   };
   // Only include must_change_password if explicitly provided
   if (u.mustChangePassword !== undefined) {
