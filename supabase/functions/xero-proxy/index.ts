@@ -381,8 +381,13 @@ serve(async (req) => {
       const res  = await fetch(`${XERO_API_BASE}/Employees`, { headers: hdrs });
       const data = await res.json();
       const emps = data.employees ?? data.Employees ?? [];
-      // Filter out terminated employees — only return active staff
-      const active = emps.filter((e: any) => (e.Status || e.status || "").toUpperCase() !== "TERMINATED");
+      // Filter out employees whose endDate is in the past (no longer current staff)
+      const now = new Date().toISOString().slice(0, 10);
+      const active = emps.filter((e: any) => {
+        const end = e.endDate || e.EndDate;
+        if (!end) return true; // no end date = still active
+        return end.slice(0, 10) > now; // end date in the future = still active
+      });
       return new Response(JSON.stringify({ ok: true, employees: active }), { headers: cors });
     }
 

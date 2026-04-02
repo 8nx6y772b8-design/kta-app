@@ -14334,7 +14334,8 @@ serve(async (req) => {
       const res = await fetch(\`\${XERO_API_BASE}/Employees\`, { headers });
       const data = await res.json();
       const emps = data.Employees || [];
-      const active = emps.filter(e => (e.Status||"").toUpperCase() !== "TERMINATED");
+      const now = new Date().toISOString().slice(0,10);
+      const active = emps.filter(e => { const end = e.endDate||e.EndDate; return !end || end.slice(0,10) > now; });
       return new Response(JSON.stringify({ ok: true, employees: active }), { headers: cors });
     }
 
@@ -14376,8 +14377,13 @@ serve(async (req) => {
                 const text = await res.text();
                 let data; try{ data=JSON.parse(text); }catch{ alert("Non-JSON response: "+text.slice(0,300)); return; }
                 if(data.ok && data.employees){
-                  // Filter out terminated employees — only show active staff
-                  const active = data.employees.filter(e=>(e.Status||e.status||"").toUpperCase()!=="TERMINATED");
+                  // Filter out employees whose endDate is in the past (no longer current staff)
+                  const today = new Date().toISOString().slice(0,10);
+                  const active = data.employees.filter(e=>{
+                    const end = e.endDate||e.EndDate;
+                    if(!end) return true;
+                    return end.slice(0,10) > today;
+                  });
                   setXeroEmployees(active);
                   showToast(`✓ Loaded ${active.length} active employees from Xero`);
                 } else { alert("Error: " + (data.error||JSON.stringify(data))); }
