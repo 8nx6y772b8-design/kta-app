@@ -405,20 +405,10 @@ serve(async (req) => {
       if (!d1 || !d2) {
         return new Response(JSON.stringify({ ok: false, error: `EarningsRates(${r1.status}) or LeaveTypes(${r2.status}) failed` }), { status: 502, headers: cors });
       }
-      // ReimbursementTypes is optional — 404 on some connections
-      let reimbursements: any[] = [];
-      try {
-        const r3 = await fetch(`${XERO_API_BASE}/ReimbursementTypes`, { headers: hdrs });
-        if (r3.ok) {
-          const d3 = await safeJson(r3);
-          reimbursements = d3?.reimbursements ?? d3?.ReimbursementTypes ?? [];
-        }
-      } catch {}
       return new Response(JSON.stringify({
         ok:             true,
         earningsRates:  d1.earningsRates  ?? d1.EarningsRates      ?? [],
         leaveTypes:     d2.leaveTypes     ?? d2.LeaveTypes          ?? [],
-        reimbursements,
       }), { headers: cors });
     }
 
