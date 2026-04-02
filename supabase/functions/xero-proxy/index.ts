@@ -398,7 +398,15 @@ serve(async (req) => {
         fetch(`${XERO_API_BASE}/LeaveTypes`,         { headers: hdrs }),
         fetch(`${XERO_API_BASE}/ReimbursementTypes`, { headers: hdrs }),
       ]);
-      const [d1, d2, d3] = await Promise.all([r1.json(), r2.json(), r3.json()]);
+      const safeJson = async (r: Response, label: string) => {
+        const txt = await r.text();
+        try { return JSON.parse(txt); } catch { return { _error: `${label} returned non-JSON (${r.status}): ${txt.slice(0,200)}` }; }
+      };
+      const [d1, d2, d3] = await Promise.all([safeJson(r1,"EarningsRates"), safeJson(r2,"LeaveTypes"), safeJson(r3,"ReimbursementTypes")]);
+      const errors = [d1._error, d2._error, d3._error].filter(Boolean);
+      if (errors.length) {
+        return new Response(JSON.stringify({ ok: false, error: errors.join("; ") }), { status: 502, headers: cors });
+      }
       return new Response(JSON.stringify({
         ok:             true,
         earningsRates:  d1.earningsRates  ?? d1.EarningsRates      ?? [],
