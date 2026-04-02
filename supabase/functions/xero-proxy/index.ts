@@ -405,10 +405,15 @@ serve(async (req) => {
       if (!d1 || !d2) {
         return new Response(JSON.stringify({ ok: false, error: `EarningsRates(${r1.status}) or LeaveTypes(${r2.status}) failed` }), { status: 502, headers: cors });
       }
+      const rawRates = d1.earningsRates  ?? d1.EarningsRates      ?? [];
+      const rawLeave = d2.leaveTypes     ?? d2.LeaveTypes          ?? [];
+      // Normalize field names for client: { id, name }
+      const earningsRates = rawRates.map((r: any) => ({ id: r.earningsRateID ?? r.EarningsRateID ?? r.id, name: r.name ?? r.Name ?? "Unknown" }));
+      const leaveTypes    = rawLeave.map((l: any) => ({ id: l.leaveTypeID ?? l.LeaveTypeID ?? l.id, name: l.name ?? l.Name ?? "Unknown" }));
       return new Response(JSON.stringify({
-        ok:             true,
-        earningsRates:  d1.earningsRates  ?? d1.EarningsRates      ?? [],
-        leaveTypes:     d2.leaveTypes     ?? d2.LeaveTypes          ?? [],
+        ok: true,
+        earningsRates,
+        leaveTypes,
       }), { headers: cors });
     }
 
