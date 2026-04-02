@@ -14333,7 +14333,9 @@ serve(async (req) => {
     if (action === "getEmployees") {
       const res = await fetch(\`\${XERO_API_BASE}/Employees\`, { headers });
       const data = await res.json();
-      return new Response(JSON.stringify({ ok: true, employees: data.Employees }), { headers: cors });
+      const emps = data.Employees || [];
+      const active = emps.filter(e => (e.Status||"").toUpperCase() !== "TERMINATED");
+      return new Response(JSON.stringify({ ok: true, employees: active }), { headers: cors });
     }
 
     return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: cors });
@@ -14374,8 +14376,10 @@ serve(async (req) => {
                 const text = await res.text();
                 let data; try{ data=JSON.parse(text); }catch{ alert("Non-JSON response: "+text.slice(0,300)); return; }
                 if(data.ok && data.employees){
-                  setXeroEmployees(data.employees);
-                  showToast(`✓ Loaded ${data.employees.length} employees from Xero`);
+                  // Filter out terminated employees — only show active staff
+                  const active = data.employees.filter(e=>(e.Status||e.status||"").toUpperCase()!=="TERMINATED");
+                  setXeroEmployees(active);
+                  showToast(`✓ Loaded ${active.length} active employees from Xero`);
                 } else { alert("Error: " + (data.error||JSON.stringify(data))); }
               }catch(e){ alert("Failed: "+e.message); }
             }}>🔄 Load Employees from Xero</Btn>

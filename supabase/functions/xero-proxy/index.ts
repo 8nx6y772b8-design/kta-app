@@ -381,7 +381,9 @@ serve(async (req) => {
       const res  = await fetch(`${XERO_API_BASE}/Employees`, { headers: hdrs });
       const data = await res.json();
       const emps = data.employees ?? data.Employees ?? [];
-      return new Response(JSON.stringify({ ok: true, employees: emps }), { headers: cors });
+      // Filter out terminated employees — only return active staff
+      const active = emps.filter((e: any) => (e.Status || e.status || "").toUpperCase() !== "TERMINATED");
+      return new Response(JSON.stringify({ ok: true, employees: active }), { headers: cors });
     }
 
     // ── getEarningsRates ─────────────────────────────────────────────────────
