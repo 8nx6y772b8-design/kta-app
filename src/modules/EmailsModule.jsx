@@ -415,15 +415,19 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
               letterSpacing:".6px",marginBottom:8}}>Activity Log</div>
             {timeline.map((item,i)=>{
               if(item._src==="extra") {
-                // Meeting report or other injected item
+                // Meeting report, PPE, or other injected item
+                const isPPE = (item.label||"").startsWith("PPE");
+                const extraIcon = isPPE ? "🦺" : "📋";
+                const extraColor = isPPE ? T.teal : T.blue;
+                const extraBg = isPPE ? T.tealL : T.blueL;
                 return (
                   <div key={item.id||i} style={{display:"flex",gap:12,marginBottom:10}}>
-                    <div style={{width:2,background:T.blueL,borderRadius:2,flexShrink:0,marginTop:4,marginBottom:4}}/>
-                    <div style={{flex:1,background:T.blueL,border:`1px solid ${T.blue}33`,
+                    <div style={{width:2,background:extraBg,borderRadius:2,flexShrink:0,marginTop:4,marginBottom:4}}/>
+                    <div style={{flex:1,background:extraBg,border:`1px solid ${extraColor}33`,
                       borderRadius:8,padding:"10px 13px"}}>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                        <span style={{fontSize:14}}>📋</span>
-                        <span style={{fontWeight:700,fontSize:14,color:T.blue}}>{item.label||"Meeting Report"}</span>
+                        <span style={{fontSize:14}}>{extraIcon}</span>
+                        <span style={{fontWeight:700,fontSize:14,color:extraColor}}>{item.label||"Meeting Report"}</span>
                         <span style={{fontSize:12,color:T.sub,marginLeft:"auto"}}>{fmtTs(item.created_at||item.date)}</span>
                       </div>
                       {item.detail&&<div style={{fontSize:13,color:T.ink,lineHeight:1.6}}>{item.detail}</div>}

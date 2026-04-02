@@ -12420,6 +12420,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   const [lastVisit, setLastVisit]             = useState(null);
   const [loadingVisit, setLoadingVisit]       = useState(true);
   const [reports, setReports]                 = useState([]);
+  const [ppeRequests, setPpeRequests]         = useState([]);
   const [showPersonal, setShowPersonal]       = useState(false);
   const [advLeave, setAdvLeave]               = useState([]);
   const [advLeaveLoading, setAdvLeaveLoading] = useState(true);
@@ -12498,6 +12499,12 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
       .catch(()=>{ setReports([]); setLastVisit(null); })
       .finally(()=>setLoadingVisit(false));
   },[apprentice.id, meetingKey]);
+
+  useEffect(()=>{
+    loadTable('ppe_requests')
+      .then(rows=>setPpeRequests(rows.filter(r=>r.apprentice_id===apprentice.id).sort((a,b)=>(b.date_requested||"").localeCompare(a.date_requested||""))))
+      .catch(()=>setPpeRequests([]));
+  },[apprentice.id]);
 
   const fmtDate = (iso) => { if(!iso) return null; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
   const daysUntil = (iso) => { if(!iso) return null; const today=new Date(); today.setHours(0,0,0,0); const exp=new Date(iso+"T00:00:00"); return Math.round((exp-today)/86400000); };
@@ -12880,10 +12887,18 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             {showActivity && isAdmin && apprentice.email && (
               <Card style={{marginBottom:16}}>
                 <EmailActivityFeed personEmail={apprentice.email} personName={apprentice.name} personId={apprentice.id} canEdit={true} isKristeena={isConfOwner(viewer)} isAdmin1={Number(viewer?.adminLevel ?? 1)===1&&viewer?.role==="Admin"}
-                  extraItems={reports.map(r=>({id:r.id,created_at:r.created_at||r.date+"T12:00:00",date:r.date,
-                    label:`Meeting Report — ${r.date?(()=>{const[y,m,d]=r.date.split('-');return`${d}/${m}/${y}`;})():""}`,
-                    detail:r.goals_this_meeting?`Goals: ${r.goals_this_meeting}`:r.comments_feedback||""}))}/>
-              </Card>
+                  extraItems={[
+                    ...reports.map(r=>({id:r.id,created_at:r.created_at||r.date+"T12:00:00",date:r.date,
+                      label:`Meeting Report — ${r.date?(()=>{const[y,m,d]=r.date.split('-');return`${d}/${m}/${y}`;})():""}`,
+                      detail:r.goals_this_meeting?`Goals: ${r.goals_this_meeting}`:r.comments_feedback||""})),
+                    ...ppeRequests.map(p=>{
+                      const pItems = (()=>{try{return JSON.parse(p.items);}catch{return[];}})();
+                      const itemSummary = pItems.filter(it=>parseFloat(it.qtyReq||0)>0).map(it=>`${it.item}${it.size?" ("+it.size+")":""}${parseFloat(it.qtyIssued||0)>0?" ×"+it.qtyIssued+" issued":" ×"+it.qtyReq+" requested"}`).join(", ");
+                      return {id:p.id, created_at:p.created_at||p.date_requested+"T12:00:00", date:p.date_requested,
+                        label:`PPE ${p.completed?"Issued":"Request"} — ${p.date_requested?(()=>{const[y,m,d]=p.date_requested.split('-');return`${d}/${m}/${y}`;})():""}`,
+                        detail:itemSummary};
+                    }),
+                  ]}/>              </Card>
             )}
           </DraggableSection>
         );
@@ -15357,15 +15372,19 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
               letterSpacing:".6px",marginBottom:8}}>Activity Log</div>
             {timeline.map((item,i)=>{
               if(item._src==="extra") {
-                // Meeting report or other injected item
+                // Meeting report, PPE, or other injected item
+                const isPPE = (item.label||"").startsWith("PPE");
+                const extraIcon = isPPE ? "🦺" : "📋";
+                const extraColor = isPPE ? T.teal : T.blue;
+                const extraBg = isPPE ? T.tealL : T.blueL;
                 return (
                   <div key={item.id||i} style={{display:"flex",gap:12,marginBottom:10}}>
-                    <div style={{width:2,background:T.blueL,borderRadius:2,flexShrink:0,marginTop:4,marginBottom:4}}/>
-                    <div style={{flex:1,background:T.blueL,border:`1px solid ${T.blue}33`,
+                    <div style={{width:2,background:extraBg,borderRadius:2,flexShrink:0,marginTop:4,marginBottom:4}}/>
+                    <div style={{flex:1,background:extraBg,border:`1px solid ${extraColor}33`,
                       borderRadius:8,padding:"10px 13px"}}>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                        <span style={{fontSize:14}}>📋</span>
-                        <span style={{fontWeight:700,fontSize:14,color:T.blue}}>{item.label||"Meeting Report"}</span>
+                        <span style={{fontSize:14}}>{extraIcon}</span>
+                        <span style={{fontWeight:700,fontSize:14,color:extraColor}}>{item.label||"Meeting Report"}</span>
                         <span style={{fontSize:12,color:T.sub,marginLeft:"auto"}}>{fmtTs(item.created_at||item.date)}</span>
                       </div>
                       {item.detail&&<div style={{fontSize:13,color:T.ink,lineHeight:1.6}}>{item.detail}</div>}

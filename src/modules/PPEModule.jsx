@@ -530,42 +530,6 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                         </div>
                       </div>
                     )}
-                    {/* ── PREVIOUSLY ALLOCATED PPE ── */}
-                    {(()=>{
-                      const otherIssued = requests
-                        .filter(o=>o.id!==r.id)
-                        .flatMap(o=>{
-                          const oItems = (() => { try { return JSON.parse(o.items); } catch { return []; } })();
-                          return oItems
-                            .filter(it=>parseFloat(it.qtyIssued||0)>0)
-                            .map(it=>({...it, dateIssued:o.date_issued, dateRequested:o.date_requested}));
-                        });
-                      if(!otherIssued.length) return null;
-                      return (
-                        <div style={{padding:"0 14px 12px",borderTop:`1px solid ${T.border}44`}}>
-                          <div style={{marginTop:10,marginBottom:6,fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px"}}>
-                            Previously Allocated PPE
-                          </div>
-                          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-                            <thead>
-                              <tr>{["Item","Size","Qty Issued","Date Issued"].map(h=>(
-                                <th key={h} style={{padding:"5px 8px",textAlign:"left",fontWeight:700,color:T.sub,borderBottom:`1px solid ${T.border}`,fontSize:12}}>{h}</th>
-                              ))}</tr>
-                            </thead>
-                            <tbody>
-                              {otherIssued.map((it,j)=>(
-                                <tr key={j} style={{background:j%2===0?"rgba(255,255,255,.6)":"transparent"}}>
-                                  <td style={{padding:"5px 8px",fontWeight:700}}>{it.item}</td>
-                                  <td style={{padding:"5px 8px",color:T.sub}}>{it.size||"—"}</td>
-                                  <td style={{padding:"5px 8px",textAlign:"center",color:T.teal,fontWeight:700}}>{it.qtyIssued}</td>
-                                  <td style={{padding:"5px 8px",color:T.sub}}>{it.dateIssued ? fmtDate(it.dateIssued) : fmtDate(it.dateRequested)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      );
-                    })()}
                   </div>
                 )}
               </div>
@@ -573,6 +537,43 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
           })}
         </div>
       )}
+
+      {/* ── ALL ALLOCATED PPE SUMMARY ── */}
+      {(()=>{
+        const allIssued = requests.flatMap(o=>{
+          const oItems = (() => { try { return JSON.parse(o.items); } catch { return []; } })();
+          return oItems
+            .filter(it=>parseFloat(it.qtyIssued||0)>0)
+            .map(it=>({...it, dateIssued:o.date_issued, dateRequested:o.date_requested}));
+        });
+        if(!allIssued.length) return null;
+        return (
+          <div style={{border:`1px solid ${T.teal}44`,borderRadius:10,overflow:"hidden",marginTop:14}}>
+            <div style={{padding:"8px 14px",background:T.tealL,borderBottom:`1px solid ${T.teal}44`,display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:16}}>📦</span>
+              <span style={{fontSize:12,fontWeight:700,color:T.teal,textTransform:"uppercase",letterSpacing:".5px"}}>All PPE Allocated to {apprentice.name}</span>
+              <span style={{fontSize:12,color:T.teal,marginLeft:"auto"}}>{allIssued.length} item{allIssued.length!==1?"s":""}</span>
+            </div>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead>
+                <tr style={{background:T.bg}}>{["Item","Size","Qty Issued","Date Issued"].map(h=>(
+                  <th key={h} style={{padding:"6px 10px",textAlign:"left",fontWeight:700,color:T.sub,borderBottom:`1px solid ${T.border}`,fontSize:12}}>{h}</th>
+                ))}</tr>
+              </thead>
+              <tbody>
+                {allIssued.map((it,j)=>(
+                  <tr key={j} style={{background:j%2===0?T.surface:"transparent"}}>
+                    <td style={{padding:"6px 10px",fontWeight:700,color:T.ink}}>{it.item}</td>
+                    <td style={{padding:"6px 10px",color:T.sub}}>{it.size||"—"}</td>
+                    <td style={{padding:"6px 10px",textAlign:"center",color:T.teal,fontWeight:700}}>{it.qtyIssued}</td>
+                    <td style={{padding:"6px 10px",color:T.sub}}>{it.dateIssued ? fmtDate(it.dateIssued) : fmtDate(it.dateRequested)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
     </div>
   );
 }
