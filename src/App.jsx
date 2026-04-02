@@ -3239,11 +3239,18 @@ function UserManagement({users, setUsers, currentUser, entries=[]}) {
     if(pwField.trim()) {
       finalForm.password=await hashPw(pwField.trim());
     } else if(editId) {
-      // No new password typed — preserve the existing hash from the users array
-      const existing = users.find(u=>u.id===editId);
-      finalForm.password = existing?.password || "";
+      // No new password typed — don't include password field at all
+      delete finalForm.password;
     }
     const targetId = editId || uid();
+
+    // If password was changed, persist it directly to DB
+    if(finalForm.password) {
+      const targetUser = editId
+        ? {...users.find(u=>u.id===editId), ...finalForm}
+        : {id: targetId, ...finalForm};
+      await upsertUser(targetUser).catch(e=>console.error('password upsert failed',e));
+    }
 
     // Always bake approver/viewer into finalForm for apprentices
     if(finalForm.role==="Apprentice") {
@@ -7069,8 +7076,15 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
     if(pwField.trim()) {
       finalForm.password = await hashPw(pwField.trim());
     } else if(editId) {
-      const existing = users.find(u=>u.id===editId);
-      finalForm.password = existing?.password || "";
+      // No new password typed — don't include password field at all
+      delete finalForm.password;
+    }
+    // If password was changed, persist it directly to DB
+    if(finalForm.password) {
+      const targetUser = editId
+        ? {...users.find(u=>u.id===editId), ...finalForm}
+        : {id: uid(), ...finalForm};
+      await upsertUser(targetUser).catch(e=>console.error('password upsert failed',e));
     }
     let appId = editId;
     if(editId) {

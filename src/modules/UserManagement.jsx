@@ -91,9 +91,9 @@ function UserManagement({users, setUsers, currentUser, entries=[]}) {
     if(pwField.trim()) {
       finalForm.password=await hashPw(pwField.trim());
     } else if(editId) {
-      // No new password typed — preserve the existing hash from the users array
-      const existing = users.find(u=>u.id===editId);
-      finalForm.password = existing?.password || "";
+      // No new password typed — don't include password field at all
+      // so upsertUser won't touch the existing DB password
+      delete finalForm.password;
     }
     const targetId = editId || uid();
 
@@ -108,6 +108,14 @@ function UserManagement({users, setUsers, currentUser, entries=[]}) {
     if(finalForm.role!=="Admin") { finalForm.secondaryRole = null; finalForm.adminLevel = null; }
     // Admin 2 cannot create/promote to Admin 1
     if(finalForm.role==="Admin" && myLevel===2) finalForm.adminLevel = 2;
+
+    // If password was changed, persist it directly to DB (don't rely on state diffing)
+    if(finalForm.password) {
+      const targetUser = editId
+        ? {...users.find(u=>u.id===editId), ...finalForm}
+        : {id: targetId, ...finalForm};
+      await upsertUser(targetUser).catch(e=>console.error('password upsert failed',e));
+    }
 
     setUsers(prev=>{
       let next = editId
