@@ -411,7 +411,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                   <div style={{flex:1,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                     <span style={{fontWeight:700,fontSize:14,color:T.ink}}>Requested {fmtDate(r.date_requested)}</span>
                     {r.date_issued&&<span style={{fontSize:13,color:T.teal}}>· Issued {fmtDate(r.date_issued)}</span>}
-                    <span style={{fontSize:13,color:T.muted}}>· {items.filter(it=>parseFloat(it.qtyReq||0)>0).length} item{items.filter(it=>parseFloat(it.qtyReq||0)>0).length!==1?"s":""}</span>
+                    <span style={{fontSize:13,color:T.muted}}>· {items.filter(it=>parseFloat(it.qtyReq||0)>0||parseFloat(it.qtyIssued||0)>0||it.notes||it.size||it.approved).length} item{items.filter(it=>parseFloat(it.qtyReq||0)>0||parseFloat(it.qtyIssued||0)>0||it.notes||it.size||it.approved).length!==1?"s":""}</span>
                     {r.completed
                       ? <span style={{padding:"2px 10px",borderRadius:99,fontSize:12,fontWeight:700,background:T.tealL,color:T.teal,border:`1px solid ${T.teal}44`}}>✓ Completed</span>
                       : items.some(it=>it.approved==="Pending"&&parseFloat(it.qtyReq||0)>0)
@@ -451,7 +451,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                               </tr>
                             </thead>
                             <tbody>
-                              {editRows.filter(it=>parseFloat(it.qtyReq||0)>0||it.approved).map((it,j)=>(
+                              {editRows.filter(it=>parseFloat(it.qtyReq||0)>0||parseFloat(it.qtyIssued||0)>0||it.notes||it.size||it.approved).map((it,j)=>(
                                 <tr key={j} style={{background:j%2===0?T.surface:T.bg}}>
                                   <td style={{padding:"5px 8px",fontWeight:700,whiteSpace:"nowrap"}}>{it.item}</td>
                                   <td style={{padding:"5px 8px",color:T.sub}}>{it.size||"—"}</td>
@@ -508,7 +508,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                             ))}</tr>
                           </thead>
                           <tbody>
-                            {items.filter(it=>parseFloat(it.qtyReq||0)>0||it.approved).map((it,j)=>(
+                            {items.filter(it=>parseFloat(it.qtyReq||0)>0||parseFloat(it.qtyIssued||0)>0||it.notes||it.size||it.approved).map((it,j)=>(
                               <tr key={j} style={{background:j%2===0?"rgba(255,255,255,.6)":"transparent"}}>
                                 <td style={{padding:"5px 8px",fontWeight:700}}>{it.item}</td>
                                 <td style={{padding:"5px 8px",color:T.sub}}>{it.size||"—"}</td>
@@ -543,7 +543,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
         const allIssued = requests.flatMap(o=>{
           const oItems = (() => { try { return JSON.parse(o.items); } catch { return []; } })();
           return oItems
-            .filter(it=>parseFloat(it.qtyIssued||0)>0)
+            .filter(it=>parseFloat(it.qtyReq||0)>0||parseFloat(it.qtyIssued||0)>0||it.notes||it.size||it.approved)
             .map(it=>({...it, dateIssued:o.date_issued, dateRequested:o.date_requested}));
         });
         if(!allIssued.length) return null;
@@ -556,7 +556,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
             </div>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead>
-                <tr style={{background:T.bg}}>{["Item","Size","Qty Issued","Date Issued"].map(h=>(
+                <tr style={{background:T.bg}}>{["Item","Size","Qty Req","Qty Issued","Notes","Date"].map(h=>(
                   <th key={h} style={{padding:"6px 10px",textAlign:"left",fontWeight:700,color:T.sub,borderBottom:`1px solid ${T.border}`,fontSize:12}}>{h}</th>
                 ))}</tr>
               </thead>
@@ -565,7 +565,9 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                   <tr key={j} style={{background:j%2===0?T.surface:"transparent"}}>
                     <td style={{padding:"6px 10px",fontWeight:700,color:T.ink}}>{it.item}</td>
                     <td style={{padding:"6px 10px",color:T.sub}}>{it.size||"—"}</td>
-                    <td style={{padding:"6px 10px",textAlign:"center",color:T.teal,fontWeight:700}}>{it.qtyIssued}</td>
+                    <td style={{padding:"6px 10px",textAlign:"center"}}>{it.qtyReq||"—"}</td>
+                    <td style={{padding:"6px 10px",textAlign:"center",color:T.teal,fontWeight:700}}>{it.qtyIssued||"—"}</td>
+                    <td style={{padding:"6px 10px",color:T.muted,fontStyle:"italic"}}>{it.notes||""}</td>
                     <td style={{padding:"6px 10px",color:T.sub}}>{it.dateIssued ? fmtDate(it.dateIssued) : fmtDate(it.dateRequested)}</td>
                   </tr>
                 ))}

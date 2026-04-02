@@ -12893,7 +12893,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                       detail:r.goals_this_meeting?`Goals: ${r.goals_this_meeting}`:r.comments_feedback||""})),
                     ...ppeRequests.map(p=>{
                       const pItems = (()=>{try{return JSON.parse(p.items);}catch{return[];}})();
-                      const itemSummary = pItems.filter(it=>parseFloat(it.qtyReq||0)>0).map(it=>`${it.item}${it.size?" ("+it.size+")":""}${parseFloat(it.qtyIssued||0)>0?" ×"+it.qtyIssued+" issued":" ×"+it.qtyReq+" requested"}`).join(", ");
+                      const itemSummary = pItems.filter(it=>parseFloat(it.qtyReq||0)>0||parseFloat(it.qtyIssued||0)>0||it.notes||it.size).map(it=>`${it.item}${it.size?" ("+it.size+")":""}${parseFloat(it.qtyIssued||0)>0?" ×"+it.qtyIssued+" issued":parseFloat(it.qtyReq||0)>0?" ×"+it.qtyReq+" requested":""}${it.notes?" — "+it.notes:""}`).join(", ");
                       return {id:p.id, created_at:p.created_at||p.date_requested+"T12:00:00", date:p.date_requested,
                         label:`PPE ${p.completed?"Issued":"Request"} — ${p.date_requested?(()=>{const[y,m,d]=p.date_requested.split('-');return`${d}/${m}/${y}`;})():""}`,
                         detail:itemSummary};
