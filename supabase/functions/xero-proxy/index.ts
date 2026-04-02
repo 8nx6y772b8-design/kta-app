@@ -393,25 +393,32 @@ serve(async (req) => {
 
     // ── getEarningsRates ─────────────────────────────────────────────────────
     if (action === "getEarningsRates") {
-      const [r1, r2, r3] = await Promise.all([
-        fetch(`${XERO_API_BASE}/EarningsRates`,      { headers: hdrs }),
-        fetch(`${XERO_API_BASE}/LeaveTypes`,         { headers: hdrs }),
-        fetch(`${XERO_API_BASE}/ReimbursementTypes`, { headers: hdrs }),
-      ]);
-      const safeJson = async (r: Response, label: string) => {
+      const safeJson = async (r: Response) => {
         const txt = await r.text();
-        try { return JSON.parse(txt); } catch { return { _error: `${label} returned non-JSON (${r.status}): ${txt.slice(0,200)}` }; }
+        try { return JSON.parse(txt); } catch { return null; }
       };
-      const [d1, d2, d3] = await Promise.all([safeJson(r1,"EarningsRates"), safeJson(r2,"LeaveTypes"), safeJson(r3,"ReimbursementTypes")]);
-      const errors = [d1._error, d2._error, d3._error].filter(Boolean);
-      if (errors.length) {
-        return new Response(JSON.stringify({ ok: false, error: errors.join("; ") }), { status: 502, headers: cors });
+      const [r1, r2] = await Promise.all([
+        fetch(`${XERO_API_BASE}/EarningsRates`, { headers: hdrs }),
+        fetch(`${XERO_API_BASE}/LeaveTypes`,    { headers: hdrs }),
+      ]);
+      const [d1, d2] = await Promise.all([safeJson(r1), safeJson(r2)]);
+      if (!d1 || !d2) {
+        return new Response(JSON.stringify({ ok: false, error: `EarningsRates(${r1.status}) or LeaveTypes(${r2.status}) failed` }), { status: 502, headers: cors });
       }
+      // ReimbursementTypes is optional — 404 on some connections
+      let reimbursements: any[] = [];
+      try {
+        const r3 = await fetch(`${XERO_API_BASE}/ReimbursementTypes`, { headers: hdrs });
+        if (r3.ok) {
+          const d3 = await safeJson(r3);
+          reimbursements = d3?.reimbursements ?? d3?.ReimbursementTypes ?? [];
+        }
+      } catch {}
       return new Response(JSON.stringify({
         ok:             true,
         earningsRates:  d1.earningsRates  ?? d1.EarningsRates      ?? [],
         leaveTypes:     d2.leaveTypes     ?? d2.LeaveTypes          ?? [],
-        reimbursements: d3.reimbursements ?? d3.ReimbursementTypes  ?? [],
+        reimbursements,
       }), { headers: cors });
     }
 
