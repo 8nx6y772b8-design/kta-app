@@ -11,9 +11,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const APP_URL = "https://crmkta.com";
 
 // Verify HMAC-SHA256 token (same algorithm as App.jsx signLeaveToken)
+// Verifies against the raw payloadB64 string — no JSON re-serialisation needed.
 const verifyToken = async (token, secret) => {
   try {
-    const [payloadB64, sig] = token.split(".");
+    const dotIdx = token.indexOf(".");
+    if (dotIdx === -1) return null;
+    const payloadB64 = token.slice(0, dotIdx);
+    const sig        = token.slice(dotIdx + 1);
     if (!payloadB64 || !sig) return null;
 
     const payload = JSON.parse(atob(payloadB64));
@@ -21,20 +25,19 @@ const verifyToken = async (token, secret) => {
     // Check expiry
     if (payload.exp && Date.now() > payload.exp) return null;
 
-    // Verify signature
+    // Verify signature against the raw payloadB64 bytes
     const enc = new TextEncoder();
     const key = await crypto.subtle.importKey(
       "raw", enc.encode(secret),
       { name: "HMAC", hash: "SHA-256" }, false, ["verify"]
     );
-    const data = enc.encode(JSON.stringify(payload));
 
     // Decode URL-safe base64 signature
     const b64 = sig.replace(/-/g, "+").replace(/_/g, "/");
     const padded = b64 + "=".repeat((4 - b64.length % 4) % 4);
     const sigBytes = Uint8Array.from(atob(padded), c => c.charCodeAt(0));
 
-    const valid = await crypto.subtle.verify("HMAC", key, sigBytes, data);
+    const valid = await crypto.subtle.verify("HMAC", key, sigBytes, enc.encode(payloadB64));
     if (!valid) return null;
 
     return payload;
