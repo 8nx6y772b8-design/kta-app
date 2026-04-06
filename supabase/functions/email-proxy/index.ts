@@ -28,7 +28,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 
 const cors = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://crmkta.com",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -166,6 +166,15 @@ async function searchByAddress(body: any): Promise<Response> {
     );
   }
 
+  // Sanitise emailAddress to prevent OData injection — allow only valid email chars
+  const sanitised = emailAddress.replace(/[^a-zA-Z0-9.@_+\-]/g, "");
+  if (sanitised !== emailAddress || !sanitised.includes("@")) {
+    return new Response(
+      JSON.stringify({ error: "Invalid email address" }),
+      { status: 400, headers: { "Content-Type": "application/json", ...cors } }
+    );
+  }
+
   const senderEmail = Deno.env.get("MS_SENDER_EMAIL") || "payroll@kta.org.nz";
   const token = await getAccessToken();
   const headers = { Authorization: `Bearer ${token}` };
@@ -176,14 +185,14 @@ async function searchByAddress(body: any): Promise<Response> {
   const [inboundRes, outboundRes] = await Promise.all([
     fetch(
       `${GRAPH_BASE}/users/${enc(senderEmail)}/mailFolders/inbox/messages` +
-      `?$filter=from/emailAddress/address eq '${emailAddress}'` +
+      `?$filter=from/emailAddress/address eq '${enc(sanitised)}'` +
       `&$top=${top}&$orderby=receivedDateTime desc` +
       `&$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead`,
       { headers }
     ),
     fetch(
       `${GRAPH_BASE}/users/${enc(senderEmail)}/mailFolders/sentItems/messages` +
-      `?$filter=toRecipients/any(r:r/emailAddress/address eq '${emailAddress}')` +
+      `?$filter=toRecipients/any(r:r/emailAddress/address eq '${enc(sanitised)}')` +
       `&$top=${top}&$orderby=sentDateTime desc` +
       `&$select=id,subject,from,toRecipients,sentDateTime,bodyPreview,isRead`,
       { headers }
@@ -217,7 +226,7 @@ async function listFolder(body: any): Promise<Response> {
     `${GRAPH_BASE}/users/${enc(senderEmail)}/mailFolders/${folderPath}/messages` +
     `?$top=${top}&$orderby=receivedDateTime desc` +
     `&$select=id,subject,from,toRecipients,receivedDateTime,sentDateTime,bodyPreview,isRead`,
-    { Authorization: `Bearer ${token}` }
+    { headers: { Authorization: `Bearer ${token}` } }
   );
 
   const data = await res.json();

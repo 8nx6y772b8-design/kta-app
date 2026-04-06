@@ -149,7 +149,7 @@ async function sendMail(to: string, subject: string, htmlBody: string) {
 
 // ── HTML response helper (proper UTF-8) ───────────────────────────────────────
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": "https://crmkta.com",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-client-info",
 };

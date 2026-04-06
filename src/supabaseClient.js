@@ -50,7 +50,6 @@ export const rowToUser = (r) => ({
   supervisorIds:     r.supervisorIds     || [],
   isConfOwner:       r.is_conf_owner     || false,
   mustChangePassword: r.must_change_password || false,
-  isSupervisor:      r.is_supervisor      || false,
 });
 
 export const userToRow = (u) => {
@@ -93,7 +92,6 @@ export const userToRow = (u) => {
     reports_email:      u.reportsEmail      || null,
     company:            u.company           || null,
     "supervisorIds":    u.supervisorIds     || [],
-    is_supervisor:      u.isSupervisor      || false,
   };
   // Only include must_change_password if explicitly provided
   if (u.mustChangePassword !== undefined) {
@@ -119,6 +117,11 @@ export const rowToEntry = (r) => ({
   note:            r.note             || '',
   approval:        r.approval,
   createdAt:       r.created_at       || null,
+  submittedAt:     r.submitted_at     || null,  // when apprentice submitted
+  approvedBy:      r.approved_by      || null,  // user ID of approver
+  approvedAt:      r.approved_at      || null,  // when approved
+  declinedBy:      r.declined_by      || null,  // user ID who declined
+  declinedAt:      r.declined_at      || null,  // when declined
   xeroStatus:      r.xero_status      || null,
   xeroTimesheetId: r.xero_timesheet_id|| null,
   xeroError:       r.xero_error       || null,
@@ -135,6 +138,11 @@ export const entryToRow = (e) => ({
   net_hours:         e.netHours,
   note:              e.note            || '',
   approval:          e.approval,
+  submitted_at:      e.submittedAt     || null,
+  approved_by:       e.approvedBy      || null,
+  approved_at:       e.approvedAt      || null,
+  declined_by:       e.declinedBy      || null,
+  declined_at:       e.declinedAt      || null,
   xero_status:       e.xeroStatus      || null,
   xero_timesheet_id: e.xeroTimesheetId || null,
   xero_error:        e.xeroError       || null,
@@ -212,6 +220,25 @@ export const loadTable = async (table) => {
 
 export const upsertUser = async (user) => {
   const { error } = await sb.from('users').upsert(userToRow(user));
+  if (error) throw error;
+};
+
+// Update a user's profile fields WITHOUT touching the password column.
+// Use this for all profile saves where no password change is intended.
+// Avoids the NOT NULL constraint on password when upsert sends null.
+export const updateUserProfile = async (user) => {
+  const row = userToRow(user);
+  // Remove password fields entirely — DB keeps whatever it already has
+  delete row.password;
+  delete row.must_change_password;
+  // If password was explicitly provided (admin reset), include it
+  if (user.password !== undefined && user.password !== null && user.password !== '') {
+    row.password = user.password;
+  }
+  if (user.mustChangePassword !== undefined) {
+    row.must_change_password = user.mustChangePassword;
+  }
+  const { error } = await sb.from('users').upsert(row);
   if (error) throw error;
 };
 

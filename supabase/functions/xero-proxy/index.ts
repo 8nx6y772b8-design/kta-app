@@ -53,7 +53,7 @@ function extractError(data: any): string | null {
 
 serve(async (req) => {
   const cors = {
-    "Access-Control-Allow-Origin":  "*",
+    "Access-Control-Allow-Origin":  "https://crmkta.com",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-client-info",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
   };

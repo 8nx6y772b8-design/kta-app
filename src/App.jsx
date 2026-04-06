@@ -1,5 +1,49 @@
-// KTA Workforce Management — v3.7.5
+// KTA Workforce Management — v3.7.8
 // Changelog:
+//   v3.7.8 — Critical bug fixes & codebase cleanup
+//             Fixed: UserManagement submit() now persists to DB (upsertUser/updateUserProfile)
+//             Fixed: deleteUser now calls sbDeleteUser() — users no longer reappear after reload
+//             Fixed: canApprove Supervisor branch moved outside Approver block — Supervisors can approve
+//             Fixed: fmtD2/sColor/sLabel hoisted to module scope — Older Entries no longer crashes
+//             Fixed: EntryRow uses users prop (not allUsers) — approver names now show in audit trail
+//             Fixed: ApprenticeDetailView useEffect moved before conditional return (Rules of Hooks)
+//             Fixed: allocatedTo array comparison (=== → .includes) — Mentors see leave requests
+//             Fixed: email-proxy listFolder fetch headers — folder listing was returning 401
+//             Removed: 23 orphaned split-module files (src/modules/, src/App 2.jsx, temp files)
+//   v3.7.7 — Fix: saving user profile no longer requires a password
+//             All profile update calls now use updateUserProfile() instead of
+//             upsertUser(). updateUserProfile omits the password column entirely
+//             from the UPDATE so the DB NOT NULL constraint is never triggered.
+//             upsertUser() is now only called for new user creation and explicit
+//             password resets. Affected paths: ApprenticeEditForm save, host
+//             business save, expiry date save, personal details save, HubSpot
+//             sync user updates, and realtime user sync.
+//             Also requires SQL: ALTER TABLE users ALTER COLUMN password DROP NOT NULL;
+//             (belt-and-braces — the app no longer sends null but the constraint
+//             should be relaxed anyway for safety).
+// Changelog:
+//   v3.7.6 — Approval audit trail
+//             New DB columns: submitted_at, approved_by (uuid), approved_at,
+//             declined_by (uuid), declined_at on the entries table.
+//             All approval paths updated to stamp these fields:
+//             handleApprove, handleDecline, approveWeek, approveAllWeeks,
+//             admin bulk approve, and the apprentice submit button.
+//             EntryRow now shows a mini audit trail under the status pill:
+//             Created, Submitted, Approved (+ who), Declined (+ who).
+//             SQL migration required — see below.
+//   v3.7.5
+// Changelog:
+//   v3.7.5 — PDF Timesheet Importer (Admin only) + NZ Date audit
+//             NZ Date safety: audited all Date→string conversions in the app.
+//             Root cause: .toISOString().slice(0,10) converts to UTC, shifting
+//             dates back one day in NZ (UTC+12/13). Fixed all occurrences:
+//             - autoFillLeaveEntries: cur.toISOString() → localISO(cur)
+//             - PDF importer day loop: toISOString → getUTC* extraction
+//             - PDF importer periodStart: toISOString → getUTC* extraction
+//             - getWeekEnding (TimesheetModule, approver, PaidTimesheets): fixed
+//             - Embedded Xero fmt(): toISOString → localISO()
+//             Added comment block above localISO() documenting the rule:
+//             ALWAYS use localISO() for Date→YYYY-MM-DD. NEVER .toISOString().
 //   v3.7.5 — PDF Timesheet Importer (Admin only)
 //             New PDFTimesheetImporter component on the Timesheet page.
 //             Admin clicks "📄 Import Employer Timesheet PDF" to drop an
@@ -351,14 +395,14 @@
 //             reimbursements optgroup added to earnings rate mapping selects
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import { loadUsers, loadEntries, loadTable, upsertUser, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, deleteAllRows, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, loadUserPassword, sb } from "./supabaseClient";
+import { loadUsers, loadEntries, loadTable, upsertUser, updateUserProfile, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, deleteAllRows, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, loadUserPassword, sb } from "./supabaseClient";
 // Email via Microsoft Graph (payroll@kta.org.nz)
 
 const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/email-proxy";
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.5";
+const APP_VERSION = "v3.7.9";
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
 // Maps leave request types to timesheet entry types
@@ -451,7 +495,7 @@ const autoFillLeaveEntries = async (apprenticeId, leaveType, dateFrom, dateTo, e
 
   while (cur <= last) {
     const dow = cur.getDay(); // 0=Sun, 6=Sat
-    const dateStr = cur.toISOString().slice(0, 10);
+    const dateStr = localISO(cur);
     const isWeekend = dow === 0 || dow === 6;
     const isHoliday = nzHolidays.has(dateStr);
     if (!isWeekend && !isHoliday) {
@@ -1092,8 +1136,14 @@ const arrayBufferToBase64 = (buf) => {
   }
   return btoa(binary);
 };
+// ─── NZ Date helpers ─────────────────────────────────────────────────────────
+// ALWAYS use localISO() to convert a Date → YYYY-MM-DD string.
+// NEVER use .toISOString().slice(0,10) for dates — that converts to UTC which
+// shifts the date back by one day in NZ (UTC+12/13).
+// new Date() in a NZ browser returns NZ local time, so localISO(new Date()) is correct.
+// For UTC-anchored Date objects (Date.UTC/toISOString internals), use getUTC* methods.
 const localISO = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-const tod      = () => localISO(new Date());
+const tod      = () => localISO(new Date()); // today in NZ
 const toMin    = t => { const[h,m]=t.split(":").map(Number); return h*60+m; };
 const calcNet  = (s,e,b) => { const d=toMin(e)-toMin(s)-b; return d>0?+(d/60).toFixed(2):0; };
 const fmtD     = d => new Date(d+"T00:00:00").toLocaleDateString("en-NZ",{weekday:"short",day:"numeric",month:"short"});
@@ -1989,11 +2039,31 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
       <div style={{textAlign:"center",fontSize:12,color:T.muted,fontFamily:"monospace"}}>{entry.start}–{entry.end}</div>
       <div>
         <AppvPill status={entry.approval}/>
+        {/* Audit trail — created, submitted, approved/declined */}
         {entry.createdAt && (
           <div style={{fontSize:10,color:T.muted,marginTop:2,whiteSpace:"nowrap"}}>
-            {new Date(entry.createdAt).toLocaleString("en-NZ",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}
+            Created {new Date(entry.createdAt).toLocaleString("en-NZ",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}
           </div>
         )}
+        {entry.submittedAt && (
+          <div style={{fontSize:10,color:T.warn,marginTop:1,whiteSpace:"nowrap"}}>
+            Submitted {new Date(entry.submittedAt).toLocaleString("en-NZ",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}
+          </div>
+        )}
+        {entry.approvedAt && (()=>{
+          const approver = users?.find(u=>u.id===entry.approvedBy);
+          return <div style={{fontSize:10,color:T.teal,marginTop:1,whiteSpace:"nowrap"}}>
+            Approved {new Date(entry.approvedAt).toLocaleString("en-NZ",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}
+            {approver ? ` · ${approver.name}` : ""}
+          </div>;
+        })()}
+        {entry.declinedAt && (()=>{
+          const decliner = users?.find(u=>u.id===entry.declinedBy);
+          return <div style={{fontSize:10,color:T.red,marginTop:1,whiteSpace:"nowrap"}}>
+            Declined {new Date(entry.declinedAt).toLocaleString("en-NZ",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}
+            {decliner ? ` · ${decliner.name}` : ""}
+          </div>;
+        })()}
       </div>
       <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
         {canApprove&&(entry.approval==="submitted"||entry.approval==="draft")&&(<>
@@ -2059,10 +2129,12 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
 // ─────────────────────────────────────────────────────────────────────────────
 // TIMESHEET MODULE
 // ─────────────────────────────────────────────────────────────────────────────
+const fmtD2 = (iso) => { const [y,m,d]=(iso||"").split("-"); return `${d}/${m}/${y}`; };
+const tsStatusColor = (s) => s==="approved"?T.teal:s==="submitted"?T.warn:s==="declined"?T.red:T.muted;
+const tsStatusLabel = (s) => s==="approved"?"✓ Approved":s==="submitted"?"⏳ Pending":s==="declined"?"✕ Declined":"Draft";
 function WeekCard2({title, weekEntries, accent, canEdit, canDelete, handleEdit, handleDelete}) {
-  const fmtD2 = (iso) => { const [y,m,d]=iso.split("-"); return `${d}/${m}/${y}`; };
-  const sColor = (s) => s==="approved"?T.teal:s==="submitted"?T.warn:s==="declined"?T.red:T.muted;
-  const sLabel = (s) => s==="approved"?"✓ Approved":s==="submitted"?"⏳ Pending":s==="declined"?"✕ Declined":"Draft";
+  const sColor = tsStatusColor;
+  const sLabel = tsStatusLabel;
   return (
     <Card style={{marginBottom:14,border:`1.5px solid ${accent}33`}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
@@ -2142,10 +2214,17 @@ function PDFTimesheetImporter({ currentUser, allUsers, entries, setEntries, onCl
     // Extract employee name — last capitalised name group before "Period:"
     // e.g. "Timesheet Clarkson Electrical Limited  Shavanah Tanirau  Period:"
     // We want "Shavanah Tanirau" not the company name
-    const allNamesBeforePeriod = [...text.matchAll(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s+Period:/g)];
-    const empName = allNamesBeforePeriod.length > 0
-      ? allNamesBeforePeriod[allNamesBeforePeriod.length - 1][1].trim()
-      : "";
+    // Extract employee name: take the last 2 Title Case words immediately before "Period:"
+    // e.g. "Timesheet Clarkson Electrical Limited Shavanah Tanirau Period:"
+    // → "Shavanah Tanirau"
+    const beforePeriod = text.match(/(.+?)\s+Period:/);
+    let empName = "";
+    if (beforePeriod) {
+      const words = beforePeriod[1].trim().split(/\s+/);
+      // Take last 2 words that look like a person name (Title Case, letters only)
+      const nameWords = words.filter(w => /^[A-Z][a-zA-Z'-]+$/.test(w));
+      empName = nameWords.slice(-2).join(" ");
+    }
 
     // Extract period start date — "23rd Mar 2026 - 29th Mar 2026"
     const periodM = text.match(/Period:\s*(\d{1,2})(?:st|nd|rd|th)\s+(\w+)\s+(\d{4})\s*[-–]\s*(\d{1,2})(?:st|nd|rd|th)\s+(\w+)\s+(\d{4})/i);
@@ -2184,63 +2263,41 @@ function PDFTimesheetImporter({ currentUser, allUsers, entries, setEntries, onCl
       { re: /bereavement/i,        type: "Bereavement Leave" },
       { re: /public holiday/i,     type: "Public Holiday" },
       { re: /block course/i,       type: "Block Course" },
-      { re: /overtime/i,           type: "Overtime" },
+
     ];
+
+    // Scan full text for any leave type keywords (appears once per leave block in PDF)
+    let globalLeaveType = null;
+    for (const { re, type: lt } of LEAVE_PATTERNS) {
+      if (re.test(text)) { globalLeaveType = lt; break; }
+    }
 
     const days = [];
     if (periodStart && dayHours.length > 0) {
       for (let i = 0; i < Math.min(dayHours.length, 7); i++) {
         const date = new Date(periodStart);
         date.setUTCDate(periodStart.getUTCDate() + i);  // UTC-safe day offset
-        const iso  = date.toISOString().slice(0, 10);
-        let h      = dayHours[i];
-        const dayLabel = DAY_LABELS[date.getUTCDay()]; // "Mon","Tue" etc — UTC day
-
-        // Find the text chunk that belongs to this day column
-        const nextDay = DAY_LABELS[(date.getUTCDay() + 1) % 7];
-        const dayIdx  = text.indexOf(dayLabel);
-        const nextIdx = dayIdx > -1 ? text.indexOf(nextDay, dayIdx + 1) : -1;
-        const chunk   = dayIdx > -1
-          ? (nextIdx > -1 ? text.slice(dayIdx, nextIdx) : text.slice(dayIdx, dayIdx + 2000))
-          : "";
+        const iso  = `${date.getUTCFullYear()}-${String(date.getUTCMonth()+1).padStart(2,"0")}-${String(date.getUTCDate()).padStart(2,"0")}`;
+        const h    = dayHours[i];
 
         // Determine entry type
-        let type = "Normal Hours";
+        let type;
         if (h > 0) {
-          // Check if a leave type appears in this day's chunk (e.g. "Overtime")
-          for (const { re, type: lt } of LEAVE_PATTERNS) {
-            if (re.test(chunk)) { type = lt; break; }
-          }
+          type = "Normal Hours"; // working day
+        } else if (globalLeaveType) {
+          type = globalLeaveType; // 0h day with a leave keyword in PDF
         } else {
-          // Zero hours — check for a leave type in the day's chunk first
-          let found = false;
-          for (const { re, type: lt } of LEAVE_PATTERNS) {
-            if (re.test(chunk)) { type = lt; found = true; break; }
-          }
-          // If not found in chunk and it's a weekday, search the full text
-          // (PDF column layout means leave text may be far from the day header)
-          if (!found && date.getUTCDay() >= 1 && date.getUTCDay() <= 5) {
-            for (const { re, type: lt } of LEAVE_PATTERNS) {
-              const leaveM = text.match(new RegExp(re.source + "[\\s\\S]{0,300}?\\((\\d+\\.?\\d*)\\s*hrs?\\)", "i"));
-              if (leaveM) {
-                type = lt;
-                h = parseFloat(leaveM[1]);
-                found = true;
-                break;
-              }
-            }
-          }
-          if (!found) type = null; // likely a weekend with no entry
+          type = null; // weekend or blank — skip
         }
 
-        // Include working days with hours, or leave days
+        // Include working days and leave days, skip blank weekends
         if (h > 0 || type) {
           days.push({ date: iso, netHours: h, type: type || "Normal Hours", ...hoursToTimes(h) });
         }
       }
     }
 
-    return { empName, periodStart: periodStart ? periodStart.toISOString().slice(0,10) : null, days };
+    return { empName, periodStart: periodStart ? `${periodStart.getUTCFullYear()}-${String(periodStart.getUTCMonth()+1).padStart(2,"0")}-${String(periodStart.getUTCDate()).padStart(2,"0")}` : null, days };
   };
 
   // ── Load PDF via pdf.js ───────────────────────────────────────────────────
@@ -2544,12 +2601,12 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
     if(isAdmin1ts && (entry.approval==="submitted"||entry.approval==="draft")) return true;
     if(entry.approval!=="submitted") return false;
     if(role==="Admin") return true;
+    const apprentice = allUsers.find(u=>u.id===entry.userId);
     if(role==="Approver") {
-      const apprentice = allUsers.find(u=>u.id===entry.userId);
       if((currentUser.allocatedTo||[]).includes(entry.userId)) return true;
       if(apprentice?.approverUserId===currentUser.id) return true;
-    if(role==="Supervisor" && apprentice?.approverUserId===currentUser.id) return true;
     }
+    if(role==="Supervisor" && apprentice?.approverUserId===currentUser.id) return true;
     return false;
   };
   const canAdd = forcedApprenticeId
@@ -2600,7 +2657,9 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   };
   const handleApprove=async(id)=>{
     const entry=entries.find(e=>e.id===id);
-    setEntries(prev=>prev.map(e=>e.id===id?{...e,approval:"approved"}:e));
+    const approvedAt = new Date().toISOString();
+    setEntries(prev=>prev.map(e=>e.id===id?{...e,approval:"approved",approvedBy:currentUser.id,approvedAt}:e));
+    await upsertEntry({...entry,approval:"approved",approvedBy:currentUser.id,approvedAt}).catch(console.error);
     if(entry){
       const apprentice=allUsers.find(u=>u.id===entry.userId);
       // Check if all submitted entries for that week are now approved (including this one)
@@ -2621,7 +2680,9 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   };
   const handleDecline=async(id)=>{
     const entry=entries.find(e=>e.id===id);
-    setEntries(prev=>prev.map(e=>e.id===id?{...e,approval:"declined"}:e));
+    const declinedAt = new Date().toISOString();
+    setEntries(prev=>prev.map(e=>e.id===id?{...e,approval:"declined",declinedBy:currentUser.id,declinedAt}:e));
+    await upsertEntry({...entry,approval:"declined",declinedBy:currentUser.id,declinedAt}).catch(console.error);
     if(entry){
       const apprentice=allUsers.find(u=>u.id===entry.userId);
       await notifyApprentice(apprentice, currentUser, [entry], false);
@@ -2695,7 +2756,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
               const day = date.getUTCDay(); // 0=Sun
               const diff = day===0 ? 0 : 7-day;
               date.setUTCDate(date.getUTCDate()+diff);
-              return date.toISOString().slice(0,10);
+              return `${date.getUTCFullYear()}-${String(date.getUTCMonth()+1).padStart(2,"0")}-${String(date.getUTCDate()).padStart(2,"0")}`;
             };
             const draftsPerWeek = {};
             myDrafts.forEach(e=>{
@@ -2708,8 +2769,9 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
             const doSubmit = async (weekEnding) => {
               const toSubmit = weekEnding ? draftsPerWeek[weekEnding] : myDrafts;
               const ids = toSubmit.map(e=>e.id);
-              setEntries(prev=>prev.map(e=>ids.includes(e.id)?{...e,approval:"submitted"}:e));
-              await Promise.all(toSubmit.map(e=>upsertEntry({...e,approval:"submitted"}).catch(console.error)));
+              const submittedAt = new Date().toISOString();
+              setEntries(prev=>prev.map(e=>ids.includes(e.id)?{...e,approval:"submitted",submittedAt}:e));
+              await Promise.all(toSubmit.map(e=>upsertEntry({...e,approval:"submitted",submittedAt}).catch(console.error)));
               setWeekPickerDrafts(null);
               setWeekPickerSelected(null);
               const approvers = allUsers.filter(u=>
@@ -2846,8 +2908,9 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
           if(!await ktaConfirm(`Approve all ${allSubmitted.length} submitted ${allSubmitted.length===1?"entry":"entries"} across all apprentices? This bypasses individual approver sign-off.`)) return;
           setApprovingAll(true);
           const ids = allSubmitted.map(e=>e.id);
-          setEntries(prev=>prev.map(e=>ids.includes(e.id)?{...e,approval:"approved"}:e));
-          await Promise.all(allSubmitted.map(e=>upsertEntry({...e,approval:"approved"}).catch(console.error)));
+          const approvedAt = new Date().toISOString();
+          setEntries(prev=>prev.map(e=>ids.includes(e.id)?{...e,approval:"approved",approvedBy:currentUser.id,approvedAt}:e));
+          await Promise.all(allSubmitted.map(e=>upsertEntry({...e,approval:"approved",approvedBy:currentUser.id,approvedAt}).catch(console.error)));
           showToast(`✓ ${allSubmitted.length} ${allSubmitted.length===1?"entry":"entries"} approved`);
           setApprovingAll(false);
         };
@@ -2894,7 +2957,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
           const date = new Date(Date.UTC(y,m-1,d));
           const day = date.getUTCDay();
           date.setUTCDate(date.getUTCDate() + (day===0 ? 0 : 7-day));
-          return date.toISOString().slice(0,10);
+          return `${date.getUTCFullYear()}-${String(date.getUTCMonth()+1).padStart(2,"0")}-${String(date.getUTCDate()).padStart(2,"0")}`;
         };
         const fmtWeekEnd = (we) => { const [y,m,d]=we.split('-'); return `${d}/${m}/${y}`; };
 
@@ -2907,7 +2970,9 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
             const toApprove = submitted.filter(e=>getWeekEnding(e.date)===weekEnding);
             const ids = toApprove.map(e=>e.id);
             if(!ids.length) return;
-            setEntries(prev=>prev.map(e=>ids.includes(e.id)?{...e,approval:"approved"}:e));
+            const approvedAt = new Date().toISOString();
+            setEntries(prev=>prev.map(e=>ids.includes(e.id)?{...e,approval:"approved",approvedBy:currentUser.id,approvedAt}:e));
+            await Promise.all(toApprove.map(e=>upsertEntry({...e,approval:"approved",approvedBy:currentUser.id,approvedAt}).catch(console.error)));
             await notifyApprentice(app, currentUser, toApprove, true);
             showToast(`✓ Week approved — emailed ${app.name}`);
           };
@@ -2915,7 +2980,9 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
           const approveAllWeeks = async ()=>{
             if(!submitted.length) return;
             const ids = submitted.map(e=>e.id);
-            setEntries(prev=>prev.map(e=>ids.includes(e.id)?{...e,approval:"approved"}:e));
+            const approvedAt = new Date().toISOString();
+            setEntries(prev=>prev.map(e=>ids.includes(e.id)?{...e,approval:"approved",approvedBy:currentUser.id,approvedAt}:e));
+            await Promise.all(submitted.map(e=>upsertEntry({...e,approval:"approved",approvedBy:currentUser.id,approvedAt}).catch(console.error)));
             await notifyApprentice(app, currentUser, submitted, true);
             showToast(`✓ All pending entries approved — emailed ${app.name}`);
           };
@@ -3114,7 +3181,9 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
                   setEntries(prev=>prev.map(x=>x.id===id?{...x,approval:"submitted"}:x));
                   const entry=entries.find(x=>x.id===id);
                   if(entry){
-                    await upsertEntry({...entry,approval:"submitted"}).catch(console.error);
+                    const submittedAt = new Date().toISOString();
+                    await upsertEntry({...entry,approval:"submitted",submittedAt}).catch(console.error);
+                    setEntries(prev=>prev.map(e=>e.id===entry.id?{...e,approval:"submitted",submittedAt}:e));
                     const approvers=allUsers.filter(u=>
                       (u.role==="Approver"||(u.role==="Admin"&&u.secondaryRole==="Approver"))&&(
                         (u.allocatedTo||[]).includes(currentUser.id)||
@@ -3239,18 +3308,11 @@ function UserManagement({users, setUsers, currentUser, entries=[]}) {
     if(pwField.trim()) {
       finalForm.password=await hashPw(pwField.trim());
     } else if(editId) {
-      // No new password typed — don't include password field at all
-      delete finalForm.password;
+      // No new password typed — preserve the existing hash from the users array
+      const existing = users.find(u=>u.id===editId);
+      finalForm.password = existing?.password || "";
     }
     const targetId = editId || uid();
-
-    // If password was changed, persist it directly to DB
-    if(finalForm.password) {
-      const targetUser = editId
-        ? {...users.find(u=>u.id===editId), ...finalForm}
-        : {id: targetId, ...finalForm};
-      await upsertUser(targetUser).catch(e=>console.error('password upsert failed',e));
-    }
 
     // Always bake approver/viewer into finalForm for apprentices
     if(finalForm.role==="Apprentice") {
@@ -3286,6 +3348,17 @@ function UserManagement({users, setUsers, currentUser, entries=[]}) {
       }
       return next;
     });
+    // Persist to database
+    if(editId) {
+      if(pwField.trim()) {
+        upsertUser({id:editId,...finalForm}).catch(console.error);
+      } else {
+        const {password:_pw,...profileData}=finalForm;
+        updateUserProfile({id:editId,...profileData}).catch(console.error);
+      }
+    } else {
+      upsertUser({id:targetId,...finalForm}).catch(console.error);
+    }
     setEditId(null);
     setForm(blank);setPwField("");setShowForm(false);
     setAppApprover("");setAppViewer("");setAppMentor("");setAppSupervisors([]);
@@ -3322,7 +3395,7 @@ function UserManagement({users, setUsers, currentUser, entries=[]}) {
     }
     setTimeout(()=>document.getElementById("um-form")?.scrollIntoView({behavior:"smooth",block:"start"}),50);
   };
-  const deleteUser=async (id)=>{if(await ktaConfirm("Remove this user?"))setUsers(prev=>prev.filter(u=>u.id!==id));};
+  const deleteUser=async (id)=>{if(await ktaConfirm("Remove this user?")){setUsers(prev=>prev.filter(u=>u.id!==id));sbDeleteUser(id).catch(console.error);}};
 
   // For Approver/Viewer/Mentor: allocatable = apprentices (or apprentices+viewers for mentor)
   const allocatable=users.filter(u=>u.id!==(editId||"__")&&
@@ -5772,7 +5845,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
           if(row.phone && !matchedUser.phone)    updates.phone = row.phone;
           if(Object.keys(updates).length === 0) return;
           const updatedUser = {...matchedUser, ...updates};
-          await upsertUser(updatedUser).catch(console.error);
+          await updateUserProfile(updatedUser).catch(console.error);
           if(onUserCreated) onUserCreated(updatedUser); // re-uses the callback to update App state
         };
 
@@ -6140,7 +6213,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
               if(Object.keys(updates).length === 0){ skipped++; continue; }
 
               const updatedUser = {...matchedUser, ...updates};
-              await upsertUser(updatedUser).catch(console.error);
+              await updateUserProfile(updatedUser).catch(console.error);
               if(onUserCreated) onUserCreated(updatedUser);
               updated++;
               if(i%20===0) syncMsg(`📋 Matched ${updated} users so far…`);
@@ -6802,7 +6875,7 @@ function ApprenticeEditForm({user, allUsers, onSave, onCancel, title=null, viewe
       ...(pwField.trim() ? {password: await hashPw(pwField.trim())} : {}),
     };
     try {
-      await upsertUser(updated);
+      await updateUserProfile(updated);
       onSave(updated);
     } catch(e) {
       alert("Save failed: "+e.message);
@@ -7076,15 +7149,8 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
     if(pwField.trim()) {
       finalForm.password = await hashPw(pwField.trim());
     } else if(editId) {
-      // No new password typed — don't include password field at all
-      delete finalForm.password;
-    }
-    // If password was changed, persist it directly to DB
-    if(finalForm.password) {
-      const targetUser = editId
-        ? {...users.find(u=>u.id===editId), ...finalForm}
-        : {id: uid(), ...finalForm};
-      await upsertUser(targetUser).catch(e=>console.error('password upsert failed',e));
+      const existing = users.find(u=>u.id===editId);
+      finalForm.password = existing?.password || "";
     }
     let appId = editId;
     if(editId) {
@@ -7134,7 +7200,10 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
   };
 
   const deleteUser = async (id) => {
-    if(await ktaConfirm("Remove this apprentice?")) setUsers(prev => prev.filter(u => u.id !== id));
+    if(await ktaConfirm("Remove this apprentice?")) {
+      setUsers(prev => prev.filter(u => u.id !== id));
+      sbDeleteUser(id).catch(console.error);
+    }
   };
 
   // licence expiry colour
@@ -9598,7 +9667,7 @@ function LeaveRequestsPanel({ currentUser, allUsers, entries=[], setEntries=null
         if(isMentor) {
           const myIds = allUsers
             .filter(u => u.role==="Apprentice" && (
-              u.allocatedTo === currentUser.id ||
+              (u.allocatedTo||[]).includes(currentUser.id) ||
               u.mentorUserId === currentUser.id
             ))
             .map(u=>u.id);
@@ -10068,7 +10137,7 @@ const sendMeetingReportEmail = async (report, apprentice, mentor, approver, ccEm
 
 // ─── Fullscreen New Report Modal ────────────────────────────────────────────
 // Renders MeetingReportForm full-screen with a collapsible Past Reports panel
-function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave, onClose, loadDraft=true}) {
+function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave, onClose}) {
   const [showPast, setShowPast] = useState(false);
 
   // Prevent body scroll while open
@@ -10101,7 +10170,7 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
           <div style={{display:"flex", alignItems:"center", gap:12}}>
             <div style={{fontSize:22}}>📋</div>
             <div>
-              <div style={{fontWeight:700, fontSize:17, color:"#fff"}}>{loadDraft ? "Continue Draft Report" : "New Meeting Report"}</div>
+              <div style={{fontWeight:700, fontSize:17, color:"#fff"}}>New Meeting Report</div>
               <div style={{fontSize:12, color:"rgba(255,255,255,.65)"}}>{apprentice.name}</div>
             </div>
           </div>
@@ -10143,7 +10212,6 @@ function ReportFullscreenModal({apprentice, mentor, allUsers, meetingKey, onSave
             allUsers={allUsers}
             onSave={onSave}
             onCancel={onClose}
-            loadDraft={loadDraft}
           />
         </div>
       </div>
@@ -10599,7 +10667,7 @@ function ProgressLineGraph({ snapshots }) {
   const statusColor  = gap >= 0 ? "#1a8a7a" : gap >= -10 ? "#b86e1a" : "#bf2b2b";
   const statusBg     = gap >= 0 ? "#d4f0ec" : gap >= -10 ? "#faebd7" : "#fde8e8";
   const statusLabel  = isPastEnd
-    ? `Over Duration — ${Math.round(actualPct)}% complete (${Math.round(100 - actualPct)}% remaining)`
+    ? `Past programme end — ${Math.round(actualPct)}% complete (${Math.round(100 - actualPct)}% remaining)`
     : gap >= 0 ? `On track / ahead (+${Math.round(gap)}%)`
     : gap >= -10 ? `Slightly behind (${Math.round(gap)}%)` : `Well behind (${Math.round(gap)}%)`;
   const statusIcon   = gap >= 0 ? "✅" : gap >= -10 ? "⚠️" : "🔴";
@@ -10663,61 +10731,36 @@ function ProgressLineGraph({ snapshots }) {
 
       {/* ── Timeline bar ── */}
       <div style={{ marginBottom: 14 }}>
-        {isPastEnd ? (
-          <>
-            {/* Over-duration: solid red bar filling the full width */}
-            <div style={{ position: "relative", height: 28, borderRadius: 6,
-              background: "#bf2b2b", overflow: "hidden" }}>
-              <div style={{ position: "absolute", inset: 0, display: "flex",
-                alignItems: "center", justifyContent: "center" }}>
-                <span style={{ color: "#fff", fontWeight: 800, fontSize: 13, letterSpacing: ".3px" }}>
-                  Month {latest.months_in_training} of {duration}
-                </span>
-              </div>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11,
-              color: T.muted, marginTop: 4 }}>
-              <span>Start</span>
-              <span style={{ color: "#bf2b2b", fontWeight: 700 }}>
-                {Math.round(actualPct)}% complete — {Math.round(100 - actualPct)}% remaining
-              </span>
-              <span>End (month {duration})</span>
-            </div>
-          </>
-        ) : (
-          <>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11,
-              color: T.muted, marginBottom: 4 }}>
-              <span>Start</span>
-              <span style={{ color: statusColor, fontWeight: 700 }}>
-                ▼ Month {latest.months_in_training} — {Math.round(actualPct)}% complete
-              </span>
-              <span>End (month {duration})</span>
-            </div>
-            {/* Duration bar */}
-            <div style={{ position: "relative", height: 28, borderRadius: 6,
-              background: "#e8edf4", overflow: "hidden" }}>
-              {/* Expected progress (grey fill) */}
-              <div style={{ position: "absolute", left: 0, top: 0, bottom: 0,
-                width: `${Math.min((latest.months_in_training / duration) * 100, 100)}%`,
-                background: "#c4cdd8", borderRadius: "6px 0 0 6px", transition: "width .4s" }}/>
-              {/* Actual progress (coloured fill) */}
-              <div style={{ position: "absolute", left: 0, top: 4, bottom: 4,
-                width: `${Math.min((actualPct / 100) * (latest.months_in_training / duration) * 100, 100)}%`,
-                background: statusColor, borderRadius: 4, transition: "width .4s",
-                opacity: 0.9 }}/>
-              {/* "You are here" marker */}
-              <div style={{ position: "absolute", top: -4, bottom: -4,
-                left: `${Math.min((latest.months_in_training / duration) * 100, 100)}%`,
-                width: 3, background: T.ink, borderRadius: 2, transform: "translateX(-50%)" }}/>
-              {/* Expected marker */}
-              <div style={{ position: "absolute", top: 2, bottom: 2,
-                left: `${Math.min((expectedPct / 100) * (latest.months_in_training / duration) * 100, 100)}%`,
-                width: 2, background: "#fff", borderRadius: 1,
-                opacity: 0.8, transform: "translateX(-50%)" }}/>
-            </div>
-          </>
-        )}
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11,
+          color: T.muted, marginBottom: 4 }}>
+          <span>Start</span>
+          <span style={{ color: statusColor, fontWeight: 700 }}>
+            ▼ Month {latest.months_in_training} — {Math.round(actualPct)}% complete
+          </span>
+          <span>End (month {duration})</span>
+        </div>
+        {/* Duration bar */}
+        <div style={{ position: "relative", height: 28, borderRadius: 6,
+          background: "#e8edf4", overflow: "visible" }}>
+          {/* Expected progress (grey fill) */}
+          <div style={{ position: "absolute", left: 0, top: 0, bottom: 0,
+            width: `${(latest.months_in_training / duration) * 100}%`,
+            background: "#c4cdd8", borderRadius: "6px 0 0 6px", transition: "width .4s" }}/>
+          {/* Actual progress (coloured fill) */}
+          <div style={{ position: "absolute", left: 0, top: 4, bottom: 4,
+            width: `${Math.min((actualPct / 100) * (latest.months_in_training / duration) * 100, 100)}%`,
+            background: statusColor, borderRadius: 4, transition: "width .4s",
+            opacity: 0.9 }}/>
+          {/* "You are here" marker */}
+          <div style={{ position: "absolute", top: -4, bottom: -4,
+            left: `${(latest.months_in_training / duration) * 100}%`,
+            width: 3, background: T.ink, borderRadius: 2, transform: "translateX(-50%)" }}/>
+          {/* Expected marker */}
+          <div style={{ position: "absolute", top: 2, bottom: 2,
+            left: `${Math.min((expectedPct / 100) * (latest.months_in_training / duration) * 100, 100)}%`,
+            width: 2, background: "#fff", borderRadius: 1,
+            opacity: 0.8, transform: "translateX(-50%)" }}/>
+        </div>
         <div style={{ display: "flex", gap: 14, marginTop: 6, fontSize: 11 }}>
           <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <span style={{ display: "inline-block", width: 12, height: 3, background: statusColor, borderRadius: 2 }}/>
@@ -11279,7 +11322,7 @@ function ProgressSnapshotPanel({ apprenticeId, canDelete=false }) {
   );
 }
 
-function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel, loadDraft=true}) {
+function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel}) {
   const today = tod();
   const approver = allUsers.find(u=>
     u.id === apprentice.approverUserId ||
@@ -11334,7 +11377,7 @@ function MeetingReportForm({apprentice, mentor, allUsers, onSave, onCancel, load
       const draft = all
         .filter(r => r.apprentice_id === apprentice.id && r.status === 'draft')
         .sort((a,b) => (b.created_at||"").localeCompare(a.created_at||""))[0];
-      if(draft && loadDraft) {
+      if(draft) {
         setDraftId(draft.id);
         setForm({
           date:             draft.date || tod(),
@@ -12423,7 +12466,6 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
 function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entries, setEntries, onBack, isAdmin=false, canEditExpiry=false, onUserUpdated=null}) {
   const [apprentice, setApprentice] = useState(apprenticeProp);
   const [showMeetingForm, setShowMeetingForm] = useState(false);
-  const [loadDraft, setLoadDraft]             = useState(false);
   const [showPastReports, setShowPastReports] = useState(false);
   const [showPPE, setShowPPE]                 = useState(false);
   const [showActivity, setShowActivity]       = useState(false);
@@ -12434,7 +12476,6 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   const [lastVisit, setLastVisit]             = useState(null);
   const [loadingVisit, setLoadingVisit]       = useState(true);
   const [reports, setReports]                 = useState([]);
-  const [ppeRequests, setPpeRequests]         = useState([]);
   const [showPersonal, setShowPersonal]       = useState(false);
   const [advLeave, setAdvLeave]               = useState([]);
   const [advLeaveLoading, setAdvLeaveLoading] = useState(true);
@@ -12465,19 +12506,18 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
     ADV_SECTION_DEFAULT
   );
 
-  // Now safe to guard
-  if(!apprenticeProp) return null;
-
-  // Keep local apprentice in sync with parent
+  // Keep local apprentice in sync with parent (must be before conditional return)
   useEffect(() => {
-    setApprentice(prev => ({ ...prev, ...apprenticeProp }));
+    if(apprenticeProp) setApprentice(prev => ({ ...prev, ...apprenticeProp }));
   }, [apprenticeProp?.id, apprenticeProp?.reportsEmail, apprenticeProp?.email,
       apprenticeProp?.approverUserId, apprenticeProp?.hostBusiness]);
+
+  if(!apprenticeProp) return null;
 
   const saveHostBiz = async () => {
     setSavingHostBiz(true);
     const updated = {...apprentice, hostBusiness: hostBizVal};
-    await upsertUser(updated).catch(console.error);
+    await updateUserProfile(updated).catch(console.error);
     setApprentice(prev=>({...prev, hostBusiness: hostBizVal}));
     if(onUserUpdated) onUserUpdated(updated);
     if(hostBizVal.trim()) {
@@ -12496,7 +12536,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
     const dbField = field==="licence"?"licence_expiry":field==="siteSafe"?"site_safe_expiry":field==="firstAid"?"first_aid_expiry":field==="licenceNum"?"licence_number":"site_safe_number";
     const stateField = field==="licence"?"licenceExpiry":field==="siteSafe"?"siteSafeExpiry":field==="firstAid"?"firstAidExpiry":field==="licenceNum"?"licenceNumber":"siteSafeNumber";
     const updated = {...apprentice, [stateField]: val||null};
-    await upsertUser(updated).catch(console.error);
+    await updateUserProfile(updated).catch(console.error);
     setApprentice(prev=>({...prev,[stateField]:val||null}));
     if(onUserUpdated) onUserUpdated(updated);
     setEditingExpiry(null);
@@ -12514,12 +12554,6 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
       .finally(()=>setLoadingVisit(false));
   },[apprentice.id, meetingKey]);
 
-  useEffect(()=>{
-    loadTable('ppe_requests')
-      .then(rows=>setPpeRequests(rows.filter(r=>r.apprentice_id===apprentice.id).sort((a,b)=>(b.date_requested||"").localeCompare(a.date_requested||""))))
-      .catch(()=>setPpeRequests([]));
-  },[apprentice.id]);
-
   const fmtDate = (iso) => { if(!iso) return null; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
   const daysUntil = (iso) => { if(!iso) return null; const today=new Date(); today.setHours(0,0,0,0); const exp=new Date(iso+"T00:00:00"); return Math.round((exp-today)/86400000); };
 
@@ -12528,7 +12562,6 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
 
   const lastReport    = reports[0] || null;
   const prevReport    = reports[1] || null;
-  const draftReport   = reports.find(r => r.status === 'draft') || null;
 
   // Timesheet entries for this apprentice (admin view)
   const appEntries = (entries||[]).filter(e=>e.userId===apprentice.id).sort((a,b)=>b.date.localeCompare(a.date));
@@ -12799,31 +12832,18 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
         if(sectionId==="actions") return (
           <DraggableSection key="actions" id="actions" dragProps={sectionDrag}>
             {(isAdmin||isSupervisor) ? (
-              <div style={{display:"grid", gridTemplateColumns:`repeat(${draftReport && isAdmin ? 7 : 6}, 1fr)`, gap:10, marginBottom:12}}>
-                <button onClick={()=>{setLoadDraft(false); setShowMeetingForm(s=>!s); setShowPastReports(false); setShowPPE(false); setShowActivity(false); setShowHSEForm(false); setShowPastHSE(false);}}
-                  style={{width:"100%", background:showMeetingForm && !loadDraft?T.accentL:T.surface, border:`1.5px solid ${showMeetingForm && !loadDraft?T.accent:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s", display:isAdmin?"":"none"}}>
+              <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr 1fr", gap:10, marginBottom:12}}>
+                <button onClick={()=>{setShowMeetingForm(s=>!s); setShowPastReports(false); setShowPPE(false); setShowActivity(false); setShowHSEForm(false); setShowPastHSE(false);}}
+                  style={{width:"100%", background:showMeetingForm?T.accentL:T.surface, border:`1.5px solid ${showMeetingForm?T.accent:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s", display:isAdmin?"":"none"}}>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
                     <div style={{width:28,height:28,borderRadius:7,background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>📋</div>
                     <div style={{minWidth:0}}>
-                      <div style={{fontWeight:700, fontSize:13, color:showMeetingForm && !loadDraft?T.accent:T.ink}}>New Report</div>
+                      <div style={{fontWeight:700, fontSize:13, color:showMeetingForm?T.accent:T.ink}}>New Report</div>
                       <div style={{fontSize:11, color:T.sub, marginTop:1}}>Record a visit</div>
                     </div>
                     <div style={{marginLeft:"auto", fontSize:12, color:T.muted}}>↗</div>
                   </div>
                 </button>
-                {draftReport && isAdmin && (
-                  <button onClick={()=>{setLoadDraft(true); setShowMeetingForm(true); setShowPastReports(false); setShowPPE(false); setShowActivity(false); setShowHSEForm(false); setShowPastHSE(false);}}
-                    style={{width:"100%", background:showMeetingForm && loadDraft?"#fff4e6":T.surface, border:`1.5px solid ${showMeetingForm && loadDraft?"#e67e22":T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
-                    <div style={{display:"flex", alignItems:"center", gap:8}}>
-                      <div style={{width:28,height:28,borderRadius:7,background:"#fff4e6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>📝</div>
-                      <div style={{minWidth:0}}>
-                        <div style={{fontWeight:700, fontSize:13, color:showMeetingForm && loadDraft?"#e67e22":T.ink}}>Continue Draft</div>
-                        <div style={{fontSize:11, color:T.sub, marginTop:1}}>{draftReport.date ? fmtDate(draftReport.date) : "In progress"}</div>
-                      </div>
-                      <div style={{marginLeft:"auto", fontSize:12, color:T.muted}}>↗</div>
-                    </div>
-                  </button>
-                )}
                 <button onClick={()=>{setShowPastReports(s=>!s); setShowMeetingForm(false); setShowPPE(false); setShowActivity(false); setShowHSEForm(false); setShowPastHSE(false);}}
                   style={{width:"100%", background:showPastReports?T.goldL:T.surface, border:`1.5px solid ${showPastReports?T.gold:T.border}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", textAlign:"left", fontFamily:"DM Sans,sans-serif", transition:"all .15s"}}>
                   <div style={{display:"flex", alignItems:"center", gap:8}}>
@@ -12901,18 +12921,10 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             {showActivity && isAdmin && apprentice.email && (
               <Card style={{marginBottom:16}}>
                 <EmailActivityFeed personEmail={apprentice.email} personName={apprentice.name} personId={apprentice.id} canEdit={true} isKristeena={isConfOwner(viewer)} isAdmin1={Number(viewer?.adminLevel ?? 1)===1&&viewer?.role==="Admin"}
-                  extraItems={[
-                    ...reports.map(r=>({id:r.id,created_at:r.created_at||r.date+"T12:00:00",date:r.date,
-                      label:`Meeting Report — ${r.date?(()=>{const[y,m,d]=r.date.split('-');return`${d}/${m}/${y}`;})():""}`,
-                      detail:r.goals_this_meeting?`Goals: ${r.goals_this_meeting}`:r.comments_feedback||""})),
-                    ...ppeRequests.map(p=>{
-                      const pItems = (()=>{try{return JSON.parse(p.items);}catch{return[];}})();
-                      const itemSummary = pItems.filter(it=>parseFloat(it.qtyReq||0)>0||parseFloat(it.qtyIssued||0)>0||it.notes||it.size).map(it=>`${it.item}${it.size?" ("+it.size+")":""}${parseFloat(it.qtyIssued||0)>0?" ×"+it.qtyIssued+" issued":parseFloat(it.qtyReq||0)>0?" ×"+it.qtyReq+" requested":""}${it.notes?" — "+it.notes:""}`).join(", ");
-                      return {id:p.id, created_at:p.created_at||p.date_requested+"T12:00:00", date:p.date_requested,
-                        label:`PPE ${p.completed?"Issued":"Request"} — ${p.date_requested?(()=>{const[y,m,d]=p.date_requested.split('-');return`${d}/${m}/${y}`;})():""}`,
-                        detail:itemSummary};
-                    }),
-                  ]}/>              </Card>
+                  extraItems={reports.map(r=>({id:r.id,created_at:r.created_at||r.date+"T12:00:00",date:r.date,
+                    label:`Meeting Report — ${r.date?(()=>{const[y,m,d]=r.date.split('-');return`${d}/${m}/${y}`;})():""}`,
+                    detail:r.goals_this_meeting?`Goals: ${r.goals_this_meeting}`:r.comments_feedback||""}))}/>
+              </Card>
             )}
           </DraggableSection>
         );
@@ -12929,7 +12941,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                   emergencyContactPhone: pdForm.emergencyContactPhone||"",
                   emergencyContactRelationship: pdForm.emergencyContactRelationship||"",
                 };
-                await upsertUser(updated).catch(console.error);
+                await updateUserProfile(updated).catch(console.error);
                 setApprentice(updated);
                 if(onUserUpdated) onUserUpdated(updated);
                 setPdEdit(false);
@@ -13328,7 +13340,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
 
       {/* Report modal — top-level fixed overlay for both admin and mentor */}
       {showMeetingForm && isAdmin && (
-        <ReportFullscreenModal apprentice={apprentice} mentor={viewer} allUsers={allUsers} meetingKey={meetingKey} loadDraft={loadDraft}
+        <ReportFullscreenModal apprentice={apprentice} mentor={viewer} allUsers={allUsers} meetingKey={meetingKey}
           onSave={()=>{ setShowMeetingForm(false); setMeetingKey(k=>k+1); }} onClose={()=>setShowMeetingForm(false)}/>
       )}
 
@@ -13341,7 +13353,6 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               mentor={viewer}
               allUsers={allUsers}
               meetingKey={meetingKey}
-              loadDraft={loadDraft}
               onSave={()=>{ setShowMeetingForm(false); setMeetingKey(k=>k+1); }}
               onClose={()=>setShowMeetingForm(false)}
             />
@@ -14046,6 +14057,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
   const [xeroEmployees, setXeroEmployees] = useState([]); // loaded from Xero
   const [xeroRates, setXeroRates]         = useState([]); // earnings rates loaded from Xero
   const [xeroLeaveTypes, setXeroLeaveTypes] = useState([]); // leave types loaded from Xero
+  const [xeroReimbursements, setXeroReimbursements] = useState([]); // reimbursements (Tool Allowance etc)
   const [savingMap, setSavingMap] = useState({});
   const [submittingAll, setSubmittingAll] = useState(false);
 
@@ -14170,19 +14182,20 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
                   if(data.ok){
                     setXeroRates(data.earningsRates||[]);
                     setXeroLeaveTypes(data.leaveTypes||[]);
-                    showToast(`✓ Loaded ${(data.earningsRates||[]).length} rates · ${(data.leaveTypes||[]).length} leave types`);
+                    setXeroReimbursements(data.reimbursements||[]);
+                    showToast(`✓ Loaded ${(data.earningsRates||[]).length} rates · ${(data.leaveTypes||[]).length} leave types · ${(data.reimbursements||[]).length} reimbursements`);
                   } else { alert("Error: "+(data.error||JSON.stringify(data))); }
                 }catch(e){ alert("Failed: "+e.message); }
               }}>🔄 Load from Xero</Btn>
-              {(xeroRates.length>0||xeroLeaveTypes.length>0)&&(
+              {(xeroRates.length>0||xeroLeaveTypes.length>0||xeroReimbursements.length>0)&&(
                 <span style={{fontSize:13,color:T.teal,fontWeight:700}}>
-                  ✓ {xeroRates.length} rates · {xeroLeaveTypes.length} leave types
+                  ✓ {xeroRates.length} rates · {xeroLeaveTypes.length} leave · {xeroReimbursements.length} reimbursements
                 </span>
               )}
             </div>
             {ENTRY_TYPE_NAMES.map(type=>{
               const val = settings.earningsRates?.[type]||"";
-              const hasOptions = xeroRates.length>0||xeroLeaveTypes.length>0;
+              const hasOptions = xeroRates.length>0||xeroLeaveTypes.length>0||xeroReimbursements.length>0;
               // Which group does this entry type naturally belong to?
               const isLeaveType = ["Annual Leave","Sick Leave","Bereavement Leave","Leave Without Pay"].includes(type);
               return (
@@ -14207,6 +14220,9 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
                       {xeroLeaveTypes.length>0&&<optgroup label="── Leave Types ──">
                         {xeroLeaveTypes.map(l=><option key={l.id} value={"leave:"+l.id}>{l.name}</option>)}
                       </optgroup>}
+                      {xeroReimbursements.length>0&&<optgroup label="── Reimbursements ──">
+                        {xeroReimbursements.map(r=><option key={r.id} value={"reimb:"+r.id}>{r.name}</option>)}
+                      </optgroup>}
                     </select>
                   ) : (
                     <input value={val}
@@ -14221,7 +14237,22 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
               );
             })}
 
-
+            <div style={{marginTop:16,padding:"14px 16px",background:T.warnL,borderRadius:8,border:`1px solid ${T.warn}44`,marginBottom:12}}>
+              <div style={{fontWeight:700,fontSize:14,color:T.warn,marginBottom:8}}>🔧 Tool Allowance Reimbursement</div>
+              <div style={{fontSize:13,color:T.sub,marginBottom:10,lineHeight:1.5}}>Automatically submits Tool Allowance = (Normal Hours + Overtime) × /bin/zsh.50 per hour when you submit a timesheet to Xero. Paste the Xero Reimbursement ID for Tool Allowance below.</div>
+              <div style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:8,alignItems:"center"}}>
+                <span style={{fontSize:14,fontWeight:700,color:T.ink}}>Tool Allowance ID</span>
+                {xeroReimbursements.length>0
+                  ? <select value={settings.toolAllowanceReimbursementId||""} onChange={e=>ss("toolAllowanceReimbursementId",e.target.value)}
+                      style={{fontSize:13,padding:"6px 8px",border:`1px solid ${settings.toolAllowanceReimbursementId?T.teal:T.border}`,borderRadius:6,background:"#fff",flex:1}}>
+                      <option value="">— Select reimbursement type —</option>
+                      {xeroReimbursements.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                  : <input value={settings.toolAllowanceReimbursementId||""} onChange={e=>ss("toolAllowanceReimbursementId",e.target.value)} placeholder="Load from Xero above, or paste ID" style={{fontSize:13,padding:"6px 8px",border:`1px solid ${settings.toolAllowanceReimbursementId?T.teal:T.border}`,borderRadius:6,flex:1}}/>
+                }
+              </div>
+              <div style={{fontSize:12,color:T.muted,marginTop:6}}>To find this: Xero → Payroll → Pay Items → Reimbursements → Tool Allowance → copy the ID from the URL</div>
+            </div>
             <div style={{marginTop:4}}>
               {saved
                 ? <div style={{display:"inline-flex",alignItems:"center",gap:6,color:T.teal,fontWeight:700,fontSize:14}}>✓ Settings saved</div>
@@ -14291,7 +14322,7 @@ serve(async (req) => {
       const day = d.getDay(); // 0=Sun
       const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
       const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-      const fmt = (dt: Date) => dt.toISOString().slice(0, 10);
+      const fmt = (dt) => localISO(dt); // NZ-safe date string
 
       // Create or update timesheet
       const tsBody = {
@@ -14327,10 +14358,7 @@ serve(async (req) => {
     if (action === "getEmployees") {
       const res = await fetch(\`\${XERO_API_BASE}/Employees\`, { headers });
       const data = await res.json();
-      const emps = data.Employees || [];
-      const now = new Date().toISOString().slice(0,10);
-      const active = emps.filter(e => { const end = e.endDate||e.EndDate; return !end || end.slice(0,10) > now; });
-      return new Response(JSON.stringify({ ok: true, employees: active }), { headers: cors });
+      return new Response(JSON.stringify({ ok: true, employees: data.Employees }), { headers: cors });
     }
 
     return new Response(JSON.stringify({ error: "Unknown action" }), { status: 400, headers: cors });
@@ -14371,15 +14399,8 @@ serve(async (req) => {
                 const text = await res.text();
                 let data; try{ data=JSON.parse(text); }catch{ alert("Non-JSON response: "+text.slice(0,300)); return; }
                 if(data.ok && data.employees){
-                  // Filter out employees whose endDate is in the past (no longer current staff)
-                  const today = new Date().toISOString().slice(0,10);
-                  const active = data.employees.filter(e=>{
-                    const end = e.endDate||e.EndDate;
-                    if(!end) return true;
-                    return end.slice(0,10) > today;
-                  });
-                  setXeroEmployees(active);
-                  showToast(`✓ Loaded ${active.length} active employees from Xero`);
+                  setXeroEmployees(data.employees);
+                  showToast(`✓ Loaded ${data.employees.length} employees from Xero`);
                 } else { alert("Error: " + (data.error||JSON.stringify(data))); }
               }catch(e){ alert("Failed: "+e.message); }
             }}>🔄 Load Employees from Xero</Btn>
@@ -15376,19 +15397,15 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
               letterSpacing:".6px",marginBottom:8}}>Activity Log</div>
             {timeline.map((item,i)=>{
               if(item._src==="extra") {
-                // Meeting report, PPE, or other injected item
-                const isPPE = (item.label||"").startsWith("PPE");
-                const extraIcon = isPPE ? "🦺" : "📋";
-                const extraColor = isPPE ? T.teal : T.blue;
-                const extraBg = isPPE ? T.tealL : T.blueL;
+                // Meeting report or other injected item
                 return (
                   <div key={item.id||i} style={{display:"flex",gap:12,marginBottom:10}}>
-                    <div style={{width:2,background:extraBg,borderRadius:2,flexShrink:0,marginTop:4,marginBottom:4}}/>
-                    <div style={{flex:1,background:extraBg,border:`1px solid ${extraColor}33`,
+                    <div style={{width:2,background:T.blueL,borderRadius:2,flexShrink:0,marginTop:4,marginBottom:4}}/>
+                    <div style={{flex:1,background:T.blueL,border:`1px solid ${T.blue}33`,
                       borderRadius:8,padding:"10px 13px"}}>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
-                        <span style={{fontSize:14}}>{extraIcon}</span>
-                        <span style={{fontWeight:700,fontSize:14,color:extraColor}}>{item.label||"Meeting Report"}</span>
+                        <span style={{fontSize:14}}>📋</span>
+                        <span style={{fontWeight:700,fontSize:14,color:T.blue}}>{item.label||"Meeting Report"}</span>
                         <span style={{fontSize:12,color:T.sub,marginLeft:"auto"}}>{fmtTs(item.created_at||item.date)}</span>
                       </div>
                       {item.detail&&<div style={{fontSize:13,color:T.ink,lineHeight:1.6}}>{item.detail}</div>}
@@ -16060,7 +16077,7 @@ serve(async (req) => {
                                 <div style={{display:"flex",gap:16,marginBottom:10,flexWrap:"wrap",fontSize:13,color:T.sub}}>
                                   <span><strong>From:</strong> {em.from}</span>
                                   <span><strong>To:</strong> {em.to}</span>
-                                  <span><strong>Date:</strong> {new Date(em.date).toLocaleString("en-NZ")}</span>
+                                  <span><strong>Date:</strong> {new Date(em.date).toLocaleString("en-NZ",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
                                 </div>
                                 <div style={{fontSize:14,color:T.ink,lineHeight:1.7,
                                   whiteSpace:"pre-wrap",padding:"10px 12px",
@@ -16208,7 +16225,7 @@ function PaidTimesheetsPanel({ entries, currentUser }) {
     const dt = new Date(Date.UTC(y, m - 1, d));
     const day = dt.getUTCDay();
     dt.setUTCDate(dt.getUTCDate() + (day === 0 ? 0 : 7 - day));
-    return dt.toISOString().slice(0, 10);
+    return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,"0")}-${String(dt.getUTCDate()).padStart(2,"0")}`;
   };
 
   const weeks = {};
@@ -17586,6 +17603,8 @@ export default function App() {
   const [loggingOut,setLoggingOut] = useState(false);
   const [loading,setLoading]     = useState(true);
   const [dbError,setDbError]     = useState(null);
+  const [showLeaveResult,setShowLeaveResult] = useState(() =>
+    typeof window !== "undefined" && !!new URLSearchParams(window.location.search).get("leave_result"));
   const [notifications,setNotifications] = useState([]);
   const [showNotifs,setShowNotifs] = useState(false);
   const [showBroadcast,setShowBroadcast] = useState(false);
@@ -17758,7 +17777,7 @@ export default function App() {
           const old = prevMap[u.id];
           // Always upsert if new user, or if any field changed (stable key-sorted comparison)
           if(!old || stableJson(old) !== stableJson(u)) {
-            upsertUser(u).catch(e=>console.error('upsertUser',e));
+            updateUserProfile(u).catch(e=>console.error('updateUserProfile',e));
           }
         });
         prev.forEach(u => {
@@ -17972,7 +17991,8 @@ export default function App() {
   if(!currentUser) return (
     <>
       <style>{CSS}</style>
-      <LoginScreen users={users} onLogin={handleLogin}/>
+      {showLeaveResult && <LeaveResultScreen onDismiss={()=>setShowLeaveResult(false)}/>}
+      {!showLeaveResult && <LoginScreen users={users} onLogin={handleLogin}/>}
     </>
   );
 
@@ -18464,9 +18484,6 @@ export default function App() {
         </main>
       </div>
       <KTAConfirmRoot/>
-      {typeof window!=="undefined" && new URLSearchParams(window.location.search).get("leave_result") && (
-        <LeaveResultScreen onDismiss={()=>window.history.replaceState({},"",window.location.pathname)}/>
-      )}
       {appToast&&(
         <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",
           background:appToast.ok?"#1a8a7a":"#bf2b2b",color:"#fff",

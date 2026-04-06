@@ -199,7 +199,7 @@ const sendCalendarInvite = async (toEmail, toName, apprenticeName, leaveType, da
   }).catch(e => console.error("Calendar invite failed for", toEmail, e));
 };
 
-const LEAVE_TOKEN_SECRET = import.meta.env.VITE_HMAC_SECRET || "kta-leave-action-secret-v1";
+const LEAVE_TOKEN_SECRET = import.meta.env.VITE_HMAC_SECRET;
 
 // HMAC-SHA256 token for one-click email approve/decline (browser SubtleCrypto)
 const signLeaveToken = async (payload) => {
@@ -595,7 +595,7 @@ export const uid      = () => Math.random().toString(36).slice(2,9);
 export const tod      = () => new Date().toISOString().slice(0,10);
 export const toMin    = t => { const[h,m]=t.split(":").map(Number); return h*60+m; };
 export const calcNet  = (s,e,b) => { const d=toMin(e)-toMin(s)-b; return d>0?+(d/60).toFixed(2):0; };
-export const fmtD     = d => new Date(d+"T00:00:00").toLocaleDateString("en-AU",{weekday:"short",day:"numeric",month:"short"});
+export const fmtD     = d => new Date(d+"T00:00:00").toLocaleDateString("en-NZ",{weekday:"short",day:"numeric",month:"short"});
 const within14  = d => { const diff=(new Date(tod())-new Date(d+"T00:00:00"))/(86400000); return diff>=0&&diff<14; };
 export const weekStart = () => { const d=new Date(); d.setDate(d.getDate()-((d.getDay()+6)%7)); d.setHours(0,0,0,0); return d.toISOString().slice(0,10); };
 export const withinWeek = d => d >= weekStart();
@@ -604,7 +604,7 @@ export const daysAgoStr = n => { const d=new Date(); d.setDate(d.getDate()-n); r
 // Send email notification to approvers when apprentice submits timesheets
 // Sign a timesheet action token
 const TIMESHEET_ACTION_URL = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/timesheet-action";
-const TIMESHEET_TOKEN_SECRET = import.meta.env.VITE_HMAC_SECRET || "kta-leave-action-secret-v1"; // same secret, same env var
+const TIMESHEET_TOKEN_SECRET = import.meta.env.VITE_HMAC_SECRET;
 
 export const signTimesheetToken = async (payload) => {
   const enc = new TextEncoder();

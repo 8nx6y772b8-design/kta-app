@@ -56,7 +56,8 @@ serve(async (req) => {
 
   if (!token) return errorRedirect("Missing token");
 
-  const secret = Deno.env.get("HMAC_SECRET") || "kta-leave-action-secret-v1";
+  const secret = Deno.env.get("HMAC_SECRET");
+  if (!secret) return errorRedirect("Server misconfiguration");
   const payload = await verifyToken(token, secret);
 
   if (!payload) return errorRedirect("Invalid or expired link");

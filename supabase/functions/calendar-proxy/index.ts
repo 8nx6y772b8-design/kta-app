@@ -19,7 +19,7 @@ const TEAM_MAILBOX     = "timesheet@kta.org.nz"; // mailbox that owns the calend
 const TEAM_CALENDAR_NAME = "KTA Team New";          // display name of the calendar
 
 const CORS = {
-  "Access-Control-Allow-Origin":  "*",
+  "Access-Control-Allow-Origin":  "https://crmkta.com",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
