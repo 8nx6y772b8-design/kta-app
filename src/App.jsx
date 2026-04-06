@@ -402,7 +402,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.9";
+const APP_VERSION = "v3.7.10";
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
 // Maps leave request types to timesheet entry types
@@ -631,7 +631,7 @@ const signLeaveToken = async (payload) => {
 const leaveActionUrl = async (leaveId, action, actorId, actorRole) => {
   const exp     = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
   const token   = await signLeaveToken({ id: leaveId, action, actorId, actorRole, exp });
-  return `${LEAVE_ACTION_URL}?token=${token}`;
+  return `${LEAVE_ACTION_URL}?token=${encodeURIComponent(token)}`;
 };
 const sendKTAEmail = async ({ to, subject, html, attachments, from }) => {
   const res = await fetch(EMAIL_PROXY, {
@@ -16636,8 +16636,10 @@ function LeaveResultScreen({ onDismiss }) {
   const CONFIG = {
     approver_approved: {
       icon: "✅", color: T.teal,   bg: T.tealL,
-      title: `${type} Approved`,
-      sub:   `Forwarded to KTA for final approval`,
+      title: `Leave for ${name || "Apprentice"} has been approved`,
+      sub:   dateFrom && dateTo
+        ? `${fmtD(dateFrom)} to ${fmtD(dateTo)} — sent to KTA for final approval`
+        : `Sent to KTA for final approval`,
     },
     kta_approved: {
       icon: "🎉", color: T.accent, bg: T.accentL,
@@ -16658,6 +16660,11 @@ function LeaveResultScreen({ onDismiss }) {
       icon: "ℹ️", color: T.muted,  bg: T.bg,
       title: `Already Declined`,
       sub:   "This leave request has already been declined",
+    },
+    already_actioned: {
+      icon: "ℹ️", color: T.muted,  bg: T.bg,
+      title: "Already Actioned",
+      sub:   "This leave request has already been approved or declined",
     },
     unavailable: {
       icon: "⚠️", color: T.warn,   bg: T.warnL,
