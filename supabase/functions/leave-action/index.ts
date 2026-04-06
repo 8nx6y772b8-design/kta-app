@@ -25,13 +25,9 @@ const verifyToken = async (token, secret) => {
     const sig        = token.slice(dotIdx + 1);
     if (!payloadB64 || !sig) return null;
 
-    // Decode base64url payload
     const payload = JSON.parse(atob(fromB64url(payloadB64)));
-
-    // Check expiry
     if (payload.exp && Date.now() > payload.exp) return null;
 
-    // Verify HMAC against the raw payloadB64 string
     const enc = new TextEncoder();
     const key = await crypto.subtle.importKey(
       "raw", enc.encode(secret),
@@ -39,9 +35,7 @@ const verifyToken = async (token, secret) => {
     );
     const sigBytes = Uint8Array.from(atob(fromB64url(sig)), c => c.charCodeAt(0));
     const valid = await crypto.subtle.verify("HMAC", key, sigBytes, enc.encode(payloadB64));
-    if (!valid) return null;
-
-    return payload;
+    return valid ? payload : null;
   } catch(e) {
     console.error("Token verify error:", e);
     return null;
@@ -55,15 +49,15 @@ const errorRedirect = (msg) =>
   redirectTo(`${APP_URL}?leave_result=1&status=error&msg=${encodeURIComponent(msg)}`);
 
 serve(async (req) => {
-  const url = new URL(req.url);
+  const url   = new URL(req.url);
   const token = url.searchParams.get("token");
 
   if (!token) return errorRedirect("Missing token");
 
   const secret = Deno.env.get("HMAC_SECRET");
   if (!secret) return errorRedirect("Server misconfiguration");
-  const payload = await verifyToken(token, secret);
 
+  const payload = await verifyToken(token, secret);
   if (!payload) return errorRedirect("Invalid or expired link");
 
   const { id: leaveId, action, actorId, actorRole } = payload;
