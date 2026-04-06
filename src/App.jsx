@@ -402,7 +402,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.11";
+const APP_VERSION = "v3.7.12";
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
 // Maps leave request types to timesheet entry types
@@ -616,24 +616,24 @@ const sendCalendarInvite = async (toEmail, toName, apprenticeName, leaveType, da
 
 const LEAVE_TOKEN_SECRET = import.meta.env.VITE_HMAC_SECRET || "kta-leave-action-secret-v1";
 
-// HMAC-SHA256 token for one-click email approve/decline (browser SubtleCrypto)
-// Signs the base64-encoded payload (not JSON.stringify) so edge-fn can verify
-// against the same bytes without re-serializing, avoiding any key-order issues.
+// HMAC-SHA256 token using base64url throughout — no +, /, or = characters,
+// so the token is safe in URLs with NO encodeURIComponent needed. This makes
+// it immune to email-client URL mangling and double-encoding.
 const signLeaveToken = async (payload) => {
   const enc        = new TextEncoder();
-  const payloadB64 = btoa(JSON.stringify(payload));
+  const toB64url   = (b64) => b64.replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
+  const payloadB64 = toB64url(btoa(JSON.stringify(payload)));
   const key  = await crypto.subtle.importKey("raw", enc.encode(LEAVE_TOKEN_SECRET),
     { name:"HMAC", hash:"SHA-256" }, false, ["sign"]);
   const sig  = await crypto.subtle.sign("HMAC", key, enc.encode(payloadB64));
-  const b64  = btoa(String.fromCharCode(...new Uint8Array(sig)))
-    .replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
-  return payloadB64 + "." + b64;
+  const sigB64 = toB64url(btoa(String.fromCharCode(...new Uint8Array(sig))));
+  return payloadB64 + "." + sigB64;
 };
 
 const leaveActionUrl = async (leaveId, action, actorId, actorRole) => {
-  const exp     = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
-  const token   = await signLeaveToken({ id: leaveId, action, actorId, actorRole, exp });
-  return `${LEAVE_ACTION_URL}?token=${encodeURIComponent(token)}`;
+  const exp   = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+  const token = await signLeaveToken({ id: leaveId, action, actorId, actorRole, exp });
+  return `${LEAVE_ACTION_URL}?token=${token}`; // base64url — no encodeURIComponent needed
 };
 const sendKTAEmail = async ({ to, subject, html, attachments, from }) => {
   const res = await fetch(EMAIL_PROXY, {
@@ -1159,28 +1159,28 @@ const daysAgoStr = n => { const d=new Date(); d.setDate(d.getDate()-n); return l
 const TIMESHEET_ACTION_URL = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/timesheet-action";
 const TIMESHEET_TOKEN_SECRET = import.meta.env.VITE_HMAC_SECRET || "kta-leave-action-secret-v1"; // same secret, same env var
 
-const signTimesheetToken = async (payload) => { // signs payloadB64, same as signLeaveToken
+const signTimesheetToken = async (payload) => { // base64url, same as signLeaveToken
   const enc        = new TextEncoder();
-  const payloadB64 = btoa(JSON.stringify(payload));
+  const toB64url   = (b64) => b64.replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
+  const payloadB64 = toB64url(btoa(JSON.stringify(payload)));
   const key = await crypto.subtle.importKey("raw", enc.encode(TIMESHEET_TOKEN_SECRET),
     { name:"HMAC", hash:"SHA-256" }, false, ["sign"]);
-  const sig  = await crypto.subtle.sign("HMAC", key, enc.encode(payloadB64));
-  const b64  = btoa(String.fromCharCode(...new Uint8Array(sig)))
-    .replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
-  return payloadB64 + "." + b64;
+  const sig    = await crypto.subtle.sign("HMAC", key, enc.encode(payloadB64));
+  const sigB64 = toB64url(btoa(String.fromCharCode(...new Uint8Array(sig))));
+  return payloadB64 + "." + sigB64;
 };
 
 const timesheetActionUrl = async (entryId, action, approverId) => {
   const exp   = Date.now() + 7 * 24 * 60 * 60 * 1000;
   const token = await signTimesheetToken({ entryId, action, approverId, exp });
-  return `${TIMESHEET_ACTION_URL}?token=${encodeURIComponent(token)}`;
+  return `${TIMESHEET_ACTION_URL}?token=${token}`; // base64url — no encodeURIComponent needed
 };
 
 // Generate a token that approves/declines ALL entries in one click
 const timesheetAllUrl = async (entryIds, action, approverId) => {
-  const exp = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  const exp   = Date.now() + 7 * 24 * 60 * 60 * 1000;
   const token = await signTimesheetToken({ entryIds, action, approverId, exp });
-  return `${TIMESHEET_ACTION_URL}?token=${encodeURIComponent(token)}`;
+  return `${TIMESHEET_ACTION_URL}?token=${token}`; // base64url — no encodeURIComponent needed
 };
 
 const notifyApprovers = async (apprentice, approvers, entries) => {

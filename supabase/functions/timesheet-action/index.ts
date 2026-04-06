@@ -88,12 +88,16 @@ async function verifyToken(token: string, secret: string): Promise<any|null> {
     const pb = token.slice(0, dotIdx);
     const sb = token.slice(dotIdx + 1);
     if (!pb || !sb) return null;
-    const payload = JSON.parse(atob(pb));
+    // Decode base64url (restore + / padding) before atob
+    const fromB64url = (s: string) => {
+      const b = s.replace(/-/g, "+").replace(/_/g, "/");
+      return b + "=".repeat((4 - b.length % 4) % 4);
+    };
+    const payload = JSON.parse(atob(fromB64url(pb)));
     if (payload.exp && Date.now() > payload.exp) return null;
     const key  = await getKey(secret);
-    const pad  = sb.replace(/-/g,"+").replace(/_/g,"/") + "==".slice(0,(4-sb.length%4)%4);
-    const buf  = Uint8Array.from(atob(pad), c => c.charCodeAt(0));
-    // Verify against the raw payloadB64 string — no JSON re-serialisation.
+    const buf  = Uint8Array.from(atob(fromB64url(sb)), c => c.charCodeAt(0));
+    // Verify against the raw payloadB64url string
     return await crypto.subtle.verify("HMAC", key, buf, new TextEncoder().encode(pb)) ? payload : null;
   } catch { return null; }
 }
