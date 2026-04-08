@@ -14,6 +14,7 @@ export const rowToUser = (r) => ({
   lastName:          r.last_name         || '',
   email:             r.email,
   phone:             r.phone             || '',
+  mobile:            r.mobile            || '',
   role:              r.role,
   // password intentionally excluded — never loaded into allUsers state
   // fetched separately at login time via loadUserPassword()
@@ -47,7 +48,7 @@ export const rowToUser = (r) => ({
   siteSafeNumber:    r.site_safe_number  || '',
   reportsEmail:      r.reports_email     || '',
   company:           r.company           || '',
-  supervisorIds:     r.supervisorIds     || [],
+  supervisorIds:     r.supervisor_ids    || [],
   isConfOwner:       r.is_conf_owner     || false,
   mustChangePassword: r.must_change_password || false,
 });
@@ -60,6 +61,7 @@ export const userToRow = (u) => {
     last_name:          u.lastName          || '',
     email:              u.email,
     phone:              u.phone             || null,
+    mobile:             u.mobile            || null,
     role:               u.role,
     allocated_to:       u.allocatedTo       || [],
     trade:              u.trade             || null,
@@ -91,7 +93,7 @@ export const userToRow = (u) => {
     site_safe_number:   u.siteSafeNumber    || null,
     reports_email:      u.reportsEmail      || null,
     company:            u.company           || null,
-    "supervisorIds":    u.supervisorIds     || [],
+    supervisor_ids:     u.supervisorIds     || [],
   };
   // Only include must_change_password if explicitly provided
   if (u.mustChangePassword !== undefined) {

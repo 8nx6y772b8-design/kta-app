@@ -40,9 +40,13 @@ function extractError(data: any): string | null {
     const fields = (p.invalidFields ?? []).map((f: any) => `${f.name}: ${f.reason}`).join("; ");
     return fields || p.detail || p.title || null;
   }
-  // Legacy format
-  if (data?.detail) return data.detail;
-  if (data?.title) return data.title;
+  // Generic error — check both lowercase and uppercase field names
+  const detail = data?.detail ?? data?.Detail ?? null;
+  const title  = data?.title  ?? data?.Title  ?? null;
+  if (detail && detail !== "An error occurred in Xero.") return detail;
+  if (title  && title  !== "An error occurred")         return title;
+  if (detail) return detail;
+  if (title)  return title;
   const ts = data?.timesheets?.[0] ?? data?.Timesheets?.[0];
   if (!ts) return null;
   const errs: string[] = [];
@@ -86,8 +90,13 @@ serve(async (req) => {
     async function findTimesheetForDates(empId: string, monStr: string, sunStr: string, targetDates: string[]) {
       const searchStart = new Date(parseUTCDate(monStr)); searchStart.setUTCDate(searchStart.getUTCDate() - 7);
       const searchEnd   = new Date(parseUTCDate(sunStr)); searchEnd.setUTCDate(searchEnd.getUTCDate() + 7);
-      const filter = `employeeId==${empId}`;
-      const url = `${XERO_API_BASE}/Timesheets?filter=${encodeURIComponent(filter)}&startDate=${searchStart.toISOString().slice(0,10)}&endDate=${searchEnd.toISOString().slice(0,10)}`;
+      // Xero NZ Payroll v2 OData filter — correct syntax per Xero docs
+      const params = new URLSearchParams({
+        "filter": `employeeId==${empId}`,
+        "startDate": searchStart.toISOString().slice(0, 10),
+        "endDate":   searchEnd.toISOString().slice(0, 10),
+      });
+      const url = `${XERO_API_BASE}/Timesheets?${params}`;
       console.log(`[search] GET ${url}`);
       const res = await fetch(url, { headers: hdrs });
       const data = await res.json();
@@ -99,10 +108,13 @@ serve(async (req) => {
         const e  = (ts.endDate   ?? ts.EndDate   ?? "");
         const id = ts.timesheetID ?? ts.TimesheetID;
         const st = ts.status ?? ts.Status;
-        console.log(`[search]   ts ${id} period=${s}..${e} status=${st}`);
+        const eid = ts.employeeID ?? ts.EmployeeID ?? "";
+        console.log(`[search]   ts ${id} emp=${eid} period=${s}..${e} status=${st}`);
       }
-      // Exact match: find timesheet whose period covers any of our target dates
+      // Exact match only: find timesheet for THIS employee whose period covers any of our target dates
       for (const ts of tsList) {
+        const tsEmpId = (ts.employeeID ?? ts.EmployeeID ?? "").toLowerCase();
+        if (tsEmpId && tsEmpId !== empId.toLowerCase()) continue; // safety: skip other employees
         const tsStart = (ts.startDate ?? ts.StartDate ?? "").slice(0, 10);
         const tsEnd   = (ts.endDate   ?? ts.EndDate   ?? "").slice(0, 10);
         for (const td of targetDates) {
@@ -112,21 +124,30 @@ serve(async (req) => {
           }
         }
       }
-      // Fallback: use any Draft timesheet
-      if (tsList.length > 0) {
-        const draft = tsList.find((ts: any) => (ts.status ?? ts.Status) === "Draft");
-        if (draft) {
-          console.log(`[search] no exact match — using Draft ${draft.timesheetID ?? draft.TimesheetID} as fallback`);
-          return draft;
-        }
-      }
+      // No fallback — never use a timesheet from a different pay period
+      console.log(`[search] no exact match found — will create new timesheet`);
       return null;
     }
 
     // POST /Timesheets to create an empty timesheet (Xero NZ v2: body is raw object, no wrapper)
     async function createEmptyTimesheet(empId: string, calId: string | null, startDate: string, endDate: string) {
+      // payrollCalendarID is required by Xero — if not found on employee record, look it up from any existing timesheet
+      let resolvedCalId = calId;
+      if (!resolvedCalId) {
+        console.log(`[create] payrollCalendarID missing — attempting lookup from existing timesheets`);
+        const lookupRes = await fetch(`${XERO_API_BASE}/Timesheets?filter=${encodeURIComponent(`employeeId==${empId}`)}`, { headers: hdrs });
+        if (lookupRes.ok) {
+          const lookupData = await lookupRes.json();
+          const anyTs = (lookupData.timesheets ?? lookupData.Timesheets ?? [])[0];
+          resolvedCalId = anyTs?.payrollCalendarID ?? anyTs?.PayrollCalendarID ?? null;
+          console.log(`[create] resolved payrollCalendarID=${resolvedCalId} from existing timesheet`);
+        }
+      }
+      if (!resolvedCalId) {
+        return { ok: false as const, status: 400, error: "Could not determine payrollCalendarID for this employee. Ensure the employee has a payroll calendar assigned in Xero." };
+      }
       const postBody: Record<string, unknown> = {
-        payrollCalendarID: calId,
+        payrollCalendarID: resolvedCalId,
         employeeID: empId,
         startDate,
         endDate,
@@ -180,7 +201,7 @@ serve(async (req) => {
 
     // Add lines to a timesheet, deleting conflicting existing lines first
     async function upsertLines(tsId: string, newLines: Record<string, unknown>[]) {
-      // GET full timesheet to see existing lines
+      // GET full timesheet to see existing lines and check status
       const getRes = await fetch(`${XERO_API_BASE}/Timesheets/${tsId}`, { headers: hdrs });
       const getData = await getRes.json();
       if (!getRes.ok) {
@@ -188,6 +209,11 @@ serve(async (req) => {
         return { ok: false, error: `GET timesheet failed (${getRes.status})` };
       }
       const fullTs = getData.timesheet ?? getData.Timesheet ?? getData;
+      const tsStatus = (fullTs.status ?? fullTs.Status ?? "").toLowerCase();
+      if (tsStatus && tsStatus !== "draft") {
+        console.error(`[upsertLines] timesheet ${tsId} is "${tsStatus}" — cannot edit`);
+        return { ok: false, error: `Timesheet is already ${tsStatus} in Xero and cannot be edited. Ask your payroll admin to revert it to Draft first.` };
+      }
       const existingLines: any[] = fullTs.timesheetLines ?? fullTs.TimesheetLines ?? [];
       console.log(`[upsertLines] timesheet ${tsId} has ${existingLines.length} existing lines`);
 
@@ -271,10 +297,23 @@ serve(async (req) => {
         console.log(`[step3] No existing timesheet — creating new for ${monStr}..${sunStr}`);
         const createResult = await createEmptyTimesheet(employeeId, payrollCalendarId, monStr, sunStr);
         if (!createResult.ok) {
-          const fwdStatus = createResult.status >= 500 ? 502 : 400;
-          return new Response(JSON.stringify({ error: createResult.error, xeroStatus: createResult.status, step: "create-timesheet" }), { status: fwdStatus, headers: cors });
+          // Xero says it already exists — our search missed it, so re-fetch and use it
+          if (createResult.error?.toLowerCase().includes("already exists")) {
+            console.log(`[step3] "already exists" — re-fetching existing timesheet`);
+            const refetch = await findTimesheetForDates(employeeId, monStr, sunStr, [date]);
+            if (refetch) {
+              timesheetId = refetch.timesheetID ?? refetch.TimesheetID;
+              console.log(`[step3] re-fetched existing timesheet ${timesheetId}`);
+            } else {
+              return new Response(JSON.stringify({ error: "Timesheet already exists but could not be located", step: "create-timesheet" }), { status: 400, headers: cors });
+            }
+          } else {
+            const fwdStatus = createResult.status >= 500 ? 502 : 400;
+            return new Response(JSON.stringify({ error: createResult.error, xeroStatus: createResult.status, step: "create-timesheet" }), { status: fwdStatus, headers: cors });
+          }
+        } else {
+          timesheetId = createResult.timesheetId;
         }
-        timesheetId = createResult.timesheetId;
       }
 
       // Step 4: Add lines (delete conflicting ones first)
@@ -350,10 +389,24 @@ serve(async (req) => {
           console.log(`[batch] creating new timesheet for ${wg.monStr}..${wg.sunStr}`);
           const createResult = await createEmptyTimesheet(employeeId, payrollCalendarId, wg.monStr, wg.sunStr);
           if (!createResult.ok) {
-            results.push({ week: weekKey, ok: false, error: createResult.error });
-            continue;
+            // Xero says it already exists — our search missed it, so re-fetch and use it
+            if (createResult.error?.toLowerCase().includes("already exists")) {
+              console.log(`[batch] "already exists" — re-fetching existing timesheet`);
+              const refetch = await findTimesheetForDates(employeeId, wg.monStr, wg.sunStr, targetDates);
+              if (refetch) {
+                timesheetId = refetch.timesheetID ?? refetch.TimesheetID;
+                console.log(`[batch] re-fetched existing timesheet ${timesheetId}`);
+              } else {
+                results.push({ week: weekKey, ok: false, error: "Timesheet already exists but could not be located" });
+                continue;
+              }
+            } else {
+              results.push({ week: weekKey, ok: false, error: createResult.error });
+              continue;
+            }
+          } else {
+            timesheetId = createResult.timesheetId;
           }
-          timesheetId = createResult.timesheetId;
         }
 
         // Add lines

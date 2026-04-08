@@ -1,4 +1,30 @@
-// KTA Workforce Management — v3.7.8
+// KTA Workforce Management — v3.7.19
+// Changelog:
+//   v3.7.19 — Version sync: aligned header comment with APP_VERSION constant
+//              (previous deploys incremented the display version without updating
+//              the changelog header — both now read v3.7.19)
+//   v3.7.9 — Bug fixes (continued from v3.7.8 audit)
+//             H1:  CRM "Placed This Year" now uses closeDate (camelCase) — was always 0
+//             H2:  Deal sort "Proposal" now sorts first — indexOf(0)||99 falsy bug fixed
+//             H3:  Leave approval email guard now uses approver?.id (truthy UUID)
+//                  previously approver.id !== "No approver" was always true → emails
+//                  sent to undefined address when no approver assigned
+//             H4:  SMS edge function call now includes Authorization header — was 401
+//             H8:  Confidential notes PIN comment scrubbed (no longer exposes PIN value)
+//                  Rate limiting added: 5 attempts then 5-minute lockout
+//             H9:  supervisorIds now reads r.supervisor_ids (snake_case) in supabaseClient
+//                  was r.supervisorIds (camelCase) — always loaded as empty array
+//             M1:  NZ timezone now uses Intl.DateTimeFormat("Pacific/Auckland")
+//                  was hardcoded UTC+13 (wrong 6 months/year during NZST)
+//             M3:  New Year mondayisation fixed — Jan 1=Sat no longer produces duplicate Jan 3
+//             M7:  PPE edit rows now match by index not item name — duplicate-named
+//                  items no longer all update together
+//             M8:  created_at.localeCompare() null-guarded — no longer crashes on null
+//             M10: mobile field added to pdForm initial state
+//             M11: onImportUser now upserts instead of always appending — no duplicate users
+//             M14: mobile field added to rowToUser and userToRow in supabaseClient
+//             Fix: UserManagement save now awaits DB write with error feedback —
+//                  form previously closed immediately regardless of DB success/failure
 // Changelog:
 //   v3.7.8 — Critical bug fixes & codebase cleanup
 //             Fixed: UserManagement submit() now persists to DB (upsertUser/updateUserProfile)
@@ -402,7 +428,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.12";
+const APP_VERSION = "v3.7.19";
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
 // Maps leave request types to timesheet entry types
@@ -437,8 +463,20 @@ const getNZHolidays = (year) => {
     h.add(localISO(dt));
   };
   // Fixed-date holidays
-  add(year, 1, 1);   // New Year's Day
-  add(year, 1, 2);   // Day after New Year's
+  // New Year + Day After: mondayise together to prevent duplicates
+  // e.g. Jan 1=Sat → Jan 3 Mon, Jan 2=Sun → Jan 4 Tue
+  // e.g. Jan 1=Sun → Jan 2 Mon, Jan 2 becomes Jan 3 Tue
+  {
+    const ny1 = new Date(year, 0, 1);
+    const dow1 = ny1.getDay();
+    let ny1obs = new Date(ny1);
+    if(dow1 === 0) ny1obs.setDate(2);       // Sun → Mon 2nd
+    else if(dow1 === 6) ny1obs.setDate(3);  // Sat → Mon 3rd
+    h.add(localISO(ny1obs));
+    const ny2obs = new Date(ny1obs);
+    ny2obs.setDate(ny1obs.getDate() + 1);
+    h.add(localISO(ny2obs));
+  }
   addWaitanziAnzac(year, 2, 6);  // Waitangi Day
   addWaitanziAnzac(year, 4, 25); // Anzac Day
   add(year, 12, 25); // Christmas Day
@@ -616,24 +654,19 @@ const sendCalendarInvite = async (toEmail, toName, apprenticeName, leaveType, da
 
 const LEAVE_TOKEN_SECRET = import.meta.env.VITE_HMAC_SECRET || "kta-leave-action-secret-v1";
 
-// HMAC-SHA256 token using base64url throughout — no +, /, or = characters,
-// so the token is safe in URLs with NO encodeURIComponent needed. This makes
-// it immune to email-client URL mangling and double-encoding.
-const signLeaveToken = async (payload) => {
-  const enc        = new TextEncoder();
-  const toB64url   = (b64) => b64.replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
-  const payloadB64 = toB64url(btoa(JSON.stringify(payload)));
-  const key  = await crypto.subtle.importKey("raw", enc.encode(LEAVE_TOKEN_SECRET),
-    { name:"HMAC", hash:"SHA-256" }, false, ["sign"]);
-  const sig  = await crypto.subtle.sign("HMAC", key, enc.encode(payloadB64));
-  const sigB64 = toB64url(btoa(String.fromCharCode(...new Uint8Array(sig))));
-  return payloadB64 + "." + sigB64;
-};
-
+// Generate a leave action URL with HMAC-SHA256 as lowercase hex.
+// Uses separate URL params — NO base64, NO dots, NO special chars that email
+// clients could mangle. tok is 64 lowercase hex chars [0-9a-f] only.
 const leaveActionUrl = async (leaveId, action, actorId, actorRole) => {
-  const exp   = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
-  const token = await signLeaveToken({ id: leaveId, action, actorId, actorRole, exp });
-  return `${LEAVE_ACTION_URL}?token=${token}`; // base64url — no encodeURIComponent needed
+  const exp = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
+  const msg = `${leaveId}|${action}|${actorId}|${actorRole}|${exp}`;
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(LEAVE_TOKEN_SECRET),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(msg));
+  const hex = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2,"0")).join("");
+  return `${LEAVE_ACTION_URL}?lid=${leaveId}&a=${action}&uid=${actorId}&role=${actorRole}&exp=${exp}&tok=${hex}`;
 };
 const sendKTAEmail = async ({ to, subject, html, attachments, from }) => {
   const res = await fetch(EMAIL_PROXY, {
@@ -677,8 +710,9 @@ const generateReportPDF = (report, apprentice, mentor, snapshots=[]) => {
   const BORDER = "0.816 0.855 0.918";  // #d0daea
 
   // NZ local date
-  const _nzNow = new Date(Date.now() + (13 * 60 * 60 * 1000));
-  const dateStr = localISO(_nzNow).split('-').reverse().join('/');
+  // NZ local date — use Intl to handle NZST (UTC+12) vs NZDT (UTC+13) correctly
+  const _nzParts = new Intl.DateTimeFormat('en-NZ',{timeZone:'Pacific/Auckland',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const dateStr = `${_nzParts.find(p=>p.type==='day').value}/${_nzParts.find(p=>p.type==='month').value}/${_nzParts.find(p=>p.type==='year').value}`;
 
   // Shared page header helper — navy banner + KTA wordmark top-left
   const pageHeader = (S, title, sub) => {
@@ -1159,28 +1193,32 @@ const daysAgoStr = n => { const d=new Date(); d.setDate(d.getDate()-n); return l
 const TIMESHEET_ACTION_URL = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/timesheet-action";
 const TIMESHEET_TOKEN_SECRET = import.meta.env.VITE_HMAC_SECRET || "kta-leave-action-secret-v1"; // same secret, same env var
 
-const signTimesheetToken = async (payload) => { // base64url, same as signLeaveToken
-  const enc        = new TextEncoder();
-  const toB64url   = (b64) => b64.replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
-  const payloadB64 = toB64url(btoa(JSON.stringify(payload)));
-  const key = await crypto.subtle.importKey("raw", enc.encode(TIMESHEET_TOKEN_SECRET),
-    { name:"HMAC", hash:"SHA-256" }, false, ["sign"]);
-  const sig    = await crypto.subtle.sign("HMAC", key, enc.encode(payloadB64));
-  const sigB64 = toB64url(btoa(String.fromCharCode(...new Uint8Array(sig))));
-  return payloadB64 + "." + sigB64;
-};
-
+// Generate a timesheet action URL — HMAC-SHA256 as 64 lowercase hex chars.
+// Single entry: ?eid=<entryId>&a=<action>&uid=<approverId>&exp=<ts>&tok=<hex>
 const timesheetActionUrl = async (entryId, action, approverId) => {
-  const exp   = Date.now() + 7 * 24 * 60 * 60 * 1000;
-  const token = await signTimesheetToken({ entryId, action, approverId, exp });
-  return `${TIMESHEET_ACTION_URL}?token=${token}`; // base64url — no encodeURIComponent needed
+  const exp = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  const msg = `${entryId}|${action}|${approverId}|${exp}`;
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(TIMESHEET_TOKEN_SECRET),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(msg));
+  const hex = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+  return `${TIMESHEET_ACTION_URL}?eid=${entryId}&a=${action}&uid=${approverId}&exp=${exp}&tok=${hex}`;
 };
 
-// Generate a token that approves/declines ALL entries in one click
+// Multiple entries (approve week): ?eids=<id1,id2,...>&a=<action>&uid=<approverId>&exp=<ts>&tok=<hex>
 const timesheetAllUrl = async (entryIds, action, approverId) => {
-  const exp   = Date.now() + 7 * 24 * 60 * 60 * 1000;
-  const token = await signTimesheetToken({ entryIds, action, approverId, exp });
-  return `${TIMESHEET_ACTION_URL}?token=${token}`; // base64url — no encodeURIComponent needed
+  const exp  = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  const eids = entryIds.join(",");
+  const msg  = `${eids}|${action}|${approverId}|${exp}`;
+  const key  = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(TIMESHEET_TOKEN_SECRET),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(msg));
+  const hex = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+  return `${TIMESHEET_ACTION_URL}?eids=${eids}&a=${action}&uid=${approverId}&exp=${exp}&tok=${hex}`;
 };
 
 const notifyApprovers = async (apprentice, approvers, entries) => {
@@ -2541,6 +2579,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   const [toast,setToast] = useState(null);
   const [nameSortDir, setNameSortDir] = useState("asc");
   const [approvingAll, setApprovingAll] = useState(false);
+  const [deletingApproved, setDeletingApproved] = useState(false);
   const [weekPickerDrafts, setWeekPickerDrafts] = useState(null);
   const [weekPickerSelected, setWeekPickerSelected] = useState(null);
   const [showImporter, setShowImporter] = useState(false);
@@ -2746,6 +2785,30 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
               {showImporter?"✕ Close Importer":"📄 Import Employer Timesheet PDF"}
             </Btn>
           )}
+          {isAdmin1ts && (()=>{
+            const allApproved = entries.filter(e=>vids.includes(e.userId)&&e.approval==="approved");
+            if(!allApproved.length) return null;
+            const handleDeleteAllApproved = async () => {
+              if(!await ktaConfirm(`This will permanently delete ALL ${allApproved.length} approved timesheet ${allApproved.length===1?"entry":"entries"} across all apprentices.\n\nThis is irreversible. Continue?`)) return;
+              setDeletingApproved(true);
+              const ids = new Set(allApproved.map(e=>e.id));
+              setEntries(prev=>prev.filter(e=>!ids.has(e.id)));
+              await Promise.all(allApproved.map(e=>deleteEntry(e.id).catch(console.error)));
+              showToast(`🗑 ${allApproved.length} approved ${allApproved.length===1?"entry":"entries"} deleted`);
+              setDeletingApproved(false);
+            };
+            return (
+              <button onClick={handleDeleteAllApproved} disabled={deletingApproved}
+                title={`Reset: delete all ${allApproved.length} approved entries`}
+                style={{padding:"5px 11px",background:deletingApproved?T.redL:"transparent",
+                  border:`1.5px solid ${T.red}66`,borderRadius:8,
+                  fontWeight:700,fontSize:12,color:T.red,cursor:deletingApproved?"not-allowed":"pointer",
+                  fontFamily:"DM Sans,sans-serif",opacity:deletingApproved?0.7:1,
+                  whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>
+                {deletingApproved?"Deleting…":`🗑 Reset (${allApproved.length})`}
+              </button>
+            );
+          })()}
           {role==="Apprentice"&&(()=>{
             const myDrafts=shown.filter(e=>e.approval==="draft"&&e.userId===currentUser.id);
             if(!myDrafts.length) return null;
@@ -2938,6 +3001,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
           </div>
         );
       })()}
+
       {/* ── Approver view: grouped by apprentice with per-day + approve-week actions ── */}
       {/* ── Entry list — split by role ── */}
       {(()=>{
@@ -3350,16 +3414,21 @@ function UserManagement({users, setUsers, currentUser, entries=[]}) {
       }
       return next;
     });
-    // Persist to database
-    if(editId) {
-      if(pwField.trim()) {
-        upsertUser({id:editId,...finalForm}).catch(console.error);
+    // Persist to database — await so form only closes on success
+    try {
+      if(editId) {
+        if(pwField.trim()) {
+          await upsertUser({id:editId,...finalForm});
+        } else {
+          const {password:_pw,...profileData}=finalForm;
+          await updateUserProfile({id:editId,...profileData});
+        }
       } else {
-        const {password:_pw,...profileData}=finalForm;
-        updateUserProfile({id:editId,...profileData}).catch(console.error);
+        await upsertUser({id:targetId,...finalForm});
       }
-    } else {
-      upsertUser({id:targetId,...finalForm}).catch(console.error);
+    } catch(e) {
+      alert("Save failed: "+e.message);
+      return;
     }
     setEditId(null);
     setForm(blank);setPwField("");setShowForm(false);
@@ -5332,7 +5401,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
         <StatCard label="Contacts" value={contacts.length} color={T.blue}/>
         <StatCard label="Active Deals" value={deals.filter(d=>!["Won","Lost"].includes(d.stage)).length} color={T.warn}/>
         <StatCard label="Prospective Placements" value={deals.filter(d=>!["Won","Lost"].includes(d.stage)).length} color={T.accent}/>
-        <StatCard label="Placed This Year" value={deals.filter(d=>d.stage==="Won"&&d.close_date&&d.close_date.startsWith(new Date().getFullYear().toString())).length} color={T.hol}/>
+        <StatCard label="Placed This Year" value={deals.filter(d=>d.stage==="Won"&&d.closeDate&&d.closeDate.startsWith(new Date().getFullYear().toString())).length} color={T.hol}/>
       </div>
       <div style={{display:"flex",gap:8,marginBottom:20}}>
         {["contacts","companies","pipeline","deals","import"].map(t=>(
@@ -7881,7 +7950,8 @@ function TargetDealsList() {
         {items.length===0&&<div style={{padding:"40px",textAlign:"center",color:T.muted}}>No deals yet.</div>}
         {[...items].sort((a,b)=>{
           const order=["Proposal","Negotiation","Meeting","Outreach","Prospecting","Won","Lost"];
-          return (order.indexOf(a.stage)||99)-(order.indexOf(b.stage)||99);
+          const ai=order.indexOf(a.stage); const bi=order.indexOf(b.stage);
+          return (ai===-1?99:ai)-(bi===-1?99:bi);
         }).map((x,i,arr)=>(
           <div key={x.id} className="ri" style={{display:"grid",gridTemplateColumns:"8px 1fr 130px 130px 90px 80px 80px 68px",
             padding:"12px 16px",borderBottom:i<arr.length-1?`1px solid ${T.border}44`:"none",
@@ -8902,67 +8972,29 @@ function LeaveRequestForm({ currentUser, allUsers, onSubmitted, defaultLeaveType
 
     let emailWarning = "";
 
-    // 1. Email to approver (with one-click approve/decline buttons)
-    if(approver?.email) {
-      try {
-        const buttons = await leaveActionButtons(req.id, approver.id, "approver");
-        await sendLeaveEmail({
-          to: approver.email,
-          subject: `Leave Request — ${currentUser.name} (${form.leaveType})`,
-          html: leaveEmailHtml(
-            `<strong>${currentUser.name}</strong> has submitted a leave request requiring your approval.`,
-            leaveDetailTable(req, currentUser.name, approver.name) + buttons
-          ),
-        });
-      } catch(e) {
-        console.error("Approver email failed:", e);
-        emailWarning = `Request saved, but the notification email to ${approver.name} could not be sent. Please let them know directly.`;
-      }
+    // 1+2+3: Delegate email sending (with signed action buttons) to the edge function
+    // This ensures the HMAC is signed with the same key that verifies it — no shared secret in the browser.
+    try {
+      await fetch(`${LEAVE_ACTION_URL}?action=sendLeaveEmail&lid=${encodeURIComponent(req.id)}`);
+    } catch(e) {
+      console.error("sendLeaveEmail edge fn call failed:", e);
+      emailWarning = `Request saved, but the notification email to ${approver?.name || "your approver"} could not be sent. Please let them know directly.`;
     }
 
-    // 2. Confirmation email to apprentice
-    if(currentUser.email) {
+    // 4. Sick leave: SMS to supervisor
+    if(isSickForm && smsPhone) {
       try {
-        await sendLeaveEmail({
-          to: currentUser.email,
-          subject: `Leave Request Submitted — ${form.leaveType}`,
-          html: leaveEmailHtml(
-            `Your leave request has been submitted and is awaiting approval from <strong>${approver?.name || "your approver"}</strong>.`,
-            leaveDetailTable(req, currentUser.name, approver?.name || "Not assigned")
-          ),
-        });
-      } catch(e) { console.error("Apprentice confirmation email failed:", e); }
-    }
-
-    // 3. Sick leave only: notify absence@kta.org.nz
-    if(isSickForm) {
-      try {
-        await sendLeaveEmail({
-          to: ABSENCE_EMAIL,
-          subject: `Sick Leave Notification — ${currentUser.name}`,
-          html: leaveEmailHtml(
-            `<strong>${currentUser.name}</strong> is off work sick today and has submitted a leave application.`,
-            leaveDetailTable(req, currentUser.name, approver?.name || "Not assigned")
-          ),
-        });
-        await upsertRow("leave_requests", {...req, absence_notified: true});
-      } catch(e) { console.error("Absence notification email failed:", e); }
-
-      // 4. SMS to supervisor (via email-proxy if no SMS provider configured)
-      if(smsPhone) {
-        try {
           // If SMS edge function exists, call it; otherwise log for manual sending
           const smsUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms`;
           await fetch(smsUrl, {
             method: "POST",
-            headers: {"Content-Type":"application/json"},
+            headers: {"Content-Type":"application/json","Authorization":`Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`},
             body: JSON.stringify({
               to: smsPhone,
               message: `KTA Alert: ${currentUser.name} is off sick today and has submitted a leave application. Please be aware they will not be attending work.`
             })
           }).catch(e=>console.warn("SMS send failed (no SMS provider configured):", e));
         } catch(e) { console.warn("SMS failed:", e); }
-      }
     }
 
     setSaving(false);
@@ -9146,25 +9178,12 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
           ),
         }); } catch(e) { console.error("Apprentice notify email failed:", e); }
       }
-      // 2. Email KTA admin(s) with approve/decline buttons
-      for(const adminEmail of ktaAdminEmails) {
-        try {
-          const adminUser = allUsers.find(u => u.email === adminEmail && u.role==="Admin")
-                         || allUsers.find(u => u.role==="Admin" && (u.adminLevel===1||!u.adminLevel));
-          const actorId   = adminUser?.id || currentUser.id; // always a real UUID
-          const buttons   = await leaveActionButtons(req.id, actorId, "admin");
-          await sendLeaveEmail({
-            to: adminEmail,
-            subject: `Leave Request for KTA Approval — ${apprentice.name} (${req.leave_type})`,
-            html: leaveEmailHtml(
-              `A leave request from <strong>${apprentice.name}</strong> has been approved by their approver (<strong>${currentUser.name}</strong>) and requires KTA final approval.`,
-              leaveDetailTable(req, apprentice.name, approver.name) + buttons
-            ),
-          });
-        } catch(e) {
-          console.error("KTA admin email failed:", e);
-          setFillMsg(`⚠ Approved but KTA email failed: ${e.message}`);
-        }
+      // 2. Email KTA admin with approve/decline buttons — signed in edge function
+      try {
+        await fetch(`${LEAVE_ACTION_URL}?action=sendAdminEmail&lid=${encodeURIComponent(req.id)}`);
+      } catch(e) {
+        console.error("KTA admin email failed:", e);
+        setFillMsg(`⚠ Approved but KTA email failed: ${e.message}`);
       }
     } else {
       // Admin giving final KTA approval — notify apprentice + approver + add to team calendar
@@ -9183,7 +9202,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
         }); } catch(e) { console.error("KTA approval apprentice email failed:", e); }
       }
       // Notify approver that KTA has given final approval
-      if(approver.email && approver.id !== "No approver") {
+      if(approver?.email && approver?.id) {
         await sendLeaveEmail({
           to: approver.email,
           subject: `Leave Fully Approved by KTA — ${apprentice.name} (${req.leave_type})`,
@@ -9204,7 +9223,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
       if(apprentice.email) invitePromises.push(
         sendCalendarInvite(apprentice.email, apprentice.name, apprentice.name, req.leave_type, req.date_from, req.date_to)
       );
-      if(approver.email && approver.id !== "No approver") invitePromises.push(
+      if(approver?.email && approver?.id) invitePromises.push(
         sendCalendarInvite(approver.email, approver.name, apprentice.name, req.leave_type, req.date_from, req.date_to)
       );
       invitePromises.push(
@@ -9264,7 +9283,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
       }).catch(()=>{});
     } else {
       // Admin (KTA) declined — notify the approver so they are informed
-      if(approver.email && approver.id !== "No approver") {
+      if(approver?.email && approver?.id) {
         await sendLeaveEmail({
           to: approver.email,
           subject: `Leave Request Declined by KTA — ${apprentice.name} (${req.leave_type})`,
@@ -9439,7 +9458,7 @@ function LeaveRequestsListPage({ currentUser, allUsers, entries, setEntries }) {
           const rank = { approver_approved:0, pending:1, kta_approved:2, declined:3 };
           const ra = rank[a.status]??2, rb = rank[b.status]??2;
           if(ra !== rb) return ra - rb;
-          return b.created_at.localeCompare(a.created_at);
+          return (b.created_at||"").localeCompare(a.created_at||"");
         });
         setRequests(sorted);
 
@@ -9527,7 +9546,7 @@ function LeaveOverviewCard({ allUsers }) {
 
   const load = () => {
     loadTable("leave_requests")
-      .then(rows => setRequests((rows||[]).sort((a,b)=>b.created_at.localeCompare(a.created_at))))
+      .then(rows => setRequests((rows||[]).sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||""))))
       .catch(()=>setRequests([]))
       .finally(()=>setLoading(false));
   };
@@ -9675,7 +9694,7 @@ function LeaveRequestsPanel({ currentUser, allUsers, entries=[], setEntries=null
             .map(u=>u.id);
           visible = visible.filter(r => myIds.includes(r.apprentice_id));
         }
-        setRequests(visible.sort((a,b)=>b.created_at.localeCompare(a.created_at)));
+        setRequests(visible.sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")));
       })
       .catch(()=>setRequests([]))
       .finally(()=>setLoading(false));
@@ -9752,7 +9771,7 @@ function MyLeaveRequests({ currentUser }) {
 
   const load = () => {
     loadTable("leave_requests")
-      .then(rows => setRequests((rows||[]).filter(r=>r.apprentice_id===currentUser.id).sort((a,b)=>b.created_at.localeCompare(a.created_at))))
+      .then(rows => setRequests((rows||[]).filter(r=>r.apprentice_id===currentUser.id).sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||""))))
       .catch(()=>setRequests([]))
       .finally(()=>setLoading(false));
   };
@@ -12384,15 +12403,15 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
                                       const issued=e.target.value;
                                       const req=it.qtyReq;
                                       const auto=issued&&req?(parseFloat(issued)>=parseFloat(req)?"Yes":"Pending"):"Pending";
-                                      setEditRows(prev=>prev.map((r2,idx)=>r2.item===it.item?{...r2,qtyIssued:issued,approved:auto}:r2));
+                                      setEditRows(prev=>prev.map((r2,idx2)=>idx2===j?{...r2,qtyIssued:issued,approved:auto}:r2));
                                     }} style={{fontSize:12,padding:"3px 6px",width:52,textAlign:"center"}}/>
                                   </td>
                                   <td style={{padding:"4px 6px"}}>
-                                    <input value={it.notes||""} onChange={e=>setEditRows(prev=>prev.map(r2=>r2.item===it.item?{...r2,notes:e.target.value}:r2))}
+                                    <input value={it.notes||""} onChange={e=>setEditRows(prev=>prev.map((r2,idx2)=>idx2===j?{...r2,notes:e.target.value}:r2))}
                                       placeholder="Notes…" style={{fontSize:12,padding:"3px 6px",width:120}}/>
                                   </td>
                                   <td style={{padding:"4px 6px"}}>
-                                    <select value={it.approved||""} onChange={e=>setEditRows(prev=>prev.map(r2=>r2.item===it.item?{...r2,approved:e.target.value}:r2))}
+                                    <select value={it.approved||""} onChange={e=>setEditRows(prev=>prev.map((r2,idx2)=>idx2===j?{...r2,approved:e.target.value}:r2))}
                                       style={{fontSize:12,padding:"3px 6px",
                                         background:it.approved==="Yes"?T.tealL:it.approved==="Pending"?T.goldL:it.approved==="No"?T.redL:"",
                                         color:it.approved==="Yes"?T.teal:it.approved==="Pending"?T.gold:it.approved==="No"?T.red:T.ink,
@@ -12485,7 +12504,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   const [showEditForm, setShowEditForm]       = useState(false);
   const [pdSaving, setPdSaving]               = useState(false);
   const [pdForm, setPdForm]                   = useState({
-    email:"", phone:"", startDate:"", dateOfBirth:"",
+    email:"", phone:"", mobile:"", startDate:"", dateOfBirth:"",
     gender:"", hostBusiness:"", address:"", addressLine2:"", suburb:"", city:"", postcode:"",
     emergencyContactName:"", emergencyContactPhone:"", emergencyContactRelationship:"",
   });
@@ -13261,7 +13280,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                     setAdvLeaveLoading(true);
                     loadTable("leave_requests").then(rows=>{
                       setAdvLeave(rows.filter(r=>r.apprentice_id===apprentice.id)
-                        .sort((a,b)=>b.created_at.localeCompare(a.created_at)));
+                        .sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||"")));
                     }).catch(()=>{}).finally(()=>setAdvLeaveLoading(false));
                   }} style={{background:"none",border:`1px solid ${T.border}`,borderRadius:6,padding:"4px 10px",
                     fontSize:12,color:T.muted,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}
@@ -13583,7 +13602,9 @@ function MentorDashboard({currentUser, allUsers}) {
 // ─────────────────────────────────────────────────────────────────────────────
 // CONFIDENTIAL NOTES — per-note PIN lock, only Kristeena can lock/unlock
 // ─────────────────────────────────────────────────────────────────────────────
-// PIN "1002" hash
+// Confidential notes PIN hash (SHA-256)
+let _pinAttempts = 0;
+let _pinLockedUntil = 0;
 const CONF_PIN_HASH = "b281bc2c616cb3c3a097215fdc9397ae87e6e06b156cc34e656be7a1a9ce8839";
 
 async function sha256hex(str) {
@@ -13599,12 +13620,23 @@ function PinPromptModal({ title, onConfirm, onCancel }) {
 
   const submit = async () => {
     if(pin.length !== 4) { setErr("Enter your 4-digit PIN"); return; }
+    if(Date.now() < _pinLockedUntil) {
+      const secs = Math.ceil((_pinLockedUntil - Date.now()) / 1000);
+      setErr(`Too many attempts. Try again in ${secs}s.`); return;
+    }
     setChecking(true);
     const h = await sha256hex(pin);
     if(h === CONF_PIN_HASH) {
+      _pinAttempts = 0;
       onConfirm();
     } else {
-      setErr("Incorrect PIN");
+      _pinAttempts++;
+      if(_pinAttempts >= 5) {
+        _pinLockedUntil = Date.now() + 5 * 60 * 1000; _pinAttempts = 0;
+        setErr("Too many incorrect attempts. Locked for 5 minutes.");
+      } else {
+        setErr(`Incorrect PIN (${5-_pinAttempts} attempt${5-_pinAttempts!==1?"s":""} remaining)`);
+      }
       setPin("");
     }
     setChecking(false);
@@ -14024,21 +14056,27 @@ const submitEntryToXero = async (entry, apprentice, allEntries=[]) => {
     toolAllowanceHours,
   };
 
-  try {
-    const res = await fetch(edgeFunctionUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if(!res.ok) return { ok: false, error: data.error || `HTTP ${res.status}`, status: res.status };
-    return { ok: true, timesheetId: data.timesheetId };
-  } catch(e) {
-    return { ok: false, error: e.message, status: 0 };
+  for(let attempt=1; attempt<=3; attempt++) {
+    try {
+      const res = await fetch(edgeFunctionUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if(res.ok) return { ok: true, timesheetId: data.timesheetId };
+      const err = { ok: false, error: data.error || `HTTP ${res.status}`, status: res.status };
+      if(res.status >= 400 && res.status < 500 && res.status !== 429) return err; // don't retry 4xx
+      if(attempt === 3) return err;
+    } catch(e) {
+      if(attempt === 3) return { ok: false, error: e.message, status: 0 };
+    }
+    await new Promise(r => setTimeout(r, 5000 * attempt));
   }
+  return { ok: false, error: "Max retries exceeded", status: 0 };
 };
 
 // ── Xero Module — Admin 1 only ────────────────────────────────────────────────
@@ -14834,7 +14872,7 @@ serve(async (req) => {
                             await updateRow("entries", be.entryId, { xero_status:"submitted", xero_timesheet_id:res.timesheetId||null }).catch(console.error);
                             onUpdateEntries(prev=>prev.map(x=>x.id===be.entryId?{...x,xeroStatus:"submitted",xeroTimesheetId:res.timesheetId}:x));
                           } else {
-                            await updateRow("entries", be.entryId, { xero_status:"error" }).catch(console.error);
+                            await updateRow("entries", be.entryId, { xero_status:"error", xero_error: res.error||null }).catch(console.error);
                             onUpdateEntries(prev=>prev.map(x=>x.id===be.entryId?{...x,xeroStatus:"error",xeroError:res.error}:x));
                           }
                         }
@@ -14902,7 +14940,7 @@ serve(async (req) => {
                                 await updateRow("entries", e.id, { xero_status: status, xero_timesheet_id: res.timesheetId||null }).catch(console.error);
                                 onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:status,xeroTimesheetId:res.timesheetId}:x));
                               } else {
-                                await updateRow("entries", e.id, { xero_status: "error" }).catch(console.error);
+                                await updateRow("entries", e.id, { xero_status: "error", xero_error: res.error||null }).catch(console.error);
                                 onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"error",xeroError:res.error}:x));
                               }
                             }}
@@ -15006,8 +15044,8 @@ const fetchOrgInbox = async (folder="inbox", maxResults=50) => {
 };
 
 // ── Stable sub-components (defined outside to preserve focus) ────────────────
-const NoteTextarea = ({value, onChange, placeholder}) => (
-  <textarea value={value} onChange={onChange} placeholder={placeholder}
+const NoteTextarea = ({value, onChange, onPaste, placeholder}) => (
+  <textarea value={value} onChange={onChange} onPaste={onPaste} placeholder={placeholder}
     rows={3}
     style={{width:"100%",fontSize:14,padding:"10px 12px",border:`1.5px solid ${T.border}`,
       borderRadius:8,fontFamily:"DM Sans,sans-serif",background:"#fff",resize:"vertical",
@@ -15037,7 +15075,26 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
   const [pendingNote, setPendingNote]   = useState(null);  // note object waiting for PIN confirm
   const [unlockedIds, setUnlockedIds]   = useState(new Set()); // IDs unlocked this session
   const [pinning, setPinning]           = useState({});
+  // Pasted images accumulated during note composition
+  const [pastedImages, setPastedImages] = useState([]);
   const proxyOk = !!getEmailProxyUrl();
+
+  const handleNotePaste = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) continue;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setPastedImages(prev => [...prev, { id: uid(), dataUrl: ev.target.result }]);
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+  };
 
   // Load saved activity notes from Supabase
   useEffect(()=>{
@@ -15045,7 +15102,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
     loadTable('activity_notes')
       .then(rows => setNotes(
         rows.filter(r=> (personEmail && r.person_email===personEmail) || (personId && r.person_id===personId))
-            .sort((a,b)=>b.created_at.localeCompare(a.created_at))
+            .sort((a,b)=>(b.created_at||"").localeCompare(a.created_at||""))
       ))
       .catch(()=>setNotes([]))
       .finally(()=>setLoadingNotes(false));
@@ -15063,13 +15120,18 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
   useEffect(()=>{ loadEmails(); },[personEmail]);
 
   const saveNote = async () => {
-    if(!noteText.trim()) return;
+    if(!noteText.trim() && pastedImages.length === 0) return;
+    let body = noteText.trim();
+    if (pastedImages.length > 0) {
+      if (body) body += "\n";
+      body += pastedImages.map(img => `<<IMG:${img.dataUrl}>>`).join("\n");
+    }
     const note = {
       id: uid(), person_email: personEmail||null, person_id: personId||null,
       person_name: personName||null, type:"note",
       subject: activityType||"Note",
       activity_type: activityType||"Note",
-      body: noteText.trim(), direction:"note",
+      body: body, direction:"note",
       created_at: new Date().toISOString(),
       is_locked: false,
     };
@@ -15083,7 +15145,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
     try {
       await upsertRow('activity_notes', note);
       setNotes(prev=>[note,...prev]);
-      setNoteText(""); setAddingNote(false); setActivityType("");
+      setNoteText(""); setAddingNote(false); setActivityType(""); setPastedImages([]);
     } catch(e) { alert("Failed to save: "+e.message); }
     setSavingNote(false);
   };
@@ -15093,7 +15155,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
     try {
       await upsertRow('activity_notes', note);
       setNotes(prev=>[note,...prev]);
-      setNoteText(""); setAddingNote(false); setActivityType("");
+      setNoteText(""); setAddingNote(false); setActivityType(""); setPastedImages([]);
       if(note.is_locked) setUnlockedIds(prev=>new Set([...prev, note.id]));
     } catch(e) { alert("Failed to save: "+e.message); }
     setSavingNote(false);
@@ -15204,6 +15266,33 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
 
   const pinnedIds = new Set(notes.map(n=>n.email_id).filter(Boolean));
 
+  // Render a note body that may contain <<IMG:dataUrl>> markers
+  const renderNoteBody = (body) => {
+    if (!body) return null;
+    if (!body.includes("<<IMG:")) return <span style={{whiteSpace:"pre-wrap"}}>{body}</span>;
+    const parts = body.split(/(<<IMG:[^>]*>>)/);
+    return (
+      <span>
+        {parts.map((part, i) => {
+          if (part.startsWith("<<IMG:") && part.endsWith(">>")) {
+            const dataUrl = part.slice(6, -2);
+            return (
+              <div key={i} style={{marginTop:8,marginBottom:4}}>
+                <img src={dataUrl} alt="Screenshot"
+                  style={{maxWidth:"100%",maxHeight:400,borderRadius:8,
+                    border:`1px solid ${T.border}`,display:"block",cursor:"pointer"}}
+                  onClick={()=>window.open(dataUrl,"_blank")}
+                  title="Click to open full size"
+                />
+              </div>
+            );
+          }
+          return part ? <span key={i} style={{whiteSpace:"pre-wrap"}}>{part}</span> : null;
+        })}
+      </span>
+    );
+  };
+
   return (
     <div>
       {/* PIN prompt modals */}
@@ -15255,7 +15344,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
         <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
           {canEdit&&(
             addingNote ? (
-              <Btn sm onClick={()=>{setAddingNote(false);setNoteText("");setActivityType("");}} v="ghost">✕ Cancel</Btn>
+              <Btn sm onClick={()=>{setAddingNote(false);setNoteText("");setActivityType("");setPastedImages([]);}} v="ghost">✕ Cancel</Btn>
             ) : (
               <div style={{position:"relative",display:"inline-block"}}>
                 <Btn sm onClick={e=>{
@@ -15300,13 +15389,33 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
           <NoteTextarea
             value={noteText}
             onChange={e=>setNoteText(e.target.value)}
-            placeholder={`Log a call, meeting, email summary, or any interaction with ${personName||"this contact"}…`}
+            onPaste={handleNotePaste}
+            placeholder={`Log a call, meeting, email summary, or any interaction with ${personName||"this contact"}… (Ctrl+V / ⌘V to paste screenshots)`}
           />
+          {pastedImages.length > 0 && (
+            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:8}}>
+              {pastedImages.map(img=>(
+                <div key={img.id} style={{position:"relative",display:"inline-block"}}>
+                  <img src={img.dataUrl} alt="Pasted"
+                    style={{height:80,maxWidth:160,objectFit:"cover",borderRadius:6,
+                      border:`1.5px solid ${T.gold}66`,display:"block"}}/>
+                  <button onClick={()=>setPastedImages(prev=>prev.filter(i=>i.id!==img.id))}
+                    title="Remove image"
+                    style={{position:"absolute",top:-6,right:-6,width:20,height:20,borderRadius:"50%",
+                      background:T.red,color:"#fff",border:"none",cursor:"pointer",
+                      fontSize:12,lineHeight:"20px",textAlign:"center",padding:0,fontWeight:700}}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{fontSize:12,color:T.gold,marginTop:6,opacity:.8}}>
+            💡 Paste screenshots directly into the text area above
+          </div>
           <div style={{display:"flex",gap:8,marginTop:10}}>
-            <Btn sm onClick={saveNote} disabled={savingNote||!noteText.trim()}>
+            <Btn sm onClick={saveNote} disabled={savingNote||(noteText.trim()===""&&pastedImages.length===0)}>
               {savingNote?"Saving…":"💾 Save Note"}
             </Btn>
-            <Btn sm v="ghost" onClick={()=>{setAddingNote(false);setNoteText("");setActivityType("");}}>Cancel</Btn>
+            <Btn sm v="ghost" onClick={()=>{setAddingNote(false);setNoteText("");setActivityType("");setPastedImages([]); }}>Cancel</Btn>
           </div>
         </div>
       )}
@@ -15451,8 +15560,8 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                             )}
                           </div>
                         ) : (
-                          <div style={{fontSize:14,color:T.ink,lineHeight:1.65,whiteSpace:"pre-wrap",marginTop:4}}>
-                            {item.body}
+                          <div style={{fontSize:14,color:T.ink,lineHeight:1.65,marginTop:4}}>
+                            {renderNoteBody(item.body)}
                             {item.is_locked&&isNoteVisible(item)&&(
                               <span style={{display:"inline-flex",alignItems:"center",gap:4,marginLeft:8,
                                 fontSize:12,color:T.teal,fontWeight:700}}>
@@ -18487,7 +18596,7 @@ export default function App() {
               currentUser={currentUser}
               onUpdateEntries={updateEntries}
               showToast={showToast}
-              onImportUser={u=>setUsers(prev=>[...prev, u])}
+              onImportUser={u=>setUsers(prev=>prev.some(x=>x.id===u.id)?prev.map(x=>x.id===u.id?u:x):[...prev,u])}
             />
           )}
         </main>

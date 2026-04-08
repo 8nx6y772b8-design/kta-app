@@ -76,29 +76,22 @@ const declineFormHtml = (token: string, apprenticeName: string, date: string, ho
   </div>
 </div></body></html>`;
 
-// ── HMAC token helpers ────────────────────────────────────────────────────────
-async function getKey(s: string) {
-  return crypto.subtle.importKey("raw", new TextEncoder().encode(s),
-    {name:"HMAC",hash:"SHA-256"}, false, ["sign","verify"]);
-}
-async function verifyToken(token: string, secret: string): Promise<any|null> {
+// ── HMAC verification — pure hex, no base64 ─────────────────────────────────
+// msg = entryId|action|approverId|exp  (single)
+//       eid1,eid2,...|action|approverId|exp  (bulk)
+async function verifyHmac(msg: string, tok: string, secret: string): Promise<boolean> {
   try {
-    const dotIdx = token.indexOf(".");
-    if (dotIdx === -1) return null;
-    const pb = token.slice(0, dotIdx);
-    const sb = token.slice(dotIdx + 1);
-    if (!pb || !sb) return null;
-    // Decode base64url (restore + / padding) before atob
-    const fromB64url = (s: string) => {
-      const b = s.replace(/-/g, "+").replace(/_/g, "/");
-      return b + "=".repeat((4 - b.length % 4) % 4);
-    };
-    const payload = JSON.parse(atob(fromB64url(pb)));
-    if (payload.exp && Date.now() > payload.exp) return null;
-    const key  = await getKey(secret);
-    const buf  = Uint8Array.from(atob(fromB64url(sb)), c => c.charCodeAt(0));
-    // Verify against the raw payloadB64url string
-    return await crypto.subtle.verify("HMAC", key, buf, new TextEncoder().encode(pb)) ? payload : null;
+    if (!tok || tok.length !== 64 || !/^[0-9a-f]+$/.test(tok)) return false;
+    const key = await crypto.subtle.importKey(
+      "raw", new TextEncoder().encode(secret),
+      { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+    );
+    const sig      = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(msg));
+    const expected = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2,"0")).join("");
+    if (expected.length !== tok.length) return false;
+    let diff = 0;
+    for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ tok.charCodeAt(i);
+    return diff === 0;
   } catch { return null; }
 }
 
@@ -186,18 +179,29 @@ serve(async (req) => {
   if(req.method === "POST") {
     let fd: FormData;
     try { fd = await req.formData(); } catch { return html(errPage("Could not read form."), 400); }
-    const token  = fd.get("token") as string;
     const reason = (fd.get("reason") as string || "").trim();
-    if(!token)  return html(errPage("Missing token."), 400);
     if(!reason) return html(errPage("A reason is required."), 400);
-
-    const payload = await verifyToken(token, sec);
-    if(!payload) return html(wrap("#b86e1a","⏰","Link Expired",
+    // Read params — the decline form packs them into a single "token" field
+    // as a URLSearchParams string (e.g. "eid=X&a=decline&uid=Y&exp=Z&tok=hex")
+    const packed  = fd.get("token") as string | null;
+    const up      = packed ? new URLSearchParams(packed) : null;
+    const p_eid   = (up ? up.get("eid")  : fd.get("eid"))  as string;
+    const p_eids  = (up ? up.get("eids") : fd.get("eids")) as string;
+    const p_a     = (up ? up.get("a")    : fd.get("a"))    as string;
+    const p_uid   = (up ? up.get("uid")  : fd.get("uid"))  as string;
+    const p_exp   = (up ? up.get("exp")  : fd.get("exp"))  as string;
+    const p_tok   = (up ? up.get("tok")  : fd.get("tok"))  as string;
+    const rawMsg  = p_eids ? `${p_eids}|${p_a}|${p_uid}|${p_exp}`
+                           : `${p_eid}|${p_a}|${p_uid}|${p_exp}`;
+    if(!await verifyHmac(rawMsg, p_tok, sec)) return html(wrap("#b86e1a","⏰","Link Expired",
+      `<p>This link has expired. Please log in to <a href="${APP_URL}">the KTA system</a>.</p>`), 200);
+    if(Date.now() > parseInt(p_exp, 10)) return html(wrap("#b86e1a","⏰","Link Expired",
       `<p>This link has expired. Please log in to <a href="${APP_URL}">the KTA system</a>.</p>`), 200);
 
-    const { entryId, entryIds, approverId } = payload;
-    const postEntryId = entryId || (entryIds && entryIds[0]);
-    if(!postEntryId) return html(errPage("Invalid token &mdash; no entry ID."), 400);
+    const approverId  = p_uid;
+    const postEntryId = p_eid || (p_eids && p_eids.split(",")[0]);
+    const entryIds    = p_eids ? p_eids.split(",") : null;
+    if(!postEntryId) return html(errPage("Invalid request — no entry ID."), 400);
     const [entryRows, approvers] = await Promise.all([
       sbGet("entries", `id=eq.${postEntryId}`),
       sbGet("users", `id=eq.${approverId}`),
@@ -251,37 +255,51 @@ serve(async (req) => {
   }
 
   // ── GET: approve or show decline form ─────────────────────────────────────
-  const token = url.searchParams.get("token");
-  if(!token) return html(errPage("No token provided."), 400);
+  const g_eid  = url.searchParams.get("eid");
+  const g_eids = url.searchParams.get("eids");
+  const g_a    = url.searchParams.get("a");
+  const g_uid  = url.searchParams.get("uid");
+  const g_exp  = url.searchParams.get("exp");
+  const g_tok  = url.searchParams.get("tok");
 
-  const payload = await verifyToken(token, sec);
-  if(!payload) return html(wrap("#b86e1a","⏰","Link Expired",
+  if(!g_a || !g_uid || !g_exp || !g_tok || (!g_eid && !g_eids))
+    return html(errPage("Missing parameters."), 400);
+  if(!["approve","decline"].includes(g_a))
+    return html(errPage("Invalid action."), 400);
+
+  const g_rawMsg = g_eids ? `${g_eids}|${g_a}|${g_uid}|${g_exp}`
+                          : `${g_eid}|${g_a}|${g_uid}|${g_exp}`;
+  if(!await verifyHmac(g_rawMsg, g_tok, sec)) return html(wrap("#b86e1a","⏰","Link Expired",
+    `<p>This link has expired or is no longer valid. Please log in to <a href="${APP_URL}">the KTA system</a>.</p>
+     <a href="${APP_URL}" class="btn">Open KTA System</a>`), 200);
+  if(Date.now() > parseInt(g_exp, 10)) return html(wrap("#b86e1a","⏰","Link Expired",
     `<p>This link has expired or is no longer valid. Please log in to <a href="${APP_URL}">the KTA system</a>.</p>
      <a href="${APP_URL}" class="btn">Open KTA System</a>`), 200);
 
-  // Support both single entryId and array entryIds (approve week)
-  const { entryId, entryIds, action, approverId } = payload;
-  const ids: string[] = entryIds || (entryId ? [entryId] : []);
-  if(!ids.length || !["approve","decline"].includes(action))
-    return html(errPage("Invalid request."), 400);
+  const approverId = g_uid;
+  const action     = g_a;
+  const ids: string[] = g_eids ? g_eids.split(",") : [g_eid!];
+
+  if(!ids.length) return html(errPage("Invalid request."), 400);
 
   const [approvers] = await Promise.all([
     sbGet("users", `id=eq.${approverId}`),
   ]);
   const approver = approvers[0] || { name:"Approver" };
 
-  // For multi-entry (approve week), handle all at once
-  // Use week page if entryIds array was used (even with 1 entry) OR multiple ids
-  const isWeekAction = Array.isArray(payload.entryIds);
-  if(ids.length > 1 || (isWeekAction && ids.length >= 1)) {
+  // Multi-entry (approve week)
+  const isWeekAction = !!g_eids;
+  if(ids.length > 1 || isWeekAction) {
     if(action === "decline") {
-      // For week decline, show form using first entry date as reference
+      // Show decline form with hidden params (not a token)
       const firstEntries = await sbGet("entries", `id=eq.${ids[0]}`);
       const first = firstEntries[0];
       const apps = first ? await sbGet("users", `id=eq.${first.user_id}`) : [];
       const app = apps[0] || { name:"Apprentice" };
       const postUrl = req.url.split("?")[0];
-      return html(declineFormHtml(token, app.name, `Week (${ids.length} entries)`, `${ids.length} entries`, postUrl), 200);
+      return html(declineFormHtml(
+        `eids=${g_eids}&a=${g_a}&uid=${g_uid}&exp=${g_exp}&tok=${g_tok}`, // serialise params for form
+        app.name, `Week (${ids.length} entries)`, `${ids.length} entries`, postUrl), 200);
     }
     // Approve all entries
     let approved = 0;
@@ -356,10 +374,12 @@ serve(async (req) => {
       `<p>${msg}</p><a href="${APP_URL}" class="btn">Open KTA System</a>`), 200);
   }
 
-  // Show decline form
+  // Show decline form — embed params as hidden fields (not a single token)
   if(action === "decline") {
     const postUrl = req.url.split("?")[0];
-    return html(declineFormHtml(token, app.name, fmtDate(entry.date), `${entry.net_hours}h`, postUrl), 200);
+    return html(declineFormHtml(
+      `eid=${g_eid}&a=${g_a}&uid=${g_uid}&exp=${g_exp}&tok=${g_tok}`,
+      app.name, fmtDate(entry.date), `${entry.net_hours}h`, postUrl), 200);
   }
 
   // Approve single
