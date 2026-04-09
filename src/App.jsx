@@ -8940,7 +8940,7 @@ const fmtDateNZ = (iso) => {
 
 // ── Leave Application Form (Apprentice) ──────────────────────────────────────
 const ABSENCE_EMAIL = "absence@kta.org.nz";
-const SICK_LEAVE_TYPES = ["Sick Leave", "Leave Without Pay"];
+const SICK_LEAVE_TYPES = ["Sick Leave"];
 
 function LeaveRequestForm({ currentUser, allUsers, onSubmitted, defaultLeaveType="Annual Leave", isSickForm=false }) {
   const leaveTypeOptions = isSickForm ? SICK_LEAVE_TYPES : LEAVE_TYPES;
