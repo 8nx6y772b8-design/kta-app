@@ -447,7 +447,8 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.24";
+const APP_VERSION = "v3.7.25";
+const IS_BETA = import.meta.env.VITE_SUPABASE_URL?.includes("aglayzyiqotsrwnrcnim");
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
 // Maps leave request types to timesheet entry types
@@ -18266,6 +18267,16 @@ export default function App() {
     <>
       <style>{CSS}</style>
       <div style={{minHeight:"100vh",background:T.bg,opacity:loggingOut?0:1,transition:"opacity .35s"}}>
+
+        {/* BETA BANNER */}
+        {IS_BETA && (
+          <div style={{
+            background:"#e53e3e",color:"#fff",textAlign:"center",
+            padding:"6px 16px",fontSize:13,fontWeight:700,letterSpacing:1,
+            position:"sticky",top:0,zIndex:200,
+            fontFamily:"DM Sans,sans-serif",
+          }}>⚠ BETA — NOT LIVE</div>
+        )}
 
         {/* HEADER */}
         <header style={{background:T.dark,height:66,padding:"0 20px",
