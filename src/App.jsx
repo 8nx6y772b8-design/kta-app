@@ -447,7 +447,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.23";
+const APP_VERSION = "v3.7.24";
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
 // Maps leave request types to timesheet entry types
@@ -8837,7 +8837,7 @@ function NotificationBell({notifs, onRead, onReadAll, onDelete, canDelete=true, 
 // LEAVE REQUESTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const LEAVE_TYPES = ["Annual Leave","Sick Leave","Leave Without Pay","Bereavement Leave","Other"];
+const LEAVE_TYPES = ["Annual Leave","Leave Without Pay","Bereavement Leave","Other"];
 
 const LEAVE_STATUS_META = {
   pending:           { label:"Pending Approver Review",    color:"#b86e1a", bg:"#faebd7", sym:"⏳", step:1, steps:3 },
