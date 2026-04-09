@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev":     "vite",
-    "build":   "vite build",
-    "preview": "vite preview"
+    "dev":        "vite",
+    "build":      "vite build",
+    "preview":    "vite preview",
+    "deploy:beta": "vercel --force 2>&1 | tee /tmp/vercel-out.txt && vercel alias set $(grep -o 'https://kta-[^ ]*\\.vercel\\.app' /tmp/vercel-out.txt | head -1) kta-app-beta.vercel.app"
   },
   "dependencies": {
     "react":     "^18.2.0",
