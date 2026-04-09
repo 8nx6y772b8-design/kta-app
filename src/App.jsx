@@ -1,8 +1,27 @@
-// KTA Workforce Management — v3.7.19
+// KTA Workforce Management — v3.7.20
 // Changelog:
+//   v3.7.20 — Continued bug fixes from deep-dive audit
+//             Fixed: handleApprove/handleDecline null guard — entries.find() can
+//               return undefined on race condition; spread now protected
+//             Fixed: autoFillLeaveEntries entries now stamped with createdAt,
+//               submittedAt and approvedAt (approval set to "approved" not "draft")
+//             Fixed: canDelete now enforces 21-day limit for apprentices —
+//               previously apprentices could delete old draft entries indefinitely
+//             Fixed: resetContactForm now resets mobile field (was persisting
+//               across form resets causing uncontrolled→controlled warning)
+//             Fixed: handleLogout now clears users/entries/notifications state —
+//               previously previous user's data was visible until reload
+//             Fixed: Xero tool allowance no longer submitted for leave entry
+//               types (Sick Leave, Annual Leave etc.) — was always included
+//             Fixed: TYPE_META now includes Bereavement Leave and Leave Without
+//               Pay entries — previously rendered as "Other" with wrong colour
+//             Fixed: LeaveRequestCard useEffect now tracks decline_reason,
+//               approver_id and reminder_sent — stale closure on those fields
+//             Fixed: Leave request polling stale closure — useEffect deps now
+//               include allUsers so 48hr reminder check uses current data
+//             Fixed: Xero Submit All action renamed upsertTimesheetBatch →
+//               upsertTimesheet to match edge function handler
 //   v3.7.19 — Version sync: aligned header comment with APP_VERSION constant
-//              (previous deploys incremented the display version without updating
-//              the changelog header — both now read v3.7.19)
 //   v3.7.9 — Bug fixes (continued from v3.7.8 audit)
 //             H1:  CRM "Placed This Year" now uses closeDate (camelCase) — was always 0
 //             H2:  Deal sort "Proposal" now sorts first — indexOf(0)||99 falsy bug fixed
@@ -428,7 +447,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.19";
+const APP_VERSION = "v3.7.20";
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
 // Maps leave request types to timesheet entry types
@@ -546,17 +565,22 @@ const autoFillLeaveEntries = async (apprenticeId, leaveType, dateFrom, dateTo, e
 
   if (days.length === 0) return 0;
 
+  const now = new Date().toISOString();
   const newEntries = days.map(date => ({
-    id:        uid(),
-    userId:    apprenticeId,
+    id:          uid(),
+    userId:      apprenticeId,
     date,
-    type:      entryType,
+    type:        entryType,
     start,
     end,
     breakMins,
     netHours,
-    note:      `Auto-filled from approved ${leaveType}`,
-    approval:  "draft",
+    note:        `Auto-filled from approved ${leaveType}`,
+    approval:    "approved",  // auto-fill = already approved via leave process
+    createdAt:   now,
+    submittedAt: now,
+    approvedAt:  now,
+    // approvedBy left null — approved via leave workflow not direct user action
   }));
 
   // Save all to Supabase
@@ -1077,13 +1101,15 @@ const ROLE_META = {
 
 const ENTRY_TYPES = ["Normal Hours","Annual Leave","Sick Leave","Bereavement Leave","Leave Without Pay","Public Holiday","Overtime","Block Course","Other"];
 const TYPE_META = {
-  "Normal Hours":   { color: T.accent, bg: T.accentL, sym: "◈" },
-  "Annual Leave":   { color: T.warn,   bg: T.warnL,   sym: "☀" },
-  "Sick Leave":     { color: T.red,    bg: T.redL,    sym: "✚" },
-  "Public Holiday": { color: T.hol,    bg: T.holL,    sym: "★" },
-  "Overtime":       { color: T.gold,   bg: T.goldL,   sym: "⚡" },
-  "Block Course":   { color: T.teal,   bg: T.tealL,   sym: "🎓" },
-  "Other":          { color: T.slate,  bg: T.slateL,  sym: "◉" },
+  "Normal Hours":      { color: T.accent, bg: T.accentL, sym: "◈" },
+  "Annual Leave":      { color: T.warn,   bg: T.warnL,   sym: "☀" },
+  "Sick Leave":        { color: T.red,    bg: T.redL,    sym: "✚" },
+  "Bereavement Leave": { color: T.hol,    bg: T.holL,    sym: "✦" },
+  "Leave Without Pay": { color: T.slate,  bg: T.slateL,  sym: "○" },
+  "Public Holiday":    { color: T.hol,    bg: T.holL,    sym: "★" },
+  "Overtime":          { color: T.gold,   bg: T.goldL,   sym: "⚡" },
+  "Block Course":      { color: T.teal,   bg: T.tealL,   sym: "🎓" },
+  "Other":             { color: T.slate,  bg: T.slateL,  sym: "◉" },
 };
 const APPROVAL_META = {
   draft:     { color: T.muted,  bg: T.slateL, label: "Draft",      sym: "✎" },
@@ -1688,7 +1714,14 @@ function LoginScreen({users, onLogin}) {
     setErr("");
     if(!email.trim()||!pw) { setErr("Please enter your email and password."); return; }
     setLoading(true);
-    const user = users.find(u=>u.email.toLowerCase()===email.trim().toLowerCase());
+    let user = users.find(u=>u.email.toLowerCase()===email.trim().toLowerCase());
+    if(!user) {
+      // Not in cached list — re-fetch in case user was added after page load
+      try {
+        const fresh = await loadUsers();
+        user = fresh.find(u=>u.email.toLowerCase()===email.trim().toLowerCase());
+      } catch(e) { /* fall through to error below */ }
+    }
     if(!user) { setErr("No account found with that email address."); setLoading(false); trigShake(); return; }
     try {
       const storedPw = await loadUserPassword(user.id);
@@ -2634,7 +2667,8 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   const canDelete=(entry)=>{
     if(isXeroLocked(entry)) return false;
     if(isAdmin1ts) return true;
-    if(role==="Apprentice"&&entry.userId===currentUser.id&&entry.approval==="draft") return true;
+    // Apprentices can only delete draft entries within the 21-day window
+    if(role==="Apprentice"&&entry.userId===currentUser.id&&entry.approval==="draft"&&entry.date>=daysAgoStr(21)) return true;
     return false;
   };
   const canApprove=(entry)=>{
@@ -2698,6 +2732,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   };
   const handleApprove=async(id)=>{
     const entry=entries.find(e=>e.id===id);
+    if(!entry) return; // guard: entry may have been deleted or not yet loaded
     const approvedAt = new Date().toISOString();
     setEntries(prev=>prev.map(e=>e.id===id?{...e,approval:"approved",approvedBy:currentUser.id,approvedAt}:e));
     await upsertEntry({...entry,approval:"approved",approvedBy:currentUser.id,approvedAt}).catch(console.error);
@@ -2721,6 +2756,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   };
   const handleDecline=async(id)=>{
     const entry=entries.find(e=>e.id===id);
+    if(!entry) return; // guard: entry may have been deleted or not yet loaded
     const declinedAt = new Date().toISOString();
     setEntries(prev=>prev.map(e=>e.id===id?{...e,approval:"declined",declinedBy:currentUser.id,declinedAt}:e));
     await upsertEntry({...entry,approval:"declined",declinedBy:currentUser.id,declinedAt}).catch(console.error);
@@ -4885,7 +4921,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
   const sd=(k,v)=>setDForm(f=>({...f,[k]:v}));
 
   const resetContactForm = () => {
-    setCForm({name:"",company:"",companyId:"",email:"",phone:"",status:"Active",notes:""});
+    setCForm({name:"",company:"",companyId:"",email:"",phone:"",mobile:"",status:"Active",notes:""});
     setHsEmail(""); setHsStatus(null); setHsSource(false);
   };
 
@@ -9140,7 +9176,7 @@ function LeaveRequestCard({ req: reqProp, allUsers, currentUser, isAdmin, isAppr
   const [fillMsg, setFillMsg]   = useState("");
 
   // Keep local req in sync if parent re-renders with new data
-  useEffect(()=>{ setReq(reqProp); }, [reqProp.status, reqProp.id]);
+  useEffect(()=>{ setReq(reqProp); }, [reqProp.status, reqProp.id, reqProp.decline_reason, reqProp.approver_id, reqProp.reminder_sent]);
 
   const apprentice = allUsers.find(u=>u.id===req.apprentice_id) || { name:"Unknown" };
   const approver   = allUsers.find(u=>u.id===req.approver_id)   || { name:"No approver" };
@@ -9513,8 +9549,8 @@ function LeaveRequestsListPage({ currentUser, allUsers, entries, setEntries }) {
       .finally(()=>setLoading(false));
   };
 
-  useEffect(()=>{ load(); },[]);
-  useEffect(()=>{ const t=setInterval(load,30000); return()=>clearInterval(t); },[]);
+  useEffect(()=>{ load(); },[allUsers]);
+  useEffect(()=>{ const t=setInterval(load,30000); return()=>clearInterval(t); },[allUsers]);
 
   const handleUpdate = (updated) => setRequests(prev=>prev.map(r=>r.id===updated.id?updated:r));
 
@@ -14043,7 +14079,9 @@ const submitEntryToXero = async (entry, apprentice, allEntries=[]) => {
   // Tool allowance: submit total hours as numberOfUnits — Xero multiplies by $0.50/hr rate
   const totalHours = lines.reduce((s, l) => s + l.hours, 0);
   const toolAllowanceId    = xeroSettings.toolAllowanceReimbursementId || null;
-  const toolAllowanceHours = toolAllowanceId ? totalHours : 0;
+  // Tool allowance only applies to Normal Hours and Overtime — not leave types
+  const isLeaveEntry = entry.type !== "Normal Hours" && entry.type !== "Overtime" && entry.type !== "Block Course";
+  const toolAllowanceHours = (toolAllowanceId && !isLeaveEntry) ? totalHours : 0;
 
   const payload = {
     action:      "upsertTimesheet",
@@ -14852,7 +14890,7 @@ serve(async (req) => {
                               method:"POST",
                               headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
                               body: JSON.stringify({
-                                action: "upsertTimesheetBatch",
+                                action: "upsertTimesheet",
                                 tenantId,
                                 employeeId: empId,
                                 entries: batchEntries,
@@ -18088,7 +18126,16 @@ export default function App() {
   };
   const handleLogout = () => {
     setLoggingOut(true);
-    setTimeout(()=>{ setSessionId(null); setLoggingOut(false); setViewingAppId(null); setShowAppList(false); try{localStorage.removeItem('wos_session_sb');localStorage.removeItem('wos_session_ts');localStorage.removeItem('wos_viewing_app');localStorage.removeItem('wos_show_list');localStorage.removeItem('wos_crm_tab');localStorage.removeItem('wos_mentor_app');}catch{} },400);
+    setTimeout(()=>{
+      setSessionId(null); setLoggingOut(false); setViewingAppId(null); setShowAppList(false);
+      // Clear all user data from state so previous user's data is never visible to next user
+      setUsers([]); setEntries([]); setNotifications([]);
+      try{
+        localStorage.removeItem('wos_session_sb'); localStorage.removeItem('wos_session_ts');
+        localStorage.removeItem('wos_viewing_app'); localStorage.removeItem('wos_show_list');
+        localStorage.removeItem('wos_crm_tab'); localStorage.removeItem('wos_mentor_app');
+      }catch{}
+    },400);
   };
 
   if(loading) return (
