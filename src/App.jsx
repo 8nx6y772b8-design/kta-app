@@ -447,7 +447,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.22";
+const APP_VERSION = "v3.7.23";
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
 // Maps leave request types to timesheet entry types
@@ -18135,8 +18135,9 @@ export default function App() {
         localStorage.removeItem('wos_viewing_app'); localStorage.removeItem('wos_show_list');
         localStorage.removeItem('wos_crm_tab'); localStorage.removeItem('wos_mentor_app');
       }catch{}
-      // Reload users so the login screen works without a page refresh
+      // Reload users and entries so the login screen and post-login views work without a page refresh
       loadUsers().then(setUsers).catch(()=>{});
+      loadEntries().then(setEntries).catch(()=>{});
     },400);
   };
 
