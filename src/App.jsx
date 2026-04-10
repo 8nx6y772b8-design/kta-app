@@ -447,7 +447,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.28";
+const APP_VERSION = "v3.7.29";
 const IS_BETA = import.meta.env.VITE_SUPABASE_URL?.includes("aglayzyiqotsrwnrcnim");
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
@@ -3388,7 +3388,7 @@ function UserManagement({users, setUsers, currentUser, entries=[]}) {
   const [bulkDone, setBulkDone] = useState(null);
   const switchUmTab = (tab) => { setUmTab(tab); setBulkPw(""); setBulkDone(null); };
 
-  const blank={name:"",role:"Apprentice",email:"",phone:"",password:"",allocatedTo:[],
+  const blank={name:"",role:"Apprentice",email:"",phone:"",mobile:"",password:"",allocatedTo:[],
     address:"",suburb:"",city:"",postcode:"",approverUserId:null,viewerUserId:null,secondaryRole:null,adminLevel:1,isSupervisor:false,
     hostBusiness:"",overtimeType:null,overtimeThreshold:"",overtimeRateId:"",reportsEmail:"",company:""};
   const [form,setForm]=useState(blank);
@@ -3480,7 +3480,7 @@ function UserManagement({users, setUsers, currentUser, entries=[]}) {
       window.history.pushState({ktaNav:true},"");
       setViewingUser(u); return;
     }
-    setForm({name:u.name,role:u.role,email:u.email||"",phone:u.phone||"",password:"",
+    setForm({name:u.name,role:u.role,email:u.email||"",phone:u.phone||"",mobile:u.mobile||"",password:"",
       allocatedTo:u.allocatedTo||[],address:u.address||"",suburb:u.suburb||"",
       city:u.city||"",postcode:u.postcode||"",
       approverUserId:u.approverUserId||null,viewerUserId:u.viewerUserId||null,
