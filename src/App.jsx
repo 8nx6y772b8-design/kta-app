@@ -447,7 +447,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.27";
+const APP_VERSION = "v3.7.28";
 const IS_BETA = import.meta.env.VITE_SUPABASE_URL?.includes("aglayzyiqotsrwnrcnim");
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
@@ -15099,7 +15099,7 @@ const NoteTextarea = ({value, onChange, onPaste, placeholder}) => (
 //   personId    — Supabase user id (nullable for CRM contacts)
 //   extraItems  — pre-loaded items to merge (e.g. meeting reports as {_kind,_ts,label,detail})
 //   canEdit     — whether notes/pins are allowed
-function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[], canEdit=true, isKristeena=false, isAdmin1=false}) {
+function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[], canEdit=true, isKristeena=false, isAdmin1=false, currentUserEmail=""}) {
   const [emails, setEmails]             = useState([]);
   const [notes, setNotes]               = useState([]);
   const [loadingEmails, setLoadingEmails] = useState(false);
@@ -15296,6 +15296,25 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
     note:     {label:"📝 Note",    color:T.gold,   bg:T.goldL},
     report:   {label:"📋 Report",  color:T.blue,   bg:T.blueL},
   })[dir||"note"]||{label:"◈ Activity", color:T.sub, bg:T.bg};
+
+  // Private emails (is_private=true) are only visible to the KTA staff member who sent/received them.
+  // Anyone else sees a placeholder with a "Release to timeline" button which the owner can click.
+  const PRIVATE_MAILBOXES = ["mike@kta.org.nz", "kristeena@kta.org.nz"];
+  const isPrivateOwner = (n) => n.private_mailbox && n.private_mailbox.toLowerCase() === currentUserEmail.toLowerCase();
+  const isEmailVisible = (n) => {
+    if(!n.is_private) return true;
+    // Owner of the private mailbox can always see it
+    if(isPrivateOwner(n)) return true;
+    // Admin L1 cannot see private emails — privacy is absolute until owner releases
+    return false;
+  };
+
+  const releasePrivate = async (note) => {
+    if(!await ktaConfirm("Release this email to the contact timeline? Everyone with access will be able to see it.")) return;
+    const updated = {...note, is_private: false, private_mailbox: null};
+    await upsertRow('activity_notes', updated).catch(console.error);
+    setNotes(prev => prev.map(n => n.id === note.id ? updated : n));
+  };
 
   const isNoteVisible = (n) => {
     if(!n.is_locked) return true;
@@ -15583,8 +15602,16 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                         {item.from_address&&<div style={{fontSize:12,color:T.sub,marginBottom:3}}>
                           {item.direction==="inbound"?"From":"To"}: {item.from_address||item.to_address}
                         </div>}
+                        {/* Private email — not released to timeline yet */}
+                        {item.is_private && !isEmailVisible(item) && (
+                          <div style={{display:"flex",alignItems:"center",gap:8,marginTop:6,
+                            background:T.bg,borderRadius:7,padding:"8px 12px",border:`1px solid ${T.border}`}}>
+                            <span style={{fontSize:18}}>🔒</span>
+                            <span style={{fontSize:13,color:T.muted,fontStyle:"italic"}}>Private — not yet released to timeline</span>
+                          </div>
+                        )}
                         {/* Locked note display */}
-                        {item.is_locked && !isNoteVisible(item) ? (
+                        {!item.is_private && item.is_locked && !isNoteVisible(item) ? (
                           <div style={{display:"flex",alignItems:"center",gap:8,marginTop:6,
                             background:T.bg,borderRadius:7,padding:"8px 12px",border:`1px solid ${T.border}`}}>
                             <span style={{fontSize:18}}>🔒</span>
@@ -15600,7 +15627,7 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                           </div>
                         ) : (
                           <div style={{fontSize:14,color:T.ink,lineHeight:1.65,marginTop:4}}>
-                            {renderNoteBody(item.body)}
+                            {(!item.is_private || isEmailVisible(item)) && renderNoteBody(item.body)}
                             {item.is_locked&&isNoteVisible(item)&&(
                               <span style={{display:"inline-flex",alignItems:"center",gap:4,marginLeft:8,
                                 fontSize:12,color:T.teal,fontWeight:700}}>
@@ -15609,8 +15636,17 @@ function EmailActivityFeed({personEmail, personName, personId=null, extraItems=[
                             )}
                           </div>
                         )}
-                        <div style={{fontSize:12,color:T.muted,marginTop:6,display:"flex",alignItems:"center",gap:8}}>
+                        <div style={{fontSize:12,color:T.muted,marginTop:6,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                           {fmtTs(item.email_date||item.created_at)}
+                          {/* Release-to-timeline button — only shown to the private mailbox owner */}
+                          {item.is_private && isPrivateOwner(item) && (
+                            <button onClick={()=>releasePrivate(item)}
+                              style={{background:"none",border:`1px solid ${T.accent}`,borderRadius:5,
+                                padding:"2px 9px",fontSize:11,cursor:"pointer",
+                                color:T.accent,fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
+                              📤 Release to timeline
+                            </button>
+                          )}
                           {isKristeena&&item.direction==="note"&&(
                             <button onClick={()=>toggleLock(item)}
                               style={{background:"none",border:`1px solid ${T.border}`,borderRadius:5,
@@ -18166,7 +18202,6 @@ export default function App() {
     {id:"timesheet", label:"⏱ Timesheet",  roles:["Apprentice","Approver","Viewer","Supervisor"]},
     {id:"crm",       label:"◈ CRM",         roles:["Mentor","Admin"]},
     {id:"users",     label:"★ Users",       roles:["Admin"]},
-    {id:"emails",    label:"✉ Emails",      roles:["Admin","Mentor"]},
     {id:"progress",  label:"📈 Progress",   roles:["Admin"]},
   ].filter(n=>n.roles.includes(role));
 
