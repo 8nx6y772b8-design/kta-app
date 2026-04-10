@@ -447,7 +447,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.31";
+const APP_VERSION = "v3.7.32";
 const IS_BETA = import.meta.env.VITE_SUPABASE_URL?.includes("aglayzyiqotsrwnrcnim");
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
@@ -5121,7 +5121,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
 
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:14}}>
           {[
-            {label:"📧 Email",val:detailContact.email,href:detailContact.email?`https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(detailContact.email)}`:null,hrefTarget:"_blank"},
+            {label:"📧 Email",val:detailContact.email,href:detailContact.email?`mailto:${detailContact.email}`:null},
             {label:"📱 Mobile",val:detailContact.mobile,href:detailContact.mobile?`tel:${detailContact.mobile}`:null},
             {label:"📞 Phone",val:detailContact.phone,href:detailContact.phone?`tel:${detailContact.phone}`:null},
             {label:"💼 Job Title",val:detailContact.job_title||detailContact.jobTitle||""},
@@ -9877,10 +9877,15 @@ function ContactUs({currentUser, allUsers, onSend}) {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
-  // Show Admin and Mentor users as contactable staff (excluding the current user)
+  // Show Admin users + the apprentice's own assigned mentor as contactable staff
   const staffColors = [T.accent, T.teal, T.warn, T.gold, T.blue];
   const staff = allUsers
-    .filter(u => ["Admin","Mentor"].includes(u.role) && u.id !== currentUser.id)
+    .filter(u => {
+      if(u.id === currentUser.id) return false;
+      if(u.role === "Admin") return true;
+      if(u.role === "Mentor") return u.id === currentUser.mentorUserId; // only assigned mentor
+      return false;
+    })
     .sort((a, b) => {
       const isMentorA = a.role === "Mentor";
       const isMentorB = b.role === "Mentor";
