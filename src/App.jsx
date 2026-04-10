@@ -447,7 +447,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.25";
+const APP_VERSION = "v3.7.26";
 const IS_BETA = import.meta.env.VITE_SUPABASE_URL?.includes("aglayzyiqotsrwnrcnim");
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
@@ -15660,12 +15660,29 @@ function EmailsModule({allUsers, currentUser}) {
 
   const CAPTURE_FN_KEY = "kta_graph_capture_url";
   const getCaptureUrl  = () => { try{ return localStorage.getItem(CAPTURE_FN_KEY)||""; }catch{ return ""; } };
-  const saveCaptureUrl = (url) => { try{ localStorage.setItem(CAPTURE_FN_KEY, url); }catch{} };
+  const saveCaptureUrl = async (url) => {
+    try{ localStorage.setItem(CAPTURE_FN_KEY, url.trim()); }catch{}
+    await sb.from("app_settings").upsert({key:"graph_capture_url",value:url.trim()},{onConflict:"key"});
+  };
+
+  // Load capture URL from DB on mount (so it works on any device)
+  useEffect(()=>{
+    sb.from("app_settings").select("value").eq("key","graph_capture_url").single()
+      .then(({data})=>{
+        if(data?.value){
+          setCaptureUrl(data.value);
+          try{ localStorage.setItem(CAPTURE_FN_KEY, data.value); }catch{}
+        } else {
+          const local = getCaptureUrl();
+          if(local) setCaptureUrl(local);
+        }
+      }).catch(()=>{ const local=getCaptureUrl(); if(local) setCaptureUrl(local); });
+  },[]);
 
   const loadCapture = async () => {
     setCaptureLoading(true);
     try {
-      const capUrl = getCaptureUrl();
+      const capUrl = captureUrl || getCaptureUrl();
       if(capUrl) {
         const res = await fetch(capUrl+"/manage-subscriptions", {
           method:"POST", headers:{"Content-Type":"application/json"},
@@ -15680,36 +15697,35 @@ function EmailsModule({allUsers, currentUser}) {
     setCaptureLoading(false);
   };
 
-  // Auto-renew subscriptions silently — runs every time the app loads
-  // Renews anything expiring within 36h so there's always a buffer
-  const autoRenew = async () => {
+  // Sync all @kta.org.nz mailboxes from Azure AD — creates any missing subscriptions
+  const syncAllMailboxes = async () => {
+    const capUrl = captureUrl || getCaptureUrl();
+    if(!capUrl){ setCaptureMsg("Save the edge function URL first"); return; }
+    setCaptureLoading(true); setCaptureMsg("");
     try {
-      const capUrl = getCaptureUrl();
-      if(!capUrl) return;
-      // Get current subscriptions
-      const listRes = await fetch(capUrl+"/manage-subscriptions", {
+      const res = await fetch(capUrl+"/manage-subscriptions", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({action:"list"})
+        body: JSON.stringify({action:"sync-all", notificationUrl: capUrl})
       });
-      if(!listRes.ok) return;
-      const { subscriptions=[] } = await listRes.json();
-      // Check if any expire within 36 hours
-      const expiringSoon = subscriptions.filter(s => {
-        if(!s.expirationDateTime) return true;
-        const hoursLeft = (new Date(s.expirationDateTime) - Date.now()) / 3600000;
-        return hoursLeft < 36;
-      });
-      if(expiringSoon.length === 0) return;
-      // Renew them all
-      await fetch(capUrl+"/manage-subscriptions", {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({action:"renew-all"})
-      });
-    } catch(e) { /* silent — don't bother the user */ }
+      const d = await res.json();
+      if(d.ok){
+        const parts = [];
+        if(d.created?.length)  parts.push(`${d.created.length} created`);
+        if(d.renewed?.length)  parts.push(`${d.renewed.length} renewed`);
+        if(d.skipped?.length)  parts.push(`${d.skipped.length} already active`);
+        if(d.failed?.length)   parts.push(`${d.failed.length} failed`);
+        setCaptureMsg(`✓ Synced ${d.mailboxes} mailboxes — ${parts.join(", ") || "no changes"}`);
+        await loadCapture();
+      } else {
+        setCaptureMsg("Error: " + (d.error||"unknown"));
+      }
+    } catch(e){ setCaptureMsg("Error: "+e.message); }
+    setCaptureLoading(false);
+    setTimeout(()=>setCaptureMsg(""), 8000);
   };
 
   // Run auto-renew on mount (every time the Emails module loads)
-  useEffect(()=>{ autoRenew(); },[]);
+  useEffect(()=>{ loadCapture(); },[]);
 
   useEffect(()=>{ if(tab==="capture") loadCapture(); },[tab]);
 
@@ -15968,7 +15984,7 @@ serve(async (req) => {
                 value={captureUrl||getCaptureUrl()}
                 onChange={e=>setCaptureUrl(e.target.value)}
                 style={{flex:1,fontSize:13}}/>
-              <Btn sm onClick={()=>{saveCaptureUrl(captureUrl);setCaptureMsg("✓ Saved");setTimeout(()=>setCaptureMsg(""),2000);}}>
+              <Btn sm onClick={async()=>{await saveCaptureUrl(captureUrl);setCaptureMsg("✓ Saved");setTimeout(()=>setCaptureMsg(""),2000);}}>
                 Save
               </Btn>
             </div>
@@ -15979,66 +15995,23 @@ serve(async (req) => {
           <Card style={{marginBottom:16,padding:0,overflow:"hidden"}}>
             <div style={{padding:"14px 18px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
               <div style={{fontWeight:700,fontSize:15}}>👤 Monitored Mailboxes</div>
-              <Btn sm onClick={loadCapture} disabled={captureLoading}>{captureLoading?"Loading…":"↺ Refresh"}</Btn>
+              <div style={{display:"flex",gap:8}}>
+                <Btn sm onClick={syncAllMailboxes} disabled={captureLoading}>{captureLoading?"Syncing…":"⚡ Sync All @kta.org.nz"}</Btn>
+                <Btn sm onClick={loadCapture} disabled={captureLoading}>{captureLoading?"…":"↺"}</Btn>
+              </div>
             </div>
             <div style={{padding:"12px 18px"}}>
-              {/* Add mailbox */}
-              <div style={{display:"flex",gap:8,marginBottom:14}}>
-                <select value={addingEmail} onChange={e=>setAddingEmail(e.target.value)} style={{flex:1,fontSize:13}}>
-                  <option value="">— Select staff member to monitor —</option>
-                  {allUsers.filter(u=>u.email&&u.email.toLowerCase().endsWith("@kta.org.nz")&&!captureSubs.some(s=>s.resource?.includes(u.email))).map(u=>(
-                    <option key={u.id} value={u.email}>{u.name} ({u.email})</option>
-                  ))}
-                </select>
-                <Btn sm onClick={async()=>{
-                  if(!addingEmail){setCaptureMsg("Select a staff member first");return;}
-                  const capUrl = getCaptureUrl()||captureUrl;
-                  if(!capUrl){setCaptureMsg("Save the edge function URL first");return;}
-                  setCaptureLoading(true);
-                  try {
-                    const res = await fetch(capUrl+"/manage-subscriptions",{
-                      method:"POST",headers:{"Content-Type":"application/json"},
-                      body:JSON.stringify({action:"create",userEmail:addingEmail,notificationUrl:capUrl})
-                    });
-                    const d = await res.json();
-                    if(d.ok){ setCaptureMsg(`✓ Monitoring ${addingEmail}`); setAddingEmail(""); await loadCapture(); }
-                    else setCaptureMsg("Error: "+(d.error||"Unknown"));
-                  } catch(e){ setCaptureMsg("Error: "+e.message); }
-                  setCaptureLoading(false);
-                }}>+ Add</Btn>
-                <Btn sm onClick={async()=>{
-                  const capUrl = getCaptureUrl()||captureUrl;
-                  if(!capUrl){setCaptureMsg("Save the edge function URL first");return;}
-                  const unmonitored = allUsers.filter(u=>
-                    u.email&&u.email.toLowerCase().endsWith("@kta.org.nz")&&
-                    !captureSubs.some(s=>s.resource?.includes(u.email))
-                  );
-                  if(!unmonitored.length){setCaptureMsg("All KTA staff are already being monitored");return;}
-                  setCaptureLoading(true);
-                  let added=0, failed=0;
-                  for(const u of unmonitored){
-                    try{
-                      const res = await fetch(capUrl+"/manage-subscriptions",{
-                        method:"POST",headers:{"Content-Type":"application/json"},
-                        body:JSON.stringify({action:"create",userEmail:u.email,notificationUrl:capUrl})
-                      });
-                      const d = await res.json();
-                      if(d.ok) added++;
-                      else { failed++; console.error("Failed:",u.email,d.error); }
-                    }catch(e){ failed++; console.error("Error:",u.email,e.message); }
-                  }
-                  setCaptureMsg(`✓ Added ${added} mailbox${added!==1?"es":""} ${failed>0?`(${failed} failed — check console)`:"— all KTA staff now monitored"}`);
-                  await loadCapture();
-                  setCaptureLoading(false);
-                }} style={{whiteSpace:"nowrap"}}>⚡ Add All KTA Staff</Btn>
+              <div style={{fontSize:13,color:T.sub,marginBottom:12}}>
+                Automatically discovers <strong>all @kta.org.nz mailboxes</strong> from Azure AD — including staff not in the app database. Click <em>Sync All</em> to create or renew subscriptions. This also runs silently on every login.
               </div>
 
               {/* Active subscriptions */}
               {captureSubs.length===0
                 ? <div style={{textAlign:"center",padding:"20px 0",color:T.muted,fontSize:13,fontStyle:"italic"}}>
-                    No mailboxes being monitored yet
+                    No mailboxes being monitored yet — click ⚡ Sync All @kta.org.nz to start
                   </div>
                 : captureSubs.map(sub=>{
+                    const mailbox   = sub.clientState||sub.resource?.split("/")[1]||"Unknown";
                     const expiresAt = sub.expirationDateTime ? new Date(sub.expirationDateTime) : null;
                     const daysLeft  = expiresAt ? Math.round((expiresAt-Date.now())/86400000) : null;
                     const expColor  = daysLeft!==null&&daysLeft<1 ? T.red : daysLeft<2 ? T.warn : T.teal;
@@ -16046,50 +16019,29 @@ serve(async (req) => {
                       <div key={sub.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:`1px solid ${T.border}44`}}>
                         <div style={{width:36,height:36,borderRadius:"50%",background:T.accentL,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>👤</div>
                         <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontWeight:700,fontSize:14}}>{sub.clientState||sub.resource?.split("/")[1]||"Unknown"}</div>
+                          <div style={{fontWeight:700,fontSize:14}}>{mailbox}</div>
                           <div style={{fontSize:12,color:T.muted,marginTop:1}}>
-                            Sent Items · 
+                            Sent Items ·{" "}
                             {daysLeft!==null
-                              ? <span style={{color:expColor,fontWeight:700}}> Renews in {daysLeft}d</span>
-                              : " Active"}
+                              ? <span style={{color:expColor,fontWeight:700}}>Renews in {daysLeft}d</span>
+                              : <span style={{color:T.teal,fontWeight:700}}>Active</span>}
                           </div>
                         </div>
-                        <div style={{display:"flex",gap:6}}>
-                          <button onClick={async()=>{
-                            const capUrl=getCaptureUrl()||captureUrl;
-                            if(!capUrl) return;
-                            await fetch(capUrl+"/manage-subscriptions",{
-                              method:"POST",headers:{"Content-Type":"application/json"},
-                              body:JSON.stringify({action:"delete",subscriptionId:sub.id})
-                            });
-                            await loadCapture();
-                          }} style={{fontSize:12,padding:"4px 10px",borderRadius:6,cursor:"pointer",background:T.redL,color:T.red,border:`1px solid ${T.red}44`,fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
-                            Remove
-                          </button>
-                        </div>
+                        <button onClick={async()=>{
+                          const capUrl=captureUrl||getCaptureUrl();
+                          if(!capUrl) return;
+                          await fetch(capUrl+"/manage-subscriptions",{
+                            method:"POST",headers:{"Content-Type":"application/json"},
+                            body:JSON.stringify({action:"delete",subscriptionId:sub.id})
+                          });
+                          await loadCapture();
+                        }} style={{fontSize:12,padding:"4px 10px",borderRadius:6,cursor:"pointer",background:T.redL,color:T.red,border:`1px solid ${T.red}44`,fontFamily:"DM Sans,sans-serif",fontWeight:700}}>
+                          Remove
+                        </button>
                       </div>
                     );
                   })
               }
-
-              {/* Renew all button */}
-              {captureSubs.length>0&&(
-                <div style={{marginTop:14,display:"flex",justifyContent:"flex-end"}}>
-                  <Btn sm onClick={async()=>{
-                    const capUrl=getCaptureUrl()||captureUrl;
-                    if(!capUrl) return;
-                    setCaptureLoading(true);
-                    const res = await fetch(capUrl+"/manage-subscriptions",{
-                      method:"POST",headers:{"Content-Type":"application/json"},
-                      body:JSON.stringify({action:"renew-all"})
-                    });
-                    const d = await res.json();
-                    setCaptureMsg(d.ok?`✓ Renewed ${d.results?.length||0} subscriptions`:"Renew failed");
-                    await loadCapture();
-                    setCaptureLoading(false);
-                  }}>↺ Renew All Subscriptions</Btn>
-                </div>
-              )}
             </div>
           </Card>
 
@@ -18080,34 +18032,31 @@ export default function App() {
     return () => window.removeEventListener("kta-navigate", handler);
   },[]);
 
-  // Silent auto-renew Graph mail capture subscriptions on every login/load
-  // Microsoft enforces 3-day max — any logged-in user keeps them rolling
+  // Silent auto-renew + sync Graph mail capture subscriptions on every login/load
+  // Uses sync-all so new @kta.org.nz mailboxes are picked up automatically
   useEffect(()=>{
     if(!currentUser) return;
-    const capUrl = (() => { try{ return localStorage.getItem("kta_graph_capture_url")||""; }catch{ return ""; } })();
-    if(!capUrl) return;
-    // Run after a short delay so it doesn't compete with initial data load
+    let cancelled = false;
     const t = setTimeout(async () => {
       try {
-        const listRes = await fetch(capUrl+"/manage-subscriptions", {
+        // Fetch URL from DB first (works on any device), fall back to localStorage
+        let capUrl = "";
+        try {
+          const {data} = await sb.from("app_settings").select("value").eq("key","graph_capture_url").single();
+          capUrl = data?.value || "";
+        } catch {}
+        capUrl = capUrl || (() => { try{ return localStorage.getItem("kta_graph_capture_url")||""; }catch{ return ""; } })();
+        if(!capUrl || cancelled) return;
+        // Sync URL to localStorage so EmailsModule can use it immediately
+        try{ localStorage.setItem("kta_graph_capture_url", capUrl); }catch{}
+        // sync-all creates missing subscriptions + renews expiring ones in one call
+        await fetch(capUrl+"/manage-subscriptions", {
           method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({action:"list"})
+          body: JSON.stringify({action:"sync-all", notificationUrl: capUrl})
         });
-        if(!listRes.ok) return;
-        const { subscriptions=[] } = await listRes.json();
-        const expiringSoon = subscriptions.filter(s => {
-          if(!s.expirationDateTime) return true;
-          return (new Date(s.expirationDateTime) - Date.now()) / 3600000 < 36;
-        });
-        if(expiringSoon.length > 0) {
-          await fetch(capUrl+"/manage-subscriptions", {
-            method:"POST", headers:{"Content-Type":"application/json"},
-            body: JSON.stringify({action:"renew-all"})
-          });
-        }
       } catch(e) { /* silent */ }
     }, 3000);
-    return () => clearTimeout(t);
+    return () => { cancelled = true; clearTimeout(t); };
   },[currentUser]);
 
   // Global sync state on window so sync survives CRMModule unmount
