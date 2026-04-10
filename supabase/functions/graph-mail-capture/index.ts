@@ -1,27 +1,30 @@
 // KTA Graph Mail Capture — Supabase Edge Function
-// Deploy:  supabase functions deploy graph-mail-capture --project-ref sprlcvxlcjwhfzspkrww
+// Deploy:  supabase functions deploy graph-mail-capture --project-ref <project-ref>
 // Secrets: MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 //
-// This function has two responsibilities:
-//
-//   1. /manage-subscriptions  — called by the KTA app to create/list/delete/renew
-//                               Microsoft Graph change notification subscriptions
-//                               (one per KTA staff mailbox sentItems folder)
-//
-//   2. /  (root POST)         — called by Microsoft Graph when a new email is sent
-//                               by a monitored mailbox. Fetches the email, writes
-//                               it to the Supabase activity_notes table, and queues
-//                               unknown recipients in unknown_email_contacts.
+// Responsibilities:
+//   1. /manage-subscriptions  — manage Graph change-notification subscriptions
+//                               (sentItems + inbox per KTA mailbox)
+//   2. / (root POST)          — webhook from Graph; writes emails to activity_notes
 //
 // Rules:
-//   - Internal kta.org.nz → kta.org.nz emails are NEVER logged
-//   - Emails with [private] anywhere in the subject are NEVER logged
-//   - Each email is written once (idempotent on message ID)
+//   - Emails with [private] in subject → NEVER logged
+//   - Internal kta.org.nz ↔ kta.org.nz → NEVER logged
+//   - mike@kta.org.nz / kristeena@kta.org.nz → logged with is_private=true;
+//     visible only to them until they click "Release to timeline"
+//   - Each email is idempotent on Graph message ID
+//   - Unknown contacts are queued in unknown_email_contacts
+
+// Mailboxes whose emails are private by default (only visible to the owner)
+const PRIVATE_MAILBOXES = new Set([
+  "mike@kta.org.nz",
+  "kristeena@kta.org.nz",
+]);
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
-const GRAPH_BASE    = "https://graph.microsoft.com/v1.0";
-const SUB_LIFETIME  = 4230 * 60 * 1000; // ~3 days in ms (Graph max for Mail is 4230 min)
+const GRAPH_BASE   = "https://graph.microsoft.com/v1.0";
+const SUB_LIFETIME = 4230 * 60 * 1000; // ~3 days in ms (Graph max for Mail)
 
 const CORS = {
   "Access-Control-Allow-Origin":  "*",
@@ -112,53 +115,28 @@ async function resolveUserByEmail(email: string): Promise<string | null> {
   return rows[0]?.id ?? null;
 }
 
-// ── Fetch a full message from Graph ──────────────────────────────────────────
-async function fetchMessage(token: string, userEmail: string, messageId: string) {
-  const res = await fetch(
-    `${GRAPH_BASE}/users/${userEmail}/messages/${messageId}` +
-    `?$select=id,subject,from,toRecipients,ccRecipients,sentDateTime,bodyPreview`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  if (!res.ok) return null;
-  return res.json();
+// ── Resolve a Graph user ID (GUID or UPN) to an email address ────────────────
+async function resolveUserIdToEmail(token: string, userId: string): Promise<string> {
+  if (userId.includes("@")) return userId.toLowerCase();
+  try {
+    const res = await fetch(`${GRAPH_BASE}/users/${userId}?$select=mail,userPrincipalName`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return userId;
+    const u = await res.json();
+    return (u.mail || u.userPrincipalName || userId).toLowerCase();
+  } catch {
+    return userId;
+  }
 }
 
-// ── Write a captured email to activity_notes ──────────────────────────────────
-async function writeActivityNote(
-  msg:          any,
-  senderEmail:  string,
-  recipientEmail: string,
-  recipientName:  string,
-) {
-  const personId = await resolveUserByEmail(recipientEmail);
-
-  const note = {
-    id:            msg.id,           // use Graph message ID as PK — idempotent
-    person_email:  recipientEmail,
-    person_id:     personId,
-    person_name:   recipientName || recipientEmail,
-    type:          "email",
-    subject:       msg.subject ?? "(no subject)",
-    activity_type: "Email",
-    body:          `From: ${senderEmail}\nTo: ${recipientEmail}\n\n${msg.bodyPreview ?? ""}`,
-    direction:     "outbound",
-    is_locked:     false,
-    created_at:    msg.sentDateTime ?? new Date().toISOString(),
-  };
-
-  return sbInsert("activity_notes", note);
-}
-
-// ── Log an unknown recipient ───────────────────────────────────────────────────
+// ── Log an unknown external contact ──────────────────────────────────────────
 async function logUnknownContact(email: string, name: string, subject: string) {
-  // Check if already logged (not dismissed)
   const existing = await sbSelect(
     "unknown_email_contacts",
     `email=eq.${encodeURIComponent(email)}&dismissed=eq.false&limit=1`
   );
-
   if (existing.length > 0) {
-    // Update encounter count and last seen
     await sbUpdate("unknown_email_contacts", existing[0].id, {
       encounter_count: (existing[0].encounter_count ?? 1) + 1,
       last_seen:       new Date().toISOString(),
@@ -177,71 +155,120 @@ async function logUnknownContact(email: string, name: string, subject: string) {
   }
 }
 
-// ── Resolve a Graph user ID (GUID or UPN) to an email address ───────────────
-async function resolveUserIdToEmail(token: string, userId: string): Promise<string> {
-  // If already an email address, return as-is
-  if (userId.includes("@")) return userId.toLowerCase();
-  // Otherwise it's an object ID — look up via Graph
-  try {
-    const res = await fetch(`${GRAPH_BASE}/users/${userId}?$select=mail,userPrincipalName`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) return userId;
-    const u = await res.json();
-    return (u.mail || u.userPrincipalName || userId).toLowerCase();
-  } catch {
-    return userId;
-  }
+// ── Fetch a full message from Graph ──────────────────────────────────────────
+async function fetchMessage(token: string, userEmail: string, messageId: string) {
+  const res = await fetch(
+    `${GRAPH_BASE}/users/${userEmail}/messages/${messageId}` +
+    `?$select=id,subject,from,toRecipients,ccRecipients,sentDateTime,receivedDateTime,bodyPreview,conversationId`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) return null;
+  return res.json();
 }
 
-// ── Process a notification from Graph (new sent email) ────────────────────────
+// ── Write a captured email to activity_notes ──────────────────────────────────
+// person_email — the external contact this entry belongs to on the CRM timeline
+// ktaEmail     — the KTA staff member who sent/received (for privacy check)
+// direction    — "outbound" (KTA→external) or "inbound" (external→KTA)
+async function writeActivityNote(
+  msg:         any,
+  personEmail: string,
+  personName:  string,
+  ktaEmail:    string,
+  direction:   "outbound" | "inbound",
+) {
+  const personId   = await resolveUserByEmail(personEmail);
+  const isPrivate  = PRIVATE_MAILBOXES.has(ktaEmail.toLowerCase());
+  const fromAddr   = direction === "outbound" ? ktaEmail    : personEmail;
+  const toAddr     = direction === "outbound" ? personEmail : ktaEmail;
+  const ts         = msg.sentDateTime ?? msg.receivedDateTime ?? new Date().toISOString();
+
+  const note = {
+    id:                  msg.id,           // Graph message ID — idempotent PK
+    person_email:        personEmail,
+    person_id:           personId,
+    person_name:         personName || personEmail,
+    type:                "email",
+    subject:             msg.subject ?? "(no subject)",
+    activity_type:       "Email",
+    body:                msg.bodyPreview ?? "",
+    direction,
+    from_address:        fromAddr,
+    to_address:          toAddr,
+    ms_sender_id:        ktaEmail,
+    ms_message_id:       msg.id,
+    ms_conversation_id:  msg.conversationId ?? null,
+    is_locked:           false,
+    is_private:          isPrivate,
+    private_mailbox:     isPrivate ? ktaEmail.toLowerCase() : null,
+    email_date:          ts,
+    created_at:          ts,
+  };
+
+  return sbInsert("activity_notes", note);
+}
+
+// ── Process a notification from Graph ────────────────────────────────────────
+// Handles both sentItems (outbound) and inbox (inbound) resource paths.
 async function processNotification(notification: any) {
   try {
     const resource: string = notification.resource ?? "";
-    // resource = "Users/{userId}/Messages/{messageId}" — userId may be GUID or UPN
+    // resource examples:
+    //   Users/{id}/MailFolders/sentItems/Messages/{msgId}
+    //   Users/{id}/MailFolders/Inbox/Messages/{msgId}
+    //   Users/{id}/Messages/{msgId}  (inbox shorthand used by some subscriptions)
     const parts     = resource.split("/");
     const rawUserId = parts[1];
-    const messageId = parts[3];
-    if (!rawUserId || !messageId) return;
+    const messageId = parts[parts.length - 1];
+    if (!rawUserId || !messageId || rawUserId === messageId) return;
 
-    const token  = await getToken();
-    // Resolve to email so we can identify the sender and fetch the message
-    const userId = await resolveUserIdToEmail(token, rawUserId);
+    const resourceLower = resource.toLowerCase();
+    const isSent  = resourceLower.includes("senditems");
+    // Inbox = anything that is NOT sentItems
+    const isInbox = !isSent;
 
-    const msg        = await fetchMessage(token, userId, messageId);
+    const token    = await getToken();
+    const ktaEmail = await resolveUserIdToEmail(token, rawUserId);
+
+    const msg = await fetchMessage(token, ktaEmail, messageId);
     if (!msg) return;
 
     const subject: string = msg.subject ?? "";
 
-    // Skip [private] emails
+    // Skip [private] emails (staff-controlled opt-out)
     if (subject.toLowerCase().includes("[private]")) return;
 
     const senderEmail = msg.from?.emailAddress?.address?.toLowerCase() ?? "";
 
-    // Process each non-KTA recipient
-    const allRecipients = [
-      ...(msg.toRecipients  ?? []),
-      ...(msg.ccRecipients  ?? []),
-    ];
+    if (isSent) {
+      // ── Outbound: log to each external recipient's timeline ──────────────
+      const allRecipients = [
+        ...(msg.toRecipients ?? []),
+        ...(msg.ccRecipients ?? []),
+      ];
+      for (const r of allRecipients) {
+        const addr = r.emailAddress?.address?.toLowerCase() ?? "";
+        const name = r.emailAddress?.name ?? "";
+        if (!addr || addr.endsWith("@kta.org.nz")) continue;
 
-    for (const r of allRecipients) {
-      const addr = r.emailAddress?.address?.toLowerCase() ?? "";
-      const name = r.emailAddress?.name ?? "";
-      if (!addr) continue;
+        const knownUser = await resolveUserByEmail(addr);
+        const crmRows   = await sbSelect("crm_contacts", `email=eq.${encodeURIComponent(addr)}&limit=1`);
+        if (!!knownUser || crmRows.length > 0) {
+          await writeActivityNote(msg, addr, name, ktaEmail, "outbound");
+        } else {
+          await logUnknownContact(addr, name, subject);
+        }
+      }
+    } else if (isInbox) {
+      // ── Inbound: log to sender's (external contact's) timeline ───────────
+      const addr = senderEmail;
+      const name = msg.from?.emailAddress?.name ?? "";
+      if (!addr || addr.endsWith("@kta.org.nz")) return;
 
-      // Skip internal kta.org.nz → kta.org.nz emails
-      if (addr.endsWith("@kta.org.nz")) continue;
-
-      // Check if this recipient is a known CRM contact or user
       const knownUser = await resolveUserByEmail(addr);
-      const crmRows   = await sbSelect(
-        "crm_contacts",
-        `email=eq.${encodeURIComponent(addr)}&limit=1`
-      );
-      const isKnown = !!knownUser || crmRows.length > 0;
-
-      if (isKnown) {
-        await writeActivityNote(msg, senderEmail, addr, name);
+      const crmRows   = await sbSelect("crm_contacts", `email=eq.${encodeURIComponent(addr)}&limit=1`);
+      if (!!knownUser || crmRows.length > 0) {
+        await writeActivityNote(msg, addr, name, ktaEmail, "inbound");
       } else {
         await logUnknownContact(addr, name, subject);
       }
@@ -268,15 +295,16 @@ async function listSubscriptions(token: string): Promise<any[]> {
 async function createSubscription(
   token:           string,
   userEmail:       string,
+  folder:          "sentItems" | "inbox",
   notificationUrl: string,
 ): Promise<{ ok: boolean; subscription?: any; error?: string }> {
   const expiry = new Date(Date.now() + SUB_LIFETIME).toISOString();
   const body = {
     changeType:         "created",
     notificationUrl,
-    resource:           `users/${userEmail}/mailFolders/sentItems/messages`,
+    resource:           `users/${userEmail}/mailFolders/${folder}/messages`,
     expirationDateTime: expiry,
-    clientState:        userEmail,   // stored so we know which mailbox this sub is for
+    clientState:        `${userEmail}:${folder}`,
   };
   const res = await fetch(`${GRAPH_BASE}/subscriptions`, {
     method:  "POST",
@@ -348,16 +376,20 @@ serve(async (req) => {
             { status: 400, headers: { ...CORS, "Content-Type": "application/json" } }
           );
         }
-        // Remove any existing subscription for this mailbox first (avoid duplicates)
+        // Remove any existing subscriptions for this mailbox first (avoid duplicates)
         const existing = await listSubscriptions(token);
         for (const s of existing) {
-          if (s.clientState === userEmail || s.resource?.includes(userEmail)) {
+          const cs = s.clientState ?? "";
+          if (cs === userEmail || cs.startsWith(userEmail + ":") || s.resource?.includes(userEmail)) {
             await deleteSubscription(token, s.id);
           }
         }
-        const result = await createSubscription(token, userEmail, notificationUrl);
+        // Create sentItems + inbox subscriptions
+        const FOLDERS: Array<"sentItems" | "inbox"> = ["sentItems", "inbox"];
+        const results = await Promise.all(FOLDERS.map(folder => createSubscription(token, userEmail, folder, notificationUrl)));
+        const allOk = results.every(r => r.ok);
         return new Response(
-          JSON.stringify(result),
+          JSON.stringify({ ok: allOk, results }),
           { headers: { ...CORS, "Content-Type": "application/json" } }
         );
       }
@@ -412,9 +444,8 @@ serve(async (req) => {
       }
 
       // ── sync-all ────────────────────────────────────────────────────────────
-      // Discovers ALL @kta.org.nz mailboxes and ensures each has an active
-      // subscription. Tries Azure AD directory first (requires User.Read.All
-      // Application permission); falls back to the Supabase users table.
+      // Discovers ALL @kta.org.nz mailboxes and ensures each has both a
+      // sentItems AND an inbox subscription. Creates up to 2 per mailbox.
       if (action === "sync-all") {
         if (!notificationUrl) {
           return new Response(
@@ -423,13 +454,12 @@ serve(async (req) => {
           );
         }
 
-        // 1. Try to get all @kta.org.nz users from Azure AD directory
+        // 1. Get all @kta.org.nz mailboxes from Azure AD (fallback: Supabase DB)
         let allMailboxes: string[] = [];
         let source = "azure_ad";
-
         try {
           const usersRes = await fetch(
-            `${GRAPH_BASE}/users?$filter=endswith(mail,'@kta.org.nz')&$select=mail,displayName&$top=999&$count=true`,
+            `${GRAPH_BASE}/users?$filter=endswith(mail,'@kta.org.nz')&$select=mail&$top=999&$count=true`,
             { headers: { Authorization: `Bearer ${token}`, ConsistencyLevel: "eventual" } }
           );
           if (usersRes.ok) {
@@ -440,7 +470,6 @@ serve(async (req) => {
           }
         } catch { /* fall through to DB lookup */ }
 
-        // 2. Fall back to Supabase users table if Azure AD listing failed or returned nothing
         if (allMailboxes.length === 0) {
           source = "supabase_db";
           const dbUsers = await sbSelect("users", "email=not.is.null&select=email");
@@ -456,36 +485,46 @@ serve(async (req) => {
           );
         }
 
-        // 3. Get current subscriptions
+        // 2. Build lookup map of existing subscriptions keyed by "email:folder"
         const existing = await listSubscriptions(token);
-
-        const subsByMailbox = new Map<string, any>();
+        const subMap = new Map<string, any>();
         for (const sub of existing) {
-          const mailbox = sub.clientState?.toLowerCase() ||
-            sub.resource?.match(/users\/([^\/]+)\//)?.[1]?.toLowerCase();
-          if (mailbox) subsByMailbox.set(mailbox, sub);
+          const cs = sub.clientState ?? "";
+          if (cs.includes(":")) {
+            subMap.set(cs.toLowerCase(), sub);
+          } else {
+            // Legacy single-folder format — map to sentItems key
+            const mailbox = cs.toLowerCase() ||
+              sub.resource?.match(/users\/([^/]+)\//)?.[1]?.toLowerCase();
+            if (mailbox) subMap.set(`${mailbox}:senteditems`, sub);
+          }
         }
 
-        // Process all mailboxes in parallel — avoids edge function timeout
-        const results = await Promise.all(allMailboxes.map(async (mailbox) => {
-          const existingSub = subsByMailbox.get(mailbox);
-          if (existingSub) {
-            const hoursLeft = (new Date(existingSub.expirationDateTime).getTime() - Date.now()) / 3600000;
-            if (hoursLeft < 36) {
-              const ok = await renewSubscription(token, existingSub.id);
-              return { mailbox, status: ok ? "renewed" : "failed" };
-            }
-            return { mailbox, status: "skipped" };
-          } else {
-            const result = await createSubscription(token, mailbox, notificationUrl);
-            return { mailbox, status: result.ok ? "created" : "failed", error: result.error };
-          }
-        }));
+        // 3. Ensure sentItems + inbox subscriptions for every mailbox
+        const FOLDERS: Array<"sentItems" | "inbox"> = ["sentItems", "inbox"];
+        const results = await Promise.all(
+          allMailboxes.flatMap(mailbox =>
+            FOLDERS.map(async folder => {
+              const key = `${mailbox}:${folder}`;
+              const existingSub = subMap.get(key);
+              if (existingSub) {
+                const hoursLeft = (new Date(existingSub.expirationDateTime).getTime() - Date.now()) / 3600000;
+                if (hoursLeft < 36) {
+                  const ok = await renewSubscription(token, existingSub.id);
+                  return { mailbox, folder, status: ok ? "renewed" : "failed" };
+                }
+                return { mailbox, folder, status: "skipped" };
+              }
+              const r = await createSubscription(token, mailbox, folder, notificationUrl);
+              return { mailbox, folder, status: r.ok ? "created" : "failed", error: r.error };
+            })
+          )
+        );
 
-        const created = results.filter(r => r.status === "created").map(r => r.mailbox);
-        const renewed = results.filter(r => r.status === "renewed").map(r => r.mailbox);
-        const skipped = results.filter(r => r.status === "skipped").map(r => r.mailbox);
-        const failed  = results.filter(r => r.status === "failed").map(r => r.mailbox + (r.error ? ": " + r.error : ""));
+        const created = results.filter(r => r.status === "created").map(r => `${r.mailbox}:${r.folder}`);
+        const renewed = results.filter(r => r.status === "renewed").map(r => `${r.mailbox}:${r.folder}`);
+        const skipped = results.filter(r => r.status === "skipped").length;
+        const failed  = results.filter(r => r.status === "failed").map(r => `${r.mailbox}:${r.folder}` + (r.error ? ` — ${r.error}` : ""));
 
         return new Response(
           JSON.stringify({ ok: true, source, mailboxes: allMailboxes.length, created, renewed, skipped, failed }),

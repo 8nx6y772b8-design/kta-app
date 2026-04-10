@@ -1,64 +1,41 @@
 // KTA Email Proxy — Supabase Edge Function
-// Sends email via Microsoft Graph using CLIENT CREDENTIALS (no refresh token needed — never expires).
+// Deploy:  supabase functions deploy email-proxy --project-ref sprlcvxlcjwhfzspkrww
+// Secrets: MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_SEND_MAILBOX (optional, defaults to payroll@kta.org.nz)
 //
-// Deploy:
-//   supabase functions deploy email-proxy --project-ref sprlcvxlcjwhfzspkrww --no-verify-jwt
+// Uses application-level permissions (client credentials flow) so one set of
+// credentials covers ALL @kta.org.nz mailboxes — no per-user refresh tokens.
 //
-// Required Supabase secrets (set once, never rotate):
-//   supabase secrets set MS_TENANT_ID=<your-tenant-id>
-//   supabase secrets set MS_CLIENT_ID=<your-app-client-id>
-//   supabase secrets set MS_CLIENT_SECRET=<your-app-client-secret>
-//   supabase secrets set MS_SENDER_EMAIL=payroll@kta.org.nz
-//
-// Azure AD app registration requirements:
-//   - API Permissions → Microsoft Graph → Application permissions (NOT delegated):
-//       Mail.Send          (required — to send email as payroll@kta.org.nz)
-//       Mail.ReadBasic.All (optional — only needed for CRM email reading)
-//   - Grant admin consent for your organisation
-//   - No redirect URI needed (this is a daemon/service app)
-//
-// Handles these actions from the KTA app:
-//   sendEmail       — send an email (leave notifications, reports, PPE, etc.)
-//   searchByAddress — CRM: find emails to/from a contact
-//   listFolder      — CRM: list inbox or sent items
+// Required Azure AD app permissions (Application, not Delegated):
+//   Mail.Read, Mail.ReadWrite, Mail.Send
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
-// ── Config ────────────────────────────────────────────────────────────────────
 const GRAPH_BASE = "https://graph.microsoft.com/v1.0";
 
-const cors = {
-  "Access-Control-Allow-Origin": "https://crmkta.com",
+const CORS = {
+  "Access-Control-Allow-Origin":  "*",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// ── Token cache (in-memory, valid for the lifetime of the function instance) ──
-let cachedToken: string | null = null;
-let tokenExpiry = 0;
+// ── Token cache — reuse within the same isolate invocation ───────────────────
+let _cachedToken: string | null = null;
+let _tokenExpiry = 0;
 
 async function getAccessToken(): Promise<string> {
-  // Return cached token if still valid (with 2-minute buffer)
-  if (cachedToken && Date.now() < tokenExpiry - 120_000) {
-    return cachedToken;
-  }
+  // Return cached token if still valid (with 2-min buffer)
+  if (_cachedToken && Date.now() < _tokenExpiry - 120_000) return _cachedToken;
 
-  const tenantId     = Deno.env.get("MS_TENANT_ID");
-  const clientId     = Deno.env.get("MS_CLIENT_ID");
-  const clientSecret = Deno.env.get("MS_CLIENT_SECRET");
-
-  if (!tenantId || !clientId || !clientSecret) {
-    throw new Error(
-      "Missing secrets. Set MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET in Supabase."
-    );
-  }
+  const tenantId     = Deno.env.get("MS_TENANT_ID")!;
+  const clientId     = Deno.env.get("MS_CLIENT_ID")!;
+  const clientSecret = Deno.env.get("MS_CLIENT_SECRET")!;
 
   const res = await fetch(
     `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
     {
-      method: "POST",
+      method:  "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
+      body:    new URLSearchParams({
         grant_type:    "client_credentials",
         client_id:     clientId,
         client_secret: clientSecret,
@@ -69,313 +46,222 @@ async function getAccessToken(): Promise<string> {
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Token request failed (${res.status}): ${text}`);
+    throw new Error(`Token fetch failed (${res.status}): ${text}`);
   }
 
   const data = await res.json();
-  if (!data.access_token) {
-    throw new Error("No access_token in response: " + JSON.stringify(data));
-  }
-
-  cachedToken = data.access_token;
-  tokenExpiry = Date.now() + (data.expires_in ?? 3600) * 1000;
-  return cachedToken;
+  _cachedToken = data.access_token as string;
+  _tokenExpiry = Date.now() + (data.expires_in ?? 3600) * 1000;
+  return _cachedToken;
 }
 
-// ── sendEmail ─────────────────────────────────────────────────────────────────
-async function sendEmail(body: any): Promise<Response> {
-  const { to, subject, html, attachments = [], from } = body;
-
-  if (!to || !subject || !html) {
-    return new Response(
-      JSON.stringify({ error: "Missing required fields: to, subject, html" }),
-      { status: 400, headers: { "Content-Type": "application/json", ...cors } }
-    );
-  }
-
-  // Allow caller to override the sender (e.g. leaverequests@kta.org.nz for leave emails)
-  // Falls back to the MS_SENDER_EMAIL secret (payroll@kta.org.nz)
-  const senderEmail = from || Deno.env.get("MS_SENDER_EMAIL") || "payroll@kta.org.nz";
-  const token = await getAccessToken();
-
-  // Build attachment list — supports both naming conventions from the app
-  // App sends: { filename/name, content/contentBytes, contentType, encoding }
-  const graphAttachments = attachments.map((a: any) => ({
-    "@odata.type":  "#microsoft.graph.fileAttachment",
-    name:           a.filename || a.name || "attachment",
-    contentType:    a.contentType || "application/octet-stream",
-    contentBytes:   a.content || a.contentBytes || "",
-  })).filter((a: any) => a.contentBytes);
-
-  const message: any = {
-    subject,
-    body: {
-      contentType: "HTML",
-      content:     html,
-    },
-    toRecipients: [
-      {
-        emailAddress: {
-          address: typeof to === "string" ? to : to.address || to,
-        },
-      },
-    ],
-  };
-
-  if (graphAttachments.length > 0) {
-    message.attachments = graphAttachments;
-  }
-
-  const res = await fetch(
-    `${GRAPH_BASE}/users/${encodeURIComponent(senderEmail)}/sendMail`,
-    {
-      method: "POST",
-      headers: {
-        Authorization:  `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ message, saveToSentItems: true }),
-    }
-  );
-
-  // Graph returns 202 Accepted on success — no body
-  if (res.status === 202 || res.status === 200) {
-    return new Response(
-      JSON.stringify({ ok: true }),
-      { status: 200, headers: { "Content-Type": "application/json", ...cors } }
-    );
-  }
-
-  const errText = await res.text();
-  let errMsg = `Graph sendMail failed (${res.status})`;
-  try {
-    const parsed = JSON.parse(errText);
-    errMsg = parsed?.error?.message || errMsg;
-  } catch (_) { /* use raw text */ }
-
-  throw new Error(errMsg + (errText ? ": " + errText : ""));
-}
-
-// ── CRM: searchByAddress ──────────────────────────────────────────────────────
-async function searchByAddress(body: any): Promise<Response> {
-  const { emailAddress, maxResults = 30 } = body;
-  if (!emailAddress) {
-    return new Response(
-      JSON.stringify({ error: "emailAddress required" }),
-      { status: 400, headers: { "Content-Type": "application/json", ...cors } }
-    );
-  }
-
-  // Sanitise emailAddress to prevent OData injection — allow only valid email chars
-  const sanitised = emailAddress.replace(/[^a-zA-Z0-9.@_+\-]/g, "");
-  if (sanitised !== emailAddress || !sanitised.includes("@")) {
-    return new Response(
-      JSON.stringify({ error: "Invalid email address" }),
-      { status: 400, headers: { "Content-Type": "application/json", ...cors } }
-    );
-  }
-
-  const senderEmail = Deno.env.get("MS_SENDER_EMAIL") || "payroll@kta.org.nz";
-  const token = await getAccessToken();
-  const headers = { Authorization: `Bearer ${token}` };
-  const top = Math.min(maxResults, 50);
-
-  const enc = encodeURIComponent;
-
-  const [inboundRes, outboundRes] = await Promise.all([
-    fetch(
-      `${GRAPH_BASE}/users/${enc(senderEmail)}/mailFolders/inbox/messages` +
-      `?$filter=from/emailAddress/address eq '${enc(sanitised)}'` +
-      `&$top=${top}&$orderby=receivedDateTime desc` +
-      `&$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead`,
-      { headers }
-    ),
-    fetch(
-      `${GRAPH_BASE}/users/${enc(senderEmail)}/mailFolders/sentItems/messages` +
-      `?$filter=toRecipients/any(r:r/emailAddress/address eq '${enc(sanitised)}')` +
-      `&$top=${top}&$orderby=sentDateTime desc` +
-      `&$select=id,subject,from,toRecipients,sentDateTime,bodyPreview,isRead`,
-      { headers }
-    ),
-  ]);
-
-  const [inbox, sent] = await Promise.all([inboundRes.json(), outboundRes.json()]);
-
-  const emails = [
-    ...(inbox.value  || []).map((m: any) => formatEmail(m, "inbox")),
-    ...(sent.value   || []).map((m: any) => formatEmail(m, "sentItems")),
-  ].sort((a, b) => b.date.localeCompare(a.date));
-
-  return new Response(
-    JSON.stringify({ ok: true, emails }),
-    { status: 200, headers: { "Content-Type": "application/json", ...cors } }
-  );
-}
-
-// ── CRM: listFolder ───────────────────────────────────────────────────────────
-async function listFolder(body: any): Promise<Response> {
-  const { folder = "inbox", maxResults = 50 } = body;
-
-  const senderEmail = Deno.env.get("MS_SENDER_EMAIL") || "payroll@kta.org.nz";
-  const token = await getAccessToken();
-  const folderPath = folder === "sent" ? "sentItems" : "inbox";
-  const top = Math.min(maxResults, 100);
-  const enc = encodeURIComponent;
-
-  const res = await fetch(
-    `${GRAPH_BASE}/users/${enc(senderEmail)}/mailFolders/${folderPath}/messages` +
-    `?$top=${top}&$orderby=receivedDateTime desc` +
-    `&$select=id,subject,from,toRecipients,receivedDateTime,sentDateTime,bodyPreview,isRead`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-
-  const data = await res.json();
-  const emails = (data.value || []).map((m: any) => formatEmail(m, folderPath));
-
-  return new Response(
-    JSON.stringify({ ok: true, emails }),
-    { status: 200, headers: { "Content-Type": "application/json", ...cors } }
-  );
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function formatEmail(msg: any, folder: string) {
+// ── Format a Graph message into what the app expects ─────────────────────────
+function formatEmail(msg: any, direction: "inbound" | "outbound") {
   const from   = msg.from?.emailAddress;
-  const toList = (msg.toRecipients || [])
+  const toList = (msg.toRecipients ?? [])
     .map((r: any) => r.emailAddress?.address)
     .filter(Boolean)
     .join(", ");
-
   return {
     id:          msg.id,
-    subject:     msg.subject || "(no subject)",
-    from:        from ? `${from.name || ""} <${from.address}>`.trim() : "",
+    subject:     msg.subject ?? "(no subject)",
+    from:        from ? `${from.name} <${from.address}>` : "",
     to:          toList,
-    date:        msg.receivedDateTime || msg.sentDateTime || "",
-    bodyPreview: msg.bodyPreview || "",
-    direction:   folder === "sentItems" ? "outbound" : "inbound",
+    date:        msg.receivedDateTime ?? msg.sentDateTime ?? "",
+    bodyPreview: msg.bodyPreview ?? "",
+    direction,
     isRead:      msg.isRead ?? true,
   };
 }
 
-// ── Main handler ──────────────────────────────────────────────────────────────
-
-// ── EarnLearn PDF parser ───────────────────────────────────────────────────────
-// Calls Anthropic Claude API server-side (avoids browser CORS restriction)
-async function parseEarnLearn(body: any): Promise<Response> {
-  const { pdfBase64 } = body;
-  if (!pdfBase64) {
-    return new Response(
-      JSON.stringify({ error: "pdfBase64 required" }),
-      { status: 400, headers: { "Content-Type": "application/json", ...cors } }
-    );
-  }
-
-  const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!anthropicKey) {
-    return new Response(
-      JSON.stringify({ error: "ANTHROPIC_API_KEY secret not set on edge function" }),
-      { status: 500, headers: { "Content-Type": "application/json", ...cors } }
-    );
-  }
-
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type":      "application/json",
-      "x-api-key":         anthropicKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model:      "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      messages: [{
-        role: "user",
-        content: [
-          {
-            type: "document",
-            source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
-          },
-          {
-            type: "text",
-            text: `Extract the following numbers from this EarnLearn progress report PDF and return ONLY a JSON object with no extra text or markdown:
-{
-  "months_in_training": <number from "Months in Training" column>,
-  "programme_duration": <number from "Programme Duration" column>,
-  "report_date": "<YYYY-MM-DD from 'Booklet Data as at' date>",
-  "skills_week_percent": <Credits Achieved / Credits Required * 100 for Skills Week/Trade Start section, or null>,
-  "off_job_l3_percent": <Credits Achieved / Credits Required * 100 for Off Job Unit Standards Level 3, or null>,
-  "off_job_l4_percent": <Credits Achieved / Credits Required * 100 for Off Job Unit Standards Level 4, or null>,
-  "on_job_core_percent": <Booklets Completed / Total Core Booklets * 100 for On Job Core section, or null>,
-  "on_job_spec_percent": <Booklets Completed / Total Speciality Booklets * 100 for On Job Speciality section, or null>,
-  "booklets_percent": <Booklets Completed / Total Booklets * 100 from the Booklet Achievement Summary, or null>,
-  "overall_percent": <overall % complete from the Unit Standard Achievement Summary totals row (Credits Achieved / Credits Required * 100)>
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function graphUrl(path: string) {
+  return `${GRAPH_BASE}${path}`;
 }
-Return only the JSON object, nothing else.`,
-          },
-        ],
-      }],
-    }),
+
+async function graphGet(token: string, path: string) {
+  const res = await fetch(graphUrl(path), {
+    headers: { Authorization: `Bearer ${token}` },
   });
-
   if (!res.ok) {
-    const errText = await res.text();
-    return new Response(
-      JSON.stringify({ error: `Anthropic API error (${res.status}): ${errText}` }),
-      { status: 502, headers: { "Content-Type": "application/json", ...cors } }
-    );
+    const text = await res.text();
+    throw new Error(`Graph ${path} failed (${res.status}): ${text}`);
   }
-
-  const data = await res.json();
-  const raw   = (data.content || []).map((c: any) => c.text || "").join("").trim();
-  const clean = raw.replace(/```json|```/g, "").trim();
-
-  try {
-    const parsed = JSON.parse(clean);
-    return new Response(
-      JSON.stringify({ ok: true, data: parsed }),
-      { status: 200, headers: { "Content-Type": "application/json", ...cors } }
-    );
-  } catch {
-    return new Response(
-      JSON.stringify({ error: "Could not parse Claude response as JSON", raw }),
-      { status: 502, headers: { "Content-Type": "application/json", ...cors } }
-    );
-  }
+  return res.json();
 }
 
+// ── Main handler ──────────────────────────────────────────────────────────────
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: cors });
-  }
-
-  if (req.method !== "POST") {
-    return new Response(
-      JSON.stringify({ error: "POST only" }),
-      { status: 405, headers: { "Content-Type": "application/json", ...cors } }
-    );
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
   try {
     const body = await req.json();
-    const { action } = body;
+    const { action, emailAddress, folder = "inbox", maxResults = 50 } = body;
 
-    switch (action) {
-      case "sendEmail":        return await sendEmail(body);
-      case "searchByAddress":  return await searchByAddress(body);
-      case "listFolder":       return await listFolder(body);
-      case "parseEarnLearn":  return await parseEarnLearn(body);
-      default:
+    const token = await getAccessToken();
+
+    // ── searchByAddress ──────────────────────────────────────────────────────
+    // Called by EmailActivityFeed to show email history for a contact/user.
+    // Searches ALL @kta.org.nz mailboxes for emails to/from this address.
+    if (action === "searchByAddress") {
+      if (!emailAddress) {
         return new Response(
-          JSON.stringify({ error: `Unknown action: "${action}"` }),
-          { status: 400, headers: { "Content-Type": "application/json", ...cors } }
+          JSON.stringify({ ok: false, error: "emailAddress is required" }),
+          { status: 400, headers: { ...CORS, "Content-Type": "application/json" } }
         );
+      }
+
+      const clean = emailAddress.toLowerCase().trim();
+
+      // Get all KTA users from the org directory
+      // ConsistencyLevel:eventual required for endsWith filter queries
+      const usersRes = await fetch(
+        graphUrl(`/users?$filter=endswith(mail,'@kta.org.nz')&$select=mail,displayName&$top=100&$count=true`),
+        { headers: { Authorization: `Bearer ${token}`, ConsistencyLevel: "eventual" } }
+      );
+      const usersData = usersRes.ok ? await usersRes.json() : { value: [] };
+      const ktaMailboxes: string[] = (usersData.value ?? [])
+        .map((u: any) => u.mail?.toLowerCase())
+        .filter(Boolean);
+
+      // For each KTA mailbox, search inbox (received from target) and sent (sent to target)
+      // Both filter types require ConsistencyLevel:eventual header
+      const authHeaders = {
+        Authorization: `Bearer ${token}`,
+        ConsistencyLevel: "eventual",
+      };
+
+      const searches = ktaMailboxes.flatMap((mailbox) => [
+        fetch(
+          graphUrl(
+            `/users/${mailbox}/mailFolders/inbox/messages` +
+            `?$filter=from/emailAddress/address eq '${clean}'` +
+            `&$top=${maxResults}&$orderby=receivedDateTime desc` +
+            `&$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,isRead&$count=true`
+          ),
+          { headers: authHeaders }
+        ).then((r) => r.json()).then((d) =>
+          (d.value ?? []).map((m: any) => formatEmail(m, "inbound"))
+        ).catch(() => []),
+
+        fetch(
+          graphUrl(
+            `/users/${mailbox}/mailFolders/sentItems/messages` +
+            `?$filter=toRecipients/any(r:r/emailAddress/address eq '${clean}')` +
+            `&$top=${maxResults}&$orderby=sentDateTime desc` +
+            `&$select=id,subject,from,toRecipients,sentDateTime,bodyPreview,isRead&$count=true`
+          ),
+          { headers: authHeaders }
+        ).then((r) => r.json()).then((d) =>
+          (d.value ?? []).map((m: any) => formatEmail(m, "outbound"))
+        ).catch(() => []),
+      ]);
+
+      const results = await Promise.all(searches);
+      const emails  = results
+        .flat()
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, maxResults);
+
+      return new Response(
+        JSON.stringify({ ok: true, emails }),
+        { headers: { ...CORS, "Content-Type": "application/json" } }
+      );
     }
+
+    // ── listFolder ───────────────────────────────────────────────────────────
+    // Called by the global Inbox / Sent tabs in EmailsModule.
+    // Uses MS_INBOX_MAILBOX secret — set to whichever mailbox you want shown
+    // in the global inbox view, e.g. admin@kta.org.nz or mike@kta.org.nz
+    if (action === "listFolder") {
+      const folderPath  = folder === "sent" ? "sentItems" : "inbox";
+      const orderField  = folder === "sent" ? "sentDateTime" : "receivedDateTime";
+
+      const mailbox = Deno.env.get("MS_INBOX_MAILBOX") ?? "";
+
+      if (!mailbox) {
+        return new Response(
+          JSON.stringify({ ok: false, error: "MS_INBOX_MAILBOX secret not set. Run: supabase secrets set MS_INBOX_MAILBOX=mike@kta.org.nz --project-ref sprlcvxlcjwhfzspkrww" }),
+          { status: 400, headers: { ...CORS, "Content-Type": "application/json" } }
+        );
+      }
+
+      const data = await graphGet(
+        token,
+        `/users/${mailbox}/mailFolders/${folderPath}/messages` +
+        `?$top=${maxResults}&$orderby=${orderField} desc` +
+        `&$select=id,subject,from,toRecipients,receivedDateTime,sentDateTime,bodyPreview,isRead`
+      );
+
+      const emails = (data.value ?? []).map((m: any) =>
+        formatEmail(m, folder === "sent" ? "outbound" : "inbound")
+      );
+
+      return new Response(
+        JSON.stringify({ ok: true, emails }),
+        { headers: { ...CORS, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── sendEmail ──────────────────────────────────────────────────────────
+    // Sends an email via Microsoft Graph on behalf of a KTA mailbox.
+    // Required Azure AD permission: Mail.Send (Application)
+    if (action === "sendEmail") {
+      const { to, subject, html, from: fromAddr, attachments } = body;
+      if (!to || !subject) {
+        return new Response(
+          JSON.stringify({ ok: false, error: "to and subject are required" }),
+          { status: 400, headers: { ...CORS, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Use explicit from, env secret, or default KTA mailbox
+      const sender = fromAddr ?? Deno.env.get("MS_SEND_MAILBOX") ?? "payroll@kta.org.nz";
+
+      const message: any = {
+        subject,
+        body: { contentType: "HTML", content: html ?? "" },
+        toRecipients: String(to).split(",").map((addr: string) => ({
+          emailAddress: { address: addr.trim() },
+        })),
+      };
+
+      if (attachments?.length) {
+        message.attachments = attachments.map((a: any) => ({
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          name: a.name,
+          contentType: a.contentType ?? "application/octet-stream",
+          contentBytes: a.contentBytes,
+        }));
+      }
+
+      const sendRes = await fetch(graphUrl(`/users/${sender}/sendMail`), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ message, saveToSentItems: true }),
+      });
+
+      if (!sendRes.ok) {
+        const errText = await sendRes.text();
+        throw new Error(`sendMail failed (${sendRes.status}): ${errText}`);
+      }
+
+      return new Response(
+        JSON.stringify({ ok: true }),
+        { headers: { ...CORS, "Content-Type": "application/json" } }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ ok: false, error: `Unknown action: ${action}` }),
+      { status: 400, headers: { ...CORS, "Content-Type": "application/json" } }
+    );
+
   } catch (e: any) {
     console.error("email-proxy error:", e);
     return new Response(
-      JSON.stringify({ error: e.message || "Internal error" }),
-      { status: 500, headers: { "Content-Type": "application/json", ...cors } }
+      JSON.stringify({ ok: false, error: e.message ?? String(e) }),
+      { status: 500, headers: { ...CORS, "Content-Type": "application/json" } }
     );
   }
 });
