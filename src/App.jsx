@@ -447,7 +447,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.30";
+const APP_VERSION = "v3.7.31";
 const IS_BETA = import.meta.env.VITE_SUPABASE_URL?.includes("aglayzyiqotsrwnrcnim");
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
@@ -5121,7 +5121,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
 
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:14}}>
           {[
-            {label:"📧 Email",val:detailContact.email,href:detailContact.email?`mailto:${detailContact.email}`:null},
+            {label:"📧 Email",val:detailContact.email,href:detailContact.email?`https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(detailContact.email)}`:null,hrefTarget:"_blank"},
             {label:"📱 Mobile",val:detailContact.mobile,href:detailContact.mobile?`tel:${detailContact.mobile}`:null},
             {label:"📞 Phone",val:detailContact.phone,href:detailContact.phone?`tel:${detailContact.phone}`:null},
             {label:"💼 Job Title",val:detailContact.job_title||detailContact.jobTitle||""},
@@ -5143,7 +5143,7 @@ function CRMModule({currentUser,allUsers,onSyncTick,navigateTo,onUserCreated}) {
             <Card key={f.label} style={{padding:"14px 16px"}}>
               <div style={{fontSize:11,fontWeight:700,color:T.accent,textTransform:"uppercase",letterSpacing:".6px",marginBottom:6}}>{f.label}</div>
               {f.href
-                ? <a href={f.href} style={{fontSize:14,color:T.accent,fontWeight:700,textDecoration:"none"}}>{f.val}</a>
+                ? <a href={f.href} target={f.hrefTarget||undefined} rel={f.hrefTarget?"noreferrer":undefined} style={{fontSize:14,color:T.accent,fontWeight:700,textDecoration:"none"}}>{f.val}</a>
                 : <div style={{fontSize:14,color:T.ink,lineHeight:1.5}}>{f.val}</div>}
             </Card>
           ))}
