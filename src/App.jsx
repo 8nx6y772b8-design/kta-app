@@ -447,7 +447,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.29";
+const APP_VERSION = "v3.7.30";
 const IS_BETA = import.meta.env.VITE_SUPABASE_URL?.includes("aglayzyiqotsrwnrcnim");
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
@@ -12572,6 +12572,9 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
 
   if(!apprenticeProp) return null;
 
+  // Site Safe and First Aid expiry are sensitive compliance data — only Mentors and Admins (L1 & L2) may see them
+  const canViewCompliance = viewer?.role === "Admin" || viewer?.role === "Mentor";
+
   const saveHostBiz = async () => {
     setSavingHostBiz(true);
     const updated = {...apprentice, hostBusiness: hostBizVal};
@@ -12732,8 +12735,8 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
             <div style={{fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".6px",marginBottom:4}}>📅 Last Mentor Visit</div>
             <div style={{fontSize:14,fontWeight:700,color:T.teal}}>{loadingVisit?"…":lastVisit?fmtDate(lastVisit):"No visits yet"}</div>
           </div>
-          {/* Site Safe Expiry — editable */}
-          {(()=>{
+          {/* Site Safe Expiry — editable (Mentors + Admins only) */}
+          {canViewCompliance && (()=>{
             const d=daysUntil(apprentice.siteSafeExpiry); const c=d===null?T.muted:d<0?T.red:d<=30?T.warn:T.teal;
             const bg=d===null?T.bg:d<0?T.redL:d<=30?T.warnL:T.tealL;
             const val=apprentice.siteSafeExpiry?(d!==null?`${fmtDate(apprentice.siteSafeExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:fmtDate(apprentice.siteSafeExpiry)):"Not set";
@@ -12768,8 +12771,8 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               </div>
             );
           })()}
-          {/* First Aid Expiry — editable */}
-          {(()=>{
+          {/* First Aid Expiry — editable (Mentors + Admins only) */}
+          {canViewCompliance && (()=>{
             const d=daysUntil(apprentice.firstAidExpiry); const c=d===null?T.muted:d<0?T.red:d<=30?T.warn:T.teal;
             const bg=d===null?T.bg:d<0?T.redL:d<=30?T.warnL:T.tealL;
             const val=apprentice.firstAidExpiry?(d!==null?`${fmtDate(apprentice.firstAidExpiry)} (${d<0?"Expired":d===0?"Today":`${d}d`})`:fmtDate(apprentice.firstAidExpiry)):"Not set";
