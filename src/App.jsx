@@ -447,7 +447,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.26";
+const APP_VERSION = "v3.7.27";
 const IS_BETA = import.meta.env.VITE_SUPABASE_URL?.includes("aglayzyiqotsrwnrcnim");
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
@@ -18031,33 +18031,6 @@ export default function App() {
     window.addEventListener("kta-navigate", handler);
     return () => window.removeEventListener("kta-navigate", handler);
   },[]);
-
-  // Silent auto-renew + sync Graph mail capture subscriptions on every login/load
-  // Uses sync-all so new @kta.org.nz mailboxes are picked up automatically
-  useEffect(()=>{
-    if(!currentUser) return;
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      try {
-        // Fetch URL from DB first (works on any device), fall back to localStorage
-        let capUrl = "";
-        try {
-          const {data} = await sb.from("app_settings").select("value").eq("key","graph_capture_url").single();
-          capUrl = data?.value || "";
-        } catch {}
-        capUrl = capUrl || (() => { try{ return localStorage.getItem("kta_graph_capture_url")||""; }catch{ return ""; } })();
-        if(!capUrl || cancelled) return;
-        // Sync URL to localStorage so EmailsModule can use it immediately
-        try{ localStorage.setItem("kta_graph_capture_url", capUrl); }catch{}
-        // sync-all creates missing subscriptions + renews expiring ones in one call
-        await fetch(capUrl+"/manage-subscriptions", {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({action:"sync-all", notificationUrl: capUrl})
-        });
-      } catch(e) { /* silent */ }
-    }, 3000);
-    return () => { cancelled = true; clearTimeout(t); };
-  },[currentUser]);
 
   // Global sync state on window so sync survives CRMModule unmount
   if(!window.__ktaSync) window.__ktaSync = { running:false, msg:"" };

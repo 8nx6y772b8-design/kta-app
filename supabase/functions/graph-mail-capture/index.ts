@@ -177,17 +177,37 @@ async function logUnknownContact(email: string, name: string, subject: string) {
   }
 }
 
+// ── Resolve a Graph user ID (GUID or UPN) to an email address ───────────────
+async function resolveUserIdToEmail(token: string, userId: string): Promise<string> {
+  // If already an email address, return as-is
+  if (userId.includes("@")) return userId.toLowerCase();
+  // Otherwise it's an object ID — look up via Graph
+  try {
+    const res = await fetch(`${GRAPH_BASE}/users/${userId}?$select=mail,userPrincipalName`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return userId;
+    const u = await res.json();
+    return (u.mail || u.userPrincipalName || userId).toLowerCase();
+  } catch {
+    return userId;
+  }
+}
+
 // ── Process a notification from Graph (new sent email) ────────────────────────
 async function processNotification(notification: any) {
   try {
     const resource: string = notification.resource ?? "";
-    // resource = "Users/{userId}/Messages/{messageId}"
+    // resource = "Users/{userId}/Messages/{messageId}" — userId may be GUID or UPN
     const parts     = resource.split("/");
-    const userId    = parts[1];   // could be UPN or object ID
+    const rawUserId = parts[1];
     const messageId = parts[3];
-    if (!userId || !messageId) return;
+    if (!rawUserId || !messageId) return;
 
-    const token      = await getToken();
+    const token  = await getToken();
+    // Resolve to email so we can identify the sender and fetch the message
+    const userId = await resolveUserIdToEmail(token, rawUserId);
+
     const msg        = await fetchMessage(token, userId, messageId);
     if (!msg) return;
 
@@ -233,12 +253,16 @@ async function processNotification(notification: any) {
 
 // ── Subscription helpers ──────────────────────────────────────────────────────
 async function listSubscriptions(token: string): Promise<any[]> {
-  const res = await fetch(`${GRAPH_BASE}/subscriptions`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) return [];
-  const d = await res.json();
-  return d.value ?? [];
+  const all: any[] = [];
+  let url: string | null = `${GRAPH_BASE}/subscriptions`;
+  while (url) {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) break;
+    const d = await res.json();
+    all.push(...(d.value ?? []));
+    url = d["@odata.nextLink"] ?? null;
+  }
+  return all;
 }
 
 async function createSubscription(
@@ -361,6 +385,32 @@ serve(async (req) => {
         );
       }
 
+      if (action === "delete-all") {
+        const subs    = await listSubscriptions(token);
+        const results = await Promise.all(subs.map((s) => deleteSubscription(token, s.id)));
+        const deleted = results.filter(Boolean).length;
+        return new Response(
+          JSON.stringify({ ok: true, deleted, total: subs.length }),
+          { headers: { ...CORS, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (action === "purge-captured") {
+        // Delete all activity_notes rows that were auto-captured by graph-mail-capture
+        // (identified by ms_message_id being set)
+        const url = `${Deno.env.get("SUPABASE_URL")}/rest/v1/activity_notes?ms_message_id=not.is.null`;
+        const res = await fetch(url, {
+          method: "DELETE",
+          headers: { ...sbHeaders(), "Prefer": "return=representation" },
+        });
+        const body = res.ok ? await res.json() : await res.text();
+        const count = Array.isArray(body) ? body.length : "unknown";
+        return new Response(
+          JSON.stringify({ ok: res.ok, deleted: count, status: res.status }),
+          { headers: { ...CORS, "Content-Type": "application/json" } }
+        );
+      }
+
       // ── sync-all ────────────────────────────────────────────────────────────
       // Discovers ALL @kta.org.nz mailboxes and ensures each has an active
       // subscription. Tries Azure AD directory first (requires User.Read.All
@@ -416,27 +466,26 @@ serve(async (req) => {
           if (mailbox) subsByMailbox.set(mailbox, sub);
         }
 
-        const created: string[]  = [];
-        const renewed: string[]  = [];
-        const skipped: string[]  = [];
-        const failed:  string[]  = [];
-
-        for (const mailbox of allMailboxes) {
+        // Process all mailboxes in parallel — avoids edge function timeout
+        const results = await Promise.all(allMailboxes.map(async (mailbox) => {
           const existingSub = subsByMailbox.get(mailbox);
-
           if (existingSub) {
             const hoursLeft = (new Date(existingSub.expirationDateTime).getTime() - Date.now()) / 3600000;
             if (hoursLeft < 36) {
               const ok = await renewSubscription(token, existingSub.id);
-              if (ok) renewed.push(mailbox); else failed.push(mailbox);
-            } else {
-              skipped.push(mailbox);
+              return { mailbox, status: ok ? "renewed" : "failed" };
             }
+            return { mailbox, status: "skipped" };
           } else {
             const result = await createSubscription(token, mailbox, notificationUrl);
-            if (result.ok) created.push(mailbox); else failed.push(mailbox + ": " + (result.error ?? ""));
+            return { mailbox, status: result.ok ? "created" : "failed", error: result.error };
           }
-        }
+        }));
+
+        const created = results.filter(r => r.status === "created").map(r => r.mailbox);
+        const renewed = results.filter(r => r.status === "renewed").map(r => r.mailbox);
+        const skipped = results.filter(r => r.status === "skipped").map(r => r.mailbox);
+        const failed  = results.filter(r => r.status === "failed").map(r => r.mailbox + (r.error ? ": " + r.error : ""));
 
         return new Response(
           JSON.stringify({ ok: true, source, mailboxes: allMailboxes.length, created, renewed, skipped, failed }),

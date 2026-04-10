@@ -93,7 +93,6 @@ export const userToRow = (u) => {
     site_safe_number:   u.siteSafeNumber    || null,
     reports_email:      u.reportsEmail      || null,
     company:            u.company           || null,
-    supervisor_ids:     u.supervisorIds     || [],
   };
   // Only include must_change_password if explicitly provided
   if (u.mustChangePassword !== undefined) {
