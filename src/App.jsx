@@ -447,7 +447,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.33";
+const APP_VERSION = "v3.7.34";
 const IS_BETA = import.meta.env.VITE_SUPABASE_URL?.includes("aglayzyiqotsrwnrcnim");
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
@@ -6865,6 +6865,7 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
           });
         }
         const totalHours = normalHrs + overtimeHrs;
+        const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
         return (
           <Card key={app.id} style={{marginBottom:14}}>
             <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
@@ -6874,13 +6875,45 @@ function ApprovalList({allUsers, entries, status, onApprove, onDecline}) {
                 <div style={{fontSize:13,color:T.sub}}>{appEntries.length} {status} entr{appEntries.length===1?"y":"ies"}</div>
               </div>
             </div>
-            <div style={{borderTop:`1px solid ${T.border}`,paddingTop:10, display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
-              <div style={{fontWeight:700, fontSize:16, color:T.accent, padding:'10px 4px 0 4px'}}>
+            {/* Per-entry rows */}
+            <div style={{borderTop:`1px solid ${T.border}`,marginBottom:8}}>
+              {appEntries.map((e,ei)=>{
+                const d = new Date(e.date+"T00:00:00");
+                const dayLabel = DAYS[d.getDay()];
+                const dateLabel = d.toLocaleDateString("en-NZ",{day:"numeric",month:"short",year:"numeric"});
+                const declinedByUser = status==="declined" ? allUsers.find(u=>u.id===e.declinedBy) : null;
+                const declinedAtLabel = e.declinedAt ? new Date(e.declinedAt).toLocaleDateString("en-NZ",{day:"numeric",month:"short",year:"numeric",hour:"numeric",minute:"2-digit"}) : null;
+                return (
+                  <div key={e.id||ei} style={{
+                    display:"flex", alignItems:"center", gap:8, padding:"8px 4px",
+                    borderBottom:ei<appEntries.length-1?`1px solid ${T.border}22`:"none",
+                    fontSize:13}}>
+                    <div style={{width:30,fontWeight:700,color:T.muted,flexShrink:0}}>{dayLabel}</div>
+                    <div style={{flex:1,color:T.ink}}>{dateLabel}</div>
+                    <div style={{color:T.sub,flexShrink:0}}>{e.type==="Normal Hours"?"Normal":e.type==="Overtime"?"OT":e.type||"Normal"}</div>
+                    <div style={{fontWeight:700,color:T.accent,flexShrink:0,minWidth:38,textAlign:"right"}}>{e.netHours}h</div>
+                    {status==="declined" && (
+                      <div style={{fontSize:12,color:T.red,flexShrink:0,textAlign:"right",maxWidth:140}}>
+                        {declinedByUser ? <span>✕ {declinedByUser.name.split(" ")[0]}</span> : <span style={{color:T.muted}}>✕ Unknown</span>}
+                        {declinedAtLabel && <div style={{fontSize:11,color:T.muted}}>{declinedAtLabel}</div>}
+                      </div>
+                    )}
+                    {isPending && (
+                      <div style={{display:"flex",gap:5,flexShrink:0}}>
+                        <button onClick={()=>onApprove&&onApprove(e.id)} style={{padding:"2px 10px",fontSize:12,borderRadius:5,background:T.accentL,color:T.accent,border:`1px solid ${T.accent}44`,cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:600}}>✓</button>
+                        <button onClick={()=>onDecline&&onDecline(e.id)} style={{padding:"2px 10px",fontSize:12,borderRadius:5,background:T.redL,color:T.red,border:`1px solid ${T.red}44`,cursor:"pointer",fontFamily:"DM Sans,sans-serif",fontWeight:600}}>✕</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
+              <div style={{fontWeight:700, fontSize:16, color:T.accent, padding:'6px 4px 0 4px'}}>
                 Total: {totalHours}h
               </div>
-              <div style={{fontWeight:400, fontSize:15, color:T.muted, padding:'2px 4px 10px 4px'}}>
-                Normal Hours: {normalHrs}h<br/>
-                Overtime Hours: {overtimeHrs}h
+              <div style={{fontWeight:400, fontSize:14, color:T.muted, padding:'2px 4px 8px 4px'}}>
+                Normal: {normalHrs}h &nbsp;·&nbsp; Overtime: {overtimeHrs}h
               </div>
             </div>
           </Card>
@@ -7324,6 +7357,11 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
     return T.accent;
   };
 
+  const isAdmin1 = currentUser?.role==="Admin" && Number(currentUser?.adminLevel ?? 1)===1;
+  const colTemplate = isAdmin1
+    ? "36px 1fr 140px 130px 120px 110px 110px 120px 72px"
+    : "36px 1fr 140px 130px 120px 110px 110px 72px";
+
   return (
     <div className="fu">
       {/* Header */}
@@ -7491,11 +7529,12 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
       {/* Table header */}
       <Card style={{padding:0, overflow:"hidden"}}>
         <div style={{display:"grid",
-          gridTemplateColumns:"36px 1fr 140px 130px 120px 110px 110px 72px",
+          gridTemplateColumns:colTemplate,
           padding:"10px 16px", background:T.bg, borderBottom:`1.5px solid ${T.border}`,
           fontSize:12, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:".6px", gap:8}}>
           <span/><ALCol field="name">Name</ALCol><ALCol field="email">Email</ALCol><ALCol field="phone">Phone</ALCol>
           <span>Trade</span><span>Licence Exp.</span><span>Allocations</span>
+          {isAdmin1 && <span>Last Login</span>}
           <span style={{textAlign:"right"}}>Actions</span>
         </div>
 
@@ -7519,7 +7558,7 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
               {/* Main row */}
               <div className="ri" style={{
                 display:"grid",
-                gridTemplateColumns:"36px 1fr 140px 130px 120px 110px 110px 72px",
+                gridTemplateColumns:colTemplate,
                 padding:"12px 16px",
                 borderBottom:(!isExpanded&&i<apprentices.length-1)?`1px solid ${T.border}44`:"none",
                 background:isExpanded?T.blueL:i%2===0?T.surface:T.bg,
@@ -7582,6 +7621,15 @@ function ApprenticeList({allUsers, setUsers, onViewTimesheet, currentUser=null})
                   </div>
                   <div style={{fontSize:11,color:T.blue,marginTop:3}}>{isExpanded?"▲ collapse":"✎ manage"}</div>
                 </button>
+
+                {/* Last Login — Admin L1 only */}
+                {isAdmin1 && (
+                  <div style={{fontSize:12,color:T.muted}}>
+                    {u.lastLogin
+                      ? <span style={{color:T.ink}}>{new Date(u.lastLogin).toLocaleDateString("en-NZ",{day:"numeric",month:"short",year:"2-digit"})}<br/><span style={{color:T.muted}}>{new Date(u.lastLogin).toLocaleTimeString("en-NZ",{hour:"numeric",minute:"2-digit"})}</span></span>
+                      : "—"}
+                  </div>
+                )}
 
                 {/* Actions */}
                 <div style={{display:"flex", gap:5, justifyContent:"flex-end"}}>
@@ -18086,6 +18134,10 @@ export default function App() {
       // Fresh login — set default module and clear any saved page
       const defaultMod = u?.role==="Admin"?"dashboard":u?.role==="Mentor"?"mentor":u?.role==="Apprentice"?"home":"timesheet";
       navigateTo(defaultMod);
+      // Record login timestamp (fire-and-forget)
+      const now = new Date().toISOString();
+      updateRow('users', {id: userId, last_login: now}).catch(()=>{});
+      setUsers(prev => prev.map(x => x.id === userId ? {...x, lastLogin: now} : x));
     }
     // On restore, module is already set from localStorage — don't overwrite
     setSessionId(userId);

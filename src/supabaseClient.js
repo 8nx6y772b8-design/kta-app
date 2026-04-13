@@ -51,6 +51,7 @@ export const rowToUser = (r) => ({
   supervisorIds:     r.supervisor_ids    || [],
   isConfOwner:       r.is_conf_owner     || false,
   mustChangePassword: r.must_change_password || false,
+  lastLogin:         r.last_login         || null,
 });
 
 export const userToRow = (u) => {
