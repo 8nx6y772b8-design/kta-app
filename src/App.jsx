@@ -1,5 +1,15 @@
-// KTA Workforce Management — v3.7.20
+// KTA Workforce Management — v3.7.37
 // Changelog:
+//   v3.7.37 — Xero: removed Authorization header from all xero-proxy fetch calls
+//              — CORS preflight was failing because Supabase blocked the header
+//              — JWT verification is off on xero-proxy so the header is not needed
+//   v3.7.36 — Xero: added "Clear All Errors" button to Pending Xero Submission tab
+//              Resets xero_status and xero_error on all errored entries so they
+//              can be retried after fixing the underlying issue (e.g. deploying
+//              the updated xero-proxy with leave application support)
+//   v3.7.35 — Version sync: aligned header comment with APP_VERSION constant
+//              (versions v3.7.21–v3.7.34 incremented the display version without
+//              updating the changelog header — both now read v3.7.35)
 //   v3.7.20 — Continued bug fixes from deep-dive audit
 //             Fixed: handleApprove/handleDecline null guard — entries.find() can
 //               return undefined on race condition; spread now protected
@@ -447,7 +457,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.35";
+const APP_VERSION = "v3.7.37";
 const IS_BETA = import.meta.env.VITE_SUPABASE_URL?.includes("aglayzyiqotsrwnrcnim");
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
@@ -14155,10 +14165,7 @@ const submitEntryToXero = async (entry, apprentice, allEntries=[]) => {
     try {
       const res = await fetch(edgeFunctionUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
@@ -14309,7 +14316,7 @@ function XeroModule({allUsers, entries, currentUser, onUpdateEntries, showToast,
                 }
                 try{
                   const res  = await fetch(settings.edgeFunctionUrl,{
-                    method:"POST", headers:{"Content-Type":"application/json","Authorization":`Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`},
+                    method:"POST", headers:{"Content-Type":"application/json"},
                     body: JSON.stringify({action:"getEarningsRates",tenantId:settings.tenantId}),
                   });
                   const text = await res.text();
@@ -14528,7 +14535,7 @@ serve(async (req) => {
               }
               try{
                 const res  = await fetch(settings.edgeFunctionUrl,{
-                  method:"POST", headers:{"Content-Type":"application/json","Authorization":`Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`},
+                  method:"POST", headers:{"Content-Type":"application/json"},
                   body: JSON.stringify({action:"getEmployees",tenantId:settings.tenantId}),
                 });
                 const text = await res.text();
@@ -14912,6 +14919,22 @@ serve(async (req) => {
                       : <><span style={{fontSize:16}}>𝕏</span> Submit All</>
                     }
                   </button>
+                  {pendingXero.some(e=>e.xeroStatus==="error")&&(
+                    <button
+                      onClick={async()=>{
+                        const errorEntries = pendingXero.filter(e=>e.xeroStatus==="error");
+                        for(const e of errorEntries){
+                          await updateRow("entries", e.id, { xero_status:null, xero_error:null }).catch(console.error);
+                          onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:null,xeroError:null}:x));
+                        }
+                      }}
+                      style={{fontSize:13,fontWeight:700,padding:"8px 14px",borderRadius:8,
+                        background:T.redL,color:T.red,border:`1.5px solid ${T.red}44`,
+                        cursor:"pointer",fontFamily:"DM Sans,sans-serif",
+                        display:"flex",alignItems:"center",gap:6}}>
+                      ✕ Clear All Errors
+                    </button>
+                  )}
                 </div>
                 <Card style={{padding:0,overflow:"hidden"}}>
                   <div style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 90px 80px 90px",
