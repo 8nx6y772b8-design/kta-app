@@ -447,7 +447,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.34";
+const APP_VERSION = "v3.7.35";
 const IS_BETA = import.meta.env.VITE_SUPABASE_URL?.includes("aglayzyiqotsrwnrcnim");
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
@@ -14881,99 +14881,22 @@ serve(async (req) => {
                       });
                       const sleep = ms => new Promise(r=>setTimeout(r,ms));
 
-                      // Group entries by employee (xeroEmployeeId)
-                      const byEmployee = {};
+                      // Submit each entry individually using the same single-entry path as the per-row Submit button
                       for(const e of submittable) {
                         const app = allUsers.find(u=>u.id===e.userId);
-                        if(!app?.xeroEmployeeId) continue;
-                        const key = app.xeroEmployeeId;
-                        if(!byEmployee[key]) byEmployee[key] = { app, entries: [] };
-                        byEmployee[key].entries.push(e);
-                      }
-
-                      // Load Xero settings once
-                      let xeroSettings = {};
-                      try {
-                        const {data} = await sb.from("app_settings").select("value").eq("key","xero_settings").single();
-                        if(data?.value) xeroSettings = JSON.parse(data.value);
-                      } catch {}
-                      const { edgeFunctionUrl, tenantId, earningsRates={} } = xeroSettings;
-
-                      // Submit one employee at a time (batch all their entries)
-                      for(const [empId, group] of Object.entries(byEmployee)) {
-                        const { app, entries: empEntries } = group;
-                        // Mark all this employee's entries as submitting
-                        const empEntryIds = empEntries.map(e=>e.id);
-                        onUpdateEntries(prev=>prev.map(x=>empEntryIds.includes(x.id)?{...x,xeroStatus:"submitting"}:x));
-
-                        // Build batch entries payload
-                        const batchEntries = [];
-                        for(const e of empEntries) {
-                          if(e.type === "Public Holiday") {
-                            // Skip — mark as skipped immediately
-                            await updateRow("entries", e.id, { xero_status:"skipped" }).catch(console.error);
-                            onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"skipped"}:x));
-                            continue;
-                          }
-                          const mappedValue = earningsRates[e.type];
-                          if(!mappedValue) continue;
-                          const isLeaveMapping = mappedValue.startsWith("leave:");
-                          const mappedId = mappedValue.startsWith("rate:") || mappedValue.startsWith("leave:")
-                            ? mappedValue.split(":")[1] : mappedValue;
-                          const splits = calcOvertimeSplit(e, app, entries);
-                          const lines = splits.map(s => ({
-                            earningsRateId: s.isOvertime ? app.overtimeRateId : (isLeaveMapping ? null : mappedId),
-                            leaveTypeId: (!s.isOvertime && isLeaveMapping) ? mappedId : null,
-                            hours: s.hours,
-                            isOvertime: s.isOvertime,
-                          }));
-                          const totalHours = lines.reduce((s,l)=>s+l.hours,0);
-                          batchEntries.push({
-                            date: e.date,
-                            entryId: e.id,
-                            lines,
-                            toolAllowanceId: xeroSettings.toolAllowanceReimbursementId || null,
-                            toolAllowanceHours: xeroSettings.toolAllowanceReimbursementId ? totalHours : 0,
-                          });
+                        if(!app) continue;
+                        onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"submitting"}:x));
+                        const res = await submitEntryToXero(e, app, entries);
+                        if(res.ok){
+                          const status = res.skipped ? "skipped" : "submitted";
+                          await updateRow("entries", e.id, { xero_status: status, xero_timesheet_id: res.timesheetId||null }).catch(console.error);
+                          onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:status,xeroTimesheetId:res.timesheetId}:x));
+                        } else {
+                          await updateRow("entries", e.id, { xero_status:"error", xero_error: res.error||null }).catch(console.error);
+                          onUpdateEntries(prev=>prev.map(x=>x.id===e.id?{...x,xeroStatus:"error",xeroError:res.error}:x));
                         }
-
-                        if(batchEntries.length === 0) continue;
-
-                        // Send batch request — retry on 5xx
-                        let res = { ok:false, error:"" };
-                        for(let attempt=1; attempt<=3; attempt++) {
-                          try {
-                            const r = await fetch(edgeFunctionUrl, {
-                              method:"POST",
-                              headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
-                              body: JSON.stringify({
-                                action: "upsertTimesheet",
-                                tenantId,
-                                employeeId: empId,
-                                entries: batchEntries,
-                              }),
-                            });
-                            const data = await r.json();
-                            if(r.ok) { res = { ok:true, timesheetId:data.timesheetId }; break; }
-                            res = { ok:false, error: data.error || `HTTP ${r.status}`, status: r.status };
-                            if(r.status >= 400 && r.status < 500 && r.status !== 429) break; // don't retry 4xx
-                          } catch(err) { res = { ok:false, error:err.message, status:0 }; }
-                          if(attempt<3) await sleep(5000*attempt);
-                        }
-
-                        // Update all entries for this employee
-                        for(const be of batchEntries) {
-                          if(res.ok) {
-                            await updateRow("entries", be.entryId, { xero_status:"submitted", xero_timesheet_id:res.timesheetId||null }).catch(console.error);
-                            onUpdateEntries(prev=>prev.map(x=>x.id===be.entryId?{...x,xeroStatus:"submitted",xeroTimesheetId:res.timesheetId}:x));
-                          } else {
-                            await updateRow("entries", be.entryId, { xero_status:"error", xero_error: res.error||null }).catch(console.error);
-                            onUpdateEntries(prev=>prev.map(x=>x.id===be.entryId?{...x,xeroStatus:"error",xeroError:res.error}:x));
-                          }
-                        }
-
-                        // Pause between employees to respect Xero rate limits
-                        await sleep(4000);
+                        // Pause between entries to respect Xero rate limits
+                        await sleep(2000);
                       }
                       setSubmittingAll(false);
                     }}
