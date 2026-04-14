@@ -472,7 +472,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.45";
+const APP_VERSION = "v3.7.46";
 const IS_BETA = import.meta.env.VITE_SUPABASE_URL?.includes("aglayzyiqotsrwnrcnim");
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
@@ -12770,7 +12770,7 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               value={apprentice.id}
               onChange={e=>{
                 const next = allUsers.find(u=>u.id===e.target.value);
-                if(next) setApprentice(next);
+                if(next){ setApprentice(next); onSwitch?.(next); }
               }}
               style={{fontSize:13,fontWeight:700,padding:"6px 12px",borderRadius:8,
                 border:`1.5px solid ${T.border}`,background:T.surface,color:T.ink,
@@ -12787,14 +12787,14 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
                 <div style={{display:"flex",gap:4}}>
                   <button
                     disabled={!prev}
-                    onClick={()=>prev&&setApprentice(prev)}
+                    onClick={()=>{if(prev){setApprentice(prev);onSwitch?.(prev);}}}
                     style={{width:30,height:30,borderRadius:7,border:`1.5px solid ${T.border}`,
                       background:prev?T.surface:"#f0f0f0",color:prev?T.ink:T.muted,
                       cursor:prev?"pointer":"not-allowed",fontSize:14,fontFamily:"DM Sans,sans-serif",
                       display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
                   <button
                     disabled={!next}
-                    onClick={()=>next&&setApprentice(next)}
+                    onClick={()=>{if(next){setApprentice(next);onSwitch?.(next);}}}
                     style={{width:30,height:30,borderRadius:7,border:`1.5px solid ${T.border}`,
                       background:next?T.surface:"#f0f0f0",color:next?T.ink:T.muted,
                       cursor:next?"pointer":"not-allowed",fontSize:14,fontFamily:"DM Sans,sans-serif",
@@ -13767,6 +13767,7 @@ function MentorDashboard({currentUser, allUsers}) {
         isAdmin={false}
         canEditExpiry={true}
         onBack={()=>selectMentorApp(null)}
+        onSwitch={(u)=>selectMentorApp(u)}
       />
     );
   }
@@ -18651,6 +18652,7 @@ export default function App() {
               isAdmin={true}
               canEditExpiry={true}
               onBack={()=>setViewingAppId(null)}
+              onSwitch={(u)=>setViewingAppId(u.id)}
               onUserUpdated={(u)=>updateUsers(prev=>prev.map(x=>x.id===u.id?u:x))}
             />
           )}
