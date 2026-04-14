@@ -124,6 +124,7 @@ export const rowToEntry = (r) => ({
   approvedAt:      r.approved_at      || null,  // when approved
   declinedBy:      r.declined_by      || null,  // user ID who declined
   declinedAt:      r.declined_at      || null,  // when declined
+  declinedNote:    r.declined_note    || null,  // approver's reason for declining
   xeroStatus:      r.xero_status      || null,
   xeroTimesheetId: r.xero_timesheet_id|| null,
   xeroError:       r.xero_error       || null,
@@ -145,6 +146,7 @@ export const entryToRow = (e) => ({
   approved_at:       e.approvedAt      || null,
   declined_by:       e.declinedBy      || null,
   declined_at:       e.declinedAt      || null,
+  declined_note:     e.declinedNote    || null,
   xero_status:       e.xeroStatus      || null,
   xero_timesheet_id: e.xeroTimesheetId || null,
   xero_error:        e.xeroError       || null,

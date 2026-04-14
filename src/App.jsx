@@ -1,5 +1,20 @@
-// KTA Workforce Management — v3.7.37
+// KTA Workforce Management — v3.7.44
 // Changelog:
+//   v3.7.44 — Timesheet Summary: overtime split now applied to week breakdown
+//              — Normal Hours entries split into Normal + Overtime using
+//              — apprentice's daily/weekly overtime settings. Each entry row
+//              — shows e.g. "8h / 1h OT" when overtime applies
+//   v3.7.43 — Timesheet Summary: week header now breaks down hours by type
+//              — e.g. Normal Hours 39h ✓ · Public Holiday 8h ✓
+//   v3.7.42 — Apprentice detail view: dropdown + prev/next arrows to switch
+//              — between apprentices without returning to dashboard
+//   v3.7.41 — Timesheet Summary: entries now grouped by NZ week (Mon–Sun)
+//              — each week shows total hours and approved hours
+//   v3.7.40 — Xero: Clear All Errors button moved outside Submit All div
+//              — no longer triggers automatic submission
+//   v3.7.39 — Xero: Load from Xero now returns earnings rates + leave types + reimbursements
+//   v3.7.38 — Xero: Clear All Errors button no longer triggers Submit All
+//              — added stopPropagation + confirm dialog before clearing
 //   v3.7.37 — Xero: removed Authorization header from all xero-proxy fetch calls
 //              — CORS preflight was failing because Supabase blocked the header
 //              — JWT verification is off on xero-proxy so the header is not needed
@@ -457,7 +472,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.37";
+const APP_VERSION = "v3.7.45";
 const IS_BETA = import.meta.env.VITE_SUPABASE_URL?.includes("aglayzyiqotsrwnrcnim");
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
@@ -12715,16 +12730,81 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
   const isSupervisor = (apprentice.supervisorIds||[]).includes(viewer?.id||"");
   const ratingColor = (r) => r==="Excellent"?T.teal:r==="Good"?T.accent:r==="Satisfactory"?T.gold:r==="Needs Improvement"?T.warn:r==="Concerning"?T.red:T.muted;
 
+  // Apprentice switcher — list of apprentices this viewer can see
+  const switchableApprentices = allUsers
+    .filter(u => u.role === "Apprentice" && (
+      isAdmin ||
+      (viewer?.role === "Approver" && (
+        (viewer.allocatedTo||[]).includes(u.id) ||
+        u.approverUserId === viewer?.id
+      )) ||
+      (viewer?.role === "Mentor" && (
+        (viewer.allocatedTo||[]).includes(u.id) ||
+        u.mentorUserId === viewer?.id
+      )) ||
+      (viewer?.role === "Viewer" && (
+        (viewer.allocatedTo||[]).includes(u.id) ||
+        u.viewerUserId === viewer?.id
+      )) ||
+      (viewer?.role === "Supervisor" && (
+        (u.supervisorIds||[]).includes(viewer?.id)
+      ))
+    ))
+    .sort((a,b) => a.name.localeCompare(b.name));
+
   return (
     <div className="fu">
-      <button onClick={onBack} style={{
-        display:"inline-flex",alignItems:"center",gap:6,background:"none",border:"none",
-        color:T.sub,fontSize:14,fontFamily:"DM Sans,sans-serif",cursor:"pointer",
-        marginBottom:16,padding:0,fontWeight:700}}
-        onMouseEnter={e=>e.currentTarget.style.color=T.ink}
-        onMouseLeave={e=>e.currentTarget.style.color=T.sub}>
-        ← {isAdmin?"Back to Dashboard":"Back to My Apprentices"}
-      </button>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+        <button onClick={onBack} style={{
+          display:"inline-flex",alignItems:"center",gap:6,background:"none",border:"none",
+          color:T.sub,fontSize:14,fontFamily:"DM Sans,sans-serif",cursor:"pointer",
+          padding:0,fontWeight:700}}
+          onMouseEnter={e=>e.currentTarget.style.color=T.ink}
+          onMouseLeave={e=>e.currentTarget.style.color=T.sub}>
+          ← {isAdmin?"Back to Dashboard":"Back to My Apprentices"}
+        </button>
+        {switchableApprentices.length > 1 && (
+          <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
+            <span style={{fontSize:13,color:T.muted,fontWeight:700}}>Switch to:</span>
+            <select
+              value={apprentice.id}
+              onChange={e=>{
+                const next = allUsers.find(u=>u.id===e.target.value);
+                if(next) setApprentice(next);
+              }}
+              style={{fontSize:13,fontWeight:700,padding:"6px 12px",borderRadius:8,
+                border:`1.5px solid ${T.border}`,background:T.surface,color:T.ink,
+                fontFamily:"DM Sans,sans-serif",cursor:"pointer",minWidth:180}}>
+              {switchableApprentices.map(u=>(
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+            {switchableApprentices.length > 1 && (()=>{
+              const idx = switchableApprentices.findIndex(u=>u.id===apprentice.id);
+              const prev = switchableApprentices[idx-1];
+              const next = switchableApprentices[idx+1];
+              return (
+                <div style={{display:"flex",gap:4}}>
+                  <button
+                    disabled={!prev}
+                    onClick={()=>prev&&setApprentice(prev)}
+                    style={{width:30,height:30,borderRadius:7,border:`1.5px solid ${T.border}`,
+                      background:prev?T.surface:"#f0f0f0",color:prev?T.ink:T.muted,
+                      cursor:prev?"pointer":"not-allowed",fontSize:14,fontFamily:"DM Sans,sans-serif",
+                      display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
+                  <button
+                    disabled={!next}
+                    onClick={()=>next&&setApprentice(next)}
+                    style={{width:30,height:30,borderRadius:7,border:`1.5px solid ${T.border}`,
+                      background:next?T.surface:"#f0f0f0",color:next?T.ink:T.muted,
+                      cursor:next?"pointer":"not-allowed",fontSize:14,fontFamily:"DM Sans,sans-serif",
+                      display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+      </div>
 
       {/* ── Card 1: Apprentice Summary ── */}
       <Card style={{marginBottom:16,border:`2px solid ${T.dark}33`}}>
@@ -13334,36 +13414,127 @@ function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entr
               </div>
             ))}
           </div>
-          {/* Recent entries list */}
-          {appEntries.length>0&&(
-            <div style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
-              <div style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 70px 90px",
-                padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
-                fontSize:12,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
-                <span>Date</span><span>Type / Note</span><span style={{textAlign:"center"}}>Hours</span><span>Status</span><span>Start–End</span>
-              </div>
-              {appEntries.slice(0,20).map((e,i)=>{
-                const am = APPROVAL_META[e.approval]||APPROVAL_META.draft;
-                const tm = TYPE_META[e.type]||TYPE_META["Normal Hours"];
-                return (
-                  <div key={e.id} style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 70px 90px",
-                    padding:"9px 14px",gap:8,alignItems:"center",fontSize:14,
-                    borderBottom:i<Math.min(appEntries.length,20)-1?`1px solid ${T.border}44`:"none",
-                    background:i%2===0?T.surface:T.bg}}>
-                    <div style={{fontWeight:700,fontSize:13}}>{fmtD(e.date)}</div>
-                    <div>
-                      <Pill label={e.type} size="sm" color={tm.color} bg={tm.bg}/>
-                      {e.note&&<div style={{fontSize:12,color:T.muted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.note}</div>}
+          {/* Entries grouped by week — NZ weeks run Mon–Sun */}
+          {appEntries.length>0&&(()=>{
+            // Group entries by NZ week starting Monday
+            // NZ week: Mon=start, Sun=end
+            const getWeekKey = (dateStr) => {
+              const [y,m,d] = dateStr.split("-").map(Number);
+              const dt = new Date(y, m-1, d);
+              const day = dt.getDay(); // 0=Sun,1=Mon...6=Sat
+              // Days since Monday: Mon=0,Tue=1,...,Sun=6
+              const sinceMonday = (day + 6) % 7;
+              const mon = new Date(dt); mon.setDate(dt.getDate() - sinceMonday);
+              const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+              const fmt = d => `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
+              return { key: localISO(mon), label: `${fmt(mon)} – ${fmt(sun)}`, monISO: localISO(mon) };
+            };
+            const sorted = [...appEntries].sort((a,b)=>b.date.localeCompare(a.date));
+            const weeks = [];
+            const seen = {};
+            for(const e of sorted){
+              const {key, label} = getWeekKey(e.date);
+              if(!seen[key]){ seen[key]=true; weeks.push({key,label,entries:[]}); }
+              weeks.find(w=>w.key===key).entries.push(e);
+            }
+            return (
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {weeks.map(week=>{
+                  // Break down hours by type — applying overtime split for Normal Hours
+                  // so overtime is shown separately if the apprentice has overtime configured
+                  const weekHours = week.entries.reduce((s,e)=>s+e.netHours,0);
+                  const typeGroups = {};
+                  const addHours = (type, hours, isApproved) => {
+                    if(!typeGroups[type]) typeGroups[type] = {total:0, approved:0};
+                    typeGroups[type].total = Math.round((typeGroups[type].total + hours) * 100) / 100;
+                    if(isApproved) typeGroups[type].approved = Math.round((typeGroups[type].approved + hours) * 100) / 100;
+                  };
+                  for(const e of week.entries){
+                    if(e.type === "Normal Hours" && apprentice.overtimeType && apprentice.overtimeThreshold) {
+                      // Apply overtime split using same logic as Xero submission
+                      const splits = calcOvertimeSplit(e, apprentice, appEntries, true);
+                      for(const s of splits){
+                        const label = s.isOvertime ? "Overtime" : "Normal Hours";
+                        addHours(label, s.hours, e.approval==="approved");
+                      }
+                    } else {
+                      addHours(e.type, e.netHours, e.approval==="approved");
+                    }
+                  }
+                  // Colour map for type pills in header
+                  const typeHeaderColor = (t) => {
+                    const m = TYPE_META[t]||TYPE_META["Normal Hours"];
+                    return {color:m.color, bg:m.bg};
+                  };
+                  return (
+                    <div key={week.key} style={{border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden"}}>
+                      {/* Week header */}
+                      <div style={{padding:"10px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+                          <div style={{fontWeight:700,fontSize:13,color:T.ink}}>📅 Week {week.label}</div>
+                          <div style={{fontSize:12,color:T.muted,fontWeight:700}}>{weekHours}h total</div>
+                        </div>
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                          {Object.entries(typeGroups).map(([type,{total,approved}])=>{
+                            const {color,bg} = typeHeaderColor(type);
+                            return (
+                              <div key={type} style={{display:"inline-flex",alignItems:"center",gap:5,
+                                background:bg,borderRadius:6,padding:"3px 9px",fontSize:12}}>
+                                <span style={{fontWeight:700,color}}>{type}</span>
+                                <span style={{color,opacity:0.85}}>{total}h</span>
+                                {approved<total&&<span style={{color:T.muted,fontSize:11}}>({approved}h ✓)</span>}
+                                {approved===total&&total>0&&<span style={{color:T.teal,fontSize:11}}>✓</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      {/* Column headers */}
+                      <div style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 70px 90px",
+                        padding:"6px 14px",background:"#f8fafc",borderBottom:`1px solid ${T.border}44`,
+                        fontSize:11,fontWeight:700,color:T.muted,textTransform:"uppercase",letterSpacing:".5px",gap:8}}>
+                        <span>Date</span><span>Type / Note</span><span style={{textAlign:"center"}}>Hours</span><span>Status</span><span>Start–End</span>
+                      </div>
+                      {week.entries.map((e,i)=>{
+                        const am = APPROVAL_META[e.approval]||APPROVAL_META.draft;
+                        const tm = TYPE_META[e.type]||TYPE_META["Normal Hours"];
+                        // Calculate overtime split for this entry if applicable
+                        const otSplits = (e.type==="Normal Hours" && apprentice.overtimeType && apprentice.overtimeThreshold)
+                          ? calcOvertimeSplit(e, apprentice, appEntries, true)
+                          : null;
+                        const normalH   = otSplits ? otSplits.find(s=>!s.isOvertime)?.hours||0 : null;
+                        const overtimeH = otSplits ? otSplits.find(s=>s.isOvertime)?.hours||0  : null;
+                        return (
+                          <div key={e.id} style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 70px 90px",
+                            padding:"9px 14px",gap:8,alignItems:"center",fontSize:14,
+                            borderBottom:i<week.entries.length-1?`1px solid ${T.border}33`:"none",
+                            background:i%2===0?T.surface:T.bg}}>
+                            <div style={{fontWeight:700,fontSize:13}}>{fmtD(e.date)}</div>
+                            <div>
+                              <Pill label={e.type} size="sm" color={tm.color} bg={tm.bg}/>
+                              {e.note&&<div style={{fontSize:12,color:T.muted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.note}</div>}
+                            </div>
+                            <div style={{textAlign:"center"}}>
+                              {otSplits && overtimeH>0 ? (
+                                <div style={{display:"flex",flexDirection:"column",gap:1,alignItems:"center"}}>
+                                  {normalH>0&&<span style={{fontWeight:700,color:T.accent,fontSize:13}}>{normalH}h</span>}
+                                  <span style={{fontWeight:700,color:T.warn,fontSize:13}}>{overtimeH}h OT</span>
+                                </div>
+                              ) : (
+                                <span style={{fontWeight:700,color:T.accent}}>{e.netHours}h</span>
+                              )}
+                            </div>
+                            <Pill label={am.label} size="sm" color={am.color} bg={am.bg}/>
+                            <div style={{fontSize:12,color:T.sub}}>{e.start}–{e.end}</div>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <div style={{textAlign:"center",fontWeight:700,color:T.accent}}>{e.netHours}h</div>
-                    <Pill label={am.label} size="sm" color={am.color} bg={am.bg}/>
-                    <div style={{fontSize:12,color:T.sub}}>{e.start}–{e.end}</div>
-                  </div>
-                );
-              })}
-              {appEntries.length>20&&<div style={{padding:"8px 14px",fontSize:13,color:T.muted,textAlign:"center"}}>Showing 20 of {appEntries.length} entries</div>}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            );
+          })()}
               {appEntries.length===0&&<div style={{padding:"20px 0",textAlign:"center",color:T.muted,fontSize:14,fontStyle:"italic"}}>No timesheet entries yet</div>}
             </Card>
           )}
@@ -14919,9 +15090,14 @@ serve(async (req) => {
                       : <><span style={{fontSize:16}}>𝕏</span> Submit All</>
                     }
                   </button>
-                  {pendingXero.some(e=>e.xeroStatus==="error")&&(
+                </div>
+                {pendingXero.some(e=>e.xeroStatus==="error")&&(
+                  <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
                     <button
-                      onClick={async()=>{
+                      onClick={async(ev)=>{
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        if(!window.confirm("Reset all errored entries to Pending so they can be resubmitted?")) return;
                         const errorEntries = pendingXero.filter(e=>e.xeroStatus==="error");
                         for(const e of errorEntries){
                           await updateRow("entries", e.id, { xero_status:null, xero_error:null }).catch(console.error);
@@ -14934,8 +15110,8 @@ serve(async (req) => {
                         display:"flex",alignItems:"center",gap:6}}>
                       ✕ Clear All Errors
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
                 <Card style={{padding:0,overflow:"hidden"}}>
                   <div style={{display:"grid",gridTemplateColumns:"110px 1fr 80px 90px 80px 90px",
                     padding:"8px 14px",background:T.bg,borderBottom:`1px solid ${T.border}`,
