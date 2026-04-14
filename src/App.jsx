@@ -472,7 +472,7 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.47";
+const APP_VERSION = "v3.7.48";
 const IS_BETA = import.meta.env.VITE_SUPABASE_URL?.includes("aglayzyiqotsrwnrcnim");
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
@@ -12599,7 +12599,7 @@ function PPEAllocation({apprentice, mentor, canEdit=false}) {
 }
 
 // ── Apprentice Detail Page (used by both Mentor and Admin) ────────────────────
-function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entries, setEntries, onBack, isAdmin=false, canEditExpiry=false, onUserUpdated=null}) {
+function ApprenticeDetailView({apprentice:apprenticeProp, viewer, allUsers, entries, setEntries, onBack, onSwitch=null, isAdmin=false, canEditExpiry=false, onUserUpdated=null}) {
   const [apprentice, setApprentice] = useState(apprenticeProp);
   const [showMeetingForm, setShowMeetingForm] = useState(false);
   const [showPastReports, setShowPastReports] = useState(false);
