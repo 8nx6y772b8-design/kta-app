@@ -227,6 +227,15 @@ export const upsertUser = async (user) => {
   if (error) throw error;
 };
 
+// Targeted password change — only updates password + must_change_password.
+// Avoids full-row upsert issues (RLS, missing fields, silent failures).
+export const savePasswordChange = async (userId, hashedPassword) => {
+  const { error } = await sb.from('users')
+    .update({ password: hashedPassword, must_change_password: false })
+    .eq('id', userId);
+  if (error) throw error;
+};
+
 // Update a user's profile fields WITHOUT touching the password column.
 // Use this for all profile saves where no password change is intended.
 // Avoids the NOT NULL constraint on password when upsert sends null.
