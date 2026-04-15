@@ -472,8 +472,35 @@ const EMAIL_PROXY       = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1
 const LEAVE_ACTION_URL  = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/leave-action";
 const CALENDAR_PROXY    = "https://sprlcvxlcjwhfzspkrww.supabase.co/functions/v1/calendar-proxy";
 
-const APP_VERSION = "v3.7.48";
+const APP_VERSION = "v3.7.49";
 const IS_BETA = import.meta.env.VITE_SUPABASE_URL?.includes("aglayzyiqotsrwnrcnim");
+
+// ── Error Boundary — catches render errors and shows a recoverable error screen ──
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error("ErrorBoundary caught:", error, info); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{padding:40,maxWidth:600,margin:"40px auto",fontFamily:"DM Sans,sans-serif"}}>
+          <div style={{background:"#fff2f2",border:"2px solid #e53e3e",borderRadius:12,padding:28}}>
+            <div style={{fontSize:20,fontWeight:700,color:"#e53e3e",marginBottom:8}}>Something went wrong</div>
+            <pre style={{fontSize:12,color:"#7a0000",background:"#fff",padding:12,borderRadius:8,overflowX:"auto",whiteSpace:"pre-wrap",wordBreak:"break-all"}}>
+              {this.state.error.message}{"\n\n"}{this.state.error.stack}
+            </pre>
+            <button onClick={()=>this.setState({error:null})}
+              style={{marginTop:16,padding:"9px 20px",background:"#e53e3e",color:"#fff",border:"none",
+                borderRadius:8,fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"DM Sans,sans-serif"}}>
+              ↺ Try Again
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // ── Auto-fill timesheet entries for approved leave ───────────────────────────
 // Maps leave request types to timesheet entry types
@@ -2687,7 +2714,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
   const canEdit=(entry)=>{
     if(isXeroLocked(entry)) return false;
     if(role==="Admin") return true;
-    if(role==="Apprentice"&&entry.userId===currentUser.id&&entry.approval==="draft"&&entry.date>=daysAgoStr(21)) return true;
+    if(role==="Apprentice"&&entry.userId===currentUser.id&&(entry.approval==="draft"||entry.approval==="declined")&&entry.date>=daysAgoStr(21)) return true;
     return false;
   };
   const canDelete=(entry)=>{
@@ -2742,7 +2769,8 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
     const targetUserId = forcedApprenticeId || currentUser.id;
     const approvalStatus = approvalOverride || data.approval || "draft";
     if(editEntry){
-      const updated = {...editEntry,...data, approval: approvalOverride || editEntry.approval};
+      const resetApproval = (role==="Apprentice" && editEntry.approval==="declined") ? "draft" : (approvalOverride || editEntry.approval);
+      const updated = {...editEntry,...data, approval: resetApproval, declinedNote: resetApproval==="draft" ? null : editEntry.declinedNote};
       setEntries(prev=>prev.map(e=>e.id===editEntry.id?updated:e));
       upsertEntry(updated).catch(err=>alert('Save failed: '+err.message));
     } else {
@@ -18740,7 +18768,7 @@ export default function App() {
               {(role==="Approver"||role==="Viewer"||role==="Supervisor") && (
                 <LeaveRequestsPanel currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
               )}
-              <TimesheetModule currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/>
+              <ErrorBoundary><TimesheetModule currentUser={currentUser} allUsers={users} entries={entries} setEntries={updateEntries}/></ErrorBoundary>
               {["Approver","Viewer"].includes(role) && (
                 <ContactUs
                   currentUser={currentUser}
