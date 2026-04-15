@@ -18289,7 +18289,7 @@ export default function App() {
       navigateTo(defaultMod);
       // Record login timestamp (fire-and-forget)
       const now = new Date().toISOString();
-      updateRow('users', {id: userId, last_login: now}).catch(()=>{});
+      updateRow('users', userId, {last_login: now}).catch(()=>{});
       setUsers(prev => prev.map(x => x.id === userId ? {...x, lastLogin: now} : x));
     }
     // On restore, module is already set from localStorage — don't overwrite
