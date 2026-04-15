@@ -463,7 +463,7 @@
 //   v2.7.4 — Xero: Load from Xero now fetches Reimbursements (Tool Allowance)
 //             Tool Allowance field shows dropdown when reimbursements loaded
 //             reimbursements optgroup added to earnings rate mapping selects
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { loadUsers, loadEntries, loadTable, upsertUser, updateUserProfile, upsertEntry, deleteEntry, deleteUser as sbDeleteUser, upsertRow, updateRow, deleteRow, deleteAllRows, loadNotifications, insertNotification, markNotifRead, markAllNotifsRead, deleteNotif, licenceReminderExists, insertMessage, loadMessages, deleteMessage, loadUserPassword, sb } from "./supabaseClient";
 // Email via Microsoft Graph (payroll@kta.org.nz)
@@ -476,7 +476,7 @@ const APP_VERSION = "v3.7.49";
 const IS_BETA = import.meta.env.VITE_SUPABASE_URL?.includes("aglayzyiqotsrwnrcnim");
 
 // ── Error Boundary — catches render errors and shows a recoverable error screen ──
-class ErrorBoundary extends React.Component {
+class ErrorBoundary extends React.Component { // eslint-disable-line no-unused-vars
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(error) { return { error }; }
   componentDidCatch(error, info) { console.error("ErrorBoundary caught:", error, info); }
@@ -2258,6 +2258,8 @@ function EntryRow({entry,canEdit,canDelete,canApprove,canSubmitXero,onDelete,onA
 const fmtD2 = (iso) => { const [y,m,d]=(iso||"").split("-"); return `${d}/${m}/${y}`; };
 const tsStatusColor = (s) => s==="approved"?T.teal:s==="submitted"?T.warn:s==="declined"?T.red:T.muted;
 const tsStatusLabel = (s) => s==="approved"?"✓ Approved":s==="submitted"?"⏳ Pending":s==="declined"?"✕ Declined":"Draft";
+const sColor = tsStatusColor;
+const sLabel = tsStatusLabel;
 function WeekCard2({title, weekEntries, accent, canEdit, canDelete, handleEdit, handleDelete}) {
   const sColor = tsStatusColor;
   const sLabel = tsStatusLabel;
