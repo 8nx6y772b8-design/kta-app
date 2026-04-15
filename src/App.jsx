@@ -2771,7 +2771,7 @@ function TimesheetModule({currentUser,allUsers,entries,setEntries,forcedApprenti
     const targetUserId = forcedApprenticeId || currentUser.id;
     const approvalStatus = approvalOverride || data.approval || "draft";
     if(editEntry){
-      const resetApproval = (role==="Apprentice" && editEntry.approval==="declined") ? "draft" : (approvalOverride || editEntry.approval);
+      const resetApproval = (editEntry.approval==="declined") ? "draft" : (approvalOverride || editEntry.approval);
       const updated = {...editEntry,...data, approval: resetApproval, declinedNote: resetApproval==="draft" ? null : editEntry.declinedNote};
       setEntries(prev=>prev.map(e=>e.id===editEntry.id?updated:e));
       upsertEntry(updated).catch(err=>alert('Save failed: '+err.message));
